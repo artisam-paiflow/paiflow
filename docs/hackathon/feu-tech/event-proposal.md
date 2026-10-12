@@ -23,11 +23,11 @@ The Paiflow event at FEU Tech is a full-day hackathon from 8:00 AM to 5:00 PM PH
 
 **Date and time TBD.** Hear the rules and watch a live Paiflow demo: build, deploy, scan the QR and see the payout. The meeting link will be shared by the organisers.
 
-After online onboarding, participants may start scaffolding their app: set up the project, build screens and develop features that do not involve payments. **Integration of the hackathon app with Paiflow begins on October 28 at 9:00 AM PHT**, using the team's event-day account and deployment.
+Participants may build their app, deploy flows, integrate Paiflow and test payments before the event once their team credentials are available. Ask organisers for credentials in advance; onboarding covers setup and questions.
 
 Participants may freely explore the sandbox at [beta.paiflow.xyz](https://beta.app.paiflow.xyz) before the event, including creating practice flows and testing payments with the features available there. A video tutorial is also available there. Sandbox deployments do not provide API access for connecting your own app.
 
-You may reuse a flow design practised in the sandbox. During the hackathon's integration window, deploy it from your team's event-day account and produce a confirmed on-chain payout from that deployment. Practice deployments and payouts do not count toward qualification. Keep your hackathon app's payment features and live feed disabled until the integration window opens.
+You may deploy your team's flow and connect the app before the event. Produce a confirmed on-chain payout from your team's deployment during the event development session for qualification. Sandbox and shared-demo payouts do not qualify.
 
 All event-day times below are in Philippine Time (PHT).
 
@@ -39,10 +39,10 @@ All event-day times below are in Philippine Time (PHT).
 | ---------------- | --------------------- | ------------------------------------------------------------------------------------------------------------ |
 | 8:00–8:30 AM     | Registration          | Check in and get your team ready                                                                             |
 | 8:30–9:00 AM     | Opening and briefing  | Review the challenge, rules, schedule and submission requirements                                            |
-| 9:00 AM–12:00 PM | Build and integration | Receive team credentials, deploy your flow and aim for your first confirmed payout                           |
+| 9:00 AM–12:00 PM | Build and integration | Finish integration and verify an event-day payout                           |
 | 12:00–1:00 PM    | Lunch break           | Optional coding; check your deployment and payout evidence                                                   |
 | 1:00–3:00 PM     | Build and integration | Complete integration and prepare your demo                                                                   |
-| 2:30–3:00 PM     | Submission            | During the final 30 minutes of integration, submit by 3:00 PM with your deployment ID and payout transaction |
+| 2:30–3:00 PM     | Submission            | During the final 30 minutes of development, submit by 3:00 PM with your deployment ID and payout transaction |
 | 3:00–4:00 PM     | Pitching              | 10 teams × 5 minutes; random order drawn at 3:00 PM                                                          |
 | 4:00–4:30 PM     | Deliberations         | Judges deliberate                                                                                            |
 | 4:30–5:00 PM     | Closing and awards    | Announce prize winners and deliver closing remarks                                                           |
@@ -51,11 +51,11 @@ All event-day times below are in Philippine Time (PHT).
 
 **Starting now:** choose a problem, talk to potential users and sketch your app.
 
-**After online onboarding:** use the demo and instructions from the session to prepare your app for event-day integration. Start building your app’s screens and features that don’t involve payments. You may use the supplied starter, but keep its payment features and live feed disabled until the event-day integration window opens.
+**Before the event:** build your app and integrate Paiflow. Use the starter in team mode when your deployment and token are ready; test payments and the live feed are allowed beforehand.
 
-**Event day, 9:00 AM PHT:** receive your team's Paiflow account credentials, deploy your hackathon flow and begin app integration. Your qualifying team deployment, app connection to Paiflow APIs and qualifying payout must be completed during the integration window. Sandbox practice, wallet preparation and testnet funding are allowed beforehand.
+**Event day, 9:00 AM PHT:** finish your app and integration, confirm an event-day payout and prepare the demo. Deployment and app integration may be completed beforehand.
 
-**Integration window:** 9:00 AM–3:00 PM PHT on event day, with a lunch break from 12:00–1:00 PM. Submit by **3:00 PM PHT**.
+**Event development session:** 9:00 AM–3:00 PM PHT, with lunch from 12:00–1:00 PM. Early integration is allowed. Submit by **3:00 PM PHT**.
 
 ## The challenge
 
@@ -91,7 +91,7 @@ If your idea requires a separate payment setup for every customer, explain that 
 
 ## Prizes
 
-**Qualification:** your team must have a confirmed Paiflow deployment and at least one verifiable on-chain payout from it during the hackathon's integration window. Practice deployments and payouts do not count.
+**Qualification:** your team needs a confirmed Paiflow deployment and at least one verifiable payout from it during the event development session. The deployment and app integration may be prepared beforehand. Sandbox and shared-demo payouts do not count.
 
 **Scoring:** Creativity 30%, Integration 40%, Real-world usefulness 30%.
 

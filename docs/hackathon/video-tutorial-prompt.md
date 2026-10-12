@@ -49,8 +49,8 @@ Keep the integration explanation brief and visual. Explain that one deployment s
 
 - Participants can explore the sandbox and watch tutorials to learn how Paiflow works.
 - Explain app scaffolding: setting up the project, building screens and developing non-payment features.
-- Tell participants to follow their event's rules for when scaffolding, deployment, integration and payment testing are allowed.
-- If their event reserves integration for the hackathon, keep the starter's payment features and live feed disabled until the organisers announce the integration start.
+- Explain that teams may deploy, integrate and test payments before the event once credentials are available. Follow the participant brief for qualifying evidence and submission rules.
+- Preparation mode is optional: choose team mode as soon as the confirmed deployment and API token are ready. Dev mode stays disabled throughout the hackathon.
 - Clearly distinguish learning in the sandbox from building and testing the team's actual hackathon deployment.
 - Do not present one event's preparation rules as universal.
 

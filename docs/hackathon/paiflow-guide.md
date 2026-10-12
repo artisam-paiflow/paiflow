@@ -37,7 +37,7 @@ Follow your participant brief for event rules, preparation permissions, deadline
 
 ## Before you begin
 
-This walkthrough is event-neutral. Follow your participant brief and organisers' instructions for when preparation, deployment and app integration are allowed.
+You may deploy, integrate and test payments before this hackathon once your team credentials are available. Follow your participant brief for submission and qualification requirements.
 
 **Dev mode will stay disabled for the duration of the hackathon.** Configure recipients and required values before deploying. Per-payment recipients, **Fill value via API** and **Dev values** are unavailable; standard Pay and Split flows remain available. `PAIFLOW_MODE=team` and `pnpm dev` do not enable flow Dev mode.
 
@@ -135,7 +135,7 @@ cp .env.example .env.local
 pnpm dev
 ```
 
-Open `http://localhost:3000`. These copy commands work in bash; on Windows you can copy `.env.example` to `.env.local` in your editor instead. Keep `PAIFLOW_MODE=prepare` while preparing non-payment screens or while event rules require it.
+Open `http://localhost:3000`. These copy commands work in bash; on Windows you can copy `.env.example` to `.env.local` in your editor instead. Use `PAIFLOW_MODE=prepare` to work without a Paiflow connection. Switch to `team` whenever your deployment and API token are ready, including before the event.
 
 Preparation mode disables wallet actions, payments and event polling. It makes no upstream Paiflow requests. Payment, payout and event routes return `403 PREPARATION_MODE`; that is expected in this mode.
 
@@ -143,7 +143,7 @@ Preparation mode disables wallet actions, payments and event polling. It makes n
 
 ## Configure your own deployment
 
-When integration is permitted, stop the dev server. Edit `.env.local` using your deployment and token:
+When your deployment and API token are ready, stop the dev server. Edit `.env.local` using your deployment and token:
 
 ```dotenv
 PAIFLOW_MODE=team

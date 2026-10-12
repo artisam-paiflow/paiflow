@@ -2,7 +2,7 @@
 
 Updated Oct 11, 2026
 
-Build an app that solves a real problem with automated payments through Paiflow. Choose your idea now, build your non-payment features after October 12 onboarding, and integrate Paiflow on October 14.
+Build an app that solves a real problem with automated payments through Paiflow. Choose your idea, build and integrate before the event; use October 14 to finish your app and demo.
 
 ## At a glance
 
@@ -13,7 +13,7 @@ Build an app that solves a real problem with automated payments through Paiflow.
 | Teams | 10 teams of 1–4 people |
 | Online onboarding | October 12, 2026 · 9:00 PM PHT |
 | Registration closes | October 11, 2026 · 12:59 PM PHT |
-| Integration time | Four hours, with a one-hour lunch break |
+| Event development time | Four hours, with a one-hour lunch break |
 | Prize pool | PHP 10,000 |
 | Network | Stellar testnet |
 
@@ -23,7 +23,7 @@ Build an app that solves a real problem with automated payments through Paiflow.
 
 **October 12, 2026, at 9:00 PM PHT.** Hear the rules and watch a live Paiflow demo: build, deploy, scan the QR and see the payout. The meeting link will be provided through **blockhub.academy** or the student organisation representatives.
 
-After onboarding, set up your project, build screens and develop features that do not involve payments. Keep the starter's payment features and live feed disabled until October 14. Flow deployment, Paiflow API integration and live payment testing begin at **10:30 AM PHT on October 14**, when team credentials are handed out.
+Build your app and integrate Paiflow before the event once team credentials are available. Ask organisers for credentials in advance. Onboarding covers setup and questions; October 14 is for finishing your app, verifying payouts and preparing the demo.
 
 All times below are in Philippine Time (PHT).
 
@@ -31,10 +31,10 @@ All times below are in Philippine Time (PHT).
 
 | Time | Activity | What happens |
 | --- | --- | --- |
-| 10:30 AM–12:30 PM | Integration, part 1 | Receive team credentials, deploy your flow and aim for your first confirmed payout |
+| 10:30 AM–12:30 PM | Development, part 1 | Finish integration and verify a confirmed payout |
 | 12:30–1:30 PM | Lunch and checkpoint | Optional coding; check your deployment and payout evidence |
-| 1:30–3:30 PM | Integration, part 2 | Complete integration and prepare your demo |
-| 3:00–3:30 PM | Submission | During the final 30 minutes of integration, submit before 3:30 PM with your deployment ID and payout transaction |
+| 1:30–3:30 PM | Development, part 2 | Complete integration and prepare your demo |
+| 3:00–3:30 PM | Submission | During the final 30 minutes of development, submit before 3:30 PM with your deployment ID and payout transaction |
 | 3:30–4:30 PM | Pitching | 10 teams × 8 minutes (5-minute pitch and demo + 3-minute Q&A); random order drawn at 3:30 PM |
 | 4:30–5:00 PM | Judging | Judges deliberate and finalise scores |
 | 5:00–5:30 PM | Announcement of winners | Announce prize winners |
@@ -44,13 +44,13 @@ All times below are in Philippine Time (PHT).
 
 **Starting now:** choose a problem, talk to potential users and sketch your app. Register your team by October 11 at 12:59 PM PHT.
 
-**After October 12 onboarding:** build your app's screens and features that do not involve payments. Boilerplate, open-source libraries, the starter and AI tools are allowed. Keep payment features and the live feed disabled until October 14.
+**Before the event:** build your app and integrate Paiflow. Boilerplate, open-source libraries, the starter and AI tools are allowed. Select team mode when your deployment and token are ready.
 
-**Before integration:** prepare dedicated testnet wallets, add the exact USDC trustline if using USDC, and obtain testnet funds. Wallet preparation and funding are allowed beforehand; deploying flows, connecting your app to Paiflow and testing payments must wait until October 14.
+**Wallet and payment preparation:** prepare testnet wallets, add the exact USDC trustline if needed, and obtain funds. Flow deployment, Paiflow API integration and test payments are allowed before the event.
 
-**October 14, 10:30 AM PHT:** receive your team's Paiflow credentials, deploy your flow and begin app integration. Use your team's deployment for the qualifying payout; payments through the starter's shared demo do not qualify.
+**October 14, 10:30 AM PHT:** finish your app and integration, verify the payout and prepare your demo. Use your team's deployment for qualifying evidence; shared-demo payments do not qualify.
 
-**Integration window:** 10:30 AM–3:30 PM PHT, with a lunch break from 12:30–1:30 PM. Lunch coding is optional and carries no penalty. Submit by **3:30 PM PHT**.
+**Event development session:** 10:30 AM–3:30 PM PHT, with lunch from 12:30–1:30 PM. Early integration is allowed. Lunch coding is optional. Submit by **3:30 PM PHT**.
 
 ## The challenge
 

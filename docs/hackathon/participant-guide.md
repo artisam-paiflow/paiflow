@@ -2,7 +2,7 @@
 
 Updated Oct 6, 2026
 
-Build an app that solves a real problem with automated payments. Choose your idea now. After onboarding on October 12, build your app’s screens and features that don’t involve payments. Add Paiflow payments on October 14.
+Build an app that solves a real problem with automated payments. Choose your idea and start building now. You may deploy, integrate Paiflow and test payments before the event once your team credentials are available.
 
 ## At a glance
 
@@ -12,7 +12,7 @@ Build an app that solves a real problem with automated payments. Choose your ide
 | Who                 | Students                                                                    |
 | Teams               | 10 teams of 1–4 people                                                      |
 | Event starts        | October 14, 2026, 10:30 AM PHT                                              |
-| Integration time    | 4 hours on October 14 to integrate your app with Paiflow                    |
+| Event development time    | 4 hours on October 14 to finish your app and prepare the demo                    |
 | Prize pool          | PHP 10,000 across five awards                                               |
 | Network             | Stellar testnet                                                             |
 | Online onboarding   | October 12, 2026, 9:00 PM                                                   |
@@ -38,17 +38,17 @@ A maximum of 10 teams can participate. Solo teams are welcome, but teams are enc
 
 **Online onboarding: October 12, 2026, 9:00 PM.** Hear the rules and watch a live demo: build, deploy, scan the QR and see the payout. The meeting link will be provided through **blockhub.academy** or through the student organisation representatives.
 
-**After October 12 onboarding:** start building your app’s screens and features that don’t involve payments. You may use the supplied starter, but keep its payment features and live feed disabled until October 14.
+**Before the event:** build your app, deploy flows, connect Paiflow and test payments. Ask organisers for team credentials in advance; switch the starter to `team` when your deployment and token are ready.
 
-**October 14, 10:30 AM PHT:** receive your team's Paiflow account credentials and begin Paiflow integration. Flow deployment, connecting your app to Paiflow APIs and live payment testing must wait until October 14. Preparing a wallet, adding its trustline and obtaining testnet funds are allowed beforehand.
+**October 14, 10:30 AM PHT:** continue development, finish your integration and prepare the demo. Early deployment, API integration, wallet preparation and test payments are allowed.
 
-**Integration window:** Paiflow integration starts at **10:30 AM PHT on October 14**. All times below are in Philippine Time (PHT).
+**Event development session:** starts at **10:30 AM PHT on October 14**. Early integration is allowed. Follow the schedule below.
 
 | Start    | Length | Block                 | What happens                                                         |
 | -------- | ------ | --------------------- | -------------------------------------------------------------------- |
-| 10:30 AM | 2 h    | Integration, part 1   | Deploy and aim for your first confirmed payout                       |
+| 10:30 AM | 2 h    | Development, part 1   | Deploy and aim for your first confirmed payout                       |
 | 12:30 PM | 1 h    | Lunch + checkpoint    | Optional coding; check your deployment and payout evidence           |
-| 1:30 PM  | 2 h    | Integration, part 2   | Complete integration and prepare your demo                           |
+| 1:30 PM  | 2 h    | Development, part 2   | Complete integration and prepare your demo                           |
 | 3:00 PM  | 30 min | Submission            | Submit before 3:30 PM with your deployment ID and payout transaction |
 | 3:30 PM  | 1 h    | Pitching              | 10 teams × 5 minutes; random order drawn at 3:30 PM                  |
 | 4:30 PM  | 30 min | Deliberation + awards |                                                                      |
@@ -87,7 +87,7 @@ If your idea requires a separate payment setup for every customer, explain that 
 
 ## Before the event
 
-Choose your idea now. After October 12 onboarding, build your app’s screens and features that don’t involve payments. Use the four-hour integration window on October 14 to integrate your app with Paiflow.
+Choose your idea now. Build and integrate before the event; use October 14 to finish your app, verify its payout and prepare your demo.
 
 - [ ] Register through the [Google Form](https://forms.gle/eTabEoJMh9zfYNLD6) by October 11, 2026, 12:59 PM
 - [ ] Attend onboarding on October 12, 2026, 9:00 PM; the meeting link will be provided through blockhub.academy or through the student organisation representatives. Share the instructions with your team
@@ -101,7 +101,7 @@ Choose your idea now. After October 12 onboarding, build your app’s screens an
 **October 12–13 preparation checklist:**
 
 - [ ] Install and run the supplied starter on your laptop
-- [ ] Build your app’s screens and features that don’t involve payments
+- [ ] Build your app, including its Paiflow integration and test payments once credentials are ready
 - [ ] Prepare dedicated testnet wallets for your customer and payout recipients
 - [ ] If using USDC, enable each recipient wallet to receive the exact testnet USDC asset by adding its trustline; follow the AI context pack’s instructions
 - [ ] Obtain testnet XLM for wallet setup and transaction fees, and testnet USDC for payments if needed
@@ -116,7 +116,7 @@ For more setup instructions, see the [AI context pack](https://github.com/artisa
 
 Organiser-provided wallets are for testnet only. Organisers retain copies of their keys. Never use these wallets for real funds or import their keys into a wallet you use for real money.
 
-## Your first payout on October 14
+## Your first payout
 
 Get one confirmed payout working before polishing your app.
 
@@ -135,7 +135,7 @@ Use your team’s deployment for your qualifying payout. Payments through the st
 1. **Use Paiflow for the core money flow.** Your app's essential transfer must run through a Paiflow deployment.
 2. **Testnet only.** No mainnet deployments or real funds.
 3. **AI tools are encouraged.** Use any AI assistant; an AI context pack is provided.
-4. **Prepare early; integrate Paiflow on October 14.** Choose your idea now. After October 12 onboarding, build your app’s screens and features that don’t involve payments. You may use boilerplate, open-source libraries and the supplied starter; keep its payment features and live feed disabled until October 14. Deploying flows, connecting your app to Paiflow and testing payments must wait until October 14. Wallet preparation and testnet funding are allowed beforehand.
+4. **Build and integrate early.** Boilerplate, open-source libraries, the starter and AI tools are allowed. You may prepare wallets, deploy flows, connect your app to Paiflow, test payments and use the live feed before the event. Ask organisers for team credentials in advance; use your team deployment for qualifying evidence.
 5. **Lunch coding is optional.** It does not count as extra time and carries no penalty.
 6. **Respect shared infrastructure.** No load testing or spamming the Paiflow API or relayer. Rate limits apply.
 7. **Organisers decide disputes.** Their ruling is final.

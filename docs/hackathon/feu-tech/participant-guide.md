@@ -42,7 +42,7 @@ After the talk, hackathon participants proceed to **H412**. Participants who are
 | 10:30 AM–12:30 PM | Integration           | Deploy your flow and aim for your first confirmed payout                                                         |
 | 12:30–1:30 PM     | Break                 | Optional coding; check your deployment and payout evidence                                                       |
 | 1:30–3:30 PM      | Build and integration | Complete integration and prepare your demo                                                                       |
-| 3:00–3:30 PM      | Submission            | During the final 30 minutes of integration, submit before 3:30 PM with your deployment ID and payout transaction |
+| 3:00–3:30 PM      | Submission            | During the final 30 minutes of development, submit before 3:30 PM with your deployment ID and payout transaction |
 | 3:30–4:30 PM      | Pitching              | 10 teams × 5 minutes; random order drawn at 3:30 PM                                                              |
 | 4:30–5:00 PM      | Deliberations         | Judges deliberate                                                                                                |
 | 5:00–5:30 PM      | Closing and awards    | Announce prize winners and deliver closing remarks                                                               |
@@ -57,11 +57,11 @@ Participants who are not joining the hackathon move to the workshop and seminar 
 
 **Starting now:** choose a problem, talk to potential users and sketch your app.
 
-**After online onboarding:** use the demo and instructions from the session to prepare your app for event-day integration. Start building your app’s screens and features that don’t involve payments. You may use the supplied starter, but keep its payment features and live feed disabled until October 14.
+**Before the event:** build your app, deploy flows, connect Paiflow and test payments. Ask organisers for team credentials in advance; switch the starter to `team` when your deployment and token are ready.
 
-**October 14, 10:30 AM PHT:** receive your team's Paiflow account credentials and begin Paiflow integration. Flow deployment, connecting your app to Paiflow APIs and live payment testing must wait until October 14. Preparing a wallet, adding its trustline and obtaining testnet funds are allowed beforehand.
+**October 14, 10:30 AM PHT:** continue development, finish your integration and prepare the demo. Early deployment, API integration, wallet preparation and test payments are allowed.
 
-**Integration window:** Paiflow integration starts at **10:30 AM PHT on October 14**. Follow the mini hackathon schedule above.
+**Event development session:** starts at **10:30 AM PHT on October 14**. Use it to finish integration and prepare your demo; early integration is allowed.
 
 ## The challenge
 

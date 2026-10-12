@@ -83,7 +83,7 @@ PAIFLOW_DEPLOYMENT_ID=YOUR_CONFIRMED_DEPLOYMENT_UUID
 PAIFLOW_API_TOKEN=YOUR_DEPLOYMENT_API_TOKEN
 ```
 
-Never prefix the token with `NEXT_PUBLIC_`, send it to the browser or commit `.env.local`. This independent example has no starter mode setting; connect it only when integration is permitted. No wallet secret keys belong in your app.
+Never prefix the token with `NEXT_PUBLIC_`, send it to the browser or commit `.env.local`. This independent example has no starter mode setting; you may connect and test before the event as soon as your deployment and API token are ready. No wallet secret keys belong in your app.
 
 ## 2 Add the server route
 
