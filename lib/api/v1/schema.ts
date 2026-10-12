@@ -281,6 +281,7 @@ export const DeploymentCapabilitiesSchema = z
         payouts: CapabilityOperationSchema,
         webhook: CapabilityOperationSchema,
         subscriptionAllowance: CapabilityOperationSchema,
+        subscriptionState: CapabilityOperationSchema,
       })
       .strict(),
   })
@@ -289,3 +290,25 @@ export const DeploymentCapabilitiesSchema = z
     "Supported means the integration path exists for the recorded deployment. Conditional requires additional eligibility checks. Unsupported means no matching path can be established. No status guarantees current balances, configuration, consent, deadline or infrastructure readiness.",
   );
 export type DeploymentCapabilities = z.infer<typeof DeploymentCapabilitiesSchema>;
+
+/** Live Subscription configuration; allowance uses integer stroops, never floating point. */
+export const SubscriptionStateSchema = z
+  .object({
+    deploymentId: z.string().uuid(),
+    flowName: z.string(),
+    network: z.enum(["testnet", "mainnet"]),
+    templateKind: z.enum(["SUBSCRIPTION", "SUBSCRIPTION_DEV"]),
+    contractAddress: z.string().refine(StrKey.isValidContract),
+    tokenContractAddress: z.string().refine(StrKey.isValidContract),
+    subscriber: z.string().refine(StrKey.isValidEd25519PublicKey).nullable(),
+    isCancelled: z.boolean(),
+    asset: CapabilitiesAssetSchema.nullable(),
+    assetLabel: z.string(),
+    allowance: z
+      .string()
+      .regex(/^\d{1,39}$/)
+      .refine((v) => !/^\d{1,39}$/.test(v) || BigInt(v) <= (1n << 127n) - 1n),
+    setupRequired: z.boolean(),
+  })
+  .strict();
+export type SubscriptionState = z.infer<typeof SubscriptionStateSchema>;

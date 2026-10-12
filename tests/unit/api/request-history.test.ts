@@ -194,6 +194,14 @@ describe("API request history boundary", () => {
       endpoint: record.endpoint,
     });
   });
+  it("records Subscription state with a stable allowlisted endpoint", async () => {
+    await v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () =>
+      NextResponse.json({ data: {} }),
+    )(request("subscription/state"), ctx);
+    expect(ApiRequestRecordSchema.parse(mocks.queue.mock.calls[0]![0]).endpoint).toBe(
+      "/api/v1/deployments/:id/subscription/state",
+    );
+  });
   it("normalizes unknown and hash-bearing paths", () => {
     expect(requestEndpoint(`/api/v1/deployments/credential/transactions/credential`)).toBe(
       "/api/v1/deployments/:id/transactions/:txHash",

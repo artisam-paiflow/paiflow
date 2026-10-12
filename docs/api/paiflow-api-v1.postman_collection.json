@@ -186,7 +186,7 @@
               "value": "application/json"
             }
           ],
-          "body": "{\n  \"data\": {\n    \"deploymentId\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"network\": \"testnet\",\n    \"configurationSource\": \"deployment_snapshot\",\n    \"triggerType\": \"deposit\",\n    \"inputAsset\": {\n      \"kind\": \"native\"\n    },\n    \"operations\": {\n      \"execute\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"The paying wallet signs the prepared deposit; simulation checks current configuration.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"events\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Recorded events can lag the chain.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"transactions\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Only attributable transactions can be read; missing evidence does not prove failure.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"releaseEarly\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"No deployed timelock branch supports early release.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"payouts\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Standard flows use configured recipients; per-payment recipients require an eligible Dev flow.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"webhook\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"webhook_secret\",\n        \"requirements\": [\n          \"Requires a deployed webhook trigger with HTTP callbacks enabled.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"subscriptionAllowance\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"subscriber_wallet\",\n        \"requirements\": [\n          \"Requires a subscription deployment.\"\n        ],\n        \"nodeIds\": []\n      }\n    }\n  }\n}"
+          "body": "{\n  \"data\": {\n    \"deploymentId\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"network\": \"testnet\",\n    \"configurationSource\": \"deployment_snapshot\",\n    \"triggerType\": \"deposit\",\n    \"inputAsset\": {\n      \"kind\": \"native\"\n    },\n    \"operations\": {\n      \"execute\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"The paying wallet signs the prepared deposit; simulation checks current configuration.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"events\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Recorded events can lag the chain.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"transactions\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Only attributable transactions can be read; missing evidence does not prove failure.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"releaseEarly\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"No deployed timelock branch supports early release.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"payouts\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Standard flows use configured recipients; per-payment recipients require an eligible Dev flow.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"webhook\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"webhook_secret\",\n        \"requirements\": [\n          \"Requires a deployed webhook trigger with HTTP callbacks enabled.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"subscriptionAllowance\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"subscriber_wallet\",\n        \"requirements\": [\n          \"Requires a subscription deployment.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"subscriptionState\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Requires a subscription deployment.\"\n        ],\n        \"nodeIds\": []\n      }\n    }\n  }\n}"
         }
       ]
     },
@@ -1156,6 +1156,47 @@
         "description": "Requires a separately funded webhook deployment and its callback secret. Keep the same event key and payload for retries; changing payload conflicts. Keys never reopen automatically; UNKNOWN must not trigger a fresh payment. This route uses the relayer, not caller wallet signing."
       },
       "response": []
+    },
+    {
+      "name": "Get Subscription state",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/state",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "subscription", "state"]
+        },
+        "description": "Read live subscriber, token, allowance and cancellation state. Unconfigured Dev subscriber returns setupRequired:true and allowance:\"0\". Read only; no wallet mutation. Limit 40/minute/token."
+      },
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/state",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "subscription", "state"]
+            },
+            "description": "Read live subscriber, token, allowance and cancellation state. Unconfigured Dev subscriber returns setupRequired:true and allowance:\"0\". Read only; no wallet mutation. Limit 40/minute/token."
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Cache-Control",
+              "value": "no-store"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"deploymentId\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"flowName\": \"Club membership\",\n    \"network\": \"testnet\",\n    \"templateKind\": \"SUBSCRIPTION\",\n    \"contractAddress\": \"CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA\",\n    \"tokenContractAddress\": \"CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC\",\n    \"subscriber\": \"GDMFZ5QQMDSOTPEQ6YCAWPFAB626Q6C3KLRLYMO3VWMWHQHL4L2DSIHY\",\n    \"isCancelled\": false,\n    \"asset\": {\n      \"kind\": \"native\"\n    },\n    \"assetLabel\": \"XLM\",\n    \"allowance\": \"1000000000\",\n    \"setupRequired\": false\n  }\n}"
+        }
+      ]
     }
   ]
 }

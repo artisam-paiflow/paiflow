@@ -50,12 +50,169 @@
     }
   ],
   "paths": {
+    "/api/v1/deployments/{id}/subscription/state": {
+      "get": {
+        "tags": ["Capabilities"],
+        "operationId": "getSubscriptionState",
+        "summary": "Read live Subscription state and allowance",
+        "description": "Requires this deployment's bearer token, a confirmed ordinary or Dev Subscription on the environment network and active deployment service. Payroll and malformed snapshots are refused. Reads the deployed contract's current subscriber, token and cancellation state, then that subscriber's token allowance. An unconfigured Dev subscription returns subscriber:null, setupRequired:true and allowance:\"0\" without querying allowance. RPC failures return errors rather than a zero allowance or active state.\n\ntokenContractAddress is authoritative; asset is initial metadata only when it matches that token, otherwise null. Allowance is an integer stroop string. Reading does not authorize approval, charge, cancellation or reactivation. No-store response.\n\nRate limit: 40 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current deployed Subscription configuration and allowance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SubscriptionState"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "deploymentId": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d",
+                    "flowName": "Club membership",
+                    "network": "testnet",
+                    "templateKind": "SUBSCRIPTION",
+                    "contractAddress": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+                    "tokenContractAddress": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+                    "subscriber": "GDMFZ5QQMDSOTPEQ6YCAWPFAB626Q6C3KLRLYMO3VWMWHQHL4L2DSIHY",
+                    "isCancelled": false,
+                    "asset": {
+                      "kind": "native"
+                    },
+                    "assetLabel": "XLM",
+                    "allowance": "1000000000",
+                    "setupRequired": false
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/deployments/{id}/capabilities": {
       "get": {
         "tags": ["Capabilities"],
         "operationId": "getDeploymentCapabilities",
         "summary": "Discover a deployment's supported integration paths",
-        "description": "Supported means the integration path exists for the recorded deployment. Conditional requires additional eligibility checks. Unsupported means no matching path can be established. No status guarantees current balances, configuration, consent, deadline or infrastructure readiness.\n\nRequires this deployment's pfk_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.\n\nOperations are execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.\n\nReturns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.\n\nRate limit: 60 requests per 60 seconds per token.",
+        "description": "Supported means the integration path exists for the recorded deployment. Conditional requires additional eligibility checks. Unsupported means no matching path can be established. No status guarantees current balances, configuration, consent, deadline or infrastructure readiness.\n\nRequires this deployment's pfk_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.\n\nOperations are execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), subscriptionState (/api/v1/deployments/{id}/subscription/state), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.\n\nReturns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.\n\nRate limit: 60 requests per 60 seconds per token.",
         "security": [
           {
             "bearerAuth": []
@@ -140,6 +297,12 @@
                         "requirements": [
                           "Requires a deployed webhook trigger with HTTP callbacks enabled."
                         ],
+                        "nodeIds": []
+                      },
+                      "subscriptionState": {
+                        "status": "unsupported",
+                        "authentication": "deployment_token",
+                        "requirements": ["Requires a subscription deployment."],
                         "nodeIds": []
                       },
                       "subscriptionAllowance": {
@@ -1996,6 +2159,115 @@
           }
         }
       },
+      "SubscriptionState": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "deploymentId",
+          "flowName",
+          "network",
+          "templateKind",
+          "contractAddress",
+          "tokenContractAddress",
+          "subscriber",
+          "isCancelled",
+          "asset",
+          "assetLabel",
+          "allowance",
+          "setupRequired"
+        ],
+        "properties": {
+          "deploymentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "flowName": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string",
+            "enum": ["testnet", "mainnet"]
+          },
+          "templateKind": {
+            "type": "string",
+            "enum": ["SUBSCRIPTION", "SUBSCRIPTION_DEV"]
+          },
+          "contractAddress": {
+            "type": "string",
+            "pattern": "^C[A-Z2-7]{55}$"
+          },
+          "tokenContractAddress": {
+            "type": "string",
+            "pattern": "^C[A-Z2-7]{55}$"
+          },
+          "subscriber": {
+            "type": ["string", "null"],
+            "pattern": "^G[A-Z2-7]{55}$"
+          },
+          "isCancelled": {
+            "type": "boolean"
+          },
+          "setupRequired": {
+            "type": "boolean"
+          },
+          "allowance": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "Current allowance in stroops; nonnegative i128 range."
+          },
+          "assetLabel": {
+            "type": "string"
+          },
+          "asset": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind"],
+                "properties": {
+                  "kind": {
+                    "const": "native"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "symbol"],
+                "properties": {
+                  "kind": {
+                    "const": "known"
+                  },
+                  "symbol": {
+                    "const": "USDC"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "code", "issuer"],
+                "properties": {
+                  "kind": {
+                    "const": "custom"
+                  },
+                  "code": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9]{1,12}$"
+                  },
+                  "issuer": {
+                    "type": "string",
+                    "pattern": "^G[A-Z2-7]{55}$"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
       "DeploymentCapabilities": {
         "type": "object",
         "additionalProperties": false,
@@ -2096,7 +2368,8 @@
               "releaseEarly",
               "payouts",
               "webhook",
-              "subscriptionAllowance"
+              "subscriptionAllowance",
+              "subscriptionState"
             ],
             "properties": {
               "execute": {
@@ -2115,6 +2388,9 @@
                 "$ref": "#/components/schemas/CapabilityOperation"
               },
               "webhook": {
+                "$ref": "#/components/schemas/CapabilityOperation"
+              },
+              "subscriptionState": {
                 "$ref": "#/components/schemas/CapabilityOperation"
               },
               "subscriptionAllowance": {

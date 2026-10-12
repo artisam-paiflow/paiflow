@@ -1,5 +1,6 @@
 import {
   DeploymentCapabilitiesSchema,
+  SubscriptionStateSchema,
   TransactionStatusSchema,
   WebhookAttemptResponseSchema,
   DemoTokenSchema,
@@ -57,6 +58,22 @@ const capabilityExample = (
 ) => ({ status, authentication, requirements, nodeIds });
 
 export const examples = {
+  subscriptionState: {
+    data: {
+      deploymentId: EXAMPLE_DEPLOYMENT_ID,
+      flowName: "Club membership",
+      network: "testnet",
+      templateKind: "SUBSCRIPTION",
+      contractAddress: USDC_SAC_TESTNET,
+      tokenContractAddress: XLM_SAC_TESTNET,
+      subscriber: EXAMPLE_FROM,
+      isCancelled: false,
+      asset: { kind: "native" },
+      assetLabel: "XLM",
+      allowance: "1000000000",
+      setupRequired: false,
+    },
+  },
   capabilities: {
     data: {
       deploymentId: EXAMPLE_DEPLOYMENT_ID,
@@ -82,6 +99,9 @@ export const examples = {
         ]),
         webhook: capabilityExample("unsupported", "webhook_secret", [
           "Requires a deployed webhook trigger with HTTP callbacks enabled.",
+        ]),
+        subscriptionState: capabilityExample("unsupported", "deployment_token", [
+          "Requires a subscription deployment.",
         ]),
         subscriptionAllowance: capabilityExample("unsupported", "subscriber_wallet", [
           "Requires a subscription deployment.",
@@ -445,6 +465,39 @@ export const openApiDocument = {
     },
   ],
   paths: {
+    "/api/v1/deployments/{id}/subscription/state": {
+      get: {
+        tags: ["Capabilities"],
+        operationId: "getSubscriptionState",
+        summary: "Read live Subscription state and allowance",
+        description: [
+          "Requires this deployment's bearer token, a confirmed ordinary or Dev Subscription on the environment network and active deployment service. Payroll and malformed snapshots are refused. Reads the deployed contract's current subscriber, token and cancellation state, then that subscriber's token allowance. An unconfigured Dev subscription returns subscriber:null, setupRequired:true and allowance:\"0\" without querying allowance. RPC failures return errors rather than a zero allowance or active state.",
+          "tokenContractAddress is authoritative; asset is initial metadata only when it matches that token, otherwise null. Allowance is an integer stroop string. Reading does not authorize approval, charge, cancellation or reactivation. No-store response.",
+          rate(V1_RATE_LIMITS.subscriptionState, "per token"),
+        ].join("\n\n"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        responses: {
+          "200": {
+            description: "Current deployed Subscription configuration and allowance.",
+            content: json(
+              dataEnvelope("#/components/schemas/SubscriptionState"),
+              examples.subscriptionState,
+            ),
+          },
+          ...errors(
+            "UNAUTHENTICATED",
+            "FORBIDDEN",
+            "NOT_FOUND",
+            "VALIDATION",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+            "INTERNAL",
+            "INSUFFICIENT_FUNDS",
+          ),
+        },
+      },
+    },
     "/api/v1/deployments/{id}/capabilities": {
       get: {
         tags: ["Capabilities"],
@@ -453,7 +506,7 @@ export const openApiDocument = {
         description: [
           DeploymentCapabilitiesSchema.description,
           "Requires this deployment's pfk_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.",
-          "Operations are execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.",
+          "Operations are execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), subscriptionState (/api/v1/deployments/{id}/subscription/state), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.",
           "Returns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.",
           rate(V1_RATE_LIMITS.capabilities, "per token"),
         ].join("\n\n"),
@@ -1093,6 +1146,55 @@ export const openApiDocument = {
           nodeIds: { type: "array", items: { type: "string" } },
         },
       },
+      SubscriptionState: {
+        type: "object",
+        additionalProperties: false,
+        required: Object.keys(SubscriptionStateSchema.shape),
+        properties: {
+          deploymentId: { type: "string", format: "uuid" },
+          flowName: { type: "string" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          templateKind: { type: "string", enum: ["SUBSCRIPTION", "SUBSCRIPTION_DEV"] },
+          contractAddress: { type: "string", pattern: "^C[A-Z2-7]{55}$" },
+          tokenContractAddress: { type: "string", pattern: "^C[A-Z2-7]{55}$" },
+          subscriber: { type: ["string", "null"], pattern: "^G[A-Z2-7]{55}$" },
+          isCancelled: { type: "boolean" },
+          setupRequired: { type: "boolean" },
+          allowance: {
+            type: "string",
+            pattern: "^[0-9]+$",
+            description: "Current allowance in stroops; nonnegative i128 range.",
+          },
+          assetLabel: { type: "string" },
+          asset: {
+            anyOf: [
+              {
+                type: "object",
+                additionalProperties: false,
+                required: ["kind"],
+                properties: { kind: { const: "native" } },
+              },
+              {
+                type: "object",
+                additionalProperties: false,
+                required: ["kind", "symbol"],
+                properties: { kind: { const: "known" }, symbol: { const: "USDC" } },
+              },
+              {
+                type: "object",
+                additionalProperties: false,
+                required: ["kind", "code", "issuer"],
+                properties: {
+                  kind: { const: "custom" },
+                  code: { type: "string", pattern: "^[A-Za-z0-9]{1,12}$" },
+                  issuer: { type: "string", pattern: "^G[A-Z2-7]{55}$" },
+                },
+              },
+              { type: "null" },
+            ],
+          },
+        },
+      },
       DeploymentCapabilities: {
         type: "object",
         additionalProperties: false,
@@ -1163,6 +1265,7 @@ export const openApiDocument = {
               "payouts",
               "webhook",
               "subscriptionAllowance",
+              "subscriptionState",
             ],
             properties: {
               execute: { $ref: "#/components/schemas/CapabilityOperation" },
@@ -1171,6 +1274,7 @@ export const openApiDocument = {
               releaseEarly: { $ref: "#/components/schemas/CapabilityOperation" },
               payouts: { $ref: "#/components/schemas/CapabilityOperation" },
               webhook: { $ref: "#/components/schemas/CapabilityOperation" },
+              subscriptionState: { $ref: "#/components/schemas/CapabilityOperation" },
               subscriptionAllowance: { $ref: "#/components/schemas/CapabilityOperation" },
             },
           },

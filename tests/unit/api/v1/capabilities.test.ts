@@ -259,6 +259,9 @@ describe("deployment capabilities", () => {
       expect(result.triggerType).toBe("subscription");
       expect(result.inputAsset).toEqual({ kind: "known", symbol: "USDC" });
       expect(result.operations.execute.status).toBe("unsupported");
+      expect(result.operations.subscriptionState.status).toBe("supported");
+      expect(result.operations.subscriptionState.authentication).toBe("deployment_token");
+      expect(result.operations.subscriptionState.nodeIds).toEqual(["trigger"]);
       expect(result.operations.subscriptionAllowance.status).toBe("conditional");
       expect(result.operations.subscriptionAllowance.authentication).toBe("subscriber_wallet");
       expect(result.operations.subscriptionAllowance.requirements.join(" ")).toContain(
@@ -285,6 +288,7 @@ describe("deployment capabilities", () => {
     });
     const result = await data();
     expect(result.triggerType).toBe("payroll");
+    expect(result.operations.subscriptionState.status).toBe("unsupported");
     expect(result.operations.subscriptionAllowance.status).toBe("unsupported");
   });
 

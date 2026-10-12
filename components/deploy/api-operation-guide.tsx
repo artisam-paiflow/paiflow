@@ -27,6 +27,7 @@ const OPERATION_LABELS = {
   payouts: "Prepare a payment with a recipient",
   webhook: "Trigger a webhook",
   subscriptionAllowance: "Approve a subscription allowance",
+  subscriptionState: "Read current subscription state",
 };
 
 const AUTH_LABELS = {

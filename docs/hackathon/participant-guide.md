@@ -85,6 +85,16 @@ Set up Paiflow once for the business, group or branch your app serves. For examp
 
 If your idea requires a separate payment setup for every customer, explain that as a future feature in your pitch.
 
+On builds containing #911, Subscription apps can read current subscriber, deployed token,
+allowance and cancellation state through `GET /api/v1/deployments/{id}/subscription/state`
+using their deployment bearer token. Check `subscriptionState` in capabilities first;
+discovery contains metadata, while this endpoint reads live state. It does not authorize
+wallet approval or charge the customer. [API response and error details](../api/README.md#read-current-subscription-state)
+include setup-required Dev behavior, although Dev mode remains disabled for this hackathon.
+Hosted testnet verification of this endpoint is still pending; confirm the deployed version
+before using it in a rehearsal.
+
+
 ## Before the event
 
 Choose your idea now. Build and integrate before the event; use October 14 to finish your app, verify its payout and prepare your demo.

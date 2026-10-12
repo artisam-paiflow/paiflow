@@ -135,6 +135,12 @@ export function deploymentCapabilities(
     subscriptionTrigger?.type === "subscription" &&
     subscriptionNodes.length === 1 &&
     subscriptionNodes[0]?.nodeId === subscriptionTrigger.id;
+  const stateCandidate =
+    allowanceCandidate &&
+    recordedGraph?.nodes.filter(isTrigger).length === 1 &&
+    new Set(nodes.map((node) => node.nodeId)).size === nodes.length &&
+    new Set(nodes.map((node) => node.contractAddress)).size === nodes.length &&
+    head?.nodeId === subscriptionTrigger?.id;
   const webhookEnabled = triggerType === "webhook" && !!deployment.webhookSecret;
 
   return {
@@ -200,6 +206,18 @@ export function deploymentCapabilities(
             [],
             "webhook_secret",
           ),
+      subscriptionState: stateCandidate
+        ? operation(
+            "supported",
+            [
+              "Read /api/v1/deployments/{id}/subscription/state for live subscriber, token, allowance and cancellation state. This deployment token permits reading, not wallet approval or cancellation.",
+              "Ordinary and Dev subscriptions are supported. Unconfigured Dev subscribers return setupRequired:true and zero allowance without a token allowance read. Mutable asset metadata can be unavailable; tokenContractAddress is authoritative.",
+            ],
+            [head!.nodeId],
+          )
+        : operation("unsupported", [
+            "Requires an unambiguous subscription-headed deployment; payroll and malformed snapshots are refused.",
+          ]),
       subscriptionAllowance: allowanceCandidate
         ? operation(
             "conditional",

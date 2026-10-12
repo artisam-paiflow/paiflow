@@ -157,6 +157,37 @@ export FROM=G...                  # the funded account that deposits and signs
 export FROM_SECRET=S...           # its secret key; stays on your machine
 ```
 
+### Read current Subscription state
+
+On builds containing #911, an ordinary or Dev Subscription exposes
+`GET /api/v1/deployments/{id}/subscription/state` with its deployment bearer token:
+
+```bash
+curl -sS "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/subscription/state" \
+  -H "Authorization: Bearer $PAIFLOW_TOKEN"
+```
+
+The `data` response contains `deploymentId`, `flowName`, `network`, `templateKind`,
+`contractAddress`, `tokenContractAddress`, `subscriber`, `isCancelled`, `allowance`,
+`setupRequired`, `asset` and `assetLabel`. Subscriber, token, cancellation and allowance
+come from current on-chain reads; amounts are integer stroop strings. If a Dev subscriber
+is unconfigured, `subscriber` is null, `setupRequired` is true and `allowance` is "0";
+no allowance read is attempted. A configured subscriber can have zero allowance even
+when setup is complete. Cancelled subscriptions remain readable.
+
+`tokenContractAddress` identifies the deployed asset. `asset` is metadata from the
+original graph only when it matches that token; otherwise it is null and `assetLabel`
+is the token contract address. Payroll, unsupported or malformed deployments and
+network mismatches are refused. Invalid/revoked/wrong-deployment tokens and inactive
+service are refused before live reads. RPC errors are reported, never substituted
+with zero or an active subscription. Responses are `no-store`; limit: **40/minute
+per token**. These fields are live observations, not a guaranteed atomic ledger snapshot.
+
+The token authorizes this read only. Continue using the configured subscriber's wallet
+and existing [allowance workflow](../hackathon/participant-guide.md) for approval.
+This endpoint neither charges nor cancels/reactivates a subscription. Hosted testnet
+verification remains required before relying on a deployed version's support.
+
 ### Discover the deployment's capabilities
 
 On builds containing the capabilities endpoint, check your deployment before choosing an integration:
@@ -168,8 +199,8 @@ curl -sS "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/capabilities" \
 
 `data` contains `deploymentId`, `network`, `triggerType`, `inputAsset`,
 `configurationSource: "deployment_snapshot"` and `operations`. The operation keys are
-`execute`, `events`, `transactions`, `releaseEarly`, `payouts`, `webhook` and
-`subscriptionAllowance`. Each has a `status`, `authentication`, `requirements` and `nodeIds`:
+`execute`, `events`, `transactions`, `releaseEarly`, `payouts`, `webhook`,
+`subscriptionAllowance` and `subscriptionState`. Each has a `status`, `authentication`, `requirements` and `nodeIds`:
 
 - **`supported`**: the integration path exists for the recorded deployment. This does not promise
   the next transaction will succeed; balances, deadlines, trustlines and simulation still apply.
@@ -516,6 +547,7 @@ hackathon venue's Wi-Fi) does not pay for one broken script:
 | `POST …/execute/submit`                       | 30 per minute                                             |
 | `POST …/release-early`                        | 10 per minute                                             |
 | `GET …/events`                                | 120 per minute                                            |
+| `GET …/subscription/state`                    | 40 per minute                                             |
 | `GET …/capabilities`                          | 60 per minute                                             |
 | `GET /api/v1/openapi.json`                    | 60 per minute per client IP (no token)                    |
 | `POST /api/v1/demo-token`                     | 3 per hour per client IP, 60 per hour instance-wide       |
