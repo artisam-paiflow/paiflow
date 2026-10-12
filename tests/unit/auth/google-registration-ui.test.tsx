@@ -6,6 +6,9 @@ const flags = vi.hoisted(() => ({
   GOOGLE_AUTH_ENABLED: false,
   ALLOW_GOOGLE_REGISTRATION: false,
 }));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: () => ({ value: "maria.santos" }) }),
+}));
 vi.mock("@/lib/env", () => ({ env: () => flags }));
 vi.mock("@/components/auth/register-form", () => ({
   default: () => <div>Password registration form</div>,
@@ -20,6 +23,7 @@ describe("independent registration UI gates", () => {
     render(await GoogleSignupPage({ searchParams: Promise.resolve({ from: "/flows" }) }));
     expect(screen.getByRole("heading", { name: "Complete your signup." })).toBeTruthy();
     expect(screen.getByLabelText("Access code")).toBeTruthy();
+    expect((screen.getByLabelText("Username") as HTMLInputElement).value).toBe("maria.santos");
     expect(screen.queryByRole("dialog")).toBeNull();
   });
   it("does not offer code entry when Google registration closes", async () => {

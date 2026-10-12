@@ -234,10 +234,15 @@ describe("Google Auth.js callback integration", () => {
       h.cookieGet.mockImplementation((name) =>
         name === "__Secure-authjs.callback-url" && callbackUrl ? { value: callbackUrl } : undefined,
       );
-      h.resolve.mockRejectedValueOnce(new GoogleAuthError("signup-code-required"));
+      h.resolve.mockRejectedValueOnce(new GoogleAuthError("signup-code-required", "maria.santos"));
       const target = new URL(String(await googleSignIn()));
       expect(target.origin).toBe("https://app.example");
       expect(target.pathname).toBe("/auth/signup");
+      expect(h.cookieSet).toHaveBeenCalledWith(
+        "paiflow.google-username",
+        "maria.santos",
+        expect.objectContaining({ httpOnly: true, secure: false, sameSite: "lax", maxAge: 600 }),
+      );
       expect(target.searchParams.get("from")).toBe(from);
     },
   );

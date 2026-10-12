@@ -1,7 +1,9 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
+import { GoogleUsernameSchema, GOOGLE_USERNAME_COOKIE } from "@/lib/auth/google-username";
+import { env } from "@/lib/env";
 import Logo from "@/components/app/logo";
 import GoogleButton from "@/components/auth/google-button";
-import { env } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Complete your signup · Paiflow" };
@@ -12,6 +14,9 @@ export default async function GoogleSignupPage({
   searchParams: Promise<{ from?: string }>;
 }) {
   const { from } = await searchParams;
+  const suggested = GoogleUsernameSchema.safeParse(
+    (await cookies()).get(GOOGLE_USERNAME_COOKIE)?.value,
+  );
   const available = env().GOOGLE_AUTH_ENABLED && env().ALLOW_GOOGLE_REGISTRATION;
   return (
     <main className="px-margin py-lg relative mx-auto flex min-h-screen w-full max-w-md flex-col justify-center">
@@ -23,7 +28,13 @@ export default async function GoogleSignupPage({
         Complete your signup.
       </h1>
       {available ? (
-        <GoogleButton signup codeScreen from={from} authOrigin={new URL(env().AUTH_URL).origin} />
+        <GoogleButton
+          signup
+          codeScreen
+          suggestedUsername={suggested.success ? suggested.data : ""}
+          from={from}
+          authOrigin={new URL(env().AUTH_URL).origin}
+        />
       ) : (
         <p role="status" className="text-on-surface-variant mt-md">
           New Google registrations are currently closed. Ask your organizer for help.

@@ -87,6 +87,24 @@ describe("Google code modal", () => {
     );
     expect(signIn).toHaveBeenCalledWith("google", { redirectTo: "/flows/new" });
   });
+  it("lets a new user edit the email suggestion before continuing", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ data: { ok: true } }) });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<GoogleButton signup codeScreen suggestedUsername="maria.santos" />);
+    const input = screen.getByLabelText("Username");
+    await userEvent.clear(input);
+    await userEvent.type(input, "maria.private");
+    await userEvent.type(screen.getByLabelText("Access code"), "code");
+    await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/google/signup",
+      expect.objectContaining({
+        body: JSON.stringify({ code: "code", username: "maria.private" }),
+      }),
+    );
+  });
   it("opens the code modal before OAuth and automatically continues after server validation", async () => {
     const fetchMock = vi
       .fn()
