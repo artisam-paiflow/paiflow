@@ -1,6 +1,6 @@
 # Developer API
 
-For a complete frontend/backend integration without the starter, follow the [API quickstart](../hackathon/developer-api-quickstart.md). For wallet setup, flow deployment and the ready-wired starter, use the [developer guide](../hackathon/developer-guide.md). Both guides are event-neutral; this reference provides the detailed API contract.
+For a complete frontend/backend integration without the starter, follow the [API quickstart](https://drive.google.com/file/d/1mTFaoICZwW2Ha3OttgJkp2q50o2H5siJ/view?usp=sharing). For wallet setup, flow deployment and the ready-wired starter, use the [Paiflow Guide](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing). Both guides are event-neutral; this reference provides the detailed API contract.
 
 Paiflow's `/api/v1` lets your backend run a deployed **deposit-triggered flow** (Pay, Split, condition or swap) and watch what it did on
 chain, with no browser and no wallet integration on Paiflow's side. You send the deposit, the flow

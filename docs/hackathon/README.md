@@ -1,6 +1,6 @@
 # Hackathon documentation
 
-This folder contains shared Paiflow developer instructions and event-specific planning documents. The developer guide and API quickstart are organisation- and event-neutral. Event dates, preparation permissions, qualification, judging and submissions belong in each event's documents.
+This folder contains shared Paiflow developer instructions and event-specific planning documents. The Paiflow Guide and API quickstart are organisation- and event-neutral. Event dates, preparation permissions, qualification, judging and submissions belong in each event's documents.
 
 ## Files to keep in sync
 
@@ -10,19 +10,22 @@ Paths below are relative to this folder unless stated otherwise.
 
 | File or document                                                                                                                          | Purpose                                                                                                              | Keep aligned with                                                                                                      |
 | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| [Developer guide](developer-guide.md)                                                                                                     | Human-readable wallet, flow, deployment and starter walkthrough                                                      | `developer-guide.pdf`, API quickstart, current starter behaviour and tutorial videos                                   |
-| [API quickstart](developer-api-quickstart.md)                                                                                             | Custom frontend/backend integration without the starter: prepare, sign, submit, look up transactions and read events | `developer-api-quickstart.pdf`, full API reference, OpenAPI and working API routes                                     |
+| [Paiflow Guide](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing)                                                                                                     | Human-readable wallet, flow, deployment and starter walkthrough                                                      | `paiflow-guide.pdf`, API quickstart, current starter behaviour and tutorial videos                                   |
+| [API quickstart](https://drive.google.com/file/d/1mTFaoICZwW2Ha3OttgJkp2q50o2H5siJ/view?usp=sharing)                                                                                             | Custom frontend/backend integration without the starter: prepare, sign, submit, look up transactions and read events | `developer-api-quickstart.pdf`, full API reference, OpenAPI and working API routes                                     |
 | [Full API reference](../api/README.md)                                                                                                    | Detailed authentication, endpoints, constraints and errors                                                           | OpenAPI, Postman, API quickstart and shared AI context                                                                 |
 | [OpenAPI JSON](../api/openapi.json)                                                                                                       | Machine-readable API contract                                                                                        | Source `lib/api/v1/openapi.ts`, route/schema definitions and the deployed `/api/v1/openapi.json`                       |
 | [Postman collection](../api/paiflow-api-v1.postman_collection.json)                                                                       | Runnable API examples                                                                                                | OpenAPI, API reference, request shapes and instance URLs                                                               |
 | [Shared developer context](llms.md)                                                                                                       | Technical instructions for AI-assisted development                                                                   | `llms.md` in the starter and Campus Snacks repos, API reference and actual product behaviour                           |
-| [Starter repository](https://github.com/artisam-paiflow/paiflow-hackathon-starter): `README.md`, `AGENTS.md`, `.env.example`, `llms.md`   | Setup, prepare/team/demo modes, configuration and development guidance                                               | Developer guide, API quickstart, shared context and starter implementation                                             |
+| [Starter repository](https://github.com/artisam-paiflow/paiflow-hackathon-starter): `README.md`, `AGENTS.md`, `.env.example`, `llms.md`   | Setup, prepare/team/demo modes, configuration and development guidance                                               | Paiflow Guide, API quickstart, shared context and starter implementation                                             |
 | [Campus Snacks repository](https://github.com/artisam-paiflow/paiflow-campus-snacks): `README.md`, `AGENTS.md`, `.env.example`, `llms.md` | USDC sample setup, prepare/team controls and 90/10 checkout                                                          | Starter integration conventions, shared context and sample implementation; preserve sample-specific behaviour          |
+| [JRU event primer](jru/event-primer.md) | Concise JRU overview using the shared event-primer format | `jru/event-primer.pdf` and the [JRU participant guide](participant-guide.md); JRU preparation rules, deadlines and judging |
 | [FEU Tech event proposal](feu-tech/event-proposal.md)                                                                                     | Student-org planning draft: scope, timetable and responsibilities                                                    | `feu-tech/event-proposal.pdf` and the future participant brief; event rules must not leak into shared technical guides |
 | [Video tutorial prompt](video-tutorial-prompt.md) and `video-tutorial/` recording materials                                               | Tutorial planning, captions, narration and recording checks                                                          | Current guide steps, sample configuration and recorded app/wallet behaviour                                            |
 | Recorded tutorial videos and their links                                                                                                  | Visual companions to the guides                                                                                      | Relevant guide section, actual UI and asset/network configuration; replace TBD links after recording                   |
 
 ## Public documentation
+
+Participant-facing guide links use the shared Google Drive PDFs for the [Paiflow Guide](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing) and [API quickstart](https://drive.google.com/file/d/1mTFaoICZwW2Ha3OttgJkp2q50o2H5siJ/view?usp=sharing). When either guide changes, regenerate its PDF and update the corresponding shared Google Drive file before distributing the revision. Update any related Google Docs copies as well, so participants opening the shared links see the latest version. Preserve the existing sharing links where possible.
 
 Participant-facing repository links use [`artisam-paiflow/paiflow` on `develop`](https://github.com/artisam-paiflow/paiflow/tree/develop/docs/hackathon). Keep the shared guides, PDFs and API resources aligned with that public copy. Before distributing the PDFs or updating starter/sample links, verify that every linked file exists on the public branch and contains the current revision.
 
@@ -41,9 +44,10 @@ Participant-facing repository links use [`artisam-paiflow/paiflow` on `develop`]
 Run from the repository root:
 
 ```bash
-node scripts/render-developer-guide-pdf.mjs docs/hackathon/developer-guide.md
+node scripts/render-developer-guide-pdf.mjs docs/hackathon/paiflow-guide.md
 node scripts/render-api-quickstart-pdf.mjs docs/hackathon/developer-api-quickstart.md
 node scripts/render-event-primer-pdf.mjs docs/hackathon/feu-tech/event-proposal.md
+node scripts/render-event-primer-pdf.mjs docs/hackathon/jru/event-primer.md
 ```
 
 Check page boundaries, code examples and links after rendering. Do not regenerate PDFs for every intermediate Markdown edit.
