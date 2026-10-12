@@ -4,6 +4,8 @@ Updated Oct 7, 2026
 
 The Paiflow event at JRU combines a morning talk with two parallel tracks: a mini hackathon and a workshop and seminar. Hackathon teams build an app that solves a real problem with automated payments through Paiflow.
 
+**Dev mode will stay disabled for the duration of the hackathon.**
+
 ## At a glance
 
 | Item              | Details                                                        |

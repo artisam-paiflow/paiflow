@@ -35,7 +35,7 @@ Use a snack shop where a customer's payment automatically splits:
 Show the complete journey:
 
 1. Open https://beta.app.paiflow.xyz and explain the sandbox.
-2. Create an “on receive → split” flow.
+2. Create an “on receive → split” flow with Dev mode off. Explain that Dev mode will stay disabled for the duration of the hackathon; configure recipients before deployment.
 3. Configure the asset, recipient addresses and percentages.
 4. Review the flow's English preview.
 5. Demonstrate deployment with a testnet wallet and wait for CONFIRMED.

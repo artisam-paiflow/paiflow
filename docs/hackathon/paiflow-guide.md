@@ -39,6 +39,8 @@ Follow your participant brief for event rules, preparation permissions, deadline
 
 This walkthrough is event-neutral. Follow your participant brief and organisers' instructions for when preparation, deployment and app integration are allowed.
 
+**Dev mode will stay disabled for the duration of the hackathon.** Configure recipients and required values before deploying. Per-payment recipients, **Fill value via API** and **Dev values** are unavailable; standard Pay and Split flows remain available. `PAIFLOW_MODE=team` and `pnpm dev` do not enable flow Dev mode.
+
 Paiflow is the money logic behind your app. Your app handles who pays and why; a deployed flow handles when money moves and where it goes. One deployment serves one business or group and can receive payments from many customers.
 
 | You need                                | Purpose                                          |
@@ -166,7 +168,7 @@ Ensure `.env.local` is ignored by git. Do not commit it. Missing or invalid team
 
 1. Open the local starter in the browser with Freighter installed. Confirm team mode is configured and the deployment uses XLM.
 2. Select **Connect Freighter** and approve access to the local site. Connecting to Paiflow does not automatically grant access to your local app.
-3. Confirm the customer address and Testnet network. Enter **1** in the ordinary **Pay** amount field and select **Pay**. Do not use the per-payment recipient form for this fixed Split example.
+3. Confirm the customer address and Testnet network. Enter **1** in the ordinary **Pay** amount field and select **Pay**. The per-payment recipient form is hidden when deployment capabilities do not support it; Dev mode stays disabled throughout the hackathon.
 4. Review the Testnet signing request in Freighter and confirm. The starter prepares through its server, Freighter signs, and the server submits.
 5. Check for **SUCCESS**, then verify the expected 0.9/0.1 XLM payout. Save the transaction hash.
 

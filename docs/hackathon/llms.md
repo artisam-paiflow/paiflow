@@ -25,6 +25,8 @@ Both human guides live directly in `docs/hackathon/` and are event-neutral. Thei
 
 This guide explains how to build with Paiflow. For preparation rules, integration start times, team credentials, submission requirements and judging, follow your event's primer and organiser instructions. Do not infer event rules from the technical examples in this guide. If event information is missing, ask the organisers.
 
+**Hackathon availability:** Dev mode will stay disabled for the duration of the hackathon. Configure all recipients and required values before deployment. Per-payment recipients (`payouts`), **Fill value via API**, **Dev values** and deferred subscriber/recipient setup are unavailable during the event. Use standard flows and `execute` with configured recipients. `PAIFLOW_MODE=team` and `pnpm dev` do not enable flow Dev mode. The Dev-mode sections below describe product features only where enabled; do not use them for this hackathon.
+
 ## Preparation and starter modes
 
 - Choose a problem, research users and sketch your app according to your event's preparation rules.
@@ -115,13 +117,15 @@ Fields: `asset`, `subscriber` (account address), `amountPerPeriodStroops` (integ
 
 Pull payments from the configured subscriber after they approve an allowance. The relayer charges when due, without the subscriber signing every charge, until the window ends or allowance/balance is exhausted. Starts at deployment time; end/count/default window follow the rules above. The non-deferred amount must be greater than zero. If the next Split has all fixed recipients, its total determines the pull amount instead of a stale manual period amount. Use the allowance page; `execute` cannot start a subscription. Use Pay or Split downstream; amount and time branching conditions are refused under this trigger.
 
-Dev mode can defer/change the subscriber and payment values through **Dev values** on the deployment page. On builds containing #790, the configured customer can open `/allowance/[deploymentId]` while logged out and approve with their wallet, without a Paiflow account or deployment token. The page supports ordinary and Dev subscriptions and reads the current deployed subscriber and token. An unconfigured Dev subscriber must be filled by the team first; a different wallet is refused. An allowance still needs the customer's wallet signature. Do not claim that connecting any new wallet automatically creates a new subscriber in this one deployment.
+Outside this hackathon, where Dev mode is enabled, Dev mode can defer/change the subscriber and payment values through **Dev values** on the deployment page. On builds containing #790, the configured customer can open `/allowance/[deploymentId]` while logged out and approve with their wallet, without a Paiflow account or deployment token. The page supports ordinary and Dev subscriptions and reads the current deployed subscriber and token. An unconfigured Dev subscriber must be filled by the team first; a different wallet is refused. An allowance still needs the customer's wallet signature. Do not claim that connecting any new wallet automatically creates a new subscriber in this one deployment.
 
 ## Pay — `pay`
 
 Fields: `recipient`, `asset`; optional `email` (up to 254 characters), `mode` (`fixed` or `percentage`), `amountStroops`, `percentage` (0–100), `fullAmount` (default false), `fillValueViaApi`, `payoutMode` (use `crypto`).
 
 Pay one recipient. Unless full amount or deferred value is selected, choose a mode: a fixed amount must be positive; a percentage must be greater than zero and at most 100. `fullAmount: true` pays 100% of what arrives. Fixed Pay sends the smaller of incoming amount and its configured cap; any surplus goes to its next step. With no next step, surplus stays in the Pay contract: avoid overfunding a terminal fixed Pay. For variable checkout prices, full amount is simpler.
+
+**Unavailable during this hackathon:** Dev mode stays disabled. The following deferred-value behavior applies only where Dev mode is enabled.
 
 `fillValueViaApi` is only allowed with graph `devMode: true`. That mutable Pay can deploy before its recipient/value is filled. Set these in **Dev values**, or use `payouts` for a per-payment recipient; do not call `execute` against an unconfigured Pay. A deferred-value payout configures that Pay to 100%.
 
@@ -132,7 +136,7 @@ Fields: `asset`, `recipients` (up to 20), optional `amountPerIntervalStroops`. E
 - All recipients use the same mode. Never mix percentage and fixed rows.
 - Percentage shares must each be greater than zero and sum to exactly 10,000 bps. For three equal shares use 3333, 3333, 3334. Rounding remainder goes to the last recipient.
 - Fixed amounts must each be positive, with a positive total. Short deposits accumulate; the roster is paid when enough funds are held. Surplus is forwarded to a next step if one exists.
-- No duplicate recipient addresses. A non-Dev flow needs at least one recipient. Dev mode may deploy an empty roster, but fill it in **Dev values** before payments.
+- No duplicate recipient addresses. A non-Dev flow needs at least one recipient. Outside this hackathon, Dev mode may deploy an empty roster, but fill it in **Dev values** before payments.
 - A scheduled percentage Split needs a positive `amountPerIntervalStroops`; a fixed scheduled Split derives the amount from its roster.
 
 Use Split for fan-out rather than drawing several outgoing money paths and expecting automatic division. A percentage Split consumes the deposit; it does not leave money for a subsequent per-payment Pay.
@@ -434,6 +438,8 @@ export function listEvents(input: { cursor?: string; limit?: number; txHash?: st
 
 ## Per-payment payouts
 
+**Unavailable during this hackathon:** Dev mode stays disabled; use `execute` with configured recipients. The following payout reference applies only where Dev mode is enabled.
+
 `payouts` prepares a deposit **after configuring one mutable Pay for its recipient**. Requires a confirmed deposit-triggered flow and a Pay block with **Fill value via API** on, in a Dev mode flow. Body is `{ from, amount, recipient, nodeId? }`; `nodeId` is required when multiple deployed mutable Pay nodes exist. `recipient` is a valid account address, amount is positive stroops bounded by i128 (and percentage multiplication range). Account/trustline checks must succeed before recipient mutation. Preparation returns Execute's fields plus `nodeId`; its deposit has a **60-second validity window**, so sign promptly. Submit through `payouts/submit` using the same token and deployment.
 
 Supported routes to that Pay are immediate amount conditions or fixed Split. A fixed Split must have zero token/accumulated balances, positive fixed recipients, one next step, and incoming amount greater than its fixed total; surplus reaches Pay. Percentage Split consumes everything; a shortfall accumulates; neither qualifies. Time holds, Swap and other delayed/unsupported paths are refused. Pay must have no existing pooled balance. Deferred value sets Pay to 100%; otherwise current configuration is preserved: percentage must consume all incoming funds, or incoming must not exceed a fixed cap. These checks concern the amount reaching Pay after upstream payouts.
@@ -612,7 +618,7 @@ For example, a **3.50 USDC** payment splits into **3.15 USDC to the vendor + 0.3
 
 Graph: **On Receive USDC → Pay full amount to the store wallet**, or → percentage Split for the store and partner. The app's basket total supplies input `amount` as stroops. This one deployment serves this store; it does not create a new contract for every shopper.
 
-App calls: prepareExecute for the customer's address and checkout amount → browser wallet signs → submitExecute → listEvents, optionally filtering `txHash` to show that checkout's payout. Only mark the payment complete on SUCCESS, not merely HTTP 200. If the use case needs a recipient chosen per sale, use a Dev Pay with deferred value and preparePayout → sign → submitPayout; serialise payouts and do not mix execute/QR payments into that deployment while a payout lease is held.
+App calls: prepareExecute for the customer's address and checkout amount → browser wallet signs → submitExecute → listEvents, optionally filtering `txHash` to show that checkout's payout. Only mark the payment complete on SUCCESS, not merely HTTP 200. For this hackathon, keep the store and partner recipients configured in the deployment. Choosing a recipient per sale requires Dev mode and is unavailable throughout the event. Outside this hackathon, where Dev mode is enabled, that path uses a Dev Pay with deferred value and preparePayout → sign → submitPayout; serialise payouts and do not mix execute/QR payments into that deployment while a payout lease is held.
 
 ## Freelance escrow
 

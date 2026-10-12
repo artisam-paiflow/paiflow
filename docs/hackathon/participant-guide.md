@@ -55,6 +55,8 @@ A maximum of 10 teams can participate. Solo teams are welcome, but teams are enc
 
 ## The challenge
 
+**Dev mode will stay disabled for the duration of the hackathon.** Configure recipients and required values before deploying. Per-payment recipients, **Fill value via API** and **Dev values** are unavailable; standard Pay and Split flows remain available. `PAIFLOW_MODE=team` and `pnpm dev` do not enable flow Dev mode.
+
 The theme is open. Start with a problem you or people around you have, then choose the Paiflow blocks that fit. These examples show how blocks combine and can inspire your own idea.
 
 Paiflow deploys a flow you draw as Stellar contracts. Your app decides _who_ pays and _why_; your flow decides _when_ money moves and _where_ it goes.
@@ -73,7 +75,7 @@ Paiflow deploys a flow you draw as Stellar contracts. Your app decides _who_ pay
 
 Strong projects have a real user, a flow that fits their problem, and a demo with visible payouts.
 
-On builds containing #577, public embeds show a read-only flow diagram and recent live activity, with a payment-page QR for supported payment and funding flows. If the live connection is unavailable, activity updates periodically. Webhook and streamer QR links add funds; they do not execute rewards or release streams. Subscription approval uses its separate allowance page. On builds containing #790, the configured customer opens that page and signs with their wallet without a Paiflow login or deployment token. Ordinary and Dev subscriptions are supported; the team must fill an unconfigured Dev subscriber first. If confirmation is unknown, check the existing approval status before approving again. Approval grants consent; the later scheduled charge must still be rehearsed with a real wallet and verified recipient payout. Confirm the deployed version with support before your rehearsal. For Web2 rewards, obtain the callback URL and secret from your authenticated owner deployment page and keep the secret on your server. Public embeds omit credentials and private configuration.
+On builds containing #577, public embeds show a read-only flow diagram and recent live activity, with a payment-page QR for supported payment and funding flows. If the live connection is unavailable, activity updates periodically. Webhook and streamer QR links add funds; they do not execute rewards or release streams. Subscription approval uses its separate allowance page. On builds containing #790, the configured customer opens that page and signs with their wallet without a Paiflow login or deployment token. For this hackathon, use ordinary subscriptions with the subscriber configured before deployment; Dev mode stays disabled throughout the event. If confirmation is unknown, check the existing approval status before approving again. Approval grants consent; the later scheduled charge must still be rehearsed with a real wallet and verified recipient payout. Confirm the deployed version with support before your rehearsal. For Web2 rewards, obtain the callback URL and secret from your authenticated owner deployment page and keep the secret on your server. Public embeds omit credentials and private configuration.
 
 For setup instructions and example payment flows, see the [AI context pack](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/llms.md). Confirm feature availability with the support contact before choosing an idea.
 

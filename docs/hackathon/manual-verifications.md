@@ -110,6 +110,8 @@ Run after a build containing #577 is promoted. See
 
 ### Wallet-only subscription approval — #790
 
+Dev mode will stay disabled for the duration of the hackathon. Run the ordinary subscription checks for event readiness; the `SUBSCRIPTION_DEV` checks below are product verification for a separate environment where Dev mode is enabled. Do not enable it on the hackathon server to run them.
+
 Run after a build containing #790 is promoted. See
 [wallet-only subscription approval](../subscription-allowance.md) for the route
 boundary and recovery behavior. Local tests do not complete this rehearsal.

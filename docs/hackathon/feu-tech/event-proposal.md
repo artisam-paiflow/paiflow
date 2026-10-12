@@ -59,6 +59,8 @@ All event-day times below are in Philippine Time (PHT).
 
 ## The challenge
 
+**Dev mode will stay disabled for the duration of the hackathon.** Teams must configure recipients and required values before deployment. Per-payment recipients, **Fill value via API** and **Dev values** are unavailable; use standard flows with configured recipients.
+
 The theme is open. Start with a problem you or people around you have, then choose the Paiflow blocks that fit. These examples show how blocks combine and can inspire your own idea.
 
 Paiflow deploys a flow you draw as Stellar contracts. Your app decides _who_ pays and _why_; your flow decides _when_ money moves and _where_ it goes.

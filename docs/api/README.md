@@ -599,6 +599,8 @@ matching its Zod schema, or if the Postman collection misses a v1 request.
 
 ## Per-payment payouts
 
+**Hackathon availability:** Dev mode will stay disabled for the duration of the hackathon. These endpoints require Dev mode and are unavailable during the event. Use `execute` with the recipients configured in your standard deployment.
+
 For a deposit-triggered dev flow, `POST /api/v1/deployments/:id/payouts` accepts
 `{ "from": "G…", "amount": "1000000000", "recipient": "G…", "nodeId": "pay" }`.
 `nodeId` is optional when there is only one deployed `PAYER_DEV`. Sign the returned `xdr` with

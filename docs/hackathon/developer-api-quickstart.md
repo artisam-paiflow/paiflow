@@ -24,6 +24,8 @@ Starter users can follow the [Paiflow Guide](https://drive.google.com/file/d/1ab
 
 ## 1 Prepare a deployment and app
 
+**Dev mode will stay disabled for the duration of the hackathon.** Configure recipients and required values before deploying. Per-payment recipients, **Fill value via API** and **Dev values** are unavailable; standard Pay and Split flows remain available. `PAIFLOW_MODE=team` and `pnpm dev` do not enable flow Dev mode.
+
 Build and deploy a standard **On Receive XLM → percentage Split XLM** flow: 90% to a shop and 10% to a community fund. Keep **Dev mode off** for this example and use two distinct funded Testnet recipient addresses. Wait for **CONFIRMED**, then create a deployment token in **API access** and copy its UUID.
 
 Use a full/team Paiflow account at [beta.paiflow.xyz](https://beta.app.paiflow.xyz). Sandbox accounts cannot create tokens or use their deployments through the partner API. API access requires an **ACTIVE** deployment and active owner; retiring/retired deployments and revoked/expired tokens are refused.

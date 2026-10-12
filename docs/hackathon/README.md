@@ -23,6 +23,10 @@ Paths below are relative to this folder unless stated otherwise.
 | [Video tutorial prompt](video-tutorial-prompt.md) and `video-tutorial/` recording materials                                               | Tutorial planning, captions, narration and recording checks                                                          | Current guide steps, sample configuration and recorded app/wallet behaviour                                            |
 | Recorded tutorial videos and their links                                                                                                  | Visual companions to the guides                                                                                      | Relevant guide section, actual UI and asset/network configuration; replace TBD links after recording                   |
 
+## Hackathon feature availability
+
+Dev mode will stay disabled for the duration of the hackathon. Participant instructions must use configured recipients and values in standard flows. Do not direct teams to Dev values, Fill value via API or per-payment payouts. Shared technical references may retain advanced Dev-mode details only with an explicit unavailable-during-this-hackathon note. The starter checks deployment capabilities and hides unsupported per-payment recipient controls. Keep the starter README and shared `llms.md` copy aligned. Historical Web3 Iloilo materials retain their separate event scope.
+
 ## Public documentation
 
 Developer READMEs and AI context guides link to GitHub Markdown sources so readers and AI tools can inspect the instructions and code examples. Keep those source links current when files are renamed. The starter README also offers PDF copies.
