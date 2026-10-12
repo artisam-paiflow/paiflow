@@ -402,6 +402,7 @@ model Deployment {
   signedTransactions   SignedTransaction[]
   timelockReleases     TimelockRelease[]
   webhookAttempts      WebhookAttempt[]
+  walletControlIntents WalletControlIntent[]
 
   @@unique([ownerId, idempotencyKey])
   @@index([ownerId, createdAt(sort: Desc)])
@@ -1005,4 +1006,35 @@ model GoogleSignupIntent {
 
   @@index([expiresAt])
   @@index([codeId])
+}
+
+enum WalletControlState {
+  PREPARED
+  SUBMITTING
+  SUCCESS
+  FAILED
+  EXPIRED
+}
+
+// Exact unsigned transaction binding; no customer signatures or keys are stored.
+model WalletControlIntent {
+  id                String             @id @default(uuid()) @db.Uuid
+  deploymentId      String             @db.Uuid
+  deployment        Deployment         @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
+  network           String
+  nodeId            String
+  contractAddress   String
+  action            String
+  walletAddress     String
+  txHash            String             @unique
+  maxTime           String
+  preparationLedger Int
+  // PREPARED -> SUBMITTING -> SUCCESS|FAILED|EXPIRED. Uncertainty never clears a reservation.
+  state             WalletControlState @default(PREPARED)
+  ledger            Int?
+  createdAt         DateTime           @default(now())
+  submittedAt       DateTime?
+  completedAt       DateTime?
+
+  @@index([deploymentId, network, nodeId, state])
 }

@@ -211,6 +211,7 @@ const CODES = new Set([
   "ONCHAIN_FAILED",
   "RPC_UNAVAILABLE",
   "FINALITY_UNKNOWN",
+  "CONTROL_EXPIRED",
 ]);
 const WALLETS = new Set([
   "freighter",

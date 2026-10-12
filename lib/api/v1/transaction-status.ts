@@ -8,6 +8,7 @@ import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { invokesPipeline } from "@/lib/stellar/transaction-attribution";
 import type { TransactionStatus } from "./schema";
+import { recordControlFinality, repairControlAdmission } from "./control-intent";
 
 const AUDIT_ACTIONS = [
   "DEPLOY_TRIGGER",
@@ -50,6 +51,42 @@ export async function getTransactionStatus(
   if (deployment.network !== network)
     throw new AppError("NOT_FOUND", "Transaction not available for this deployment");
   const base = { txHash, network };
+  const readControl = () =>
+    db.walletControlIntent.findFirst({
+      where: { deploymentId: deployment.id, network, txHash },
+    });
+  const controlFinal = (
+    value: Awaited<ReturnType<typeof readControl>>,
+  ): TransactionStatus | null => {
+    if (value?.state === "SUCCESS" || value?.state === "FAILED")
+      return {
+        ...base,
+        status: value.state,
+        ...(value.ledger ? { ledger: value.ledger } : {}),
+        ...(value.state === "FAILED"
+          ? { error: { code: "ONCHAIN_FAILED", message: "Transaction failed on the network" } }
+          : {}),
+      };
+    if (value?.state === "EXPIRED")
+      return {
+        ...base,
+        status: "REJECTED",
+        error: {
+          code: "EXPIRED",
+          message: "Ledger coverage proves the prepared transaction expired without inclusion",
+        },
+      };
+    return null;
+  };
+  const controlResult = async (value: Awaited<ReturnType<typeof readControl>>) => {
+    const final = controlFinal(value);
+    if (final && value) await repairControlAdmission(value);
+    return final;
+  };
+  const control = await readControl();
+  const durableControl = await controlResult(control);
+  if (durableControl) return durableControl;
+
   // Every record query is scoped before returning or mutating anything. DB errors propagate.
   const where = { deploymentId: deployment.id, network, txHash, kind: { not: "DEPLOY" as const } };
   const readSigned = () => db.signedTransaction.findFirst({ where, select: signedSelect });
@@ -73,7 +110,16 @@ export async function getTransactionStatus(
   if (durableAttempt) return durableAttempt;
   const row = await readSigned();
   const saved = terminal(row, base);
-  if (saved) return saved;
+  if (saved) {
+    if (control)
+      await recordControlFinality(
+        deployment.id,
+        txHash,
+        saved.status === "SUCCESS" ? "SUCCESS" : "FAILED",
+        saved.ledger,
+      );
+    return saved;
+  }
   const [event, audit] = await Promise.all([
     db.contractEvent.findFirst({
       where: { deploymentId: deployment.id, txHash },
@@ -91,8 +137,11 @@ export async function getTransactionStatus(
     }),
   ]);
   // Ingested successful contract events survive RPC history expiry.
-  if (event) return { ...base, status: "SUCCESS", ledger: event.ledger };
-  const associated = Boolean(row || audit || attempt);
+  if (event) {
+    if (control) await recordControlFinality(deployment.id, txHash, "SUCCESS", event.ledger);
+    return { ...base, status: "SUCCESS", ledger: event.ledger };
+  }
+  const associated = Boolean(row || audit || attempt || control);
   const budget = await rateLimit(`v1:transaction-rpc:${deployment.id}`, 60, 60);
   if (!budget.ok) throw rateLimitedError(budget);
   // RPC work has a deployment-wide bound across tokens and replicas. Fail closed in production.
@@ -105,7 +154,10 @@ export async function getTransactionStatus(
   try {
     got = await sorobanRpc().getTransaction(txHash);
   } catch {
-    const latest = terminal(await readSigned(), base) ?? attemptFinal(await readAttempt());
+    const latest =
+      (await controlResult(await readControl())) ??
+      terminal(await readSigned(), base) ??
+      attemptFinal(await readAttempt());
     if (latest) return latest;
     throw new AppError(
       "UPSTREAM_RPC",
@@ -121,6 +173,7 @@ export async function getTransactionStatus(
   if (!associated && !(envelope && invokesPipeline(envelope, txHash, deployment.pipelineSnapshot)))
     throw new AppError("NOT_FOUND", "Transaction not available for this deployment");
   if (got.status === "SUCCESS" || got.status === "FAILED") {
+    if (control) await recordControlFinality(deployment.id, txHash, got.status, got.ledger);
     await recordTransactionOutcome(txHash, got.status === "SUCCESS" ? "CONFIRMED" : "FAILED", {
       deploymentId: deployment.id,
       executionOnly: true,
@@ -148,7 +201,10 @@ export async function getTransactionStatus(
   // Re-read after RPC to avoid answering uncertainty over a concurrent confirmation.
   const latest = await readSigned();
   const latestAttempt = await readAttempt();
-  const final = terminal(latest, base) ?? attemptFinal(latestAttempt);
+  const final =
+    (await controlResult(await readControl())) ??
+    terminal(latest, base) ??
+    attemptFinal(latestAttempt);
   if (final) return final;
   const current = latest ?? row;
   const currentAttempt = latestAttempt ?? attempt;

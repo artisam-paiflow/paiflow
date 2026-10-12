@@ -9,6 +9,7 @@ import { sorobanRpc, horizon } from "@/lib/stellar/client";
 import { deploymentSubmissionHash, recoveredDeploymentReferences } from "./deployment-recovery";
 import { pollEventsForWithOutcome, reconcileStoredCashOutObligations } from "@/lib/stellar/events";
 import { lockDeployment, observeServiceTransaction, withDeploymentWork } from "./service-work";
+import { reconcileControlIntent, WalletControlActionSchema } from "@/lib/api/v1/control-intent";
 
 const unresolvedSigned: Prisma.SignedTransactionWhereInput = {
   OR: [{ outcome: null }, { outcome: { in: ["RECEIVED", "ACCEPTED", "UNRESOLVED"] } }],
@@ -83,6 +84,11 @@ async function settlementBlocker(tx: Prisma.TransactionClient, id: string): Prom
   });
   if (pending)
     return `Transaction ${pending.txHash}: finality unknown; reconcile before retirement`;
+  const control = await tx.walletControlIntent.findFirst({
+    where: { deploymentId: id, state: { in: ["PREPARED", "SUBMITTING"] } },
+  });
+  if (control)
+    return `Transaction ${control.txHash}: wallet-control finality requires reconciliation`;
   const signed = await tx.signedTransaction.findFirst({
     where: { deploymentId: id, ...unresolvedSigned },
   });
@@ -117,6 +123,20 @@ async function reconcileFinality(id: string) {
     deployHash && ["BUILDING", "SUBMITTED", "FAILED"].includes(deployment.status);
   if (deployHash && !deployment.deployTxHash)
     await db.deployment.update({ where: { id }, data: { deployTxHash: deployHash } });
+  // Tokens are revoked on RETIRING. Internal retirement work must repair persisted
+  // control proof without requiring a caller or relying on RPC retention.
+  const controlsSeen = new Set<string>();
+  const reconcileControl = async (txHash: string) => {
+    const intent = await db.walletControlIntent.findFirst({
+      where: { deploymentId: id, network: deployment.network, txHash },
+    });
+    if (!intent) return false;
+    if (!controlsSeen.has(txHash)) {
+      controlsSeen.add(txHash);
+      await reconcileControlIntent(intent.id, id, WalletControlActionSchema.parse(intent.action));
+    }
+    return true;
+  };
   const pending = await db.serviceTransaction.findMany({
     where: {
       work: { deploymentId: id },
@@ -138,6 +158,7 @@ async function reconcileFinality(id: string) {
     orderBy: { createdAt: "asc" },
   });
   for (const row of pending) {
+    if (await reconcileControl(row.txHash)) continue;
     if (
       recoverDeployment &&
       row.txHash === deployHash &&
@@ -189,6 +210,7 @@ async function reconcileFinality(id: string) {
     orderBy: { createdAt: "asc" },
   });
   for (const row of signed) {
+    if (await reconcileControl(row.txHash)) continue;
     const got = await sorobanRpc().getTransaction(row.txHash);
     if (got.status === "SUCCESS" || got.status === "FAILED") {
       await db.signedTransaction.update({
@@ -197,6 +219,18 @@ async function reconcileFinality(id: string) {
       });
     }
   }
+  // Abandoned unsigned preparations may have been broadcast externally. Queue
+  // refusals likewise leave an unresolved intent even when other rows say REJECTED.
+  const unresolvedControls = await db.walletControlIntent.findMany({
+    where: {
+      deploymentId: id,
+      network: deployment.network,
+      state: { in: ["PREPARED", "SUBMITTING"] },
+    },
+    take: 20,
+    orderBy: { createdAt: "asc" },
+  });
+  for (const intent of unresolvedControls) await reconcileControl(intent.txHash);
 }
 
 export async function reconcileRetirement(id: string) {
@@ -252,7 +286,10 @@ export async function reconcileRetirement(id: string) {
         const historical = await tx.signedTransaction.count({
           where: { deploymentId: id, ...unresolvedSigned },
         });
-        return unfinished + pending + historical === 0;
+        const controls = await tx.walletControlIntent.count({
+          where: { deploymentId: id, state: { in: ["PREPARED", "SUBMITTING"] } },
+        });
+        return unfinished + pending + historical + controls === 0;
       });
       if (ready) {
         const cutoff =

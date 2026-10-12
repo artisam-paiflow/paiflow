@@ -769,3 +769,9 @@ Idempotency covers only callers reusing the same key; it does not deduplicate di
 keys, operator releases or other funding/execution paths, and is not an unconditional
 exactly-once payout guarantee. Both new migrations must be applied before rollout; only
 isolated local tests have run, with no live webhook payout or application database migration.
+
+## Wallet-authorized deployment controls
+
+The shared [wallet control foundation](wallet-controls.md) documents the preparation,
+submission and recovery protocol for future wallet-authorized controls; it does not
+by itself expose cancellation/reactivation routes.
