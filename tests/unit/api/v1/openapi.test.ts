@@ -20,6 +20,7 @@ import {
   DeploymentCapabilitiesSchema,
   DeploymentBalancesSchema,
   SubscriptionStateSchema,
+  ScheduleStateSchema,
   SubscriptionControlPrepareSchema,
   SubscriptionControlPreparedSchema,
   SubscriptionControlReconcileSchema,
@@ -144,6 +145,7 @@ describe("OpenAPI document", () => {
 
   const parses: Array<[string, z.ZodTypeAny, unknown]> = [
     ["swap quote", SwapQuoteSchema, examples.swapQuote.data],
+    ["Schedule state", ScheduleStateSchema, examples.scheduleState.data],
     ["subscription state", SubscriptionStateSchema, examples.subscriptionState.data],
     ["deployment capabilities", DeploymentCapabilitiesSchema, examples.capabilities.data],
     ["keyed webhook", WebhookAttemptResponseSchema, examples.webhookPending.data],

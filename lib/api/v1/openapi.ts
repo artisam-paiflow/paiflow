@@ -132,6 +132,32 @@ export const examples = {
       meetsMinimumAtQuote: true,
     },
   },
+  scheduleState: {
+    data: {
+      deploymentId: EXAMPLE_DEPLOYMENT_ID,
+      network: "testnet",
+      nodeId: "schedule",
+      contractAddress: USDC_SAC_TESTNET,
+      controller: EXAMPLE_FROM,
+      controlEligibility: {
+        walletProtocolSupported: true,
+        pause: false,
+        resume: true,
+        retrieve: true,
+      },
+      tokenContractAddress: XLM_SAC_TESTNET,
+      paused: true,
+      pauseAllowed: true,
+      retrieveAllowed: true,
+      balanceStroops: "20000000",
+      availableStroops: "10000000",
+      claimedStroops: "0",
+      unvestedStroops: "10000000",
+      retrievableStroops: "10000000",
+      retrievalRecipient: EXAMPLE_FROM,
+      readAt: "2026-10-12T00:00:00.000Z",
+    },
+  },
   subscriptionState: {
     data: {
       deploymentId: EXAMPLE_DEPLOYMENT_ID,
@@ -183,6 +209,8 @@ export const examples = {
         swapQuote: capabilityExample("unsupported", "deployment_token", [
           "Requires a deployed Swap node.",
         ]),
+        scheduleState: capabilityExample("unsupported"),
+        scheduleControls: capabilityExample("unsupported"),
         subscriptionState: capabilityExample("unsupported", "deployment_token", [
           "Requires a subscription deployment.",
         ]),
@@ -473,6 +501,114 @@ const demoShape = DemoTokenSchema.shape;
 const releasedShape = ReleasedSchema.shape;
 const releaseShape = ReleaseBeforeSchema.shape;
 
+function schedulePaths(): Record<string, Record<string, unknown>> {
+  const paths: Record<string, Record<string, unknown>> = {};
+  const failures = errors(
+    "UNAUTHENTICATED",
+    "FORBIDDEN",
+    "NOT_FOUND",
+    "VALIDATION",
+    "CONFLICT",
+    "RATE_LIMITED",
+    "UPSTREAM_RPC",
+  );
+  const security = [{ bearerAuth: [] }];
+  paths["/api/v1/deployments/{id}/schedule/state"] = {
+    get: {
+      tags: ["Capabilities"],
+      operationId: "getScheduleState",
+      summary: "Read live Schedule state and control eligibility",
+      description:
+        "Uncached reads of snapshot-selected STREAMER controller/asset instance fields, state and permission getters, and token holding balance. availableStroops is vested unpaid payout entitlement, not token balance or a guarantee of sufficient funding; claimedStroops is cumulative claimed entitlement. unvestedStroops is max(balance minus available, zero); retrievableStroops is that difference only while paused and retrieval-permitted. Retrieval returns funds to the contract-configured controller. Reads occur across RPC calls, not an atomic ledger snapshot; amounts are indicative and simulation/execution are authoritative. Contract-address controllers can be read but cannot use this account-wallet signing protocol. Errors never masquerade as zero balances. Active service required; hosted testnet verification remains pending. " +
+        rate(V1_RATE_LIMITS.scheduleState, "per token"),
+      security,
+      parameters: [
+        deploymentIdParam,
+        {
+          name: "nodeId",
+          in: "query",
+          required: false,
+          schema: { type: "string", minLength: 1, maxLength: 128 },
+          description: "Required to disambiguate multiple Schedule nodes",
+        },
+      ],
+      responses: {
+        "200": {
+          description: "Current Schedule state",
+          content: json(dataEnvelope("#/components/schemas/ScheduleState"), examples.scheduleState),
+        },
+        ...failures,
+      },
+    },
+  };
+  for (const action of ["pause", "resume", "retrieve"] as const) {
+    const base = `/api/v1/deployments/{id}/schedule/${action}`;
+    const body = (properties: object, required: string[]) => ({
+      required: true,
+      content: json({ type: "object", additionalProperties: false, required, properties }),
+    });
+    const response = (ref: string) => ({
+      "200": { description: "Action result", content: json(dataEnvelope(ref)) },
+      ...failures,
+    });
+    paths[base] = {
+      post: {
+        tags: ["Capabilities"],
+        operationId: `prepareSchedule${action}`,
+        summary: `Prepare wallet-authorized Schedule ${action}`,
+        description:
+          "The deployment token grants API access, not wallet consent. Select deployed nodeId when ambiguous. Requires current controller account wallet and live state/permissions. Pause only unpaused permitted schedules; resume only paused pause-permitted schedules; retrieve only paused retrieval-permitted schedules with holding balance greater than vested unpaid entitlement. Simulation uses the server network and 180-second envelope; return unsignedXdr, intent, txHash and expiresAt. For retrieval, recipient is the deployed controller and estimatedAmountStroops is indicative; no caller recipient/amount is accepted. Sign unchanged in the wallet; no keys belong in request bodies. One unresolved intent per node across controls/funding; conflicts include the existing intent/hash for reconciliation. Hosted testnet verification remains pending. " +
+          rate(V1_RATE_LIMITS.schedulePrepare, "per token"),
+        security,
+        parameters: [deploymentIdParam],
+        requestBody: body(
+          {
+            walletAddress: { type: "string", description: "Current controller account G-address" },
+            nodeId: { type: "string", minLength: 1, maxLength: 128 },
+          },
+          ["walletAddress"],
+        ),
+        responses: response("#/components/schemas/SchedulePrepared"),
+      },
+    };
+    paths[`${base}/submit`] = {
+      post: {
+        tags: ["Capabilities"],
+        operationId: `submitSchedule${action}`,
+        summary: `Submit unchanged wallet-signed Schedule ${action}`,
+        description:
+          "Strict exact intent/action/deployment/network/node/hash and valid controller wallet signature. Recheck live controller/permissions before the first send. Durable admission records the hash before sending; repeated/concurrent/uncertain submissions look up the same outcome without rebroadcasting. Poll /transactions/{txHash}; UNKNOWN, queue REJECTED or a timeout does not authorize replacement. First-send expiry requires reconciliation, never a new envelope by time alone. " +
+          rate(V1_RATE_LIMITS.scheduleSubmit, "per token"),
+        security,
+        parameters: [deploymentIdParam],
+        requestBody: body(
+          {
+            intent: { type: "string", format: "uuid" },
+            signedXdr: { type: "string", minLength: 1, maxLength: 100000 },
+          },
+          ["intent", "signedXdr"],
+        ),
+        responses: response("#/components/schemas/TransactionStatus"),
+      },
+    };
+    paths[`${base}/reconcile`] = {
+      post: {
+        tags: ["Capabilities"],
+        operationId: `reconcileSchedule${action}`,
+        summary: `Reconcile an existing Schedule ${action} intent`,
+        description:
+          "Reconcile the matching action intent, including abandoned unsigned preparation. SUCCESS/FAILED require durable ledger finality; EXPIRED requires a closed ledger after maxTime plus covered historical NOT_FOUND proof. Missing/lagging history and RPC errors retain reservations. replacementAllowed=true only for durable SUCCESS/FAILED/proven EXPIRED, and new preparation still checks live eligibility. Active deployment service required; retired token access is not reopened. " +
+          rate(V1_RATE_LIMITS.scheduleReconcile, "per token"),
+        security,
+        parameters: [deploymentIdParam],
+        requestBody: body({ intent: { type: "string", format: "uuid" } }, ["intent"]),
+        responses: response("#/components/schemas/ScheduleReconciled"),
+      },
+    };
+  }
+  return paths;
+}
+
 export const openApiDocument = {
   openapi: "3.1.0",
   info: {
@@ -559,6 +695,7 @@ export const openApiDocument = {
     },
   ],
   paths: {
+    ...schedulePaths(),
     ...Object.fromEntries(
       (["cancel", "reactivate"] as const).flatMap((action) =>
         (["prepare", "submit", "reconcile"] as const).map((step) => {
@@ -770,7 +907,7 @@ export const openApiDocument = {
         description: [
           DeploymentCapabilitiesSchema.description,
           "Requires this deployment's pfk_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.",
-          "Operations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are swapQuote (/api/v1/deployments/{id}/swap-quote), execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), subscriptionState (/api/v1/deployments/{id}/subscription/state), subscriptionCancel and subscriptionReactivate (subscription/cancel or subscription/reactivate prepare, submit and reconcile), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.",
+          "Operations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are swapQuote (/api/v1/deployments/{id}/swap-quote), execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), scheduleState (/api/v1/deployments/{id}/schedule/state), scheduleControls (Schedule pause, resume and retrieve preparation, submit and reconcile), subscriptionState (/api/v1/deployments/{id}/subscription/state), subscriptionCancel and subscriptionReactivate (subscription/cancel or subscription/reactivate prepare, submit and reconcile), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.",
           "Returns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.",
           rate(V1_RATE_LIMITS.capabilities, "per token"),
         ].join("\n\n"),
@@ -1471,6 +1608,109 @@ export const openApiDocument = {
           replacementAllowed: { type: "boolean" },
         },
       },
+      ScheduleState: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "deploymentId",
+          "network",
+          "nodeId",
+          "contractAddress",
+          "controller",
+          "controlEligibility",
+          "tokenContractAddress",
+          "paused",
+          "pauseAllowed",
+          "retrieveAllowed",
+          "balanceStroops",
+          "availableStroops",
+          "claimedStroops",
+          "unvestedStroops",
+          "retrievableStroops",
+          "retrievalRecipient",
+          "readAt",
+        ],
+        properties: {
+          deploymentId: { type: "string", format: "uuid" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          nodeId: { type: "string" },
+          contractAddress: { type: "string" },
+          controller: { type: "string" },
+          controlEligibility: {
+            type: "object",
+            additionalProperties: false,
+            required: ["walletProtocolSupported", "pause", "resume", "retrieve"],
+            properties: {
+              walletProtocolSupported: { type: "boolean" },
+              pause: { type: "boolean" },
+              resume: { type: "boolean" },
+              retrieve: { type: "boolean" },
+            },
+          },
+          tokenContractAddress: { type: "string" },
+          paused: { type: "boolean" },
+          pauseAllowed: { type: "boolean" },
+          retrieveAllowed: { type: "boolean" },
+          balanceStroops: { type: "string", pattern: "^[0-9]+$" },
+          availableStroops: { type: "string", pattern: "^[0-9]+$" },
+          claimedStroops: { type: "string", pattern: "^[0-9]+$" },
+          unvestedStroops: { type: "string", pattern: "^[0-9]+$" },
+          retrievableStroops: { type: "string", pattern: "^[0-9]+$" },
+          retrievalRecipient: { type: "string" },
+          readAt: { type: "string", format: "date-time" },
+        },
+      },
+      SchedulePrepared: {
+        type: "object",
+        required: [
+          "intent",
+          "txHash",
+          "expiresAt",
+          "unsignedXdr",
+          "network",
+          "action",
+          "nodeId",
+          "contractAddress",
+          "walletAddress",
+        ],
+        properties: {
+          intent: { type: "string", format: "uuid" },
+          txHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+          expiresAt: { type: "string", format: "date-time" },
+          unsignedXdr: { type: "string" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          action: { type: "string", enum: ["pause", "resume", "retrieve"] },
+          nodeId: { type: "string" },
+          contractAddress: { type: "string" },
+          walletAddress: { type: "string" },
+          recipient: { type: "string", description: "Retrieval only: current contract controller" },
+          estimatedAmountStroops: {
+            type: "string",
+            pattern: "^[0-9]+$",
+            description:
+              "Retrieval only: indicative holding balance minus available; actual ledger execution determines the amount",
+          },
+          tokenContractAddress: { type: "string", description: "Retrieval only: live token" },
+        },
+      },
+      ScheduleReconciled: {
+        type: "object",
+        required: ["intent", "txHash", "network", "action", "state", "replacementAllowed"],
+        properties: {
+          intent: { type: "string", format: "uuid" },
+          txHash: { type: "string" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          action: { type: "string", enum: ["pause", "resume", "retrieve"] },
+          state: {
+            type: "string",
+            enum: ["PREPARED", "SUBMITTING", "SUCCESS", "FAILED", "EXPIRED"],
+          },
+          replacementAllowed: {
+            type: "boolean",
+            description: "True only for durable success/failure or ledger-proven expiry",
+          },
+        },
+      },
       CapabilityOperation: {
         type: "object",
         additionalProperties: false,
@@ -1701,6 +1941,8 @@ export const openApiDocument = {
               "webhook",
               "subscriptionAllowance",
               "subscriptionState",
+              "scheduleState",
+              "scheduleControls",
               "subscriptionCancel",
               "subscriptionReactivate",
               "swapQuote",
@@ -1716,6 +1958,8 @@ export const openApiDocument = {
               subscriptionCancel: { $ref: "#/components/schemas/CapabilityOperation" },
               subscriptionReactivate: { $ref: "#/components/schemas/CapabilityOperation" },
               swapQuote: { $ref: "#/components/schemas/CapabilityOperation" },
+              scheduleState: { $ref: "#/components/schemas/CapabilityOperation" },
+              scheduleControls: { $ref: "#/components/schemas/CapabilityOperation" },
               subscriptionState: { $ref: "#/components/schemas/CapabilityOperation" },
               subscriptionAllowance: { $ref: "#/components/schemas/CapabilityOperation" },
             },

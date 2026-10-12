@@ -36,6 +36,8 @@ export function capabilities(
         "subscriber_wallet",
       ),
       swapQuote: operation("unsupported"),
+      scheduleState: operation(triggerType === "schedule" ? "supported" : "unsupported"),
+      scheduleControls: operation(triggerType === "schedule" ? "conditional" : "unsupported"),
       subscriptionState: operation(triggerType === "subscription" ? "supported" : "unsupported"),
       subscriptionAllowance: operation(
         triggerType === "subscription" ? "conditional" : "unsupported",

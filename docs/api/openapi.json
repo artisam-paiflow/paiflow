@@ -54,6 +54,1525 @@
     }
   ],
   "paths": {
+    "/api/v1/deployments/{id}/schedule/state": {
+      "get": {
+        "tags": ["Capabilities"],
+        "operationId": "getScheduleState",
+        "summary": "Read live Schedule state and control eligibility",
+        "description": "Uncached reads of snapshot-selected STREAMER controller/asset instance fields, state and permission getters, and token holding balance. availableStroops is vested unpaid payout entitlement, not token balance or a guarantee of sufficient funding; claimedStroops is cumulative claimed entitlement. unvestedStroops is max(balance minus available, zero); retrievableStroops is that difference only while paused and retrieval-permitted. Retrieval returns funds to the contract-configured controller. Reads occur across RPC calls, not an atomic ledger snapshot; amounts are indicative and simulation/execution are authoritative. Contract-address controllers can be read but cannot use this account-wallet signing protocol. Errors never masquerade as zero balances. Active service required; hosted testnet verification remains pending. Rate limit: 20 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          },
+          {
+            "name": "nodeId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Required to disambiguate multiple Schedule nodes"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current Schedule state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ScheduleState"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "deploymentId": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d",
+                    "network": "testnet",
+                    "nodeId": "schedule",
+                    "contractAddress": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+                    "controller": "GDMFZ5QQMDSOTPEQ6YCAWPFAB626Q6C3KLRLYMO3VWMWHQHL4L2DSIHY",
+                    "controlEligibility": {
+                      "walletProtocolSupported": true,
+                      "pause": false,
+                      "resume": true,
+                      "retrieve": true
+                    },
+                    "tokenContractAddress": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+                    "paused": true,
+                    "pauseAllowed": true,
+                    "retrieveAllowed": true,
+                    "balanceStroops": "20000000",
+                    "availableStroops": "10000000",
+                    "claimedStroops": "0",
+                    "unvestedStroops": "10000000",
+                    "retrievableStroops": "10000000",
+                    "retrievalRecipient": "GDMFZ5QQMDSOTPEQ6YCAWPFAB626Q6C3KLRLYMO3VWMWHQHL4L2DSIHY",
+                    "readAt": "2026-10-12T00:00:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/schedule/pause": {
+      "post": {
+        "tags": ["Capabilities"],
+        "operationId": "prepareSchedulepause",
+        "summary": "Prepare wallet-authorized Schedule pause",
+        "description": "The deployment token grants API access, not wallet consent. Select deployed nodeId when ambiguous. Requires current controller account wallet and live state/permissions. Pause only unpaused permitted schedules; resume only paused pause-permitted schedules; retrieve only paused retrieval-permitted schedules with holding balance greater than vested unpaid entitlement. Simulation uses the server network and 180-second envelope; return unsignedXdr, intent, txHash and expiresAt. For retrieval, recipient is the deployed controller and estimatedAmountStroops is indicative; no caller recipient/amount is accepted. Sign unchanged in the wallet; no keys belong in request bodies. One unresolved intent per node across controls/funding; conflicts include the existing intent/hash for reconciliation. Hosted testnet verification remains pending. Rate limit: 10 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["walletAddress"],
+                "properties": {
+                  "walletAddress": {
+                    "type": "string",
+                    "description": "Current controller account G-address"
+                  },
+                  "nodeId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Action result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SchedulePrepared"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/schedule/pause/submit": {
+      "post": {
+        "tags": ["Capabilities"],
+        "operationId": "submitSchedulepause",
+        "summary": "Submit unchanged wallet-signed Schedule pause",
+        "description": "Strict exact intent/action/deployment/network/node/hash and valid controller wallet signature. Recheck live controller/permissions before the first send. Durable admission records the hash before sending; repeated/concurrent/uncertain submissions look up the same outcome without rebroadcasting. Poll /transactions/{txHash}; UNKNOWN, queue REJECTED or a timeout does not authorize replacement. First-send expiry requires reconciliation, never a new envelope by time alone. Rate limit: 30 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["intent", "signedXdr"],
+                "properties": {
+                  "intent": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "signedXdr": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Action result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TransactionStatus"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/schedule/pause/reconcile": {
+      "post": {
+        "tags": ["Capabilities"],
+        "operationId": "reconcileSchedulepause",
+        "summary": "Reconcile an existing Schedule pause intent",
+        "description": "Reconcile the matching action intent, including abandoned unsigned preparation. SUCCESS/FAILED require durable ledger finality; EXPIRED requires a closed ledger after maxTime plus covered historical NOT_FOUND proof. Missing/lagging history and RPC errors retain reservations. replacementAllowed=true only for durable SUCCESS/FAILED/proven EXPIRED, and new preparation still checks live eligibility. Active deployment service required; retired token access is not reopened. Rate limit: 20 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["intent"],
+                "properties": {
+                  "intent": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Action result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ScheduleReconciled"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/schedule/resume": {
+      "post": {
+        "tags": ["Capabilities"],
+        "operationId": "prepareScheduleresume",
+        "summary": "Prepare wallet-authorized Schedule resume",
+        "description": "The deployment token grants API access, not wallet consent. Select deployed nodeId when ambiguous. Requires current controller account wallet and live state/permissions. Pause only unpaused permitted schedules; resume only paused pause-permitted schedules; retrieve only paused retrieval-permitted schedules with holding balance greater than vested unpaid entitlement. Simulation uses the server network and 180-second envelope; return unsignedXdr, intent, txHash and expiresAt. For retrieval, recipient is the deployed controller and estimatedAmountStroops is indicative; no caller recipient/amount is accepted. Sign unchanged in the wallet; no keys belong in request bodies. One unresolved intent per node across controls/funding; conflicts include the existing intent/hash for reconciliation. Hosted testnet verification remains pending. Rate limit: 10 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["walletAddress"],
+                "properties": {
+                  "walletAddress": {
+                    "type": "string",
+                    "description": "Current controller account G-address"
+                  },
+                  "nodeId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Action result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SchedulePrepared"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/schedule/resume/submit": {
+      "post": {
+        "tags": ["Capabilities"],
+        "operationId": "submitScheduleresume",
+        "summary": "Submit unchanged wallet-signed Schedule resume",
+        "description": "Strict exact intent/action/deployment/network/node/hash and valid controller wallet signature. Recheck live controller/permissions before the first send. Durable admission records the hash before sending; repeated/concurrent/uncertain submissions look up the same outcome without rebroadcasting. Poll /transactions/{txHash}; UNKNOWN, queue REJECTED or a timeout does not authorize replacement. First-send expiry requires reconciliation, never a new envelope by time alone. Rate limit: 30 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["intent", "signedXdr"],
+                "properties": {
+                  "intent": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "signedXdr": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Action result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TransactionStatus"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/schedule/resume/reconcile": {
+      "post": {
+        "tags": ["Capabilities"],
+        "operationId": "reconcileScheduleresume",
+        "summary": "Reconcile an existing Schedule resume intent",
+        "description": "Reconcile the matching action intent, including abandoned unsigned preparation. SUCCESS/FAILED require durable ledger finality; EXPIRED requires a closed ledger after maxTime plus covered historical NOT_FOUND proof. Missing/lagging history and RPC errors retain reservations. replacementAllowed=true only for durable SUCCESS/FAILED/proven EXPIRED, and new preparation still checks live eligibility. Active deployment service required; retired token access is not reopened. Rate limit: 20 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["intent"],
+                "properties": {
+                  "intent": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Action result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ScheduleReconciled"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/schedule/retrieve": {
+      "post": {
+        "tags": ["Capabilities"],
+        "operationId": "prepareScheduleretrieve",
+        "summary": "Prepare wallet-authorized Schedule retrieve",
+        "description": "The deployment token grants API access, not wallet consent. Select deployed nodeId when ambiguous. Requires current controller account wallet and live state/permissions. Pause only unpaused permitted schedules; resume only paused pause-permitted schedules; retrieve only paused retrieval-permitted schedules with holding balance greater than vested unpaid entitlement. Simulation uses the server network and 180-second envelope; return unsignedXdr, intent, txHash and expiresAt. For retrieval, recipient is the deployed controller and estimatedAmountStroops is indicative; no caller recipient/amount is accepted. Sign unchanged in the wallet; no keys belong in request bodies. One unresolved intent per node across controls/funding; conflicts include the existing intent/hash for reconciliation. Hosted testnet verification remains pending. Rate limit: 10 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["walletAddress"],
+                "properties": {
+                  "walletAddress": {
+                    "type": "string",
+                    "description": "Current controller account G-address"
+                  },
+                  "nodeId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Action result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SchedulePrepared"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/schedule/retrieve/submit": {
+      "post": {
+        "tags": ["Capabilities"],
+        "operationId": "submitScheduleretrieve",
+        "summary": "Submit unchanged wallet-signed Schedule retrieve",
+        "description": "Strict exact intent/action/deployment/network/node/hash and valid controller wallet signature. Recheck live controller/permissions before the first send. Durable admission records the hash before sending; repeated/concurrent/uncertain submissions look up the same outcome without rebroadcasting. Poll /transactions/{txHash}; UNKNOWN, queue REJECTED or a timeout does not authorize replacement. First-send expiry requires reconciliation, never a new envelope by time alone. Rate limit: 30 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["intent", "signedXdr"],
+                "properties": {
+                  "intent": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "signedXdr": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Action result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TransactionStatus"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/schedule/retrieve/reconcile": {
+      "post": {
+        "tags": ["Capabilities"],
+        "operationId": "reconcileScheduleretrieve",
+        "summary": "Reconcile an existing Schedule retrieve intent",
+        "description": "Reconcile the matching action intent, including abandoned unsigned preparation. SUCCESS/FAILED require durable ledger finality; EXPIRED requires a closed ledger after maxTime plus covered historical NOT_FOUND proof. Missing/lagging history and RPC errors retain reservations. replacementAllowed=true only for durable SUCCESS/FAILED/proven EXPIRED, and new preparation still checks live eligibility. Active deployment service required; retired token access is not reopened. Rate limit: 20 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["intent"],
+                "properties": {
+                  "intent": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Action result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ScheduleReconciled"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/deployments/{id}/subscription/cancel/prepare": {
       "post": {
         "tags": ["Subscriptions"],
@@ -1578,7 +3097,7 @@
         "tags": ["Capabilities"],
         "operationId": "getDeploymentCapabilities",
         "summary": "Discover a deployment's supported integration paths",
-        "description": "Supported means the integration path exists for the recorded deployment. Conditional requires additional eligibility checks. Unsupported means no matching path can be established. No status guarantees current balances, configuration, consent, deadline or infrastructure readiness.\n\nRequires this deployment's pfk_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.\n\nOperations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are swapQuote (/api/v1/deployments/{id}/swap-quote), execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), subscriptionState (/api/v1/deployments/{id}/subscription/state), subscriptionCancel and subscriptionReactivate (subscription/cancel or subscription/reactivate prepare, submit and reconcile), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.\n\nReturns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.\n\nRate limit: 60 requests per 60 seconds per token.",
+        "description": "Supported means the integration path exists for the recorded deployment. Conditional requires additional eligibility checks. Unsupported means no matching path can be established. No status guarantees current balances, configuration, consent, deadline or infrastructure readiness.\n\nRequires this deployment's pfk_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.\n\nOperations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are swapQuote (/api/v1/deployments/{id}/swap-quote), execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), scheduleState (/api/v1/deployments/{id}/schedule/state), scheduleControls (Schedule pause, resume and retrieve preparation, submit and reconcile), subscriptionState (/api/v1/deployments/{id}/subscription/state), subscriptionCancel and subscriptionReactivate (subscription/cancel or subscription/reactivate prepare, submit and reconcile), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.\n\nReturns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.\n\nRate limit: 60 requests per 60 seconds per token.",
         "security": [
           {
             "bearerAuth": []
@@ -1677,6 +3196,18 @@
                         "status": "unsupported",
                         "authentication": "deployment_token",
                         "requirements": ["Requires a deployed Swap node."],
+                        "nodeIds": []
+                      },
+                      "scheduleState": {
+                        "status": "unsupported",
+                        "authentication": "deployment_token",
+                        "requirements": [],
+                        "nodeIds": []
+                      },
+                      "scheduleControls": {
+                        "status": "unsupported",
+                        "authentication": "deployment_token",
+                        "requirements": [],
                         "nodeIds": []
                       },
                       "subscriptionState": {
@@ -3653,6 +5184,196 @@
           }
         }
       },
+      "ScheduleState": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "deploymentId",
+          "network",
+          "nodeId",
+          "contractAddress",
+          "controller",
+          "controlEligibility",
+          "tokenContractAddress",
+          "paused",
+          "pauseAllowed",
+          "retrieveAllowed",
+          "balanceStroops",
+          "availableStroops",
+          "claimedStroops",
+          "unvestedStroops",
+          "retrievableStroops",
+          "retrievalRecipient",
+          "readAt"
+        ],
+        "properties": {
+          "deploymentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "network": {
+            "type": "string",
+            "enum": ["testnet", "mainnet"]
+          },
+          "nodeId": {
+            "type": "string"
+          },
+          "contractAddress": {
+            "type": "string"
+          },
+          "controller": {
+            "type": "string"
+          },
+          "controlEligibility": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["walletProtocolSupported", "pause", "resume", "retrieve"],
+            "properties": {
+              "walletProtocolSupported": {
+                "type": "boolean"
+              },
+              "pause": {
+                "type": "boolean"
+              },
+              "resume": {
+                "type": "boolean"
+              },
+              "retrieve": {
+                "type": "boolean"
+              }
+            }
+          },
+          "tokenContractAddress": {
+            "type": "string"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "pauseAllowed": {
+            "type": "boolean"
+          },
+          "retrieveAllowed": {
+            "type": "boolean"
+          },
+          "balanceStroops": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "availableStroops": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "claimedStroops": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "unvestedStroops": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "retrievableStroops": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "retrievalRecipient": {
+            "type": "string"
+          },
+          "readAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SchedulePrepared": {
+        "type": "object",
+        "required": [
+          "intent",
+          "txHash",
+          "expiresAt",
+          "unsignedXdr",
+          "network",
+          "action",
+          "nodeId",
+          "contractAddress",
+          "walletAddress"
+        ],
+        "properties": {
+          "intent": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "txHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "unsignedXdr": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string",
+            "enum": ["testnet", "mainnet"]
+          },
+          "action": {
+            "type": "string",
+            "enum": ["pause", "resume", "retrieve"]
+          },
+          "nodeId": {
+            "type": "string"
+          },
+          "contractAddress": {
+            "type": "string"
+          },
+          "walletAddress": {
+            "type": "string"
+          },
+          "recipient": {
+            "type": "string",
+            "description": "Retrieval only: current contract controller"
+          },
+          "estimatedAmountStroops": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "Retrieval only: indicative holding balance minus available; actual ledger execution determines the amount"
+          },
+          "tokenContractAddress": {
+            "type": "string",
+            "description": "Retrieval only: live token"
+          }
+        }
+      },
+      "ScheduleReconciled": {
+        "type": "object",
+        "required": ["intent", "txHash", "network", "action", "state", "replacementAllowed"],
+        "properties": {
+          "intent": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "txHash": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string",
+            "enum": ["testnet", "mainnet"]
+          },
+          "action": {
+            "type": "string",
+            "enum": ["pause", "resume", "retrieve"]
+          },
+          "state": {
+            "type": "string",
+            "enum": ["PREPARED", "SUBMITTING", "SUCCESS", "FAILED", "EXPIRED"]
+          },
+          "replacementAllowed": {
+            "type": "boolean",
+            "description": "True only for durable success/failure or ledger-proven expiry"
+          }
+        }
+      },
       "CapabilityOperation": {
         "type": "object",
         "additionalProperties": false,
@@ -4095,6 +5816,8 @@
               "webhook",
               "subscriptionAllowance",
               "subscriptionState",
+              "scheduleState",
+              "scheduleControls",
               "subscriptionCancel",
               "subscriptionReactivate",
               "swapQuote"
@@ -4128,6 +5851,12 @@
                 "$ref": "#/components/schemas/CapabilityOperation"
               },
               "swapQuote": {
+                "$ref": "#/components/schemas/CapabilityOperation"
+              },
+              "scheduleState": {
+                "$ref": "#/components/schemas/CapabilityOperation"
+              },
+              "scheduleControls": {
                 "$ref": "#/components/schemas/CapabilityOperation"
               },
               "subscriptionState": {

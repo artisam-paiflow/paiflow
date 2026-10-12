@@ -250,3 +250,16 @@ PHP 10,000 across five awards, for qualifying teams only. Prizes go by QR Ph to 
 **If fewer than three teams qualify:** award only the available places at their published amounts. With one qualifying team, award first place only; with two, award first and second. Both special awards are still awarded when at least one team qualifies. Vacant placing prizes remain unawarded, and unused prize funds are not redistributed. If no team qualifies, no prizes are awarded.
 
 Winning projects are featured on the Paiflow homepage and socials.
+
+### Schedule integration APIs
+
+The Schedule state and controller wallet prepare/sign/submit/reconcile APIs are
+implemented under `/api/v1/deployments/{id}/schedule`. Hosted testnet verification
+remains pending before they are advertised as participant-ready. Use capabilities
+`scheduleState` and `scheduleControls`, then current state and simulated preparation
+to check eligibility. Pause/resume/retrieval need the deployed controller's wallet
+consent; a deployment token is API access only. Retrieval requires a paused permitted
+Schedule and returns unvested funds to that controller, not scheduled recipients.
+Holding balance differs from vested payout availability. Never prepare another
+envelope merely because a request times out. Follow the complete
+[Schedule wallet and recovery example](../api/schedule-controls.md).

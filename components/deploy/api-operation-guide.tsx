@@ -29,6 +29,8 @@ const OPERATION_LABELS = {
   webhook: "Trigger a webhook",
   subscriptionAllowance: "Approve a subscription allowance",
   swapQuote: "Estimate a deployed Swap output",
+  scheduleState: "Read current Schedule state",
+  scheduleControls: "Control Schedule with its wallet",
   subscriptionState: "Read current subscription state",
   subscriptionCancel: "Cancel a subscription with the subscriber wallet",
   subscriptionReactivate: "Reactivate a subscription with the subscriber wallet",

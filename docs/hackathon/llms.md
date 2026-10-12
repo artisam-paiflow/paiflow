@@ -665,3 +665,14 @@ payout/full-flow prediction; preparation and execution remain authoritative. Bud
 is 20/min per token and deployment across tokens, shared Redis required in production.
 Hosted testnet quote-versus-completed-swap evidence is pending. Confirm hosted
 OpenAPI availability before claiming support; no new swap execution path is added.
+
+Schedule controller API: GET `/api/v1/deployments/{id}/schedule/state` and POST
+`/schedule/{pause|resume|retrieve}`, plus each action's `/submit` and `/reconcile`.
+Use the deployed STREAMER's live controller wallet and permissions, never mutable
+flow configuration. State distinguishes token holding balance from vested payout
+entitlement and unvested retrieval. Retrieval returns to the contract controller,
+requires paused+permitted state, and uses no caller-specified recipient/amount.
+One unresolved intent per node across controls/funding. UNKNOWN, queue refusal or
+local expiry never permits replacement without durable ledger reconciliation.
+Wallet secrets remain outside API requests. Hosted testnet verification is pending;
+see `docs/api/schedule-controls.md` for integration and recovery examples.

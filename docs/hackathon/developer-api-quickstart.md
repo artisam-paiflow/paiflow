@@ -425,3 +425,9 @@ node, never a whole-flow prediction or guaranteed payout. Read timestamps descri
 successive live simulations; later preparation/execution can differ. See the
 [API reference](../api/README.md#deployment-specific-swap-estimates) for exact
 stroop output, estimated minimum, eligibility and 20/min deployment quote budget.
+
+For Schedule integrations, discover `scheduleState`/`scheduleControls` and read
+`/api/v1/deployments/{id}/schedule/state`. Controller-wallet pause/resume/retrieve
+use action-specific preparation, `/submit` and `/reconcile`; funding is separate.
+See [Schedule wallet/recovery example](../api/schedule-controls.md). Hosted testnet
+verification remains pending before these routes are claimed participant-ready.

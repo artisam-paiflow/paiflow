@@ -946,3 +946,16 @@ The endpoint permits 20 requests/minute per token and 20/minute per deployment
 across tokens. Production requires a functioning shared Redis RPC budget; missing
 coordination returns 502. Each request performs four configuration getter calls
 and at most five pool/router calls. Back off on errors and honor `Retry-After` on 429. Retiring and retired deployments are unavailable to deployment tokens.
+### Schedule state and controller wallet actions
+
+`GET /api/v1/deployments/{id}/schedule/state` reads current controller, pause/retrieval
+permissions, token holdings and vested payout availability. Select `nodeId` when
+multiple Schedule nodes exist. `POST /schedule/pause`, `/schedule/resume` and
+`/schedule/retrieve` prepare an unsigned transaction; their `/submit` routes require
+the unchanged controller-wallet-signed envelope and intent. Each `/reconcile` route
+recovers the corresponding intent using durable finality evidence. Retrieval returns
+only permitted unvested funds to the deployed controller; it never pays recipients.
+See [Schedule controls](schedule-controls.md) for complete wallet/recovery examples,
+amount semantics and the pending hosted testnet verification gate. Discovery exposes
+`scheduleState` and conditional `scheduleControls`; a token alone does not authorize
+controls. Funding remains a separate operation.

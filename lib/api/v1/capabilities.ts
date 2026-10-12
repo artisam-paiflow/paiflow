@@ -142,6 +142,12 @@ export function deploymentCapabilities(
     new Set(nodes.map((node) => node.nodeId)).size === nodes.length &&
     new Set(nodes.map((node) => node.contractAddress)).size === nodes.length &&
     head?.nodeId === subscriptionTrigger?.id;
+  const scheduleNodes = nodes.filter((node) => node.templateKind === "STREAMER");
+  const scheduleValid =
+    scheduleNodes.length > 0 &&
+    nodes.length <= 128 &&
+    new Set(nodes.map((node) => node.nodeId)).size === nodes.length &&
+    new Set(nodes.map((node) => node.contractAddress)).size === nodes.length;
   const webhookEnabled = triggerType === "webhook" && !!deployment.webhookSecret;
 
   return {
@@ -235,6 +241,26 @@ export function deploymentCapabilities(
           : operation("unsupported", [
               "Requires a valid deployment snapshot containing a standard Swap node.",
             ]),
+      scheduleState: scheduleValid
+        ? operation(
+            "supported",
+            [
+              "Read /schedule/state for current controller, token, pause permissions, holding balance and vested payout availability. Select nodeId when several Schedule nodes exist; reads are uncached and fail closed.",
+            ],
+            scheduleNodes.map((node) => node.nodeId),
+          )
+        : operation("unsupported", ["Requires a valid deployed STREAMER node."]),
+      scheduleControls: scheduleValid
+        ? operation(
+            "conditional",
+            [
+              "Prepare /schedule/pause, /schedule/resume or /schedule/retrieve, sign the unchanged envelope with the current controller account wallet, then /submit. The token grants API access, not wallet authorization.",
+              "Live permissions and state are checked before preparation and first submission. Retrieval requires a paused permitted Schedule; funds return only to its contract-configured controller. Contract controllers requiring address credentials are unsupported.",
+              "Only one unresolved intent per node is permitted, including funding. Reconcile the matching action intent before replacement; UNKNOWN, queue rejection or elapsed wall-clock time does not authorize another envelope. Hosted testnet verification remains pending.",
+            ],
+            scheduleNodes.map((node) => node.nodeId),
+          )
+        : operation("unsupported", ["Requires a valid deployed STREAMER node."]),
       subscriptionState: stateCandidate
         ? operation(
             "supported",

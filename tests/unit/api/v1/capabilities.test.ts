@@ -448,3 +448,16 @@ describe("capabilities access boundaries", () => {
     expect(response.headers.get("retry-after")).not.toBeNull();
   });
 });
+
+describe("Schedule discovery", () => {
+  it("reports deployed Schedule candidates without RPC or mutable graph permissions", async () => {
+    authorize({ pipelineSnapshot: [{ nodeId: "schedule", templateKind: "STREAMER", contractAddress: TRIGGER }] });
+    const response = await GET(new Request(`https://paiflow.test${PATH}`, {
+      headers: { authorization: `Bearer ${token.plaintext}` },
+    }) as NextRequest, ctx(DEPLOYMENT_ID));
+    const data = DeploymentCapabilitiesSchema.parse((await response.json()).data);
+    expect(data.operations.scheduleState).toMatchObject({ status: "supported", nodeIds: ["schedule"] });
+    expect(data.operations.scheduleControls).toMatchObject({ status: "conditional", authentication: "deployment_token", nodeIds: ["schedule"] });
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+});

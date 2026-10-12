@@ -286,6 +286,8 @@ export const DeploymentCapabilitiesSchema = z
         subscriptionCancel: CapabilityOperationSchema,
         subscriptionReactivate: CapabilityOperationSchema,
         swapQuote: CapabilityOperationSchema,
+        scheduleState: CapabilityOperationSchema,
+        scheduleControls: CapabilityOperationSchema,
       })
       .strict(),
   })
@@ -357,6 +359,51 @@ export const DeploymentBalancesSchema = z
   })
   .strict();
 export type DeploymentBalances = z.infer<typeof DeploymentBalancesSchema>;
+
+export const ScheduleStateQuerySchema = z
+  .object({ nodeId: z.string().min(1).max(128).optional() })
+  .strict();
+export const SchedulePrepareSchema = ScheduleStateQuerySchema.extend({
+  walletAddress: z.string().refine(StrKey.isValidEd25519PublicKey),
+}).strict();
+export const ScheduleReconcileSchema = z.object({ intent: z.string().uuid() }).strict();
+export const ScheduleStateSchema = z
+  .object({
+    deploymentId: z.string().uuid(),
+    network: z.enum(["testnet", "mainnet"]),
+    nodeId: z.string().min(1),
+    contractAddress: z.string().refine(StrKey.isValidContract),
+    controller: z
+      .string()
+      .refine((v) => StrKey.isValidEd25519PublicKey(v) || StrKey.isValidContract(v)),
+    tokenContractAddress: z.string().refine(StrKey.isValidContract),
+    controlEligibility: z
+      .object({
+        walletProtocolSupported: z.boolean(),
+        pause: z.boolean(),
+        resume: z.boolean(),
+        retrieve: z.boolean(),
+      })
+      .strict(),
+    paused: z.boolean(),
+    pauseAllowed: z.boolean(),
+    retrieveAllowed: z.boolean(),
+    balanceStroops: z.string().regex(/^(0|[1-9][0-9]*)$/),
+    availableStroops: z.string().regex(/^(0|[1-9][0-9]*)$/),
+    claimedStroops: z.string().regex(/^(0|[1-9][0-9]*)$/),
+    unvestedStroops: z.string().regex(/^(0|[1-9][0-9]*)$/),
+    retrievableStroops: z.string().regex(/^(0|[1-9][0-9]*)$/),
+    retrievalRecipient: z
+      .string()
+      .refine((v) => StrKey.isValidEd25519PublicKey(v) || StrKey.isValidContract(v)),
+    readAt: z.string().datetime(),
+  })
+  .strict();
+
+export type ScheduleStateQuery = z.infer<typeof ScheduleStateQuerySchema>;
+export type SchedulePrepare = z.infer<typeof SchedulePrepareSchema>;
+export type ScheduleReconcile = z.infer<typeof ScheduleReconcileSchema>;
+export type ScheduleState = z.infer<typeof ScheduleStateSchema>;
 /** The integration token never substitutes for the configured subscriber's signature. */
 export const SubscriptionControlPrepareSchema = z
   .object({
