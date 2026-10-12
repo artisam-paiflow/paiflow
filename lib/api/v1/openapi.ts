@@ -58,6 +58,30 @@ const capabilityExample = (
 ) => ({ status, authentication, requirements, nodeIds });
 
 export const examples = {
+  balances: {
+    data: {
+      deploymentId: EXAMPLE_DEPLOYMENT_ID,
+      network: "testnet",
+      totals: [{ tokenContract: XLM_SAC_TESTNET, balanceStroops: "10000000" }],
+      nodes: [
+        {
+          nodeId: "schedule",
+          templateKind: "STREAMER",
+          contractAddress: USDC_SAC_TESTNET,
+          tokenContract: XLM_SAC_TESTNET,
+          balanceStroops: "10000000",
+          readAt: "2026-10-12T00:00:00.000Z",
+          stale: false,
+        },
+      ],
+      freshness: {
+        status: "fresh",
+        totalsComplete: true,
+        attemptedAt: "2026-10-12T00:00:00.000Z",
+        cached: false,
+      },
+    },
+  },
   subscriptionState: {
     data: {
       deploymentId: EXAMPLE_DEPLOYMENT_ID,
@@ -85,6 +109,12 @@ export const examples = {
         execute: capabilityExample("supported", "deployment_token", [
           "The paying wallet signs the prepared deposit; simulation checks current configuration.",
         ]),
+        balances: capabilityExample(
+          "conditional",
+          "deployment_token",
+          ["Live contract assets and balances must be readable; cached for up to 10 seconds."],
+          ["pay"],
+        ),
         events: capabilityExample("supported", "deployment_token", [
           "Recorded events can lag the chain.",
         ]),
@@ -465,6 +495,35 @@ export const openApiDocument = {
     },
   ],
   paths: {
+    "/api/v1/deployments/{id}/balances": {
+      get: {
+        tags: ["Capabilities"],
+        operationId: "getDeploymentBalances",
+        summary: "Read deployment contract balances with freshness",
+        description:
+          "Deployment-scoped display reads of current token contracts from supported on-chain instance storage. Schedule, Webhook, time/oracle conditions, Pay, Split and Swap balances are supported candidates; mutable Pay/Split require Dev mode enabled. Swap reports both input and output tokens. No owner account balances or private configuration. Multisig and unsupported kinds are excluded and, when present beside supported nodes, reported as errors making totals incomplete. Token contract addresses are asset identity; graph asset labels are not authoritative. Balances are not Schedule payout availability or evidence of payment success. The 10-second process-local single-flight cache preserves original readAt/attemptedAt; a Redis per-deployment refresh lease spans replicas (another replica without cached data answers 429), configured unavailable Redis fails closed for refreshes, and no Redis means process-local coordination; poll no faster than every 10 seconds. Each refresh admits at most four workers and 64 contracts, stops scheduling at 25 seconds, with existing finite HTTP timeouts. Errors use null balances and stale:true; partial totals sum only successful reads, never stand for complete balances. Fresh means all supported/holding targets read successfully within the display window, not a ledger-consistent atomic snapshot. Hosted testnet verification remains pending before participant support is claimed. " +
+          rate(V1_RATE_LIMITS.balances, "per token"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        responses: {
+          "200": {
+            description: "Display balances and partial/completeness information",
+            content: json(
+              dataEnvelope("#/components/schemas/DeploymentBalances"),
+              examples.balances,
+            ),
+          },
+          ...errors(
+            "UNAUTHENTICATED",
+            "FORBIDDEN",
+            "NOT_FOUND",
+            "VALIDATION",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+          ),
+        },
+      },
+    },
     "/api/v1/deployments/{id}/subscription/state": {
       get: {
         tags: ["Capabilities"],
@@ -506,7 +565,7 @@ export const openApiDocument = {
         description: [
           DeploymentCapabilitiesSchema.description,
           "Requires this deployment's pfk_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.",
-          "Operations are execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), subscriptionState (/api/v1/deployments/{id}/subscription/state), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.",
+          "Operations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), subscriptionState (/api/v1/deployments/{id}/subscription/state), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.",
           "Returns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.",
           rate(V1_RATE_LIMITS.capabilities, "per token"),
         ].join("\n\n"),
@@ -1195,6 +1254,64 @@ export const openApiDocument = {
           },
         },
       },
+      DeploymentBalances: {
+        type: "object",
+        additionalProperties: false,
+        required: ["deploymentId", "network", "totals", "nodes", "freshness"],
+        properties: {
+          deploymentId: { type: "string", format: "uuid" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          totals: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["tokenContract", "balanceStroops"],
+              properties: {
+                tokenContract: { type: "string", pattern: "^C[A-Z2-7]{55}$" },
+                balanceStroops: { type: "string", pattern: "^\\d+$" },
+              },
+            },
+          },
+          nodes: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: [
+                "nodeId",
+                "templateKind",
+                "contractAddress",
+                "tokenContract",
+                "balanceStroops",
+                "readAt",
+                "stale",
+              ],
+              properties: {
+                nodeId: { type: "string", minLength: 1 },
+                templateKind: { type: "string", minLength: 1 },
+                contractAddress: { type: "string", pattern: "^C[A-Z2-7]{55}$" },
+                tokenContract: { type: ["string", "null"], pattern: "^C[A-Z2-7]{55}$" },
+                balanceStroops: { type: ["string", "null"], pattern: "^\\d{1,39}$" },
+                readAt: { type: ["string", "null"], format: "date-time" },
+                stale: { type: "boolean" },
+                error: { type: "string" },
+              },
+            },
+          },
+          freshness: {
+            type: "object",
+            additionalProperties: false,
+            required: ["status", "totalsComplete", "attemptedAt", "cached"],
+            properties: {
+              status: { type: "string", enum: ["fresh", "partial", "stale"] },
+              totalsComplete: { type: "boolean" },
+              attemptedAt: { type: "string", format: "date-time" },
+              cached: { type: "boolean" },
+            },
+          },
+        },
+      },
       DeploymentCapabilities: {
         type: "object",
         additionalProperties: false,
@@ -1260,6 +1377,7 @@ export const openApiDocument = {
             required: [
               "execute",
               "events",
+              "balances",
               "transactions",
               "releaseEarly",
               "payouts",
@@ -1269,6 +1387,7 @@ export const openApiDocument = {
             ],
             properties: {
               execute: { $ref: "#/components/schemas/CapabilityOperation" },
+              balances: { $ref: "#/components/schemas/CapabilityOperation" },
               events: { $ref: "#/components/schemas/CapabilityOperation" },
               transactions: { $ref: "#/components/schemas/CapabilityOperation" },
               releaseEarly: { $ref: "#/components/schemas/CapabilityOperation" },

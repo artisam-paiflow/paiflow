@@ -65,6 +65,16 @@ beforeEach(() => {
   mocks.queue.mockResolvedValue(true);
 });
 describe("API request history boundary", () => {
+  it("records balance reads under the balance endpoint rather than unknown", async () => {
+    await v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () =>
+      NextResponse.json({ data: {} }),
+    )(request("balances"), ctx);
+    expect(mocks.queue.mock.calls[0]![0].endpoint).toBe("/api/v1/deployments/:id/balances");
+    expect(requestEndpoint(`/api/v1/deployments/${id}/balances`)).toBe(
+      "/api/v1/deployments/:id/balances",
+    );
+    expect(ApiRequestRecordSchema.safeParse(mocks.queue.mock.calls[0]![0]).success).toBe(true);
+  });
   it("records verified caller, token creator and audience without headers, bodies or query", async () => {
     const res = await v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () =>
       NextResponse.json({ data: { token: "synthetic" } }),

@@ -17,6 +17,7 @@ import { APP_ERROR_STATUS } from "@/lib/errors";
 import { ERROR_STATUS, examples, openApiDocument } from "@/lib/api/v1/openapi";
 import {
   DeploymentCapabilitiesSchema,
+  DeploymentBalancesSchema,
   SubscriptionStateSchema,
   TransactionStatusSchema,
   WebhookAttemptResponseSchema,
@@ -65,6 +66,9 @@ function specOperations(prefix: string): string[] {
 }
 
 describe("OpenAPI document", () => {
+  it("balances example matches its response schema", () => {
+    expect(DeploymentBalancesSchema.safeParse(examples.balances.data).success).toBe(true);
+  });
   it("matches the committed docs/api/openapi.json (run `pnpm api:openapi`)", () => {
     const committed = JSON.parse(
       fs.readFileSync(path.join(root, "docs/api/openapi.json"), "utf8"),
@@ -185,6 +189,7 @@ describe("Postman collection", () => {
     expect(body("Get demo token", "201 Created")).toEqual(examples.demoTokenResponse);
     expect(body("Get deployment capabilities", "200 OK")).toEqual(examples.capabilities);
     expect(body("Get Subscription state", "200 OK")).toEqual(examples.subscriptionState);
+    expect(body("Get deployment balances", "200 OK")).toEqual(examples.balances);
     expect(body("Prepare execute", "200 OK")).toEqual(examples.executeResponse);
     expect(body("Submit execute", "200 SUCCESS")).toEqual(examples.submitSuccess);
     expect(body("Submit execute", "200 FAILED")).toEqual(examples.submitFailed);

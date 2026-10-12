@@ -22,13 +22,14 @@ const TRIGGER_GUIDANCE = {
 const OPERATION_LABELS = {
   execute: "Prepare and submit a payment",
   events: "Read payment events",
+  balances: "Read contract balances",
   transactions: "Check transaction status",
   releaseEarly: "Release a timelock early",
   payouts: "Prepare a payment with a recipient",
   webhook: "Trigger a webhook",
   subscriptionAllowance: "Approve a subscription allowance",
   subscriptionState: "Read current subscription state",
-};
+} satisfies Record<keyof DeploymentCapabilities["operations"], string>;
 
 const AUTH_LABELS = {
   deployment_token: "Deployment API token",
@@ -194,6 +195,15 @@ export default function ApiOperationGuide({
                   {OPERATION_LABELS[key]} · {AUTH_LABELS[operation.authentication]}
                   {operation.status === "conditional" ? " · Requires eligibility checks" : ""}
                 </summary>
+                {key === "balances" && (
+                  <p className="text-on-surface-variant mt-2 text-sm">
+                    GET{" "}
+                    <code className="break-all">/api/v1/deployments/{deploymentId}/balances</code>{" "}
+                    to read held contract funds. Check freshness and totalsComplete; unknown
+                    balances are not zero. Contract balances are not Schedule payout availability or
+                    proof of a successful payment. Poll no faster than every 10 seconds.
+                  </p>
+                )}
                 {key === "transactions" && (
                   <p className="text-on-surface-variant mt-2 text-sm">
                     GET{" "}

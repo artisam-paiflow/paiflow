@@ -2,6 +2,7 @@ import "server-only";
 import type { Deployment } from "@prisma/client";
 import { StrKey } from "@stellar/stellar-sdk";
 import { z } from "zod";
+import { balanceCandidates } from "./balance-targets";
 import { AppError } from "@/lib/errors";
 import { env } from "@/lib/env";
 import { isFeatureEnabled } from "@/lib/features";
@@ -159,6 +160,18 @@ export function deploymentCapabilities(
           : operation("unsupported", [
               "Execute requires a pipeline headed by a deposit trigger; other triggers use their own funding, schedule or callback workflow.",
             ]),
+      balances: balanceCandidates(deployment.pipelineSnapshot, devModeEnabled).length
+        ? operation(
+            "conditional",
+            [
+              "Reads current token contract balances, not Schedule payout availability or proof of payment. Live asset and balance reads must succeed; stale, partial and unsupported targets make totals incomplete.",
+              "Display reads may be cached for 10 seconds. Multisig is excluded. Hosted testnet verification remains required before participant availability is claimed.",
+            ],
+            balanceCandidates(deployment.pipelineSnapshot, devModeEnabled).map((n) => n.nodeId),
+          )
+        : operation("unsupported", [
+            "No supported balance targets were established from the deployment snapshot. Multisig is excluded.",
+          ]),
       events: operation("supported", [
         "Returns recorded deployment events with forward pagination; collection can lag the chain. Missing events do not prove payment failure.",
       ]),

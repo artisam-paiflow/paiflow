@@ -770,6 +770,64 @@ keys, operator releases or other funding/execution paths, and is not an uncondit
 exactly-once payout guarantee. Both new migrations must be applied before rollout; only
 isolated local tests have run, with no live webhook payout or application database migration.
 
+## Deployment contract balances
+
+The source API adds `GET /api/v1/deployments/{id}/balances` with the deployment's
+`Authorization: Bearer pfk_…` token. This endpoint is independent of execute: a
+Schedule or Webhook deployment can read its funding pool without an owner session.
+Check `operations.balances` in capabilities; `conditional` identifies candidate
+nodes and does not establish live RPC availability. Hosted testnet verification
+of this new endpoint remains pending; check the deployed capabilities and OpenAPI
+before using it in a participant app.
+
+```bash
+curl "$BASE_URL/api/v1/deployments/$DEPLOYMENT_ID/balances" \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+The `{ data }` response contains `deploymentId`, `network`, `nodes`, `totals` and
+`freshness`. Each node names its `nodeId`, `templateKind`, deployed
+`contractAddress` and current `tokenContract`, with `balanceStroops` as an integer
+string, `readAt`, `stale`, and an optional generic `error`. Token contract addresses
+are asset identity; display asset labels from the original graph may be stale.
+Swap nodes report separate input and output token balances. Only the selected
+contract's configured token balances are read: account balances, recipients,
+credentials and the private graph are not returned.
+
+Candidates include Schedule, Webhook, time conditions, oracle conditions, Pay,
+Split and Swap. Mutable Pay/Split reads require Dev mode enabled and read the
+current on-chain asset. Multisig, Payroll and other unsupported kinds are excluded;
+when they coexist with supported nodes, their error entries make totals incomplete.
+An invalid or ambiguous pipeline, more than 64 candidate contracts, or no supported
+target returns 422. An unconfirmed deployment returns 404; network mismatch returns 422. Invalid, revoked, expired, wrong-deployment or retiring/retired tokens return
+the same generic 401. The service boundary also rejects retirement races.
+
+`totals` sums successful reads per token contract across the supported holding
+nodes only. It is not all customer funds. Always check
+`freshness.totalsComplete`: a failed/unresolved/unsupported target has a null
+balance and `stale: true`, never a fabricated zero. `status` is `fresh` if all
+requested holding targets succeeded, `partial` if only some succeeded, or `stale`
+if none succeeded. Partial totals omit failed targets. Reads are independent
+simulations, not an atomic ledger snapshot.
+
+This is display data, not Schedule payout availability, vested/unvested amounts,
+or evidence of successful payment. Use transaction status and events to check a
+payment. Genuine zero balances have an integer string `"0"`, a read timestamp and
+`stale: false`.
+
+Poll no faster than every 10 seconds. The per-token route limit is 30/minute; a
+10-second cache and in-process single-flight combine callers across tokens.
+`cached` indicates a cached response and the original `readAt`/`attemptedAt`
+timestamps remain intact. Live reads use four workers, at most 64 contracts and a
+25-second scheduling deadline, followed by completion of in-flight RPC calls
+(10 seconds each; a lazy account lookup plus balance simulation can take up to
+20 seconds beyond the scheduling deadline). A deployment-wide Redis refresh lease spans replicas; a
+replica without a cached result returns 429 while another holds that lease.
+Configured but unavailable Redis refuses new refreshes with 429. Without Redis,
+coordination is process-local. A shared process admission queue also bounds RPC
+refreshes across deployments. Honor `Retry-After` for overload; retrying an error
+must never be interpreted as permission to send another payment.
+
 ## Wallet-authorized deployment controls
 
 The shared [wallet control foundation](wallet-controls.md) documents the preparation,

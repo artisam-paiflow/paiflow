@@ -14,6 +14,23 @@ beforeEach(() => {
 });
 
 describe("deployment integration instructions", () => {
+  it("shows balance discovery and distinguishes contract funds from payment evidence", async () => {
+    render(
+      <ApiAccessPanel
+        deploymentId={DEPLOYMENT_ID}
+        capabilities={capabilities("schedule")}
+        webhookSecret={null}
+      />,
+    );
+    expect(screen.getByText(/Read contract balances/).textContent).toContain(
+      "Requires eligibility checks",
+    );
+    expect(screen.getByText(`/api/v1/deployments/${DEPLOYMENT_ID}/balances`)).toBeTruthy();
+    expect(screen.getByText(/unknown balances are not zero/).textContent).toContain(
+      "not Schedule payout availability",
+    );
+    await screen.findByText("NO API TOKENS YET.");
+  });
   it("shows deposit instructions before minting a token and includes a request body", async () => {
     render(
       <ApiAccessPanel

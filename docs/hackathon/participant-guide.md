@@ -95,6 +95,23 @@ Hosted testnet verification of this endpoint is still pending; confirm the deplo
 before using it in a rehearsal.
 
 
+### Contract balance reads (source implementation; hosted verification pending)
+
+Issue #915 adds `GET /api/v1/deployments/{id}/balances` for deployment-token apps.
+It reads funds held by supported deployed contracts, including Schedule funding
+and Webhook reward pools, without an owner session. Check the hosted capabilities
+and OpenAPI first: the source change still needs testnet chain-evidence validation
+before participant support is claimed.
+
+Poll at most every 10 seconds. `tokenContract` identifies each current asset;
+`balanceStroops` stays an integer string. Inspect each node's `stale`/`readAt` and
+`freshness.status`/`totalsComplete` before displaying totals. Null or failed targets
+are unknown, not zero; partial totals omit failures. Multisig remains disabled and
+excluded. Contract balances are not Schedule payout availability or proof that a
+payment succeeded. Read [the API balance contract](../api/README.md#deployment-contract-balances)
+for caching, unsupported kinds and retry behavior. The existing owner dashboard
+continues to use its separate balance endpoint.
+
 ## Before the event
 
 Choose your idea now. Build and integrate before the event; use October 14 to finish your app, verify its payout and prepare your demo.

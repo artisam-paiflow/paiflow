@@ -4,6 +4,7 @@ import { AUDIENCES } from "@/lib/analytics/policy";
 export const API_HISTORY_VERSION = "api-requests-v1";
 const ENDPOINTS = [
   "capabilities",
+  "balances",
   "subscription/state",
   "events",
   "execute",

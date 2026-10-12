@@ -21,6 +21,7 @@ export function capabilities(
     inputAsset: { kind: "native" },
     operations: {
       execute: operation(triggerType === "deposit" ? "supported" : "unsupported"),
+      balances: operation("conditional"),
       events: operation("supported"),
       transactions: operation("supported"),
       releaseEarly: operation("unsupported"),

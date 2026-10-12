@@ -276,6 +276,7 @@ export const DeploymentCapabilitiesSchema = z
       .object({
         execute: CapabilityOperationSchema,
         events: CapabilityOperationSchema,
+        balances: CapabilityOperationSchema,
         transactions: CapabilityOperationSchema,
         releaseEarly: CapabilityOperationSchema,
         payouts: CapabilityOperationSchema,
@@ -312,3 +313,44 @@ export const SubscriptionStateSchema = z
   })
   .strict();
 export type SubscriptionState = z.infer<typeof SubscriptionStateSchema>;
+
+export const DeploymentBalanceNodeSchema = z
+  .object({
+    nodeId: z.string().min(1),
+    templateKind: z.string().min(1),
+    contractAddress: z.string().refine(StrKey.isValidContract),
+    tokenContract: z.string().refine(StrKey.isValidContract).nullable(),
+    balanceStroops: z
+      .string()
+      .regex(/^\d{1,39}$/)
+      .refine((v) => !/^\d{1,39}$/.test(v) || BigInt(v) <= (1n << 127n) - 1n)
+      .nullable(),
+    readAt: z.string().datetime().nullable(),
+    stale: z.boolean(),
+    error: z.string().optional(),
+  })
+  .strict();
+export const DeploymentBalancesSchema = z
+  .object({
+    deploymentId: z.string().uuid(),
+    network: z.enum(["testnet", "mainnet"]),
+    totals: z.array(
+      z
+        .object({
+          tokenContract: z.string().refine(StrKey.isValidContract),
+          balanceStroops: z.string().regex(/^\d+$/),
+        })
+        .strict(),
+    ),
+    nodes: z.array(DeploymentBalanceNodeSchema),
+    freshness: z
+      .object({
+        status: z.enum(["fresh", "partial", "stale"]),
+        totalsComplete: z.boolean(),
+        attemptedAt: z.string().datetime(),
+        cached: z.boolean(),
+      })
+      .strict(),
+  })
+  .strict();
+export type DeploymentBalances = z.infer<typeof DeploymentBalancesSchema>;
