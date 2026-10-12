@@ -4,6 +4,14 @@ import { SwapQuoteSchema } from "@/lib/api/v1/swap-quote-schema";
  * entry, a committed copy that falls behind, an example that no longer parses, or an error table
  * that disagrees with `lib/errors.ts` fails the suite.
  */
+import {
+  FundingDiscoverySchema,
+  FundingPrepareSchema,
+  FundingPreparedSchema,
+  FundingSubmitSchema,
+  FundingReconcileSchema,
+  FundingReconciledSchema,
+} from "@/lib/api/v1/funding-schema";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -144,6 +152,12 @@ describe("OpenAPI document", () => {
   });
 
   const parses: Array<[string, z.ZodTypeAny, unknown]> = [
+    ["fundingDiscovery", FundingDiscoverySchema, examples.fundingDiscovery.data],
+    ["fundingPrepare", FundingPrepareSchema, examples.fundingPrepare],
+    ["fundingPrepared", FundingPreparedSchema, examples.fundingPrepared.data],
+    ["fundingSubmit", FundingSubmitSchema, examples.fundingSubmit],
+    ["fundingReconcile", FundingReconcileSchema, examples.fundingReconcile],
+    ["fundingReconciled", FundingReconciledSchema, examples.fundingReconciled.data],
     ["swap quote", SwapQuoteSchema, examples.swapQuote.data],
     ["Schedule state", ScheduleStateSchema, examples.scheduleState.data],
     ["subscription state", SubscriptionStateSchema, examples.subscriptionState.data],

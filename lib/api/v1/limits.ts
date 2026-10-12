@@ -17,6 +17,8 @@ export const V1_RATE_LIMITS = {
   subscriptionControlReconcile: { limit: 30, windowSeconds: 60 },
   swapQuote: { limit: 20, windowSeconds: 60 },
   subscriptionState: { limit: 40, windowSeconds: 60 },
+  funding: { limit: 10, windowSeconds: 60 },
+  fundingSubmit: { limit: 30, windowSeconds: 60 },
   scheduleState: { limit: 20, windowSeconds: 60 },
   schedulePrepare: { limit: 10, windowSeconds: 60 },
   scheduleSubmit: { limit: 30, windowSeconds: 60 },

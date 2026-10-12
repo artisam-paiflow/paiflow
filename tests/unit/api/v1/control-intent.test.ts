@@ -215,6 +215,26 @@ describe("wallet-control exact binding", () => {
     const zero = build({ method, funding: true, amount: "0" });
     expect(() => assertControlTransaction(zero, binding(zero, action))).toThrow(/does not match/);
   });
+  it.each([
+    ["schedule.fund", "top_up"],
+    ["webhook.fund", "deposit"],
+  ])(
+    "rejects %s funding amount, source, unrelated operation and signer changes",
+    (action, method) => {
+      const original = build({ method, funding: true, amount: "100" });
+      const receipt = binding(original, action);
+      for (const tx of [
+        build({ method, funding: true, amount: "101" }),
+        build({ method, funding: true, source: other.publicKey() }),
+        build({ method, funding: true, extra: true }),
+      ]) {
+        tx.sign(wallet);
+        expect(() => verifyControlTransaction(receipt, tx.toXDR())).toThrow();
+      }
+      original.sign(other);
+      expect(() => verifyControlTransaction(receipt, original.toXDR())).toThrow();
+    },
+  );
   it("binds Soroban authorization contents and rejects unsupported address credentials", () => {
     const original = build();
     const operation = original.operations[0]!;

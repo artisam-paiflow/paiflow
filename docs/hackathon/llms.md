@@ -666,6 +666,9 @@ is 20/min per token and deployment across tokens, shared Redis required in produ
 Hosted testnet quote-versus-completed-swap evidence is pending. Confirm hosted
 OpenAPI availability before claiming support; no new swap execution path is added.
 
+### Deployment funding (#916)
+
+Schedule top-ups and Webhook pool deposits use deployment-token GET/POST `/api/v1/deployments/{id}/funding`, `/funding/submit` and `/funding/reconcile`. Any consenting funding wallet may sign; a token alone cannot move funds. Funding adds funds only and does not execute payouts or callbacks. One unresolved intent per node blocks replacements until confirmed finality or ledger-proven expiry; UNKNOWN never permits another deposit. Public `/trigger`, `/submit-trigger` and hosted funding remain available. Webhook callbacks separately require `x-webhook-secret`. See the [complete signing and recovery example](../api/funding.md). Hosted testnet verification remains pending.
 Schedule controller API: GET `/api/v1/deployments/{id}/schedule/state` and POST
 `/schedule/{pause|resume|retrieve}`, plus each action's `/submit` and `/reconcile`.
 Use the deployed STREAMER's live controller wallet and permissions, never mutable

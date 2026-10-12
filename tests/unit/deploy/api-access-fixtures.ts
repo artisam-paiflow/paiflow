@@ -21,6 +21,9 @@ export function capabilities(
     inputAsset: { kind: "native" },
     operations: {
       execute: operation(triggerType === "deposit" ? "supported" : "unsupported"),
+      funding: operation(
+        ["schedule", "webhook"].includes(triggerType) ? "conditional" : "unsupported",
+      ),
       balances: operation("conditional"),
       events: operation("supported"),
       transactions: operation("supported"),

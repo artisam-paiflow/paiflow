@@ -5,6 +5,9 @@ export const API_HISTORY_VERSION = "api-requests-v1";
 const ENDPOINTS = [
   "capabilities",
   "balances",
+  "funding",
+  "funding/submit",
+  "funding/reconcile",
   "subscription/state",
   "subscription/cancel/prepare",
   "subscription/cancel/submit",

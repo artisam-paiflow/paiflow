@@ -59,6 +59,61 @@ const capabilityExample = (
 ) => ({ status, authentication, requirements, nodeIds });
 
 export const examples = {
+  fundingDiscovery: {
+    data: {
+      deploymentId: EXAMPLE_DEPLOYMENT_ID,
+      network: "testnet",
+      nodes: [
+        {
+          nodeId: "schedule",
+          templateKind: "STREAMER",
+          contractAddress: USDC_SAC_TESTNET,
+          action: "schedule.fund",
+          tokenContractAddress: XLM_SAC_TESTNET,
+          authorization: "funding_wallet",
+          effect: "Adds funds only; does not execute a payout or Webhook callback",
+        },
+      ],
+    },
+  },
+  fundingPrepare: {
+    nodeId: "schedule",
+    fromAddress: EXAMPLE_FROM,
+    tokenContractAddress: XLM_SAC_TESTNET,
+    amountStroops: "10000000",
+  },
+  fundingPrepared: {
+    data: {
+      intent: EXAMPLE_DEPLOYMENT_ID,
+      txHash: EXAMPLE_TX_HASH,
+      expiresAt: "2026-10-12T00:03:00.000Z",
+      xdr: "BASE64_UNSIGNED_XDR_FROM_PREPARATION",
+      action: "schedule.fund",
+      nodeId: "schedule",
+      fromAddress: EXAMPLE_FROM,
+      tokenContractAddress: XLM_SAC_TESTNET,
+      amountStroops: "10000000",
+      network: "testnet",
+      networkPassphrase: "Test SDF Network ; September 2015",
+    },
+  },
+  fundingSubmit: {
+    action: "schedule.fund",
+    intent: EXAMPLE_DEPLOYMENT_ID,
+    signedXdr: "BASE64_SIGNED_EXACT_PREPARATION",
+  },
+  fundingReconcile: { action: "schedule.fund", intent: EXAMPLE_DEPLOYMENT_ID },
+  fundingReconciled: {
+    data: {
+      intent: EXAMPLE_DEPLOYMENT_ID,
+      action: "schedule.fund",
+      txHash: EXAMPLE_TX_HASH,
+      network: "testnet",
+      state: "PREPARED",
+      expiresAt: "2026-10-12T00:03:00.000Z",
+    },
+  },
+
   balances: {
     data: {
       deploymentId: EXAMPLE_DEPLOYMENT_ID,
@@ -184,6 +239,9 @@ export const examples = {
       operations: {
         execute: capabilityExample("supported", "deployment_token", [
           "The paying wallet signs the prepared deposit; simulation checks current configuration.",
+        ]),
+        funding: capabilityExample("unsupported", "deployment_token", [
+          "No supported funding nodes.",
         ]),
         balances: capabilityExample(
           "conditional",
@@ -695,6 +753,140 @@ export const openApiDocument = {
     },
   ],
   paths: {
+    "/api/v1/deployments/{id}/funding": {
+      get: {
+        tags: ["Capabilities"],
+        operationId: "discoverFunding",
+        summary: "Discover live funding assets",
+        description:
+          "Deployment bearer token required; no session. Active, confirmed deployment on the environment network. Any consenting funding wallet may fund; no owner/admin requirement. Funding adds funds only, never executes a Schedule payout or Webhook callback. Public /trigger, /submit-trigger and hosted /trigger/{deploymentId} alternatives remain available. One unresolved preparation per node blocks other actions; reconcile the original before replacement. UNKNOWN, timeout, REJECTED or missing history alone never permits another deposit. Hosted testnet evidence remains pending." +
+          rate(V1_RATE_LIMITS.funding, "per token"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        responses: {
+          "200": {
+            description: "Discover live funding assets",
+            content: json(
+              dataEnvelope("#/components/schemas/FundingDiscovery"),
+              examples.fundingDiscovery,
+            ),
+          },
+          ...errors(
+            "UNAUTHENTICATED",
+            "NOT_FOUND",
+            "FORBIDDEN",
+            "VALIDATION",
+            "CONFLICT",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+            "INTERNAL",
+          ),
+        },
+      },
+      post: {
+        tags: ["Capabilities"],
+        operationId: "prepareFunding",
+        summary: "Prepare wallet-authorized funding",
+        description:
+          "Deployment bearer token required; no session. Active, confirmed deployment on the environment network. Any consenting funding wallet may fund; no owner/admin requirement. Funding adds funds only, never executes a Schedule payout or Webhook callback. Public /trigger, /submit-trigger and hosted /trigger/{deploymentId} alternatives remain available. One unresolved preparation per node blocks other actions; reconcile the original before replacement. UNKNOWN, timeout, REJECTED or missing history alone never permits another deposit. Hosted testnet evidence remains pending." +
+          rate(V1_RATE_LIMITS.funding, "per token"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        requestBody: {
+          required: true,
+          content: json({ $ref: "#/components/schemas/FundingPrepare" }, examples.fundingPrepare),
+        },
+        responses: {
+          "200": {
+            description: "Prepare wallet-authorized funding",
+            content: json(
+              dataEnvelope("#/components/schemas/FundingPrepared"),
+              examples.fundingPrepared,
+            ),
+          },
+          ...errors(
+            "UNAUTHENTICATED",
+            "NOT_FOUND",
+            "FORBIDDEN",
+            "VALIDATION",
+            "CONFLICT",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+            "INTERNAL",
+          ),
+        },
+      },
+    },
+    "/api/v1/deployments/{id}/funding/submit": {
+      post: {
+        tags: ["Capabilities"],
+        operationId: "submitFunding",
+        summary: "Submit the exact signed funding envelope",
+        description:
+          "Deployment bearer token required; no session. Active, confirmed deployment on the environment network. Any consenting funding wallet may fund; no owner/admin requirement. Funding adds funds only, never executes a Schedule payout or Webhook callback. Public /trigger, /submit-trigger and hosted /trigger/{deploymentId} alternatives remain available. One unresolved preparation per node blocks other actions; reconcile the original before replacement. UNKNOWN, timeout, REJECTED or missing history alone never permits another deposit. Hosted testnet evidence remains pending." +
+          rate(V1_RATE_LIMITS.fundingSubmit, "per token"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        requestBody: {
+          required: true,
+          content: json({ $ref: "#/components/schemas/FundingSubmit" }, examples.fundingSubmit),
+        },
+        responses: {
+          "200": {
+            description: "Submit the exact signed funding envelope",
+            content: json(dataEnvelope("#/components/schemas/TransactionStatus")),
+          },
+          ...errors(
+            "UNAUTHENTICATED",
+            "NOT_FOUND",
+            "FORBIDDEN",
+            "VALIDATION",
+            "CONFLICT",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+            "INTERNAL",
+          ),
+        },
+      },
+    },
+    "/api/v1/deployments/{id}/funding/reconcile": {
+      post: {
+        tags: ["Capabilities"],
+        operationId: "reconcileFunding",
+        summary: "Reconcile funding finality and ledger-proven expiry",
+        description:
+          "Deployment bearer token required; no session. Active, confirmed deployment on the environment network. Any consenting funding wallet may fund; no owner/admin requirement. Funding adds funds only, never executes a Schedule payout or Webhook callback. Public /trigger, /submit-trigger and hosted /trigger/{deploymentId} alternatives remain available. One unresolved preparation per node blocks other actions; reconcile the original before replacement. UNKNOWN, timeout, REJECTED or missing history alone never permits another deposit. Hosted testnet evidence remains pending." +
+          rate(V1_RATE_LIMITS.fundingSubmit, "per token"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        requestBody: {
+          required: true,
+          content: json(
+            { $ref: "#/components/schemas/FundingReconcile" },
+            examples.fundingReconcile,
+          ),
+        },
+        responses: {
+          "200": {
+            description: "Reconcile funding finality and ledger-proven expiry",
+            content: json(
+              dataEnvelope("#/components/schemas/FundingReconciled"),
+              examples.fundingReconciled,
+            ),
+          },
+          ...errors(
+            "UNAUTHENTICATED",
+            "NOT_FOUND",
+            "FORBIDDEN",
+            "VALIDATION",
+            "CONFLICT",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+            "INTERNAL",
+          ),
+        },
+      },
+    },
     ...schedulePaths(),
     ...Object.fromEntries(
       (["cancel", "reactivate"] as const).flatMap((action) =>
@@ -1935,6 +2127,7 @@ export const openApiDocument = {
               "execute",
               "events",
               "balances",
+              "funding",
               "transactions",
               "releaseEarly",
               "payouts",
@@ -1949,6 +2142,7 @@ export const openApiDocument = {
             ],
             properties: {
               execute: { $ref: "#/components/schemas/CapabilityOperation" },
+              funding: { $ref: "#/components/schemas/CapabilityOperation" },
               balances: { $ref: "#/components/schemas/CapabilityOperation" },
               events: { $ref: "#/components/schemas/CapabilityOperation" },
               transactions: { $ref: "#/components/schemas/CapabilityOperation" },
@@ -1964,6 +2158,126 @@ export const openApiDocument = {
               subscriptionAllowance: { $ref: "#/components/schemas/CapabilityOperation" },
             },
           },
+        },
+      },
+      FundingPrepare: {
+        type: "object",
+        additionalProperties: false,
+        required: ["fromAddress", "tokenContractAddress", "amountStroops"],
+        properties: {
+          nodeId: { type: "string", minLength: 1, maxLength: 128 },
+          fromAddress: {
+            type: "string",
+            description: "Consenting funding wallet, Stellar G address",
+          },
+          tokenContractAddress: {
+            type: "string",
+            description: "Exact live deployed asset C address from funding discovery",
+          },
+          amountStroops: {
+            type: "string",
+            pattern: "^[1-9]\\d{0,38}$",
+            description: "Positive integer stroops at most i128::MAX",
+          },
+        },
+      },
+      FundingSubmit: {
+        type: "object",
+        additionalProperties: false,
+        required: ["action", "intent", "signedXdr"],
+        properties: {
+          action: { type: "string", enum: ["schedule.fund", "webhook.fund"] },
+          intent: { type: "string", format: "uuid" },
+          signedXdr: { type: "string", minLength: 1, maxLength: 100000 },
+        },
+      },
+      FundingReconcile: {
+        type: "object",
+        additionalProperties: false,
+        required: ["action", "intent"],
+        properties: {
+          action: { type: "string", enum: ["schedule.fund", "webhook.fund"] },
+          intent: { type: "string", format: "uuid" },
+        },
+      },
+      FundingDiscovery: {
+        type: "object",
+        additionalProperties: false,
+        required: ["deploymentId", "network", "nodes"],
+        properties: {
+          deploymentId: { type: "string", format: "uuid" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          nodes: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: [
+                "nodeId",
+                "templateKind",
+                "contractAddress",
+                "action",
+                "tokenContractAddress",
+                "authorization",
+                "effect",
+              ],
+              properties: {
+                nodeId: { type: "string" },
+                templateKind: { type: "string", enum: ["STREAMER", "WEBHOOK"] },
+                contractAddress: { type: "string" },
+                action: { type: "string", enum: ["schedule.fund", "webhook.fund"] },
+                tokenContractAddress: { type: "string" },
+                authorization: { const: "funding_wallet" },
+                effect: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+      FundingPrepared: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "intent",
+          "txHash",
+          "expiresAt",
+          "xdr",
+          "action",
+          "nodeId",
+          "fromAddress",
+          "tokenContractAddress",
+          "amountStroops",
+          "network",
+          "networkPassphrase",
+        ],
+        properties: {
+          intent: { type: "string", format: "uuid" },
+          txHash: { type: "string", pattern: "^[a-f0-9]{64}$" },
+          expiresAt: { type: "string", format: "date-time" },
+          xdr: { type: "string" },
+          action: { type: "string", enum: ["schedule.fund", "webhook.fund"] },
+          nodeId: { type: "string" },
+          fromAddress: { type: "string" },
+          tokenContractAddress: { type: "string" },
+          amountStroops: { type: "string" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          networkPassphrase: { type: "string" },
+        },
+      },
+      FundingReconciled: {
+        type: "object",
+        additionalProperties: false,
+        required: ["intent", "action", "txHash", "network", "state", "expiresAt"],
+        properties: {
+          intent: { type: "string", format: "uuid" },
+          action: { type: "string", enum: ["schedule.fund", "webhook.fund"] },
+          txHash: { type: "string" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          state: {
+            type: "string",
+            enum: ["PREPARED", "SUBMITTING", "SUCCESS", "FAILED", "EXPIRED"],
+          },
+          expiresAt: { type: "string", format: "date-time" },
         },
       },
       Error: {

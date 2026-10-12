@@ -54,9 +54,676 @@
     }
   ],
   "paths": {
+    "/api/v1/deployments/{id}/funding": {
+      "get": {
+        "tags": [
+          "Capabilities"
+        ],
+        "operationId": "discoverFunding",
+        "summary": "Discover live funding assets",
+        "description": "Deployment bearer token required; no session. Active, confirmed deployment on the environment network. Any consenting funding wallet may fund; no owner/admin requirement. Funding adds funds only, never executes a Schedule payout or Webhook callback. Public /trigger, /submit-trigger and hosted /trigger/{deploymentId} alternatives remain available. One unresolved preparation per node blocks other actions; reconcile the original before replacement. UNKNOWN, timeout, REJECTED or missing history alone never permits another deposit. Hosted testnet evidence remains pending.Rate limit: 10 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Discover live funding assets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/FundingDiscovery"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "deploymentId": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d",
+                    "network": "testnet",
+                    "nodes": [
+                      {
+                        "nodeId": "schedule",
+                        "templateKind": "STREAMER",
+                        "contractAddress": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+                        "action": "schedule.fund",
+                        "tokenContractAddress": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+                        "authorization": "funding_wallet",
+                        "effect": "Adds funds only; does not execute a payout or Webhook callback"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Capabilities"
+        ],
+        "operationId": "prepareFunding",
+        "summary": "Prepare wallet-authorized funding",
+        "description": "Deployment bearer token required; no session. Active, confirmed deployment on the environment network. Any consenting funding wallet may fund; no owner/admin requirement. Funding adds funds only, never executes a Schedule payout or Webhook callback. Public /trigger, /submit-trigger and hosted /trigger/{deploymentId} alternatives remain available. One unresolved preparation per node blocks other actions; reconcile the original before replacement. UNKNOWN, timeout, REJECTED or missing history alone never permits another deposit. Hosted testnet evidence remains pending.Rate limit: 10 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FundingPrepare"
+              },
+              "example": {
+                "nodeId": "schedule",
+                "fromAddress": "GDMFZ5QQMDSOTPEQ6YCAWPFAB626Q6C3KLRLYMO3VWMWHQHL4L2DSIHY",
+                "tokenContractAddress": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+                "amountStroops": "10000000"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Prepare wallet-authorized funding",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/FundingPrepared"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "intent": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d",
+                    "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+                    "expiresAt": "2026-10-12T00:03:00.000Z",
+                    "xdr": "BASE64_UNSIGNED_XDR_FROM_PREPARATION",
+                    "action": "schedule.fund",
+                    "nodeId": "schedule",
+                    "fromAddress": "GDMFZ5QQMDSOTPEQ6YCAWPFAB626Q6C3KLRLYMO3VWMWHQHL4L2DSIHY",
+                    "tokenContractAddress": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+                    "amountStroops": "10000000",
+                    "network": "testnet",
+                    "networkPassphrase": "Test SDF Network ; September 2015"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/funding/submit": {
+      "post": {
+        "tags": [
+          "Capabilities"
+        ],
+        "operationId": "submitFunding",
+        "summary": "Submit the exact signed funding envelope",
+        "description": "Deployment bearer token required; no session. Active, confirmed deployment on the environment network. Any consenting funding wallet may fund; no owner/admin requirement. Funding adds funds only, never executes a Schedule payout or Webhook callback. Public /trigger, /submit-trigger and hosted /trigger/{deploymentId} alternatives remain available. One unresolved preparation per node blocks other actions; reconcile the original before replacement. UNKNOWN, timeout, REJECTED or missing history alone never permits another deposit. Hosted testnet evidence remains pending.Rate limit: 30 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FundingSubmit"
+              },
+              "example": {
+                "action": "schedule.fund",
+                "intent": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d",
+                "signedXdr": "BASE64_SIGNED_EXACT_PREPARATION"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Submit the exact signed funding envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TransactionStatus"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/funding/reconcile": {
+      "post": {
+        "tags": [
+          "Capabilities"
+        ],
+        "operationId": "reconcileFunding",
+        "summary": "Reconcile funding finality and ledger-proven expiry",
+        "description": "Deployment bearer token required; no session. Active, confirmed deployment on the environment network. Any consenting funding wallet may fund; no owner/admin requirement. Funding adds funds only, never executes a Schedule payout or Webhook callback. Public /trigger, /submit-trigger and hosted /trigger/{deploymentId} alternatives remain available. One unresolved preparation per node blocks other actions; reconcile the original before replacement. UNKNOWN, timeout, REJECTED or missing history alone never permits another deposit. Hosted testnet evidence remains pending.Rate limit: 30 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FundingReconcile"
+              },
+              "example": {
+                "action": "schedule.fund",
+                "intent": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reconcile funding finality and ledger-proven expiry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/FundingReconciled"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "intent": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d",
+                    "action": "schedule.fund",
+                    "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+                    "network": "testnet",
+                    "state": "PREPARED",
+                    "expiresAt": "2026-10-12T00:03:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/deployments/{id}/schedule/state": {
       "get": {
-        "tags": ["Capabilities"],
+        "tags": [
+          "Capabilities"
+        ],
         "operationId": "getScheduleState",
         "summary": "Read live Schedule state and control eligibility",
         "description": "Uncached reads of snapshot-selected STREAMER controller/asset instance fields, state and permission getters, and token holding balance. availableStroops is vested unpaid payout entitlement, not token balance or a guarantee of sufficient funding; claimedStroops is cumulative claimed entitlement. unvestedStroops is max(balance minus available, zero); retrievableStroops is that difference only while paused and retrieval-permitted. Retrieval returns funds to the contract-configured controller. Reads occur across RPC calls, not an atomic ledger snapshot; amounts are indicative and simulation/execution are authoritative. Contract-address controllers can be read but cannot use this account-wallet signing protocol. Errors never masquerade as zero balances. Active service required; hosted testnet verification remains pending. Rate limit: 20 requests per 60 seconds per token.",
@@ -96,7 +763,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/ScheduleState"
@@ -190,7 +859,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -222,7 +893,9 @@
     },
     "/api/v1/deployments/{id}/schedule/pause": {
       "post": {
-        "tags": ["Capabilities"],
+        "tags": [
+          "Capabilities"
+        ],
         "operationId": "prepareSchedulepause",
         "summary": "Prepare wallet-authorized Schedule pause",
         "description": "The deployment token grants API access, not wallet consent. Select deployed nodeId when ambiguous. Requires current controller account wallet and live state/permissions. Pause only unpaused permitted schedules; resume only paused pause-permitted schedules; retrieve only paused retrieval-permitted schedules with holding balance greater than vested unpaid entitlement. Simulation uses the server network and 180-second envelope; return unsignedXdr, intent, txHash and expiresAt. For retrieval, recipient is the deployed controller and estimatedAmountStroops is indicative; no caller recipient/amount is accepted. Sign unchanged in the wallet; no keys belong in request bodies. One unresolved intent per node across controls/funding; conflicts include the existing intent/hash for reconciliation. Hosted testnet verification remains pending. Rate limit: 10 requests per 60 seconds per token.",
@@ -251,7 +924,9 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["walletAddress"],
+                "required": [
+                  "walletAddress"
+                ],
                 "properties": {
                   "walletAddress": {
                     "type": "string",
@@ -274,7 +949,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/SchedulePrepared"
@@ -342,7 +1019,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -374,7 +1053,9 @@
     },
     "/api/v1/deployments/{id}/schedule/pause/submit": {
       "post": {
-        "tags": ["Capabilities"],
+        "tags": [
+          "Capabilities"
+        ],
         "operationId": "submitSchedulepause",
         "summary": "Submit unchanged wallet-signed Schedule pause",
         "description": "Strict exact intent/action/deployment/network/node/hash and valid controller wallet signature. Recheck live controller/permissions before the first send. Durable admission records the hash before sending; repeated/concurrent/uncertain submissions look up the same outcome without rebroadcasting. Poll /transactions/{txHash}; UNKNOWN, queue REJECTED or a timeout does not authorize replacement. First-send expiry requires reconciliation, never a new envelope by time alone. Rate limit: 30 requests per 60 seconds per token.",
@@ -403,7 +1084,10 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["intent", "signedXdr"],
+                "required": [
+                  "intent",
+                  "signedXdr"
+                ],
                 "properties": {
                   "intent": {
                     "type": "string",
@@ -426,7 +1110,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/TransactionStatus"
@@ -494,7 +1180,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -526,7 +1214,9 @@
     },
     "/api/v1/deployments/{id}/schedule/pause/reconcile": {
       "post": {
-        "tags": ["Capabilities"],
+        "tags": [
+          "Capabilities"
+        ],
         "operationId": "reconcileSchedulepause",
         "summary": "Reconcile an existing Schedule pause intent",
         "description": "Reconcile the matching action intent, including abandoned unsigned preparation. SUCCESS/FAILED require durable ledger finality; EXPIRED requires a closed ledger after maxTime plus covered historical NOT_FOUND proof. Missing/lagging history and RPC errors retain reservations. replacementAllowed=true only for durable SUCCESS/FAILED/proven EXPIRED, and new preparation still checks live eligibility. Active deployment service required; retired token access is not reopened. Rate limit: 20 requests per 60 seconds per token.",
@@ -555,7 +1245,9 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["intent"],
+                "required": [
+                  "intent"
+                ],
                 "properties": {
                   "intent": {
                     "type": "string",
@@ -573,7 +1265,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/ScheduleReconciled"
@@ -641,7 +1335,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -673,7 +1369,9 @@
     },
     "/api/v1/deployments/{id}/schedule/resume": {
       "post": {
-        "tags": ["Capabilities"],
+        "tags": [
+          "Capabilities"
+        ],
         "operationId": "prepareScheduleresume",
         "summary": "Prepare wallet-authorized Schedule resume",
         "description": "The deployment token grants API access, not wallet consent. Select deployed nodeId when ambiguous. Requires current controller account wallet and live state/permissions. Pause only unpaused permitted schedules; resume only paused pause-permitted schedules; retrieve only paused retrieval-permitted schedules with holding balance greater than vested unpaid entitlement. Simulation uses the server network and 180-second envelope; return unsignedXdr, intent, txHash and expiresAt. For retrieval, recipient is the deployed controller and estimatedAmountStroops is indicative; no caller recipient/amount is accepted. Sign unchanged in the wallet; no keys belong in request bodies. One unresolved intent per node across controls/funding; conflicts include the existing intent/hash for reconciliation. Hosted testnet verification remains pending. Rate limit: 10 requests per 60 seconds per token.",
@@ -702,7 +1400,9 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["walletAddress"],
+                "required": [
+                  "walletAddress"
+                ],
                 "properties": {
                   "walletAddress": {
                     "type": "string",
@@ -725,7 +1425,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/SchedulePrepared"
@@ -793,7 +1495,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -825,7 +1529,9 @@
     },
     "/api/v1/deployments/{id}/schedule/resume/submit": {
       "post": {
-        "tags": ["Capabilities"],
+        "tags": [
+          "Capabilities"
+        ],
         "operationId": "submitScheduleresume",
         "summary": "Submit unchanged wallet-signed Schedule resume",
         "description": "Strict exact intent/action/deployment/network/node/hash and valid controller wallet signature. Recheck live controller/permissions before the first send. Durable admission records the hash before sending; repeated/concurrent/uncertain submissions look up the same outcome without rebroadcasting. Poll /transactions/{txHash}; UNKNOWN, queue REJECTED or a timeout does not authorize replacement. First-send expiry requires reconciliation, never a new envelope by time alone. Rate limit: 30 requests per 60 seconds per token.",
@@ -854,7 +1560,10 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["intent", "signedXdr"],
+                "required": [
+                  "intent",
+                  "signedXdr"
+                ],
                 "properties": {
                   "intent": {
                     "type": "string",
@@ -877,7 +1586,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/TransactionStatus"
@@ -945,7 +1656,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -977,7 +1690,9 @@
     },
     "/api/v1/deployments/{id}/schedule/resume/reconcile": {
       "post": {
-        "tags": ["Capabilities"],
+        "tags": [
+          "Capabilities"
+        ],
         "operationId": "reconcileScheduleresume",
         "summary": "Reconcile an existing Schedule resume intent",
         "description": "Reconcile the matching action intent, including abandoned unsigned preparation. SUCCESS/FAILED require durable ledger finality; EXPIRED requires a closed ledger after maxTime plus covered historical NOT_FOUND proof. Missing/lagging history and RPC errors retain reservations. replacementAllowed=true only for durable SUCCESS/FAILED/proven EXPIRED, and new preparation still checks live eligibility. Active deployment service required; retired token access is not reopened. Rate limit: 20 requests per 60 seconds per token.",
@@ -1006,7 +1721,9 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["intent"],
+                "required": [
+                  "intent"
+                ],
                 "properties": {
                   "intent": {
                     "type": "string",
@@ -1024,7 +1741,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/ScheduleReconciled"
@@ -1092,7 +1811,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -1124,7 +1845,9 @@
     },
     "/api/v1/deployments/{id}/schedule/retrieve": {
       "post": {
-        "tags": ["Capabilities"],
+        "tags": [
+          "Capabilities"
+        ],
         "operationId": "prepareScheduleretrieve",
         "summary": "Prepare wallet-authorized Schedule retrieve",
         "description": "The deployment token grants API access, not wallet consent. Select deployed nodeId when ambiguous. Requires current controller account wallet and live state/permissions. Pause only unpaused permitted schedules; resume only paused pause-permitted schedules; retrieve only paused retrieval-permitted schedules with holding balance greater than vested unpaid entitlement. Simulation uses the server network and 180-second envelope; return unsignedXdr, intent, txHash and expiresAt. For retrieval, recipient is the deployed controller and estimatedAmountStroops is indicative; no caller recipient/amount is accepted. Sign unchanged in the wallet; no keys belong in request bodies. One unresolved intent per node across controls/funding; conflicts include the existing intent/hash for reconciliation. Hosted testnet verification remains pending. Rate limit: 10 requests per 60 seconds per token.",
@@ -1153,7 +1876,9 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["walletAddress"],
+                "required": [
+                  "walletAddress"
+                ],
                 "properties": {
                   "walletAddress": {
                     "type": "string",
@@ -1176,7 +1901,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/SchedulePrepared"
@@ -1244,7 +1971,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -1276,7 +2005,9 @@
     },
     "/api/v1/deployments/{id}/schedule/retrieve/submit": {
       "post": {
-        "tags": ["Capabilities"],
+        "tags": [
+          "Capabilities"
+        ],
         "operationId": "submitScheduleretrieve",
         "summary": "Submit unchanged wallet-signed Schedule retrieve",
         "description": "Strict exact intent/action/deployment/network/node/hash and valid controller wallet signature. Recheck live controller/permissions before the first send. Durable admission records the hash before sending; repeated/concurrent/uncertain submissions look up the same outcome without rebroadcasting. Poll /transactions/{txHash}; UNKNOWN, queue REJECTED or a timeout does not authorize replacement. First-send expiry requires reconciliation, never a new envelope by time alone. Rate limit: 30 requests per 60 seconds per token.",
@@ -1305,7 +2036,10 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["intent", "signedXdr"],
+                "required": [
+                  "intent",
+                  "signedXdr"
+                ],
                 "properties": {
                   "intent": {
                     "type": "string",
@@ -1328,7 +2062,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/TransactionStatus"
@@ -1396,7 +2132,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -1428,7 +2166,9 @@
     },
     "/api/v1/deployments/{id}/schedule/retrieve/reconcile": {
       "post": {
-        "tags": ["Capabilities"],
+        "tags": [
+          "Capabilities"
+        ],
         "operationId": "reconcileScheduleretrieve",
         "summary": "Reconcile an existing Schedule retrieve intent",
         "description": "Reconcile the matching action intent, including abandoned unsigned preparation. SUCCESS/FAILED require durable ledger finality; EXPIRED requires a closed ledger after maxTime plus covered historical NOT_FOUND proof. Missing/lagging history and RPC errors retain reservations. replacementAllowed=true only for durable SUCCESS/FAILED/proven EXPIRED, and new preparation still checks live eligibility. Active deployment service required; retired token access is not reopened. Rate limit: 20 requests per 60 seconds per token.",
@@ -1457,7 +2197,9 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["intent"],
+                "required": [
+                  "intent"
+                ],
                 "properties": {
                   "intent": {
                     "type": "string",
@@ -1475,7 +2217,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/ScheduleReconciled"
@@ -1543,7 +2287,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -1575,7 +2321,9 @@
     },
     "/api/v1/deployments/{id}/subscription/cancel/prepare": {
       "post": {
-        "tags": ["Subscriptions"],
+        "tags": [
+          "Subscriptions"
+        ],
         "operationId": "prepareSubscriptionCancel",
         "summary": "prepare wallet-authorized subscription cancel",
         "description": "Requires the deployment bearer token and ACTIVE service. Ordinary subscriptions are eligible. Existing Dev cancellation continues when Dev mode is disabled; Dev reactivation requires the feature enabled. Payroll and malformed or ambiguous snapshots are refused.\n\nPreparation reads the deployed current subscriber, asset and cancellation state. Only that configured wallet can cancel an active subscription or reactivate a cancelled subscription. The builder simulates on the server network with finite transaction bounds. Cancellation revokes allowance; reactivation grants no allowance, creates no subscriber and never immediately charges or changes billing.\n\nSign exactly the returned xdr in the subscriber wallet on networkPassphrase; submit intent and signedXdr. Changed envelopes, wrong signers and fee-bumps are refused. Submission rechecks live eligibility on the first send and durably admits the exact hash before broadcasting. Retrying an already claimed intent returns status, even when successful cancellation changed state.\n\nUNKNOWN, REJECTED, timeouts and expired clocks never authorize replacement. Poll the deployment transaction endpoint and explicitly POST the action's reconcile endpoint with intent. Recovery adopts externally submitted ledger results and proves expiry only with complete RPC history. PREPARED or SUBMITTING retains the reservation; SUCCESS, FAILED or proven EXPIRED sets replacementAllowed:true, subject to current eligibility for a new preparation. RPC/history gaps retain reservations. No generic or token-only wallet consent.\n\nHosted testnet rehearsal remains required before advertising event availability; these paths describe the implemented API surface.\n\nRate limit: 10 requests per 60 seconds per token.",
@@ -1617,7 +2365,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/SubscriptionControlPrepared"
@@ -1710,7 +2460,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -1752,7 +2504,9 @@
     },
     "/api/v1/deployments/{id}/subscription/cancel/submit": {
       "post": {
-        "tags": ["Subscriptions"],
+        "tags": [
+          "Subscriptions"
+        ],
         "operationId": "submitSubscriptionCancel",
         "summary": "submit wallet-authorized subscription cancel",
         "description": "Requires the deployment bearer token and ACTIVE service. Ordinary subscriptions are eligible. Existing Dev cancellation continues when Dev mode is disabled; Dev reactivation requires the feature enabled. Payroll and malformed or ambiguous snapshots are refused.\n\nPreparation reads the deployed current subscriber, asset and cancellation state. Only that configured wallet can cancel an active subscription or reactivate a cancelled subscription. The builder simulates on the server network with finite transaction bounds. Cancellation revokes allowance; reactivation grants no allowance, creates no subscriber and never immediately charges or changes billing.\n\nSign exactly the returned xdr in the subscriber wallet on networkPassphrase; submit intent and signedXdr. Changed envelopes, wrong signers and fee-bumps are refused. Submission rechecks live eligibility on the first send and durably admits the exact hash before broadcasting. Retrying an already claimed intent returns status, even when successful cancellation changed state.\n\nUNKNOWN, REJECTED, timeouts and expired clocks never authorize replacement. Poll the deployment transaction endpoint and explicitly POST the action's reconcile endpoint with intent. Recovery adopts externally submitted ledger results and proves expiry only with complete RPC history. PREPARED or SUBMITTING retains the reservation; SUCCESS, FAILED or proven EXPIRED sets replacementAllowed:true, subject to current eligibility for a new preparation. RPC/history gaps retain reservations. No generic or token-only wallet consent.\n\nHosted testnet rehearsal remains required before advertising event availability; these paths describe the implemented API surface.\n\nRate limit: 30 requests per 60 seconds per token.",
@@ -1791,7 +2545,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/TransactionStatus"
@@ -1877,7 +2633,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -1919,7 +2677,9 @@
     },
     "/api/v1/deployments/{id}/subscription/cancel/reconcile": {
       "post": {
-        "tags": ["Subscriptions"],
+        "tags": [
+          "Subscriptions"
+        ],
         "operationId": "reconcileSubscriptionCancel",
         "summary": "reconcile wallet-authorized subscription cancel",
         "description": "Requires the deployment bearer token and ACTIVE service. Ordinary subscriptions are eligible. Existing Dev cancellation continues when Dev mode is disabled; Dev reactivation requires the feature enabled. Payroll and malformed or ambiguous snapshots are refused.\n\nPreparation reads the deployed current subscriber, asset and cancellation state. Only that configured wallet can cancel an active subscription or reactivate a cancelled subscription. The builder simulates on the server network with finite transaction bounds. Cancellation revokes allowance; reactivation grants no allowance, creates no subscriber and never immediately charges or changes billing.\n\nSign exactly the returned xdr in the subscriber wallet on networkPassphrase; submit intent and signedXdr. Changed envelopes, wrong signers and fee-bumps are refused. Submission rechecks live eligibility on the first send and durably admits the exact hash before broadcasting. Retrying an already claimed intent returns status, even when successful cancellation changed state.\n\nUNKNOWN, REJECTED, timeouts and expired clocks never authorize replacement. Poll the deployment transaction endpoint and explicitly POST the action's reconcile endpoint with intent. Recovery adopts externally submitted ledger results and proves expiry only with complete RPC history. PREPARED or SUBMITTING retains the reservation; SUCCESS, FAILED or proven EXPIRED sets replacementAllowed:true, subject to current eligibility for a new preparation. RPC/history gaps retain reservations. No generic or token-only wallet consent.\n\nHosted testnet rehearsal remains required before advertising event availability; these paths describe the implemented API surface.\n\nRate limit: 30 requests per 60 seconds per token.",
@@ -1961,7 +2721,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/SubscriptionControlReconciled"
@@ -2049,7 +2811,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -2091,7 +2855,9 @@
     },
     "/api/v1/deployments/{id}/subscription/reactivate/prepare": {
       "post": {
-        "tags": ["Subscriptions"],
+        "tags": [
+          "Subscriptions"
+        ],
         "operationId": "prepareSubscriptionReactivate",
         "summary": "prepare wallet-authorized subscription reactivate",
         "description": "Requires the deployment bearer token and ACTIVE service. Ordinary subscriptions are eligible. Existing Dev cancellation continues when Dev mode is disabled; Dev reactivation requires the feature enabled. Payroll and malformed or ambiguous snapshots are refused.\n\nPreparation reads the deployed current subscriber, asset and cancellation state. Only that configured wallet can cancel an active subscription or reactivate a cancelled subscription. The builder simulates on the server network with finite transaction bounds. Cancellation revokes allowance; reactivation grants no allowance, creates no subscriber and never immediately charges or changes billing.\n\nSign exactly the returned xdr in the subscriber wallet on networkPassphrase; submit intent and signedXdr. Changed envelopes, wrong signers and fee-bumps are refused. Submission rechecks live eligibility on the first send and durably admits the exact hash before broadcasting. Retrying an already claimed intent returns status, even when successful cancellation changed state.\n\nUNKNOWN, REJECTED, timeouts and expired clocks never authorize replacement. Poll the deployment transaction endpoint and explicitly POST the action's reconcile endpoint with intent. Recovery adopts externally submitted ledger results and proves expiry only with complete RPC history. PREPARED or SUBMITTING retains the reservation; SUCCESS, FAILED or proven EXPIRED sets replacementAllowed:true, subject to current eligibility for a new preparation. RPC/history gaps retain reservations. No generic or token-only wallet consent.\n\nHosted testnet rehearsal remains required before advertising event availability; these paths describe the implemented API surface.\n\nRate limit: 10 requests per 60 seconds per token.",
@@ -2133,7 +2899,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/SubscriptionControlPrepared"
@@ -2226,7 +2994,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -2268,7 +3038,9 @@
     },
     "/api/v1/deployments/{id}/subscription/reactivate/submit": {
       "post": {
-        "tags": ["Subscriptions"],
+        "tags": [
+          "Subscriptions"
+        ],
         "operationId": "submitSubscriptionReactivate",
         "summary": "submit wallet-authorized subscription reactivate",
         "description": "Requires the deployment bearer token and ACTIVE service. Ordinary subscriptions are eligible. Existing Dev cancellation continues when Dev mode is disabled; Dev reactivation requires the feature enabled. Payroll and malformed or ambiguous snapshots are refused.\n\nPreparation reads the deployed current subscriber, asset and cancellation state. Only that configured wallet can cancel an active subscription or reactivate a cancelled subscription. The builder simulates on the server network with finite transaction bounds. Cancellation revokes allowance; reactivation grants no allowance, creates no subscriber and never immediately charges or changes billing.\n\nSign exactly the returned xdr in the subscriber wallet on networkPassphrase; submit intent and signedXdr. Changed envelopes, wrong signers and fee-bumps are refused. Submission rechecks live eligibility on the first send and durably admits the exact hash before broadcasting. Retrying an already claimed intent returns status, even when successful cancellation changed state.\n\nUNKNOWN, REJECTED, timeouts and expired clocks never authorize replacement. Poll the deployment transaction endpoint and explicitly POST the action's reconcile endpoint with intent. Recovery adopts externally submitted ledger results and proves expiry only with complete RPC history. PREPARED or SUBMITTING retains the reservation; SUCCESS, FAILED or proven EXPIRED sets replacementAllowed:true, subject to current eligibility for a new preparation. RPC/history gaps retain reservations. No generic or token-only wallet consent.\n\nHosted testnet rehearsal remains required before advertising event availability; these paths describe the implemented API surface.\n\nRate limit: 30 requests per 60 seconds per token.",
@@ -2307,7 +3079,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/TransactionStatus"
@@ -2393,7 +3167,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -2435,7 +3211,9 @@
     },
     "/api/v1/deployments/{id}/subscription/reactivate/reconcile": {
       "post": {
-        "tags": ["Subscriptions"],
+        "tags": [
+          "Subscriptions"
+        ],
         "operationId": "reconcileSubscriptionReactivate",
         "summary": "reconcile wallet-authorized subscription reactivate",
         "description": "Requires the deployment bearer token and ACTIVE service. Ordinary subscriptions are eligible. Existing Dev cancellation continues when Dev mode is disabled; Dev reactivation requires the feature enabled. Payroll and malformed or ambiguous snapshots are refused.\n\nPreparation reads the deployed current subscriber, asset and cancellation state. Only that configured wallet can cancel an active subscription or reactivate a cancelled subscription. The builder simulates on the server network with finite transaction bounds. Cancellation revokes allowance; reactivation grants no allowance, creates no subscriber and never immediately charges or changes billing.\n\nSign exactly the returned xdr in the subscriber wallet on networkPassphrase; submit intent and signedXdr. Changed envelopes, wrong signers and fee-bumps are refused. Submission rechecks live eligibility on the first send and durably admits the exact hash before broadcasting. Retrying an already claimed intent returns status, even when successful cancellation changed state.\n\nUNKNOWN, REJECTED, timeouts and expired clocks never authorize replacement. Poll the deployment transaction endpoint and explicitly POST the action's reconcile endpoint with intent. Recovery adopts externally submitted ledger results and proves expiry only with complete RPC history. PREPARED or SUBMITTING retains the reservation; SUCCESS, FAILED or proven EXPIRED sets replacementAllowed:true, subject to current eligibility for a new preparation. RPC/history gaps retain reservations. No generic or token-only wallet consent.\n\nHosted testnet rehearsal remains required before advertising event availability; these paths describe the implemented API surface.\n\nRate limit: 30 requests per 60 seconds per token.",
@@ -2477,7 +3255,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/SubscriptionControlReconciled"
@@ -2565,7 +3345,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -2607,7 +3389,9 @@
     },
     "/api/v1/deployments/{id}/balances": {
       "get": {
-        "tags": ["Capabilities"],
+        "tags": [
+          "Capabilities"
+        ],
         "operationId": "getDeploymentBalances",
         "summary": "Read deployment contract balances with freshness",
         "description": "Deployment-scoped display reads of current token contracts from supported on-chain instance storage. Schedule, Webhook, time/oracle conditions, Pay, Split and Swap balances are supported candidates; mutable Pay/Split require Dev mode enabled. Swap reports both input and output tokens. No owner account balances or private configuration. Multisig and unsupported kinds are excluded and, when present beside supported nodes, reported as errors making totals incomplete. Token contract addresses are asset identity; graph asset labels are not authoritative. Balances are not Schedule payout availability or evidence of payment success. The 10-second process-local single-flight cache preserves original readAt/attemptedAt; a Redis per-deployment refresh lease spans replicas (another replica without cached data answers 429), configured unavailable Redis fails closed for refreshes, and no Redis means process-local coordination; poll no faster than every 10 seconds. Each refresh admits at most four workers and 64 contracts, stops scheduling at 25 seconds, with existing finite HTTP timeouts. Errors use null balances and stale:true; partial totals sum only successful reads, never stand for complete balances. Fresh means all supported/holding targets read successfully within the display window, not a ledger-consistent atomic snapshot. Hosted testnet verification remains pending before participant support is claimed. Rate limit: 30 requests per 60 seconds per token.",
@@ -2636,7 +3420,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/DeploymentBalances"
@@ -2723,7 +3509,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -2755,7 +3543,9 @@
     },
     "/api/v1/deployments/{id}/swap-quote": {
       "get": {
-        "tags": ["Capabilities"],
+        "tags": [
+          "Capabilities"
+        ],
         "operationId": "getDeploymentSwapQuote",
         "summary": "Estimate output of one deployed Swap node",
         "description": "Requires this deployment's bearer token, confirmed deployment on the environment network and active service. Select a standard SWAPPER from pipelineSnapshot; nodeId is required if several exist. Only amountStroops and nodeId are accepted; arbitrary assets, router, slippage and routes are rejected. Live asset_in/asset_out/router/slippage_bps getters determine quote configuration; the router must match the environment's configured router.\n\nReturns exact integer stroop strings, current slippage, live readStartedAt/quotedAt and estimate:true with scope:selected_node. Reads are a sequence of simulations, not an atomic ledger snapshot; live means read during this request, not cached reserves or guaranteed freshness at execution. amountOutMinStroops is the spot-less-slippage estimate at quote time, not a guaranteed payout or the final minimum for a later transaction. meetsMinimumAtQuote only compares estimated output to that estimate; false means the quote currently falls below that bound, true does not establish full-flow readiness. No full-flow prediction or new execution path; final preparation, simulation and execution remain authoritative. Cache-Control:no-store.\n\nFixed RPC work: four configuration getters and at most five pool/router reads. Deployment-wide 20/min quote budget across tokens, with functioning shared Redis required in production. RPC/provider failures return errors, never a zero quote. Hosted testnet quote-versus-execution verification remains pending; this source API must be deployed and verified before claiming hosted support.\n\nRate limit: 20 requests per 60 seconds per token.",
@@ -2805,7 +3595,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/SwapQuote"
@@ -2895,7 +3687,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -2937,7 +3731,9 @@
     },
     "/api/v1/deployments/{id}/subscription/state": {
       "get": {
-        "tags": ["Capabilities"],
+        "tags": [
+          "Capabilities"
+        ],
         "operationId": "getSubscriptionState",
         "summary": "Read live Subscription state and allowance",
         "description": "Requires this deployment's bearer token, a confirmed ordinary or Dev Subscription on the environment network and active deployment service. Payroll and malformed snapshots are refused. Reads the deployed contract's current subscriber, token and cancellation state, then that subscriber's token allowance. An unconfigured Dev subscription returns subscriber:null, setupRequired:true and allowance:\"0\" without querying allowance. RPC failures return errors rather than a zero allowance or active state.\n\ntokenContractAddress is authoritative; asset is initial metadata only when it matches that token, otherwise null. Allowance is an integer stroop string. Reading does not authorize approval, charge, cancellation or reactivation. No-store response.\n\nRate limit: 40 requests per 60 seconds per token.",
@@ -2966,7 +3762,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/SubscriptionState"
@@ -3052,7 +3850,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -3094,7 +3894,9 @@
     },
     "/api/v1/deployments/{id}/capabilities": {
       "get": {
-        "tags": ["Capabilities"],
+        "tags": [
+          "Capabilities"
+        ],
         "operationId": "getDeploymentCapabilities",
         "summary": "Discover a deployment's supported integration paths",
         "description": "Supported means the integration path exists for the recorded deployment. Conditional requires additional eligibility checks. Unsupported means no matching path can be established. No status guarantees current balances, configuration, consent, deadline or infrastructure readiness.\n\nRequires this deployment's pfk_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.\n\nOperations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are swapQuote (/api/v1/deployments/{id}/swap-quote), execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), scheduleState (/api/v1/deployments/{id}/schedule/state), scheduleControls (Schedule pause, resume and retrieve preparation, submit and reconcile), subscriptionState (/api/v1/deployments/{id}/subscription/state), subscriptionCancel and subscriptionReactivate (subscription/cancel or subscription/reactivate prepare, submit and reconcile), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.\n\nReturns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.\n\nRate limit: 60 requests per 60 seconds per token.",
@@ -3123,7 +3925,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/DeploymentCapabilities"
@@ -3148,18 +3952,30 @@
                         ],
                         "nodeIds": []
                       },
+                      "funding": {
+                        "status": "unsupported",
+                        "authentication": "deployment_token",
+                        "requirements": [
+                          "No supported funding nodes."
+                        ],
+                        "nodeIds": []
+                      },
                       "balances": {
                         "status": "conditional",
                         "authentication": "deployment_token",
                         "requirements": [
                           "Live contract assets and balances must be readable; cached for up to 10 seconds."
                         ],
-                        "nodeIds": ["pay"]
+                        "nodeIds": [
+                          "pay"
+                        ]
                       },
                       "events": {
                         "status": "supported",
                         "authentication": "deployment_token",
-                        "requirements": ["Recorded events can lag the chain."],
+                        "requirements": [
+                          "Recorded events can lag the chain."
+                        ],
                         "nodeIds": []
                       },
                       "transactions": {
@@ -3173,7 +3989,9 @@
                       "releaseEarly": {
                         "status": "unsupported",
                         "authentication": "deployment_token",
-                        "requirements": ["No deployed timelock branch supports early release."],
+                        "requirements": [
+                          "No deployed timelock branch supports early release."
+                        ],
                         "nodeIds": []
                       },
                       "payouts": {
@@ -3195,7 +4013,9 @@
                       "swapQuote": {
                         "status": "unsupported",
                         "authentication": "deployment_token",
-                        "requirements": ["Requires a deployed Swap node."],
+                        "requirements": [
+                          "Requires a deployed Swap node."
+                        ],
                         "nodeIds": []
                       },
                       "scheduleState": {
@@ -3213,7 +4033,9 @@
                       "subscriptionState": {
                         "status": "unsupported",
                         "authentication": "deployment_token",
-                        "requirements": ["Requires a subscription deployment."],
+                        "requirements": [
+                          "Requires a subscription deployment."
+                        ],
                         "nodeIds": []
                       },
                       "subscriptionCancel": {
@@ -3235,7 +4057,9 @@
                       "subscriptionAllowance": {
                         "status": "unsupported",
                         "authentication": "subscriber_wallet",
-                        "requirements": ["Requires a subscription deployment."],
+                        "requirements": [
+                          "Requires a subscription deployment."
+                        ],
                         "nodeIds": []
                       }
                     }
@@ -3292,7 +4116,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -3314,7 +4140,9 @@
     },
     "/api/webhooks/{id}": {
       "post": {
-        "tags": ["Webhooks"],
+        "tags": [
+          "Webhooks"
+        ],
         "operationId": "executeWebhook",
         "summary": "Release a webhook flow, with optional durable event idempotency",
         "description": "Authenticate with x-webhook-secret, not pfk_. Deposit funding separately. For pre-funded release use escrow:true and a stroop amount; omitted amount or zero releases the whole available pool. Idempotency-Key is optional: matching requests return the original attempt without another send; different effective arguments return 409. Keys are deployment-scoped, never automatically expire, and store only key/request digests. One hash is persisted before sending; keyed sends never rebuild/resubmit automatically. Interrupted preparation without a hash remains UNKNOWN and requires operator review. Unknown/missing RPC evidence never authorizes another payment. Use the same key to poll and a pfk_ token for the transaction lookup endpoint. Unkeyed requests retain legacy behavior and can each release another payout. Fixed recipients with Dev mode off. Rate limit: 20/minute per deployment/client IP; keyed replays additionally share transaction lookup RPC limits.",
@@ -3389,7 +4217,9 @@
                   "oneOf": [
                     {
                       "type": "object",
-                      "required": ["data"],
+                      "required": [
+                        "data"
+                      ],
                       "properties": {
                         "data": {
                           "$ref": "#/components/schemas/WebhookAttemptResponse"
@@ -3401,7 +4231,9 @@
                       "properties": {
                         "data": {
                           "type": "object",
-                          "required": ["txHash"],
+                          "required": [
+                            "txHash"
+                          ],
                           "additionalProperties": false,
                           "properties": {
                             "txHash": {
@@ -3409,7 +4241,9 @@
                             },
                             "status": {
                               "type": "string",
-                              "enum": ["PENDING"]
+                              "enum": [
+                                "PENDING"
+                              ]
                             }
                           }
                         }
@@ -3434,7 +4268,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/WebhookAttemptResponse"
@@ -3494,7 +4330,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -3536,7 +4374,9 @@
     },
     "/api/v1/deployments/{id}/payouts": {
       "post": {
-        "tags": ["Payouts"],
+        "tags": [
+          "Payouts"
+        ],
         "operationId": "preparePayout",
         "summary": "Prepare a deposit with a per-payment recipient",
         "description": "Configure one immediate dev Pay for this recipient, then prepare its deposit.\n\nRequires a confirmed deposit-triggered dev flow and one selected PAYER_DEV. Only immediate paths through amount conditions and fixed Split are supported. Current on-chain connectivity and values are checked against the deployed graph. Split must have zero token and accumulated balances, a fixed crypto roster and a deposit greater than its total; it forwards the surplus immediately and resets its accumulator. Percentage Split, shortfalls, delayed/unsupported paths and deposits that miss this Pay are refused.\n\nFor fillValueViaApi, Pay is set to 100%. Otherwise its current configured value is preserved: percentage must consume all incoming funds, or fixed incoming funds must be at most its fixed cap (Pay pays min(incoming, cap)). Pay must start with zero balance. Recipient account/trustline checks must succeed before mutation; unchanged configuration skips the relayer transaction.\n\nRequires functioning Redis. Concurrent preparation returns CONFLICT. Coordination records retain uncertain configuration transactions and the exact prepared deposit through finality or ledger-time expiry; wall-clock expiry does not release protection. Payout deposits have a 60-second validity window; execute retains 180 seconds. Sign this xdr before expiresAt and post it to payouts/submit using the same token. Direct deposits, execute, legacy dev mutations and owner transactions bypass this coordination. Never flush payout coordination records while transactions may still land.\n\nRate limit: 10 requests per 60 seconds per token.",
@@ -3590,7 +4430,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/PayoutPrepared"
@@ -3677,7 +4519,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -3709,7 +4553,9 @@
     },
     "/api/v1/deployments/{id}/payouts/submit": {
       "post": {
-        "tags": ["Payouts"],
+        "tags": [
+          "Payouts"
+        ],
         "operationId": "submitPayout",
         "summary": "Submit exactly the prepared payout",
         "description": "Submit exactly the transaction prepared by payouts for this token and deployment, with envelope signatures added.\n\nThe hash must match the exact prepared deposit for this deployment and API token. Changing amount, source, operations, bounds or authorization entries is refused; add envelope signatures only. Fee-bump envelopes are refused. PENDING or uncertain RPC outcomes retain recipient protection. Confirmed finality releases only this holder, never a newer payout's protection. A network submission refusal can return FAILED while protection remains until finality or ledger-time expiry. Retry the same signedXdr to obtain status; final retries remain available for seven days. An expired unconfirmed envelope cannot be resubmitted after a successor acquires protection.\n\nRate limit: 30 requests per 60 seconds per token.",
@@ -3747,7 +4593,10 @@
             "description": "Default true: bounded wait, as execute/submit; false answers PENDING immediately. At most 3 concurrent waits per token.",
             "schema": {
               "type": "string",
-              "enum": ["true", "false"],
+              "enum": [
+                "true",
+                "false"
+              ],
               "default": "true"
             }
           }
@@ -3772,7 +4621,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/ExecuteSubmitted"
@@ -3827,7 +4678,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -3859,7 +4712,9 @@
     },
     "/api/v1/deployments/{id}/execute": {
       "post": {
-        "tags": ["Execute"],
+        "tags": [
+          "Execute"
+        ],
         "operationId": "prepareExecute",
         "summary": "Prepare the unsigned deposit that executes a deposit-triggered flow",
         "description": "Prepare the deposit that executes a deposit-triggered flow. `from` must be a funded account on this network: it pays the deposit and the fee, and signs the envelope. For issued assets, the sender and payout recipients must hold trustlines for the assets they transfer; a missing trustline reverts the whole pipeline.\n\nThe flow runs through its deposit trigger; the next pipeline steps (pay, split, condition, swap) run as part of the same transaction. Sign the returned `xdr` with the `from` key using `networkPassphrase`, before `expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook, payroll and other trigger-headed flows are refused with `VALIDATION`. A Pay or Split step with no recipient yet (dev mode) reverts with a plain message.\n\nRate limit: 30 requests per 60 seconds per token.",
@@ -3911,7 +4766,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/ExecutePrepared"
@@ -3977,7 +4834,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -4009,7 +4868,9 @@
     },
     "/api/v1/deployments/{id}/execute/submit": {
       "post": {
-        "tags": ["Execute"],
+        "tags": [
+          "Execute"
+        ],
         "operationId": "submitExecute",
         "summary": "Submit the signed deposit and wait for the result",
         "description": "Submit a signed deposit that executes a deposit-triggered flow.\n\nThe envelope must be the one `execute` returned, signed by `from`: anything but a single `deposit` call on this flow's trigger contract is refused with `VALIDATION`, as is a fee-bump envelope.\n\nIdempotent on the envelope hash: submitting the same `signedXdr` again never sends a second transaction, it reports the one already on the network. That is also how to check a `PENDING` result. A transaction that reached the network and failed is a `200` with `status: FAILED` and an `error`, not an HTTP error.\n\nRate limit: 30 requests per 60 seconds per token.",
@@ -4047,7 +4908,10 @@
             "description": "`false` returns PENDING as soon as the network accepts the transaction. Default `true`: wait up to about 25 seconds for a final status, then return `PENDING` if there is none yet. At most 3 calls per token wait at once; a call over that still sends the transaction and returns `PENDING` straight away, as `wait=false` does. Resubmit the same `signedXdr` to check it.",
             "schema": {
               "type": "string",
-              "enum": ["true", "false"],
+              "enum": [
+                "true",
+                "false"
+              ],
               "default": "true"
             }
           }
@@ -4072,7 +4936,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/ExecuteSubmitted"
@@ -4184,7 +5050,9 @@
     },
     "/api/v1/deployments/{id}/release-early": {
       "post": {
-        "tags": ["Release"],
+        "tags": [
+          "Release"
+        ],
         "operationId": "releaseEarly",
         "summary": "Release a timelock branch's before side now",
         "description": "Release a timelock branch's before side now (work delivered), ahead of its deadline.\n\nFor a flow like 'pay on delivery, refund the client after the deadline': call this when the work is delivered and the relayer pays the before side. Nothing is signed on your side; the token is the authorisation. Unlike `execute`, this sends a transaction and returns once it is final.\n\nAfter the deadline the contract refuses the before side and this returns `VALIDATION` (422): the condition then releases to its after side automatically. It also returns `VALIDATION` when the condition holds no funds, or when the deployment has several timelock branches and `nodeId` is missing or unknown. The body may be omitted when there is exactly one branch.\n\nRate limit: 10 requests per 60 seconds per token.",
@@ -4226,7 +5094,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/Released"
@@ -4310,7 +5180,9 @@
     },
     "/api/v1/deployments/{id}/transactions/{txHash}": {
       "get": {
-        "tags": ["Execute"],
+        "tags": [
+          "Execute"
+        ],
         "operationId": "getTransactionStatus",
         "summary": "Look up an attributed transaction without resubmitting",
         "description": "Accepts this deployment's pfk_ token. SUCCESS and FAILED are final; REJECTED means submission refusal, not on-chain failure. PENDING requires known acceptance. UNKNOWN means an attributed attempt has no established acceptance or finality; it never authorizes a new payment. Unattributed hashes return 404, including missing outside submissions. Supports execute records, queued webhook audit records, early-release audit records, ingested events and verified direct pipeline invocations in recent RPC envelopes. Outside indirect calls and token transfers alone are unsupported. Stored terminal outcomes and ingested events survive RPC retention; missing historical evidence cannot be reconstructed. Poll after 2 seconds, exponentially back off with jitter to 30 seconds; honor Retry-After on 429. RPC failures return 502, never FAILED. One bounded RPC read per request, at most 60/min per deployment across tokens; production requires shared Redis for that RPC budget. Rate limit: 60 requests per 60 seconds per token across transaction hashes.",
@@ -4348,7 +5220,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/TransactionStatus"
@@ -4404,7 +5278,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid input",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "amount": [
+                        "Must be a whole number of stroops"
+                      ]
                     }
                   }
                 }
@@ -4436,7 +5312,9 @@
     },
     "/api/v1/deployments/{id}/events": {
       "get": {
-        "tags": ["Events"],
+        "tags": [
+          "Events"
+        ],
         "operationId": "listEvents",
         "summary": "Poll the deployment's events, oldest first",
         "description": "Forward-paginated events the app decoded for this deployment's contracts, ascending by `(ledger, eventId)`. This is the app's record, not a raw chain feed: each event appears once (`eventId` is unique).\n\n**Freshness.** When this deployment's events were last collected from the network more than 10 seconds ago, a call collects them first and waits up to 5 seconds for that before answering from the record. So an event usually appears within 10 to 20 seconds of its ledger closing, whoever submitted the transaction (a wallet paying the contract directly, a scanned SEP-7 QR, a scheduled charge), provided you keep polling. Collection is shared by every caller of the deployment: one at a time, and the next no sooner than 10 seconds after the last one ends, so polling faster than that does not make events arrive sooner. A call that arrives while a collection is already running, or when the network is slow, answers with what is recorded, and the event appears on a later call; a background poller also collects every minute. A confirmed `execute/submit` records its own events before it returns.\n\nA swap is `kind: PAYOUT` with `topic: \"swap\"` and `data` `{ assetIn, assetOut, amountIn, amountOut }`; amounts are stroops as strings.\n\nTo poll: store `nextCursor` and pass it back as `cursor`. While `hasMore` is true, ask again straight away; once it is false, wait and ask again with the same cursor. `nextCursor` is never null once the deployment has events: on an empty page it echoes the cursor you sent. It is null only when there are no events and no cursor was sent.\n\nRate limit: 120 requests per 60 seconds per token.",
@@ -4498,7 +5376,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/ListEventsResponse"
@@ -4582,7 +5462,9 @@
                     "code": "VALIDATION",
                     "message": "Invalid cursor",
                     "fields": {
-                      "cursor": ["Invalid cursor"]
+                      "cursor": [
+                        "Invalid cursor"
+                      ]
                     }
                   }
                 }
@@ -4604,7 +5486,9 @@
     },
     "/api/v1/openapi.json": {
       "get": {
-        "tags": ["Spec"],
+        "tags": [
+          "Spec"
+        ],
         "operationId": "getOpenApi",
         "summary": "This OpenAPI document",
         "description": "Public; no token. Returned as the bare document, without the `data` envelope. Rate limit: 60 requests per 60 seconds per client IP.",
@@ -4635,7 +5519,9 @@
     },
     "/api/v1/demo-token": {
       "post": {
-        "tags": ["Demo"],
+        "tags": [
+          "Demo"
+        ],
         "operationId": "createDemoToken",
         "summary": "Get a short-lived token for the public demo deployment",
         "description": "Public; no token and no account. Returns a bearer token for one shared swapper deployment on testnet, so you can run the calls above before registering. Takes no body. Available only where the public demo is enabled (the testnet instance); 403 otherwise.\n\n**This deployment is shared.** Anyone else holding a demo token can read the events your deposit produces, including the account you deposited from. The swap proceeds are paid to a Paiflow-owned testnet account, not back to you, so the testnet XLM you deposit is spent. Fund a throwaway account with friendbot and never point this at an account you care about.\n\nFor an isolated deployment and a token that does not expire in an hour, register, deploy your own flow and mint a token in the **API access** panel.\n\nRate limit: 3 requests per 3600 seconds per client IP. Rate limit: 60 requests per 3600 seconds instance-wide.",
@@ -4647,7 +5533,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/DemoToken"
@@ -4699,7 +5587,9 @@
     },
     "/api/deployments/{id}/api-tokens": {
       "get": {
-        "tags": ["Token management (owner session)"],
+        "tags": [
+          "Token management (owner session)"
+        ],
         "operationId": "listApiTokens",
         "summary": "List the deployment's API tokens",
         "description": "Owner session only. Active tokens first, then revoked and expired ones, each newest first; at most 100. Never returns a token's plaintext or hash. Rate limit: 20 requests per 60 seconds per signed-in user, shared across the token routes.",
@@ -4728,7 +5618,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "type": "array",
@@ -4803,7 +5695,9 @@
         }
       },
       "post": {
-        "tags": ["Token management (owner session)"],
+        "tags": [
+          "Token management (owner session)"
+        ],
         "operationId": "createApiToken",
         "summary": "Mint a deployment API token",
         "description": "Owner session only, on a `CONFIRMED` deployment, at most 10 active tokens. The plaintext `token` is in this response and nowhere else: store it now. Rate limit: 20 requests per 60 seconds per signed-in user, shared across the token routes.",
@@ -4846,7 +5740,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/CreatedApiToken"
@@ -4939,7 +5835,9 @@
     },
     "/api/deployments/{id}/api-tokens/{tokenId}": {
       "delete": {
-        "tags": ["Token management (owner session)"],
+        "tags": [
+          "Token management (owner session)"
+        ],
         "operationId": "revokeApiToken",
         "summary": "Revoke a deployment API token",
         "description": "Owner session only. Takes effect on the next request. The row is kept for the audit trail; revoking an already-revoked token returns it unchanged. Rate limit: 20 requests per 60 seconds per signed-in user, shared across the token routes.",
@@ -4977,7 +5875,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": [
+                    "data"
+                  ],
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/ApiToken"
@@ -5062,7 +5962,9 @@
       "SubscriptionControlPrepare": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["walletAddress"],
+        "required": [
+          "walletAddress"
+        ],
         "properties": {
           "walletAddress": {
             "type": "string",
@@ -5073,7 +5975,10 @@
       "WalletControlSubmit": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["intent", "signedXdr"],
+        "required": [
+          "intent",
+          "signedXdr"
+        ],
         "properties": {
           "intent": {
             "type": "string",
@@ -5089,7 +5994,9 @@
       "SubscriptionControlReconcile": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["intent"],
+        "required": [
+          "intent"
+        ],
         "properties": {
           "intent": {
             "type": "string",
@@ -5131,14 +6038,20 @@
           },
           "network": {
             "type": "string",
-            "enum": ["testnet", "mainnet"]
+            "enum": [
+              "testnet",
+              "mainnet"
+            ]
           },
           "networkPassphrase": {
             "type": "string"
           },
           "action": {
             "type": "string",
-            "enum": ["subscription.cancel", "subscription.reactivate"]
+            "enum": [
+              "subscription.cancel",
+              "subscription.reactivate"
+            ]
           },
           "walletAddress": {
             "type": "string"
@@ -5158,7 +6071,14 @@
       "SubscriptionControlReconciled": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["intent", "txHash", "action", "state", "ledger", "replacementAllowed"],
+        "required": [
+          "intent",
+          "txHash",
+          "action",
+          "state",
+          "ledger",
+          "replacementAllowed"
+        ],
         "properties": {
           "intent": {
             "type": "string",
@@ -5170,14 +6090,26 @@
           },
           "action": {
             "type": "string",
-            "enum": ["subscription.cancel", "subscription.reactivate"]
+            "enum": [
+              "subscription.cancel",
+              "subscription.reactivate"
+            ]
           },
           "state": {
             "type": "string",
-            "enum": ["PREPARED", "SUBMITTING", "SUCCESS", "FAILED", "EXPIRED"]
+            "enum": [
+              "PREPARED",
+              "SUBMITTING",
+              "SUCCESS",
+              "FAILED",
+              "EXPIRED"
+            ]
           },
           "ledger": {
-            "type": ["integer", "null"]
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "replacementAllowed": {
             "type": "boolean"
@@ -5213,7 +6145,10 @@
           },
           "network": {
             "type": "string",
-            "enum": ["testnet", "mainnet"]
+            "enum": [
+              "testnet",
+              "mainnet"
+            ]
           },
           "nodeId": {
             "type": "string"
@@ -5227,7 +6162,12 @@
           "controlEligibility": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["walletProtocolSupported", "pause", "resume", "retrieve"],
+            "required": [
+              "walletProtocolSupported",
+              "pause",
+              "resume",
+              "retrieve"
+            ],
             "properties": {
               "walletProtocolSupported": {
                 "type": "boolean"
@@ -5315,11 +6255,18 @@
           },
           "network": {
             "type": "string",
-            "enum": ["testnet", "mainnet"]
+            "enum": [
+              "testnet",
+              "mainnet"
+            ]
           },
           "action": {
             "type": "string",
-            "enum": ["pause", "resume", "retrieve"]
+            "enum": [
+              "pause",
+              "resume",
+              "retrieve"
+            ]
           },
           "nodeId": {
             "type": "string"
@@ -5347,7 +6294,14 @@
       },
       "ScheduleReconciled": {
         "type": "object",
-        "required": ["intent", "txHash", "network", "action", "state", "replacementAllowed"],
+        "required": [
+          "intent",
+          "txHash",
+          "network",
+          "action",
+          "state",
+          "replacementAllowed"
+        ],
         "properties": {
           "intent": {
             "type": "string",
@@ -5358,15 +6312,28 @@
           },
           "network": {
             "type": "string",
-            "enum": ["testnet", "mainnet"]
+            "enum": [
+              "testnet",
+              "mainnet"
+            ]
           },
           "action": {
             "type": "string",
-            "enum": ["pause", "resume", "retrieve"]
+            "enum": [
+              "pause",
+              "resume",
+              "retrieve"
+            ]
           },
           "state": {
             "type": "string",
-            "enum": ["PREPARED", "SUBMITTING", "SUCCESS", "FAILED", "EXPIRED"]
+            "enum": [
+              "PREPARED",
+              "SUBMITTING",
+              "SUCCESS",
+              "FAILED",
+              "EXPIRED"
+            ]
           },
           "replacementAllowed": {
             "type": "boolean",
@@ -5377,15 +6344,28 @@
       "CapabilityOperation": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["status", "authentication", "requirements", "nodeIds"],
+        "required": [
+          "status",
+          "authentication",
+          "requirements",
+          "nodeIds"
+        ],
         "properties": {
           "status": {
             "type": "string",
-            "enum": ["supported", "conditional", "unsupported"]
+            "enum": [
+              "supported",
+              "conditional",
+              "unsupported"
+            ]
           },
           "authentication": {
             "type": "string",
-            "enum": ["deployment_token", "webhook_secret", "subscriber_wallet"]
+            "enum": [
+              "deployment_token",
+              "webhook_secret",
+              "subscriber_wallet"
+            ]
           },
           "requirements": {
             "type": "array",
@@ -5431,7 +6411,10 @@
           },
           "network": {
             "type": "string",
-            "enum": ["testnet", "mainnet"]
+            "enum": [
+              "testnet",
+              "mainnet"
+            ]
           },
           "nodeId": {
             "type": "string",
@@ -5529,11 +6512,17 @@
           },
           "network": {
             "type": "string",
-            "enum": ["testnet", "mainnet"]
+            "enum": [
+              "testnet",
+              "mainnet"
+            ]
           },
           "templateKind": {
             "type": "string",
-            "enum": ["SUBSCRIPTION", "SUBSCRIPTION_DEV"]
+            "enum": [
+              "SUBSCRIPTION",
+              "SUBSCRIPTION_DEV"
+            ]
           },
           "contractAddress": {
             "type": "string",
@@ -5544,7 +6533,10 @@
             "pattern": "^C[A-Z2-7]{55}$"
           },
           "subscriber": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "pattern": "^G[A-Z2-7]{55}$"
           },
           "isCancelled": {
@@ -5566,7 +6558,9 @@
               {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["kind"],
+                "required": [
+                  "kind"
+                ],
                 "properties": {
                   "kind": {
                     "const": "native"
@@ -5576,7 +6570,10 @@
               {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["kind", "symbol"],
+                "required": [
+                  "kind",
+                  "symbol"
+                ],
                 "properties": {
                   "kind": {
                     "const": "known"
@@ -5589,7 +6586,11 @@
               {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["kind", "code", "issuer"],
+                "required": [
+                  "kind",
+                  "code",
+                  "issuer"
+                ],
                 "properties": {
                   "kind": {
                     "const": "custom"
@@ -5614,7 +6615,13 @@
       "DeploymentBalances": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["deploymentId", "network", "totals", "nodes", "freshness"],
+        "required": [
+          "deploymentId",
+          "network",
+          "totals",
+          "nodes",
+          "freshness"
+        ],
         "properties": {
           "deploymentId": {
             "type": "string",
@@ -5622,14 +6629,20 @@
           },
           "network": {
             "type": "string",
-            "enum": ["testnet", "mainnet"]
+            "enum": [
+              "testnet",
+              "mainnet"
+            ]
           },
           "totals": {
             "type": "array",
             "items": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["tokenContract", "balanceStroops"],
+              "required": [
+                "tokenContract",
+                "balanceStroops"
+              ],
               "properties": {
                 "tokenContract": {
                   "type": "string",
@@ -5670,15 +6683,24 @@
                   "pattern": "^C[A-Z2-7]{55}$"
                 },
                 "tokenContract": {
-                  "type": ["string", "null"],
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "pattern": "^C[A-Z2-7]{55}$"
                 },
                 "balanceStroops": {
-                  "type": ["string", "null"],
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "pattern": "^\\d{1,39}$"
                 },
                 "readAt": {
-                  "type": ["string", "null"],
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "format": "date-time"
                 },
                 "stale": {
@@ -5693,11 +6715,20 @@
           "freshness": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["status", "totalsComplete", "attemptedAt", "cached"],
+            "required": [
+              "status",
+              "totalsComplete",
+              "attemptedAt",
+              "cached"
+            ],
             "properties": {
               "status": {
                 "type": "string",
-                "enum": ["fresh", "partial", "stale"]
+                "enum": [
+                  "fresh",
+                  "partial",
+                  "stale"
+                ]
               },
               "totalsComplete": {
                 "type": "boolean"
@@ -5732,7 +6763,10 @@
           },
           "network": {
             "type": "string",
-            "enum": ["testnet", "mainnet"]
+            "enum": [
+              "testnet",
+              "mainnet"
+            ]
           },
           "configurationSource": {
             "type": "string",
@@ -5759,7 +6793,9 @@
               {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["kind"],
+                "required": [
+                  "kind"
+                ],
                 "properties": {
                   "kind": {
                     "const": "native",
@@ -5770,7 +6806,10 @@
               {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["kind", "symbol"],
+                "required": [
+                  "kind",
+                  "symbol"
+                ],
                 "properties": {
                   "kind": {
                     "const": "known",
@@ -5785,7 +6824,11 @@
               {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["kind", "code", "issuer"],
+                "required": [
+                  "kind",
+                  "code",
+                  "issuer"
+                ],
                 "properties": {
                   "kind": {
                     "const": "custom",
@@ -5810,6 +6853,7 @@
               "execute",
               "events",
               "balances",
+              "funding",
               "transactions",
               "releaseEarly",
               "payouts",
@@ -5824,6 +6868,9 @@
             ],
             "properties": {
               "execute": {
+                "$ref": "#/components/schemas/CapabilityOperation"
+              },
+              "funding": {
                 "$ref": "#/components/schemas/CapabilityOperation"
               },
               "balances": {
@@ -5869,13 +6916,276 @@
           }
         }
       },
+      "FundingPrepare": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "fromAddress",
+          "tokenContractAddress",
+          "amountStroops"
+        ],
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "fromAddress": {
+            "type": "string",
+            "description": "Consenting funding wallet, Stellar G address"
+          },
+          "tokenContractAddress": {
+            "type": "string",
+            "description": "Exact live deployed asset C address from funding discovery"
+          },
+          "amountStroops": {
+            "type": "string",
+            "pattern": "^[1-9]\\d{0,38}$",
+            "description": "Positive integer stroops at most i128::MAX"
+          }
+        }
+      },
+      "FundingSubmit": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "action",
+          "intent",
+          "signedXdr"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "schedule.fund",
+              "webhook.fund"
+            ]
+          },
+          "intent": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "signedXdr": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100000
+          }
+        }
+      },
+      "FundingReconcile": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "action",
+          "intent"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "schedule.fund",
+              "webhook.fund"
+            ]
+          },
+          "intent": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "FundingDiscovery": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "deploymentId",
+          "network",
+          "nodes"
+        ],
+        "properties": {
+          "deploymentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "network": {
+            "type": "string",
+            "enum": [
+              "testnet",
+              "mainnet"
+            ]
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "nodeId",
+                "templateKind",
+                "contractAddress",
+                "action",
+                "tokenContractAddress",
+                "authorization",
+                "effect"
+              ],
+              "properties": {
+                "nodeId": {
+                  "type": "string"
+                },
+                "templateKind": {
+                  "type": "string",
+                  "enum": [
+                    "STREAMER",
+                    "WEBHOOK"
+                  ]
+                },
+                "contractAddress": {
+                  "type": "string"
+                },
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "schedule.fund",
+                    "webhook.fund"
+                  ]
+                },
+                "tokenContractAddress": {
+                  "type": "string"
+                },
+                "authorization": {
+                  "const": "funding_wallet"
+                },
+                "effect": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "FundingPrepared": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "intent",
+          "txHash",
+          "expiresAt",
+          "xdr",
+          "action",
+          "nodeId",
+          "fromAddress",
+          "tokenContractAddress",
+          "amountStroops",
+          "network",
+          "networkPassphrase"
+        ],
+        "properties": {
+          "intent": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "txHash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "xdr": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "schedule.fund",
+              "webhook.fund"
+            ]
+          },
+          "nodeId": {
+            "type": "string"
+          },
+          "fromAddress": {
+            "type": "string"
+          },
+          "tokenContractAddress": {
+            "type": "string"
+          },
+          "amountStroops": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string",
+            "enum": [
+              "testnet",
+              "mainnet"
+            ]
+          },
+          "networkPassphrase": {
+            "type": "string"
+          }
+        }
+      },
+      "FundingReconciled": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "intent",
+          "action",
+          "txHash",
+          "network",
+          "state",
+          "expiresAt"
+        ],
+        "properties": {
+          "intent": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "schedule.fund",
+              "webhook.fund"
+            ]
+          },
+          "txHash": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string",
+            "enum": [
+              "testnet",
+              "mainnet"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "PREPARED",
+              "SUBMITTING",
+              "SUCCESS",
+              "FAILED",
+              "EXPIRED"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "Error": {
         "type": "object",
-        "required": ["error"],
+        "required": [
+          "error"
+        ],
         "properties": {
           "error": {
             "type": "object",
-            "required": ["code", "message"],
+            "required": [
+              "code",
+              "message"
+            ],
             "properties": {
               "code": {
                 "type": "string",
@@ -5915,7 +7225,11 @@
       "PayoutPrepareRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["amount", "from", "recipient"],
+        "required": [
+          "amount",
+          "from",
+          "recipient"
+        ],
         "description": "Configure one immediate dev Pay for this recipient, then prepare its deposit.",
         "properties": {
           "amount": {
@@ -5949,7 +7263,9 @@
           },
           {
             "type": "object",
-            "required": ["nodeId"],
+            "required": [
+              "nodeId"
+            ],
             "properties": {
               "nodeId": {
                 "type": "string",
@@ -5962,7 +7278,9 @@
       "PayoutSubmitRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["signedXdr"],
+        "required": [
+          "signedXdr"
+        ],
         "description": "Submit exactly the transaction prepared by payouts for this token and deployment, with envelope signatures added.",
         "properties": {
           "signedXdr": {
@@ -5976,7 +7294,10 @@
       "ExecutePrepareRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["amount", "from"],
+        "required": [
+          "amount",
+          "from"
+        ],
         "description": "`from` must be a funded account on this network: it pays the deposit and the fee, and signs the envelope. For issued assets, the sender and payout recipients must hold trustlines for the assets they transfer; a missing trustline reverts the whole pipeline.",
         "properties": {
           "amount": {
@@ -5993,7 +7314,12 @@
       },
       "ExecutePrepared": {
         "type": "object",
-        "required": ["xdr", "networkPassphrase", "network", "expiresAt"],
+        "required": [
+          "xdr",
+          "networkPassphrase",
+          "network",
+          "expiresAt"
+        ],
         "description": "An unsigned deposit that executes a deposit-triggered flow.",
         "properties": {
           "xdr": {
@@ -6006,7 +7332,10 @@
           },
           "network": {
             "type": "string",
-            "enum": ["testnet", "mainnet"]
+            "enum": [
+              "testnet",
+              "mainnet"
+            ]
           },
           "expiresAt": {
             "type": "string",
@@ -6018,7 +7347,9 @@
       "ExecuteSubmitRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["signedXdr"],
+        "required": [
+          "signedXdr"
+        ],
         "properties": {
           "signedXdr": {
             "type": "string",
@@ -6030,7 +7361,11 @@
       },
       "WebhookAttemptResponse": {
         "type": "object",
-        "required": ["attemptId", "network", "status"],
+        "required": [
+          "attemptId",
+          "network",
+          "status"
+        ],
         "properties": {
           "attemptId": {
             "type": "string",
@@ -6042,11 +7377,20 @@
           },
           "network": {
             "type": "string",
-            "enum": ["testnet", "mainnet"]
+            "enum": [
+              "testnet",
+              "mainnet"
+            ]
           },
           "status": {
             "type": "string",
-            "enum": ["SUCCESS", "FAILED", "PENDING", "UNKNOWN", "REJECTED"]
+            "enum": [
+              "SUCCESS",
+              "FAILED",
+              "PENDING",
+              "UNKNOWN",
+              "REJECTED"
+            ]
           },
           "ledger": {
             "type": "integer",
@@ -6054,7 +7398,10 @@
           },
           "error": {
             "type": "object",
-            "required": ["code", "message"],
+            "required": [
+              "code",
+              "message"
+            ],
             "properties": {
               "code": {
                 "type": "string"
@@ -6068,7 +7415,11 @@
       },
       "TransactionStatus": {
         "type": "object",
-        "required": ["txHash", "network", "status"],
+        "required": [
+          "txHash",
+          "network",
+          "status"
+        ],
         "properties": {
           "txHash": {
             "type": "string",
@@ -6076,11 +7427,20 @@
           },
           "network": {
             "type": "string",
-            "enum": ["testnet", "mainnet"]
+            "enum": [
+              "testnet",
+              "mainnet"
+            ]
           },
           "status": {
             "type": "string",
-            "enum": ["SUCCESS", "FAILED", "PENDING", "UNKNOWN", "REJECTED"]
+            "enum": [
+              "SUCCESS",
+              "FAILED",
+              "PENDING",
+              "UNKNOWN",
+              "REJECTED"
+            ]
           },
           "ledger": {
             "type": "integer",
@@ -6088,7 +7448,10 @@
           },
           "error": {
             "type": "object",
-            "required": ["code", "message"],
+            "required": [
+              "code",
+              "message"
+            ],
             "properties": {
               "code": {
                 "type": "string"
@@ -6102,7 +7465,10 @@
       },
       "ExecuteSubmitted": {
         "type": "object",
-        "required": ["txHash", "status"],
+        "required": [
+          "txHash",
+          "status"
+        ],
         "description": "The outcome of executing a deposit-triggered flow.",
         "properties": {
           "txHash": {
@@ -6111,7 +7477,11 @@
           },
           "status": {
             "type": "string",
-            "enum": ["SUCCESS", "PENDING", "FAILED"],
+            "enum": [
+              "SUCCESS",
+              "PENDING",
+              "FAILED"
+            ],
             "description": "PENDING: accepted, not yet final; resubmit the same envelope to check again."
           },
           "ledger": {
@@ -6120,7 +7490,10 @@
           },
           "error": {
             "type": "object",
-            "required": ["code", "message"],
+            "required": [
+              "code",
+              "message"
+            ],
             "description": "Present when `status` is `FAILED`.",
             "properties": {
               "code": {
@@ -6148,7 +7521,10 @@
       },
       "Released": {
         "type": "object",
-        "required": ["nodeId", "txHash"],
+        "required": [
+          "nodeId",
+          "txHash"
+        ],
         "description": "A confirmed early release of a timelock branch's before side.",
         "properties": {
           "nodeId": {
@@ -6167,7 +7543,16 @@
       },
       "ContractEvent": {
         "type": "object",
-        "required": ["id", "eventId", "kind", "topic", "ledger", "txHash", "occurredAt", "data"],
+        "required": [
+          "id",
+          "eventId",
+          "kind",
+          "topic",
+          "ledger",
+          "txHash",
+          "occurredAt",
+          "data"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -6182,7 +7567,10 @@
             "description": "The app's event kind, e.g. `RECEIVE`, `PAYOUT`, `STATUS_CHANGE`."
           },
           "topic": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "The event's first topic: `swap` for a swap, whose `kind` is `PAYOUT`."
           },
           "ledger": {
@@ -6202,7 +7590,11 @@
       },
       "ListEventsResponse": {
         "type": "object",
-        "required": ["items", "nextCursor", "hasMore"],
+        "required": [
+          "items",
+          "nextCursor",
+          "hasMore"
+        ],
         "properties": {
           "items": {
             "type": "array",
@@ -6211,7 +7603,10 @@
             }
           },
           "nextCursor": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Pass back as `cursor`. Null only when the deployment has no events and no cursor was sent."
           },
           "hasMore": {
@@ -6257,29 +7652,45 @@
             "description": "First 12 characters, for recognition."
           },
           "label": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "createdAt": {
             "type": "string",
             "format": "date-time"
           },
           "lastUsedAt": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time"
           },
           "expiresAt": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time"
           },
           "revokedAt": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time"
           }
         }
       },
       "DemoToken": {
         "type": "object",
-        "required": ["deploymentId", "token", "expiresAt"],
+        "required": [
+          "deploymentId",
+          "token",
+          "expiresAt"
+        ],
         "description": "A short-lived token for the shared demo deployment on testnet.",
         "properties": {
           "deploymentId": {
@@ -6305,7 +7716,9 @@
           },
           {
             "type": "object",
-            "required": ["token"],
+            "required": [
+              "token"
+            ],
             "properties": {
               "token": {
                 "type": "string",

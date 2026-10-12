@@ -946,6 +946,11 @@ The endpoint permits 20 requests/minute per token and 20/minute per deployment
 across tokens. Production requires a functioning shared Redis RPC budget; missing
 coordination returns 502. Each request performs four configuration getter calls
 and at most five pool/router calls. Back off on errors and honor `Retry-After` on 429. Retiring and retired deployments are unavailable to deployment tokens.
+
+### Deployment funding (#916)
+
+Schedule top-ups and Webhook pool deposits use deployment-token GET/POST `/api/v1/deployments/{id}/funding`, `/funding/submit` and `/funding/reconcile`. Any consenting funding wallet may sign; a token alone cannot move funds. Funding adds funds only and does not execute payouts or callbacks. One unresolved intent per node blocks replacements until confirmed finality or ledger-proven expiry; UNKNOWN never permits another deposit. Public `/trigger`, `/submit-trigger` and hosted funding remain available. Webhook callbacks separately require `x-webhook-secret`. See the [complete signing and recovery example](funding.md). Hosted testnet verification remains pending.
+
 ### Schedule state and controller wallet actions
 
 `GET /api/v1/deployments/{id}/schedule/state` reads current controller, pause/retrieval

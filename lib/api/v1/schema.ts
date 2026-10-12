@@ -277,6 +277,7 @@ export const DeploymentCapabilitiesSchema = z
         execute: CapabilityOperationSchema,
         events: CapabilityOperationSchema,
         balances: CapabilityOperationSchema,
+        funding: CapabilityOperationSchema,
         transactions: CapabilityOperationSchema,
         releaseEarly: CapabilityOperationSchema,
         payouts: CapabilityOperationSchema,

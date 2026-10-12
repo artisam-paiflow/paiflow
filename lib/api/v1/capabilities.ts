@@ -2,6 +2,7 @@ import "server-only";
 import type { Deployment } from "@prisma/client";
 import { StrKey } from "@stellar/stellar-sdk";
 import { z } from "zod";
+import { BalancePipelineSnapshotSchema } from "@/lib/pipeline-snapshot";
 import { balanceCandidates } from "./balance-targets";
 import { AppError } from "@/lib/errors";
 import { env } from "@/lib/env";
@@ -142,6 +143,10 @@ export function deploymentCapabilities(
     new Set(nodes.map((node) => node.nodeId)).size === nodes.length &&
     new Set(nodes.map((node) => node.contractAddress)).size === nodes.length &&
     head?.nodeId === subscriptionTrigger?.id;
+  const fundingSnapshot = BalancePipelineSnapshotSchema.safeParse(deployment.pipelineSnapshot);
+  const fundNodes = fundingSnapshot.success
+    ? fundingSnapshot.data.filter((n) => ["STREAMER", "WEBHOOK"].includes(n.templateKind))
+    : [];
   const scheduleNodes = nodes.filter((node) => node.templateKind === "STREAMER");
   const scheduleValid =
     scheduleNodes.length > 0 &&
@@ -165,6 +170,19 @@ export function deploymentCapabilities(
             ])
           : operation("unsupported", [
               "Execute requires a pipeline headed by a deposit trigger; other triggers use their own funding, schedule or callback workflow.",
+            ]),
+      funding:
+        fundNodes.length && fundNodes.length <= 16
+          ? operation(
+              "conditional",
+              [
+                "GET /funding discovers live assets; POST /funding prepares Schedule top-ups or Webhook pool deposits. Any consenting funder may sign; the deployment token cannot move funds.",
+                "Funding adds funds only; it does not execute Schedule payouts or Webhook callbacks. One unresolved intent per node blocks all further preparations; reconcile before replacement. Hosted testnet verification remains pending.",
+              ],
+              fundNodes.map((n) => n.nodeId),
+            )
+          : operation("unsupported", [
+              "No unambiguous supported Schedule or Webhook funding nodes.",
             ]),
       balances: balanceCandidates(deployment.pipelineSnapshot, devModeEnabled).length
         ? operation(

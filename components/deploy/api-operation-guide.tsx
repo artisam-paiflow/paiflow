@@ -23,6 +23,7 @@ const OPERATION_LABELS = {
   execute: "Prepare and submit a payment",
   events: "Read payment events",
   balances: "Read contract balances",
+  funding: "Fund Schedule or Webhook pools",
   transactions: "Check transaction status",
   releaseEarly: "Release a timelock early",
   payouts: "Prepare a payment with a recipient",
@@ -200,6 +201,18 @@ export default function ApiOperationGuide({
                   {OPERATION_LABELS[key]} · {AUTH_LABELS[operation.authentication]}
                   {operation.status === "conditional" ? " · Requires eligibility checks" : ""}
                 </summary>
+                {key === "funding" && (
+                  <p className="text-on-surface-variant mt-2 text-sm">
+                    GET <code>/api/v1/deployments/{deploymentId}/funding</code> for live assets.
+                    POST to that path with nodeId, fromAddress, tokenContractAddress and
+                    amountStroops; sign the returned XDR with the funding wallet and returned
+                    network passphrase, then POST action, intent and signedXdr to{" "}
+                    <code>/funding/submit</code>. Funding adds funds only. Any consenting funder may
+                    sign. Poll transactions using the returned hash; reconcile the original intent
+                    through <code>/funding/reconcile</code>
+                    before replacing it. UNKNOWN never permits another deposit.
+                  </p>
+                )}
                 {key === "balances" && (
                   <p className="text-on-surface-variant mt-2 text-sm">
                     GET{" "}
