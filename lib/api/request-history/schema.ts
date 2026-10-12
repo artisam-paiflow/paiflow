@@ -6,6 +6,7 @@ const ENDPOINTS = [
   "capabilities",
   "balances",
   "subscription/state",
+  "swap-quote",
   "events",
   "execute",
   "execute/submit",

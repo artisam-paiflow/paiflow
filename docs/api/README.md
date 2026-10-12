@@ -199,8 +199,8 @@ curl -sS "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/capabilities" \
 
 `data` contains `deploymentId`, `network`, `triggerType`, `inputAsset`,
 `configurationSource: "deployment_snapshot"` and `operations`. The operation keys are
-`execute`, `events`, `transactions`, `releaseEarly`, `payouts`, `webhook`,
-`subscriptionAllowance` and `subscriptionState`. Each has a `status`, `authentication`, `requirements` and `nodeIds`:
+`execute`, `balances`, `events`, `transactions`, `releaseEarly`, `payouts`, `webhook`,
+`subscriptionAllowance`, `subscriptionState` and `swapQuote`. Each has a `status`, `authentication`, `requirements` and `nodeIds`:
 
 - **`supported`**: the integration path exists for the recorded deployment. This does not promise
   the next transaction will succeed; balances, deadlines, trustlines and simulation still apply.
@@ -833,3 +833,39 @@ must never be interpreted as permission to send another payment.
 The shared [wallet control foundation](wallet-controls.md) documents the preparation,
 submission and recovery protocol for future wallet-authorized controls; it does not
 by itself expose cancellation/reactivation routes.
+
+## Deployment-specific Swap estimates
+
+The source API adds `GET /api/v1/deployments/{id}/swap-quote?amountStroops=10000000`
+with this deployment's `Authorization: Bearer pfk_…` token. Hosted availability and
+quote-versus-completed-swap testnet verification remain pending; verify the live
+OpenAPI document before integrating a deployed instance. Discovery exposes
+`operations.swapQuote` as conditional with candidate deployed `nodeIds`.
+
+If several standard Swap nodes exist, pass `nodeId`. The amount is the input **at
+that node**, which may differ from the deposit amount after upstream splits or
+conditions. Contract addresses come from `pipelineSnapshot`; live getters determine
+the input/output token contracts, router and slippage. Caller-selected assets,
+routes, router or slippage overrides are rejected. The deployed router must match
+the environment's configured router. Unsupported or ambiguous nodes return 422.
+
+The response contains `amountInStroops`, `amountOutStroops` and
+`amountOutMinStroops` as exact integer strings, authoritative token contract
+addresses, `slippageBps`, `readStartedAt`, `quotedAt`, `freshness:"live"`,
+`estimate:true` and `scope:"selected_node"`. Live means reserves/configuration were
+read during this request, using successive simulations rather than an atomic
+ledger snapshot. It does not guarantee future freshness. The estimated minimum
+uses pool spot output less the deployed slippage, matching the contract's
+arithmetic at quote time. `meetsMinimumAtQuote:false` signals the estimated router
+output is below that estimate; true does not prove execution readiness.
+
+Quotes predict one node, never an entire flow or guaranteed recipient payout.
+Final transaction preparation, simulation and chain execution determine whether a
+swap succeeds and its actual amount. Quote reads never sign or submit a transaction
+and preserve the signed-in builder quote endpoint. Responses use `Cache-Control:
+no-store`; RPC failures return errors, never fabricated zero amounts.
+
+The endpoint permits 20 requests/minute per token and 20/minute per deployment
+across tokens. Production requires a functioning shared Redis RPC budget; missing
+coordination returns 502. Each request performs four configuration getter calls
+and at most five pool/router calls. Back off on errors and honor `Retry-After` on 429. Retiring and retired deployments are unavailable to deployment tokens.

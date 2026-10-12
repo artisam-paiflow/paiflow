@@ -198,6 +198,188 @@
         }
       }
     },
+    "/api/v1/deployments/{id}/swap-quote": {
+      "get": {
+        "tags": ["Capabilities"],
+        "operationId": "getDeploymentSwapQuote",
+        "summary": "Estimate output of one deployed Swap node",
+        "description": "Requires this deployment's bearer token, confirmed deployment on the environment network and active service. Select a standard SWAPPER from pipelineSnapshot; nodeId is required if several exist. Only amountStroops and nodeId are accepted; arbitrary assets, router, slippage and routes are rejected. Live asset_in/asset_out/router/slippage_bps getters determine quote configuration; the router must match the environment's configured router.\n\nReturns exact integer stroop strings, current slippage, live readStartedAt/quotedAt and estimate:true with scope:selected_node. Reads are a sequence of simulations, not an atomic ledger snapshot; live means read during this request, not cached reserves or guaranteed freshness at execution. amountOutMinStroops is the spot-less-slippage estimate at quote time, not a guaranteed payout or the final minimum for a later transaction. meetsMinimumAtQuote only compares estimated output to that estimate; false means the quote currently falls below that bound, true does not establish full-flow readiness. No full-flow prediction or new execution path; final preparation, simulation and execution remain authoritative. Cache-Control:no-store.\n\nFixed RPC work: four configuration getters and at most five pool/router reads. Deployment-wide 20/min quote budget across tokens, with functioning shared Redis required in production. RPC/provider failures return errors, never a zero quote. Hosted testnet quote-versus-execution verification remains pending; this source API must be deployed and verified before claiming hosted support.\n\nRate limit: 20 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          },
+          {
+            "name": "amountStroops",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{1,39}$"
+            },
+            "description": "Positive i128 input for the selected node, not a whole-flow deposit amount. Contract arithmetic range is checked."
+          },
+          {
+            "name": "nodeId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Deployed Swap node ID; required if several candidates exist."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Live selected-node estimate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SwapQuote"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "deploymentId": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d",
+                    "network": "testnet",
+                    "nodeId": "swap",
+                    "contractAddress": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+                    "assetInContractAddress": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+                    "assetOutContractAddress": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+                    "routerAddress": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+                    "pairAddress": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+                    "amountInStroops": "10000000",
+                    "amountOutStroops": "1050000",
+                    "amountOutMinStroops": "1040000",
+                    "slippageBps": 100,
+                    "readStartedAt": "2026-10-12T09:00:00.000Z",
+                    "quotedAt": "2026-10-12T09:00:01.000Z",
+                    "freshness": "live",
+                    "estimate": true,
+                    "scope": "selected_node",
+                    "meetsMinimumAtQuote": true
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/deployments/{id}/subscription/state": {
       "get": {
         "tags": ["Capabilities"],
@@ -360,7 +542,7 @@
         "tags": ["Capabilities"],
         "operationId": "getDeploymentCapabilities",
         "summary": "Discover a deployment's supported integration paths",
-        "description": "Supported means the integration path exists for the recorded deployment. Conditional requires additional eligibility checks. Unsupported means no matching path can be established. No status guarantees current balances, configuration, consent, deadline or infrastructure readiness.\n\nRequires this deployment's pfk_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.\n\nOperations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), subscriptionState (/api/v1/deployments/{id}/subscription/state), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.\n\nReturns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.\n\nRate limit: 60 requests per 60 seconds per token.",
+        "description": "Supported means the integration path exists for the recorded deployment. Conditional requires additional eligibility checks. Unsupported means no matching path can be established. No status guarantees current balances, configuration, consent, deadline or infrastructure readiness.\n\nRequires this deployment's pfk_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.\n\nOperations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are swapQuote (/api/v1/deployments/{id}/swap-quote), execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), subscriptionState (/api/v1/deployments/{id}/subscription/state), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.\n\nReturns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.\n\nRate limit: 60 requests per 60 seconds per token.",
         "security": [
           {
             "bearerAuth": []
@@ -453,6 +635,12 @@
                         "requirements": [
                           "Requires a deployed webhook trigger with HTTP callbacks enabled."
                         ],
+                        "nodeIds": []
+                      },
+                      "swapQuote": {
+                        "status": "unsupported",
+                        "authentication": "deployment_token",
+                        "requirements": ["Requires a deployed Swap node."],
                         "nodeIds": []
                       },
                       "subscriptionState": {
@@ -2315,6 +2503,107 @@
           }
         }
       },
+      "SwapQuote": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "deploymentId",
+          "network",
+          "nodeId",
+          "contractAddress",
+          "assetInContractAddress",
+          "assetOutContractAddress",
+          "routerAddress",
+          "pairAddress",
+          "amountInStroops",
+          "amountOutStroops",
+          "amountOutMinStroops",
+          "slippageBps",
+          "readStartedAt",
+          "quotedAt",
+          "freshness",
+          "estimate",
+          "scope",
+          "meetsMinimumAtQuote"
+        ],
+        "properties": {
+          "deploymentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "network": {
+            "type": "string",
+            "enum": ["testnet", "mainnet"]
+          },
+          "nodeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "contractAddress": {
+            "type": "string",
+            "pattern": "^C[A-Z2-7]{55}$"
+          },
+          "assetInContractAddress": {
+            "type": "string",
+            "pattern": "^C[A-Z2-7]{55}$"
+          },
+          "assetOutContractAddress": {
+            "type": "string",
+            "pattern": "^C[A-Z2-7]{55}$"
+          },
+          "routerAddress": {
+            "type": "string",
+            "pattern": "^C[A-Z2-7]{55}$"
+          },
+          "pairAddress": {
+            "type": "string",
+            "pattern": "^C[A-Z2-7]{55}$"
+          },
+          "amountInStroops": {
+            "type": "string",
+            "pattern": "^[0-9]{1,39}$",
+            "description": "Positive i128 input amount."
+          },
+          "amountOutStroops": {
+            "type": "string",
+            "pattern": "^[0-9]{1,39}$",
+            "description": "Positive i128 estimated output."
+          },
+          "amountOutMinStroops": {
+            "type": "string",
+            "pattern": "^[0-9]{1,39}$",
+            "description": "Nonnegative i128 spot-less-slippage estimate at quote time."
+          },
+          "slippageBps": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "readStartedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "quotedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "freshness": {
+            "type": "string",
+            "const": "live"
+          },
+          "estimate": {
+            "type": "boolean",
+            "const": true
+          },
+          "scope": {
+            "type": "string",
+            "const": "selected_node"
+          },
+          "meetsMinimumAtQuote": {
+            "type": "boolean"
+          }
+        }
+      },
       "SubscriptionState": {
         "type": "object",
         "additionalProperties": false,
@@ -2628,7 +2917,8 @@
               "payouts",
               "webhook",
               "subscriptionAllowance",
-              "subscriptionState"
+              "subscriptionState",
+              "swapQuote"
             ],
             "properties": {
               "execute": {
@@ -2650,6 +2940,9 @@
                 "$ref": "#/components/schemas/CapabilityOperation"
               },
               "webhook": {
+                "$ref": "#/components/schemas/CapabilityOperation"
+              },
+              "swapQuote": {
                 "$ref": "#/components/schemas/CapabilityOperation"
               },
               "subscriptionState": {

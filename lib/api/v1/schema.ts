@@ -283,6 +283,7 @@ export const DeploymentCapabilitiesSchema = z
         webhook: CapabilityOperationSchema,
         subscriptionAllowance: CapabilityOperationSchema,
         subscriptionState: CapabilityOperationSchema,
+        swapQuote: CapabilityOperationSchema,
       })
       .strict(),
   })

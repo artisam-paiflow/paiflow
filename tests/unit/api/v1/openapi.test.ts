@@ -1,3 +1,4 @@
+import { SwapQuoteSchema } from "@/lib/api/v1/swap-quote-schema";
 /**
  * The drift guard for the hand-written OpenAPI document (#470): a v1 route added without a spec
  * entry, a committed copy that falls behind, an example that no longer parses, or an error table
@@ -123,6 +124,7 @@ describe("OpenAPI document", () => {
   });
 
   const parses: Array<[string, z.ZodTypeAny, unknown]> = [
+    ["swap quote", SwapQuoteSchema, examples.swapQuote.data],
     ["subscription state", SubscriptionStateSchema, examples.subscriptionState.data],
     ["deployment capabilities", DeploymentCapabilitiesSchema, examples.capabilities.data],
     ["keyed webhook", WebhookAttemptResponseSchema, examples.webhookPending.data],
@@ -188,6 +190,7 @@ describe("Postman collection", () => {
       ) as unknown;
     expect(body("Get demo token", "201 Created")).toEqual(examples.demoTokenResponse);
     expect(body("Get deployment capabilities", "200 OK")).toEqual(examples.capabilities);
+    expect(body("Get deployed Swap quote", "200 OK")).toEqual(examples.swapQuote);
     expect(body("Get Subscription state", "200 OK")).toEqual(examples.subscriptionState);
     expect(body("Get deployment balances", "200 OK")).toEqual(examples.balances);
     expect(body("Prepare execute", "200 OK")).toEqual(examples.executeResponse);

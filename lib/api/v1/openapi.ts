@@ -1,3 +1,4 @@
+import { SwapQuoteSchema } from "./swap-quote-schema";
 import {
   DeploymentCapabilitiesSchema,
   SubscriptionStateSchema,
@@ -82,6 +83,28 @@ export const examples = {
       },
     },
   },
+  swapQuote: {
+    data: {
+      deploymentId: EXAMPLE_DEPLOYMENT_ID,
+      network: "testnet",
+      nodeId: "swap",
+      contractAddress: USDC_SAC_TESTNET,
+      assetInContractAddress: XLM_SAC_TESTNET,
+      assetOutContractAddress: USDC_SAC_TESTNET,
+      routerAddress: USDC_SAC_TESTNET,
+      pairAddress: USDC_SAC_TESTNET,
+      amountInStroops: "10000000",
+      amountOutStroops: "1050000",
+      amountOutMinStroops: "1040000",
+      slippageBps: 100,
+      readStartedAt: "2026-10-12T09:00:00.000Z",
+      quotedAt: "2026-10-12T09:00:01.000Z",
+      freshness: "live",
+      estimate: true,
+      scope: "selected_node",
+      meetsMinimumAtQuote: true,
+    },
+  },
   subscriptionState: {
     data: {
       deploymentId: EXAMPLE_DEPLOYMENT_ID,
@@ -129,6 +152,9 @@ export const examples = {
         ]),
         webhook: capabilityExample("unsupported", "webhook_secret", [
           "Requires a deployed webhook trigger with HTTP callbacks enabled.",
+        ]),
+        swapQuote: capabilityExample("unsupported", "deployment_token", [
+          "Requires a deployed Swap node.",
         ]),
         subscriptionState: capabilityExample("unsupported", "deployment_token", [
           "Requires a subscription deployment.",
@@ -524,6 +550,54 @@ export const openApiDocument = {
         },
       },
     },
+    "/api/v1/deployments/{id}/swap-quote": {
+      get: {
+        tags: ["Capabilities"],
+        operationId: "getDeploymentSwapQuote",
+        summary: "Estimate output of one deployed Swap node",
+        description: [
+          "Requires this deployment's bearer token, confirmed deployment on the environment network and active service. Select a standard SWAPPER from pipelineSnapshot; nodeId is required if several exist. Only amountStroops and nodeId are accepted; arbitrary assets, router, slippage and routes are rejected. Live asset_in/asset_out/router/slippage_bps getters determine quote configuration; the router must match the environment's configured router.",
+          "Returns exact integer stroop strings, current slippage, live readStartedAt/quotedAt and estimate:true with scope:selected_node. Reads are a sequence of simulations, not an atomic ledger snapshot; live means read during this request, not cached reserves or guaranteed freshness at execution. amountOutMinStroops is the spot-less-slippage estimate at quote time, not a guaranteed payout or the final minimum for a later transaction. meetsMinimumAtQuote only compares estimated output to that estimate; false means the quote currently falls below that bound, true does not establish full-flow readiness. No full-flow prediction or new execution path; final preparation, simulation and execution remain authoritative. Cache-Control:no-store.",
+          "Fixed RPC work: four configuration getters and at most five pool/router reads. Deployment-wide 20/min quote budget across tokens, with functioning shared Redis required in production. RPC/provider failures return errors, never a zero quote. Hosted testnet quote-versus-execution verification remains pending; this source API must be deployed and verified before claiming hosted support.",
+          rate(V1_RATE_LIMITS.swapQuote, "per token"),
+        ].join("\n\n"),
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          deploymentIdParam,
+          {
+            name: "amountStroops",
+            in: "query",
+            required: true,
+            schema: { type: "string", pattern: "^[0-9]{1,39}$" },
+            description:
+              "Positive i128 input for the selected node, not a whole-flow deposit amount. Contract arithmetic range is checked.",
+          },
+          {
+            name: "nodeId",
+            in: "query",
+            required: false,
+            schema: { type: "string", minLength: 1, maxLength: 128 },
+            description: "Deployed Swap node ID; required if several candidates exist.",
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Live selected-node estimate.",
+            content: json(dataEnvelope("#/components/schemas/SwapQuote"), examples.swapQuote),
+          },
+          ...errors(
+            "UNAUTHENTICATED",
+            "FORBIDDEN",
+            "NOT_FOUND",
+            "VALIDATION",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+            "INTERNAL",
+            "INSUFFICIENT_FUNDS",
+          ),
+        },
+      },
+    },
     "/api/v1/deployments/{id}/subscription/state": {
       get: {
         tags: ["Capabilities"],
@@ -565,7 +639,7 @@ export const openApiDocument = {
         description: [
           DeploymentCapabilitiesSchema.description,
           "Requires this deployment's pfk_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.",
-          "Operations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), subscriptionState (/api/v1/deployments/{id}/subscription/state), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.",
+          "Operations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are swapQuote (/api/v1/deployments/{id}/swap-quote), execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), subscriptionState (/api/v1/deployments/{id}/subscription/state), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.",
           "Returns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.",
           rate(V1_RATE_LIMITS.capabilities, "per token"),
         ].join("\n\n"),
@@ -1205,6 +1279,43 @@ export const openApiDocument = {
           nodeIds: { type: "array", items: { type: "string" } },
         },
       },
+      SwapQuote: {
+        type: "object",
+        additionalProperties: false,
+        required: Object.keys(SwapQuoteSchema.shape),
+        properties: {
+          deploymentId: { type: "string", format: "uuid" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          nodeId: { type: "string", minLength: 1 },
+          contractAddress: { type: "string", pattern: "^C[A-Z2-7]{55}$" },
+          assetInContractAddress: { type: "string", pattern: "^C[A-Z2-7]{55}$" },
+          assetOutContractAddress: { type: "string", pattern: "^C[A-Z2-7]{55}$" },
+          routerAddress: { type: "string", pattern: "^C[A-Z2-7]{55}$" },
+          pairAddress: { type: "string", pattern: "^C[A-Z2-7]{55}$" },
+          amountInStroops: {
+            type: "string",
+            pattern: "^[0-9]{1,39}$",
+            description: "Positive i128 input amount.",
+          },
+          amountOutStroops: {
+            type: "string",
+            pattern: "^[0-9]{1,39}$",
+            description: "Positive i128 estimated output.",
+          },
+          amountOutMinStroops: {
+            type: "string",
+            pattern: "^[0-9]{1,39}$",
+            description: "Nonnegative i128 spot-less-slippage estimate at quote time.",
+          },
+          slippageBps: { type: "integer", minimum: 0, maximum: 10000 },
+          readStartedAt: { type: "string", format: "date-time" },
+          quotedAt: { type: "string", format: "date-time" },
+          freshness: { type: "string", const: "live" },
+          estimate: { type: "boolean", const: true },
+          scope: { type: "string", const: "selected_node" },
+          meetsMinimumAtQuote: { type: "boolean" },
+        },
+      },
       SubscriptionState: {
         type: "object",
         additionalProperties: false,
@@ -1384,6 +1495,7 @@ export const openApiDocument = {
               "webhook",
               "subscriptionAllowance",
               "subscriptionState",
+              "swapQuote",
             ],
             properties: {
               execute: { $ref: "#/components/schemas/CapabilityOperation" },
@@ -1393,6 +1505,7 @@ export const openApiDocument = {
               releaseEarly: { $ref: "#/components/schemas/CapabilityOperation" },
               payouts: { $ref: "#/components/schemas/CapabilityOperation" },
               webhook: { $ref: "#/components/schemas/CapabilityOperation" },
+              swapQuote: { $ref: "#/components/schemas/CapabilityOperation" },
               subscriptionState: { $ref: "#/components/schemas/CapabilityOperation" },
               subscriptionAllowance: { $ref: "#/components/schemas/CapabilityOperation" },
             },

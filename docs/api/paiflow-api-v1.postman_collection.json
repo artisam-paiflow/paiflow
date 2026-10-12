@@ -186,7 +186,7 @@
               "value": "application/json"
             }
           ],
-          "body": "{\n  \"data\": {\n    \"deploymentId\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"network\": \"testnet\",\n    \"configurationSource\": \"deployment_snapshot\",\n    \"triggerType\": \"deposit\",\n    \"inputAsset\": {\n      \"kind\": \"native\"\n    },\n    \"operations\": {\n      \"execute\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"The paying wallet signs the prepared deposit; simulation checks current configuration.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"balances\": {\n        \"status\": \"conditional\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Live contract assets and balances must be readable; cached for up to 10 seconds.\"\n        ],\n        \"nodeIds\": [\n          \"pay\"\n        ]\n      },\n      \"events\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Recorded events can lag the chain.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"transactions\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Only attributable transactions can be read; missing evidence does not prove failure.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"releaseEarly\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"No deployed timelock branch supports early release.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"payouts\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Standard flows use configured recipients; per-payment recipients require an eligible Dev flow.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"webhook\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"webhook_secret\",\n        \"requirements\": [\n          \"Requires a deployed webhook trigger with HTTP callbacks enabled.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"subscriptionState\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Requires a subscription deployment.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"subscriptionAllowance\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"subscriber_wallet\",\n        \"requirements\": [\n          \"Requires a subscription deployment.\"\n        ],\n        \"nodeIds\": []\n      }\n    }\n  }\n}"
+          "body": "{\n  \"data\": {\n    \"deploymentId\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"network\": \"testnet\",\n    \"configurationSource\": \"deployment_snapshot\",\n    \"triggerType\": \"deposit\",\n    \"inputAsset\": {\n      \"kind\": \"native\"\n    },\n    \"operations\": {\n      \"execute\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"The paying wallet signs the prepared deposit; simulation checks current configuration.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"balances\": {\n        \"status\": \"conditional\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Live contract assets and balances must be readable; cached for up to 10 seconds.\"\n        ],\n        \"nodeIds\": [\n          \"pay\"\n        ]\n      },\n      \"events\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Recorded events can lag the chain.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"transactions\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Only attributable transactions can be read; missing evidence does not prove failure.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"releaseEarly\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"No deployed timelock branch supports early release.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"payouts\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Standard flows use configured recipients; per-payment recipients require an eligible Dev flow.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"webhook\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"webhook_secret\",\n        \"requirements\": [\n          \"Requires a deployed webhook trigger with HTTP callbacks enabled.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"subscriptionState\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Requires a subscription deployment.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"subscriptionAllowance\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"subscriber_wallet\",\n        \"requirements\": [\n          \"Requires a subscription deployment.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"swapQuote\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Requires a deployed Swap node.\"\n        ],\n        \"nodeIds\": []\n      }\n    }\n  }\n}"
         }
       ]
     },
@@ -1232,6 +1232,69 @@
             }
           ],
           "body": "{\n  \"data\": {\n    \"deploymentId\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"flowName\": \"Club membership\",\n    \"network\": \"testnet\",\n    \"templateKind\": \"SUBSCRIPTION\",\n    \"contractAddress\": \"CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA\",\n    \"tokenContractAddress\": \"CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC\",\n    \"subscriber\": \"GDMFZ5QQMDSOTPEQ6YCAWPFAB626Q6C3KLRLYMO3VWMWHQHL4L2DSIHY\",\n    \"isCancelled\": false,\n    \"asset\": {\n      \"kind\": \"native\"\n    },\n    \"assetLabel\": \"XLM\",\n    \"allowance\": \"1000000000\",\n    \"setupRequired\": false\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Get deployed Swap quote",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/swap-quote?amountStroops={{amount}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "swap-quote"],
+          "query": [
+            {
+              "key": "amountStroops",
+              "value": "{{amount}}"
+            },
+            {
+              "key": "nodeId",
+              "value": "swap",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Estimate the selected deployed Swap node, not the entire flow or guaranteed output. Enable nodeId for multiple Swap nodes. Assets/router/slippage come from live getters. Hosted verification pending."
+      },
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/swap-quote?amountStroops={{amount}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "swap-quote"],
+              "query": [
+                {
+                  "key": "amountStroops",
+                  "value": "{{amount}}"
+                },
+                {
+                  "key": "nodeId",
+                  "value": "swap",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Estimate the selected deployed Swap node, not the entire flow or guaranteed output. Enable nodeId for multiple Swap nodes. Assets/router/slippage come from live getters. Hosted verification pending."
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Cache-Control",
+              "value": "no-store"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"deploymentId\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"network\": \"testnet\",\n    \"nodeId\": \"swap\",\n    \"contractAddress\": \"CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA\",\n    \"assetInContractAddress\": \"CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC\",\n    \"assetOutContractAddress\": \"CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA\",\n    \"routerAddress\": \"CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA\",\n    \"pairAddress\": \"CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA\",\n    \"amountInStroops\": \"10000000\",\n    \"amountOutStroops\": \"1050000\",\n    \"amountOutMinStroops\": \"1040000\",\n    \"slippageBps\": 100,\n    \"readStartedAt\": \"2026-10-12T09:00:00.000Z\",\n    \"quotedAt\": \"2026-10-12T09:00:01.000Z\",\n    \"freshness\": \"live\",\n    \"estimate\": true,\n    \"scope\": \"selected_node\",\n    \"meetsMinimumAtQuote\": true\n  }\n}"
         }
       ]
     }

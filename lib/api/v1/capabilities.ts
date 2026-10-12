@@ -219,6 +219,22 @@ export function deploymentCapabilities(
             [],
             "webhook_secret",
           ),
+      swapQuote:
+        nodes.some((node) => node.templateKind === "SWAPPER") &&
+        new Set(nodes.map((node) => node.nodeId)).size === nodes.length &&
+        new Set(nodes.map((node) => node.contractAddress)).size === nodes.length
+          ? operation(
+              "conditional",
+              [
+                "GET /api/v1/deployments/{id}/swap-quote with amountStroops and nodeId when several Swap nodes exist. Live getters determine assets, router and slippage; no caller-selected pairs or routes.",
+                "Requires the configured network router, liquidity and shared Redis in production. Fresh estimates cover only the selected node, never the entire flow or guaranteed output. Final preparation, simulation and execution remain authoritative.",
+                "Hosted testnet quote-versus-execution verification remains pending; metadata identifies candidates, not verified hosted support.",
+              ],
+              nodes.filter((node) => node.templateKind === "SWAPPER").map((node) => node.nodeId),
+            )
+          : operation("unsupported", [
+              "Requires a valid deployment snapshot containing a standard Swap node.",
+            ]),
       subscriptionState: stateCandidate
         ? operation(
             "supported",

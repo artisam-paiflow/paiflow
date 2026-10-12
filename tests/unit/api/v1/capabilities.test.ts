@@ -89,6 +89,33 @@ beforeEach(() => {
 });
 
 describe("deployment capabilities", () => {
+  it("discovers deployed Swap candidates without RPC or graph recompilation", async () => {
+    authorize({ pipelineSnapshot: [pipeline[0], { ...pipeline[1], templateKind: "SWAPPER" }] });
+    const result = await data();
+    expect(result.operations.swapQuote).toMatchObject({
+      status: "conditional",
+      authentication: "deployment_token",
+      nodeIds: ["pay"],
+    });
+    expect(result.operations.swapQuote.requirements.join(" ")).toContain("selected node");
+    expect(result.operations.swapQuote.requirements.join(" ")).toContain("pending");
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+  it("does not advertise quoting duplicate or unsupported Swap snapshots", async () => {
+    for (const templateKind of ["SWAPPER_DEV", "PAYER"]) {
+      authorize({ pipelineSnapshot: [pipeline[0], { ...pipeline[1], templateKind }] });
+      expect((await data()).operations.swapQuote.status).toBe("unsupported");
+    }
+    authorize({
+      pipelineSnapshot: [
+        pipeline[0],
+        { ...pipeline[1], templateKind: "SWAPPER" },
+        { ...pipeline[1], templateKind: "SWAPPER" },
+      ],
+    });
+    expect((await data()).operations.swapQuote.status).toBe("unsupported");
+  });
+
   it("stops advertising mutable payouts when Dev mode is off, retaining execution and reads", async () => {
     config.devModeEnabled = false;
     authorize({

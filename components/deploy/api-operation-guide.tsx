@@ -28,6 +28,7 @@ const OPERATION_LABELS = {
   payouts: "Prepare a payment with a recipient",
   webhook: "Trigger a webhook",
   subscriptionAllowance: "Approve a subscription allowance",
+  swapQuote: "Estimate a deployed Swap output",
   subscriptionState: "Read current subscription state",
 } satisfies Record<keyof DeploymentCapabilities["operations"], string>;
 

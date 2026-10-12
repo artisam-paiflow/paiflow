@@ -213,6 +213,9 @@ describe("API request history boundary", () => {
     );
   });
   it("normalizes unknown and hash-bearing paths", () => {
+    expect(requestEndpoint(`/api/v1/deployments/credential/swap-quote`)).toBe(
+      "/api/v1/deployments/:id/swap-quote",
+    );
     expect(requestEndpoint(`/api/v1/deployments/credential/transactions/credential`)).toBe(
       "/api/v1/deployments/:id/transactions/:txHash",
     );

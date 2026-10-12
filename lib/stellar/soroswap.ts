@@ -10,6 +10,7 @@ import { SimulationError } from "./sim-error";
 import { isOriginatingContractError } from "./soroban-errors";
 import type { ContractReadContext } from "./contract-read";
 import type { Asset } from "@/lib/flows/schema";
+import { I128_MAX } from "@/lib/flows/primitives";
 import { minOut, orientReserves, spotOut, type SoroswapQuote } from "@/lib/soroswap/quote";
 
 /**
@@ -82,10 +83,21 @@ export async function readSoroswapPool(
   },
   context: ContractReadContext = {},
 ): Promise<SoroswapPool> {
-  const routerAddress = requireRouterAddress();
-  const inId = assetContractId(input.assetIn);
-  const outId = assetContractId(input.assetOut);
+  return readSoroswapPoolByContracts(
+    {
+      routerAddress: requireRouterAddress(),
+      inId: assetContractId(input.assetIn),
+      outId: assetContractId(input.assetOut),
+    },
+    context,
+  );
+}
 
+async function readSoroswapPoolByContracts(
+  input: { routerAddress: string; inId: string; outId: string },
+  context: ContractReadContext,
+): Promise<SoroswapPool> {
+  const { routerAddress, inId, outId } = input;
   const factoryAddress = await cachedSoroswapFactoryReader(context)(routerAddress);
   let rawPair: unknown;
   try {
@@ -127,7 +139,9 @@ export async function readSoroswapPool(
     typeof reserve0 !== "bigint" ||
     typeof reserve1 !== "bigint" ||
     reserve0 <= 0n ||
-    reserve1 <= 0n
+    reserve0 > I128_MAX ||
+    reserve1 <= 0n ||
+    reserve1 > I128_MAX
   ) {
     throw new AppError("UPSTREAM_RPC", `Soroswap pair ${pairAddress} returned unusable reserves`);
   }
@@ -153,10 +167,28 @@ export async function readSoroswapQuote(input: {
   amountStroops: string;
   slippageBps: number;
 }): Promise<SoroswapQuote> {
-  const context = { requestId: randomUUID() };
-  const pool = await readSoroswapPool(input, context);
-  const inId = assetContractId(input.assetIn);
-  const outId = assetContractId(input.assetOut);
+  return readSoroswapContractQuote({
+    inId: assetContractId(input.assetIn),
+    outId: assetContractId(input.assetOut),
+    routerAddress: requireRouterAddress(),
+    amountStroops: input.amountStroops,
+    slippageBps: input.slippageBps,
+  });
+}
+
+/** Internal deployed-node reader: callers verify addresses against the contract first. */
+export async function readSoroswapContractQuote(
+  input: {
+    inId: string;
+    outId: string;
+    routerAddress: string;
+    amountStroops: string;
+    slippageBps: number;
+  },
+  context: ContractReadContext = { requestId: randomUUID() },
+): Promise<SoroswapQuote> {
+  const pool = await readSoroswapPoolByContracts(input, context);
+  const { inId, outId } = input;
   const amount = BigInt(input.amountStroops);
 
   const amounts: unknown = await simulateContractCall(
@@ -168,7 +200,14 @@ export async function readSoroswapQuote(input: {
   // An empty vec or a scalar would otherwise fall through as a real "~0" quote,
   // which is worse than a visible failure on a screen the operator signs from.
   const last = Array.isArray(amounts) ? amounts[amounts.length - 1] : undefined;
-  if (typeof last !== "bigint" || last <= 0n) {
+  if (
+    !Array.isArray(amounts) ||
+    amounts.length !== 2 ||
+    amounts[0] !== amount ||
+    typeof last !== "bigint" ||
+    last <= 0n ||
+    last > I128_MAX
+  ) {
     throw new AppError(
       "UPSTREAM_RPC",
       `Soroswap router ${pool.routerAddress} returned an unusable quote`,
@@ -190,7 +229,13 @@ export async function readSoroswapQuote(input: {
     pool.reserve1,
     pool.token0 === inId,
   );
+  // Match the contract's checked i128 arithmetic, rather than quoting an
+  // amount whose spot/minimum computations would overflow during execution.
+  if (amount * reserveOut > I128_MAX)
+    throw new AppError("VALIDATION", "Amount exceeds the deployed swap's arithmetic range");
   const spot = spotOut(amount, reserveIn, reserveOut);
+  if (spot * BigInt(10_000 - input.slippageBps) > I128_MAX)
+    throw new AppError("VALIDATION", "Amount exceeds the deployed swap's arithmetic range");
   const min = minOut(spot, input.slippageBps);
 
   return {

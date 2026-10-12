@@ -412,3 +412,16 @@ For other flow types, first inspect `GET /api/v1/deployments/{id}/capabilities` 
 - [Paiflow Guide](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing) — wallet/flow setup and the ready-wired starter path.
 
 When requesting support, include the deployment UUID, transaction hash, error message and request ID when available. Keep tokens, wallet secrets and signed envelopes out of support messages.
+
+## Preview one deployed Swap
+
+The source endpoint `GET /api/v1/deployments/{id}/swap-quote?amountStroops=10000000`
+uses that deployment's bearer token. Hosted quote-versus-execution testnet evidence
+is pending; check the hosted OpenAPI before relying on availability. Discover
+candidate nodes through `operations.swapQuote`; pass `nodeId` if multiple Swaps
+exist. Only amount and node selection are accepted, with assets/router/slippage
+read from the deployed contract. This is an estimate of the input reaching that
+node, never a whole-flow prediction or guaranteed payout. Read timestamps describe
+successive live simulations; later preparation/execution can differ. See the
+[API reference](../api/README.md#deployment-specific-swap-estimates) for exact
+stroop output, estimated minimum, eligibility and 20/min deployment quote budget.

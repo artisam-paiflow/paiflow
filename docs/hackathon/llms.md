@@ -631,3 +631,17 @@ App calls: prepareExecute for the client deposit → client signs → submitExec
 Graph: **On Receive USDC → Condition `time_after` at the collection deadline**. False/before → Hold; True/after → Return to owner. Customers contribute to one shared locked balance. Early release is disabled; at/after the deadline all funds go to the wallet that signed deployment so the group organiser can buy the goods. This is not automatic per-contributor refunds or a target-based success/failure pool.
 
 App calls: prepareExecute for each customer contribution → that customer's wallet signs → submitExecute → listEvents for the shared deposit history. No releaseEarly call: Hold makes it a strict lock. Wait for automatic after-side release and show its event in the feed/embed. Explain in the pitch who controls the deploying wallet and that it receives the pooled money at the deadline.
+
+### Source API: selected deployed Swap quotes (#917)
+
+`GET /api/v1/deployments/{id}/swap-quote?amountStroops=10000000` requires this
+deployment's bearer token. Optional `nodeId` is required when several standard
+SWAPPER nodes exist. Discover candidates via `operations.swapQuote` (conditional).
+Assets, router and slippage are determined by live deployed getters; caller
+configuration overrides are rejected. Returns integer stroop input/output/minimum,
+readStartedAt/quotedAt, freshness:live, estimate:true, scope:selected_node and
+meetsMinimumAtQuote. Sequential live reads are not an atomic snapshot or guaranteed
+payout/full-flow prediction; preparation and execution remain authoritative. Budget
+is 20/min per token and deployment across tokens, shared Redis required in production.
+Hosted testnet quote-versus-completed-swap evidence is pending. Confirm hosted
+OpenAPI availability before claiming support; no new swap execution path is added.

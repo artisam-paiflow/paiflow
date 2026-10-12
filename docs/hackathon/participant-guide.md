@@ -112,6 +112,25 @@ payment succeeded. Read [the API balance contract](../api/README.md#deployment-c
 for caching, unsupported kinds and retry behavior. The existing owner dashboard
 continues to use its separate balance endpoint.
 
+### Preview a deployed Swap
+
+Issue [#917](https://github.com/webnxt-2030/pinkraft/issues/917) adds the source API
+`GET /api/v1/deployments/{id}/swap-quote?amountStroops=10000000`, authenticated with
+that deployment's `pfk_` bearer token. Hosted testnet comparison against a completed
+wallet-authorized swap remains pending; check the hosted OpenAPI before assuming
+availability. Use `operations.swapQuote.nodeIds` from discovery and provide
+`nodeId` if more than one Swap exists. Input is the amount reaching that particular
+node, not necessarily the amount deposited into the flow.
+
+Assets, router and slippage come from the deployed contract, with no request
+overrides. Integer stroop output and minimum estimates include live read timestamps;
+`estimate:true` and `scope:"selected_node"` exclude guaranteed payouts and whole-flow
+predictions. `meetsMinimumAtQuote` only compares current estimates. A quote does not
+submit funds, authorize payment or replace final transaction simulation. See the
+[API reference](../api/README.md#deployment-specific-swap-estimates) for freshness,
+limits and error handling.
+
+
 ## Before the event
 
 Choose your idea now. Build and integrate before the event; use October 14 to finish your app, verify its payout and prepare your demo.
