@@ -36,15 +36,16 @@ This example uses a **Next.js App Router app with JavaScript**. The same server/
 
 ### Install development tools
 
-For this JavaScript example, use **Node.js 22 and pnpm 10**. On the [Node.js download page](https://nodejs.org/en/download), select **22.x** in the version selector and install it for your operating system. Then open a terminal and install pnpm using npm, which comes with Node.js:
+For this JavaScript example, use **Node.js 22 and pnpm 10.4.1**, matching the supplied starter's tools. On the [Node.js download page](https://nodejs.org/en/download), select **22.x**, install it and reopen your terminal. On macOS/Linux, you can instead install [nvm](https://github.com/nvm-sh/nvm#installing-and-updating), then run `nvm install 22` and `nvm use 22`. Enable pnpm through [Corepack](https://github.com/nodejs/corepack#readme):
 
 ```bash
 node --version
-npm install --global pnpm@10
+corepack enable pnpm
+corepack install --global pnpm@10.4.1
 pnpm --version
 ```
 
-Check that the versions begin with `v22.` and `10.` respectively. If both tools are already installed at those versions, skip installation. These tools run this example app; Paiflow's API can also be used from other languages and frameworks.
+Check that Node starts with `v22.` and pnpm prints `10.4.1`. If Corepack is missing or reports a signing-key error, run `npm install --global corepack@latest`, then repeat the Corepack commands. Downloads need an internet connection. If both tools already match, skip installation. These tools run this example app; Paiflow's API can also be used from other languages and frameworks.
 
 ### Create an app and install integration packages
 

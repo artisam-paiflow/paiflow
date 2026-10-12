@@ -1,6 +1,6 @@
 # Paiflow Guide
 
-Updated Oct 11, 2026
+Updated Oct 12, 2026
 
 Build your first payment integration: a customer's XLM payment automatically splits 90% to a shop and 10% to a community fund. Start with a working flow, prove its payout, then connect your own app.
 
@@ -122,14 +122,39 @@ See the [API quickstart](https://drive.google.com/file/d/1mTFaoICZwW2Ha3OttgJkp2
 
 ## Run the starter in preparation mode
 
-**For the supplied starter, install Node.js 22, pnpm 10 and Git.** Run `pnpm install` to install the starter's application dependencies. These development tools are needed only from this section onward; the wallet, flow and hosted-payment steps use your browser and Freighter.
+**Use Node.js 22 and pnpm 10.4.1 for the supplied starter.** Its `package.json` requires Node `>=22 <23` and pins `pnpm@10.4.1`. These tools and [Git](https://git-scm.com/downloads) are needed from this section onward; the earlier steps use your browser and Freighter.
 
-Use the [Paiflow hackathon starter](https://github.com/artisam-paiflow/paiflow-hackathon-starter). Run these commands in a terminal:
+### Install and select Node.js 22
+
+On macOS or Linux, install [nvm using its official instructions](https://github.com/nvm-sh/nvm#installing-and-updating), reopen your terminal, then run:
+
+```bash
+nvm install 22
+nvm use 22
+node --version
+```
+
+Check that the output starts with `v22.`; use `nvm use 22` in each new terminal. On Windows, select **22.x** in the [official Node.js downloads](https://nodejs.org/en/download), install it, reopen your terminal and check `node --version`.
+
+### Clone the starter and enable pnpm through Corepack
+
+[Corepack](https://github.com/nodejs/corepack#readme) uses the pnpm version pinned in the starter's `package.json`:
 
 ```bash
 git clone https://github.com/artisam-paiflow/paiflow-hackathon-starter.git
 cd paiflow-hackathon-starter
-corepack enable
+corepack enable pnpm
+corepack install --global pnpm@10.4.1
+pnpm --version
+```
+
+Check that pnpm prints `10.4.1`. If `corepack` is missing or reports a signing-key error, run `npm install --global corepack@latest`, then repeat the Corepack commands above. Downloads need an internet connection.
+
+### Install dependencies and start the app
+
+From the `paiflow-hackathon-starter` directory, run:
+
+```bash
 pnpm install
 cp .env.example .env.local
 pnpm dev
@@ -199,6 +224,9 @@ For subscriptions, schedules, escrow, webhooks or changing recipients per paymen
 
 | Symptom                                   | What to check                                                                                               |
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Wrong Node version or unsupported engine | Run `node --version`; select Node 22, reopen your terminal and retry `pnpm install`                         |
+| `corepack` missing or signing-key error   | Run `npm install --global corepack@latest`, then repeat the Corepack setup above                            |
+| `pnpm` missing or wrong version          | Run the Corepack setup inside the starter directory; verify `pnpm --version` prints `10.4.1`                |
 | Freighter missing or not connecting       | Install/unlock it in this browser; approve this site's access; check the active account and Testnet network |
 | No payment controls or `PREPARATION_MODE` | Set server-only `PAIFLOW_MODE=team` when permitted; restart the app                                         |
 | Configuration error, `401` or `404`       | Check the origin, confirmed deployment UUID and active token belonging to that deployment                   |
