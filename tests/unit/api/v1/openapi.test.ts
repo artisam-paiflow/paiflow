@@ -20,6 +20,10 @@ import {
   DeploymentCapabilitiesSchema,
   DeploymentBalancesSchema,
   SubscriptionStateSchema,
+  SubscriptionControlPrepareSchema,
+  SubscriptionControlPreparedSchema,
+  SubscriptionControlReconcileSchema,
+  SubscriptionControlReconciledSchema,
   TransactionStatusSchema,
   WebhookAttemptResponseSchema,
   ApiTokenSchema,
@@ -70,6 +74,21 @@ describe("OpenAPI document", () => {
   it("balances example matches its response schema", () => {
     expect(DeploymentBalancesSchema.safeParse(examples.balances.data).success).toBe(true);
   });
+  it("keeps subscription wallet control request and response examples valid", () => {
+    expect(SubscriptionControlPrepareSchema.parse(examples.subscriptionControlRequest)).toEqual(
+      examples.subscriptionControlRequest,
+    );
+    expect(
+      SubscriptionControlPreparedSchema.parse(examples.subscriptionControlPrepared.data),
+    ).toEqual(examples.subscriptionControlPrepared.data);
+    expect(
+      SubscriptionControlReconcileSchema.parse(examples.subscriptionControlReconcileRequest),
+    ).toEqual(examples.subscriptionControlReconcileRequest);
+    expect(
+      SubscriptionControlReconciledSchema.parse(examples.subscriptionControlReconciled.data),
+    ).toEqual(examples.subscriptionControlReconciled.data);
+  });
+
   it("matches the committed docs/api/openapi.json (run `pnpm api:openapi`)", () => {
     const committed = JSON.parse(
       fs.readFileSync(path.join(root, "docs/api/openapi.json"), "utf8"),

@@ -94,6 +94,19 @@ include setup-required Dev behavior, although Dev mode remains disabled for this
 Hosted testnet verification of this endpoint is still pending; confirm the deployed version
 before using it in a rehearsal.
 
+### Subscription wallet controls (source implementation; hosted verification pending)
+
+On builds containing #913, ordinary Subscription apps can request cancellation or
+reactivation through `subscription/cancel/{prepare,submit,reconcile}` and
+`subscription/reactivate/{prepare,submit,reconcile}` under the deployment-token API.
+Check capabilities and live Subscription state, then ask the configured subscriber's
+wallet to sign the exact prepared transaction. The token alone never consents. Cancellation
+revokes allowance; reactivation neither restores it nor immediately charges. Approval
+remains a separate wallet action. Persist the intent/hash and reconcile uncertainty before
+trying another preparation. Dev stays disabled for this hackathon. Hosted testnet verification
+is pending: confirm deployed availability and rehearse actual state/finality with support.
+The [API reference](../api/README.md#subscription-cancellation-and-reactivation-913) includes
+the integration and recovery sequence.
 
 ### Contract balance reads (source implementation; hosted verification pending)
 

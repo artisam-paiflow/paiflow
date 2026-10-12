@@ -33,6 +33,10 @@
       "description": "Signal that work was delivered: release a timelock branch's before side ahead of its deadline."
     },
     {
+      "name": "Subscriptions",
+      "description": "Current-subscriber wallet cancellation and reactivation with explicit finality recovery."
+    },
+    {
       "name": "Events",
       "description": "Cursor-based polling of a deployment's decoded events."
     },
@@ -50,6 +54,1038 @@
     }
   ],
   "paths": {
+    "/api/v1/deployments/{id}/subscription/cancel/prepare": {
+      "post": {
+        "tags": ["Subscriptions"],
+        "operationId": "prepareSubscriptionCancel",
+        "summary": "prepare wallet-authorized subscription cancel",
+        "description": "Requires the deployment bearer token and ACTIVE service. Ordinary subscriptions are eligible. Existing Dev cancellation continues when Dev mode is disabled; Dev reactivation requires the feature enabled. Payroll and malformed or ambiguous snapshots are refused.\n\nPreparation reads the deployed current subscriber, asset and cancellation state. Only that configured wallet can cancel an active subscription or reactivate a cancelled subscription. The builder simulates on the server network with finite transaction bounds. Cancellation revokes allowance; reactivation grants no allowance, creates no subscriber and never immediately charges or changes billing.\n\nSign exactly the returned xdr in the subscriber wallet on networkPassphrase; submit intent and signedXdr. Changed envelopes, wrong signers and fee-bumps are refused. Submission rechecks live eligibility on the first send and durably admits the exact hash before broadcasting. Retrying an already claimed intent returns status, even when successful cancellation changed state.\n\nUNKNOWN, REJECTED, timeouts and expired clocks never authorize replacement. Poll the deployment transaction endpoint and explicitly POST the action's reconcile endpoint with intent. Recovery adopts externally submitted ledger results and proves expiry only with complete RPC history. PREPARED or SUBMITTING retains the reservation; SUCCESS, FAILED or proven EXPIRED sets replacementAllowed:true, subject to current eligibility for a new preparation. RPC/history gaps retain reservations. No generic or token-only wallet consent.\n\nHosted testnet rehearsal remains required before advertising event availability; these paths describe the implemented API surface.\n\nRate limit: 10 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionControlPrepare"
+              },
+              "example": {
+                "walletAddress": "GDMFZ5QQMDSOTPEQ6YCAWPFAB626Q6C3KLRLYMO3VWMWHQHL4L2DSIHY"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Wallet control preparation, submission status or explicit recovery result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SubscriptionControlPrepared"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "intent": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d",
+                    "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+                    "expiresAt": "2026-10-12T12:03:00.000Z",
+                    "xdr": "SIMULATED_UNSIGNED_XDR",
+                    "network": "testnet",
+                    "networkPassphrase": "Test SDF Network ; September 2015",
+                    "action": "subscription.cancel",
+                    "walletAddress": "GDMFZ5QQMDSOTPEQ6YCAWPFAB626Q6C3KLRLYMO3VWMWHQHL4L2DSIHY",
+                    "nodeId": "sub",
+                    "contractAddress": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+                    "tokenContractAddress": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/subscription/cancel/submit": {
+      "post": {
+        "tags": ["Subscriptions"],
+        "operationId": "submitSubscriptionCancel",
+        "summary": "submit wallet-authorized subscription cancel",
+        "description": "Requires the deployment bearer token and ACTIVE service. Ordinary subscriptions are eligible. Existing Dev cancellation continues when Dev mode is disabled; Dev reactivation requires the feature enabled. Payroll and malformed or ambiguous snapshots are refused.\n\nPreparation reads the deployed current subscriber, asset and cancellation state. Only that configured wallet can cancel an active subscription or reactivate a cancelled subscription. The builder simulates on the server network with finite transaction bounds. Cancellation revokes allowance; reactivation grants no allowance, creates no subscriber and never immediately charges or changes billing.\n\nSign exactly the returned xdr in the subscriber wallet on networkPassphrase; submit intent and signedXdr. Changed envelopes, wrong signers and fee-bumps are refused. Submission rechecks live eligibility on the first send and durably admits the exact hash before broadcasting. Retrying an already claimed intent returns status, even when successful cancellation changed state.\n\nUNKNOWN, REJECTED, timeouts and expired clocks never authorize replacement. Poll the deployment transaction endpoint and explicitly POST the action's reconcile endpoint with intent. Recovery adopts externally submitted ledger results and proves expiry only with complete RPC history. PREPARED or SUBMITTING retains the reservation; SUCCESS, FAILED or proven EXPIRED sets replacementAllowed:true, subject to current eligibility for a new preparation. RPC/history gaps retain reservations. No generic or token-only wallet consent.\n\nHosted testnet rehearsal remains required before advertising event availability; these paths describe the implemented API surface.\n\nRate limit: 30 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WalletControlSubmit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Wallet control preparation, submission status or explicit recovery result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TransactionStatus"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+                    "network": "testnet",
+                    "status": "SUCCESS",
+                    "ledger": 1842917
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/subscription/cancel/reconcile": {
+      "post": {
+        "tags": ["Subscriptions"],
+        "operationId": "reconcileSubscriptionCancel",
+        "summary": "reconcile wallet-authorized subscription cancel",
+        "description": "Requires the deployment bearer token and ACTIVE service. Ordinary subscriptions are eligible. Existing Dev cancellation continues when Dev mode is disabled; Dev reactivation requires the feature enabled. Payroll and malformed or ambiguous snapshots are refused.\n\nPreparation reads the deployed current subscriber, asset and cancellation state. Only that configured wallet can cancel an active subscription or reactivate a cancelled subscription. The builder simulates on the server network with finite transaction bounds. Cancellation revokes allowance; reactivation grants no allowance, creates no subscriber and never immediately charges or changes billing.\n\nSign exactly the returned xdr in the subscriber wallet on networkPassphrase; submit intent and signedXdr. Changed envelopes, wrong signers and fee-bumps are refused. Submission rechecks live eligibility on the first send and durably admits the exact hash before broadcasting. Retrying an already claimed intent returns status, even when successful cancellation changed state.\n\nUNKNOWN, REJECTED, timeouts and expired clocks never authorize replacement. Poll the deployment transaction endpoint and explicitly POST the action's reconcile endpoint with intent. Recovery adopts externally submitted ledger results and proves expiry only with complete RPC history. PREPARED or SUBMITTING retains the reservation; SUCCESS, FAILED or proven EXPIRED sets replacementAllowed:true, subject to current eligibility for a new preparation. RPC/history gaps retain reservations. No generic or token-only wallet consent.\n\nHosted testnet rehearsal remains required before advertising event availability; these paths describe the implemented API surface.\n\nRate limit: 30 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionControlReconcile"
+              },
+              "example": {
+                "intent": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Wallet control preparation, submission status or explicit recovery result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SubscriptionControlReconciled"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "intent": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d",
+                    "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+                    "action": "subscription.cancel",
+                    "state": "PREPARED",
+                    "ledger": null,
+                    "replacementAllowed": false
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/subscription/reactivate/prepare": {
+      "post": {
+        "tags": ["Subscriptions"],
+        "operationId": "prepareSubscriptionReactivate",
+        "summary": "prepare wallet-authorized subscription reactivate",
+        "description": "Requires the deployment bearer token and ACTIVE service. Ordinary subscriptions are eligible. Existing Dev cancellation continues when Dev mode is disabled; Dev reactivation requires the feature enabled. Payroll and malformed or ambiguous snapshots are refused.\n\nPreparation reads the deployed current subscriber, asset and cancellation state. Only that configured wallet can cancel an active subscription or reactivate a cancelled subscription. The builder simulates on the server network with finite transaction bounds. Cancellation revokes allowance; reactivation grants no allowance, creates no subscriber and never immediately charges or changes billing.\n\nSign exactly the returned xdr in the subscriber wallet on networkPassphrase; submit intent and signedXdr. Changed envelopes, wrong signers and fee-bumps are refused. Submission rechecks live eligibility on the first send and durably admits the exact hash before broadcasting. Retrying an already claimed intent returns status, even when successful cancellation changed state.\n\nUNKNOWN, REJECTED, timeouts and expired clocks never authorize replacement. Poll the deployment transaction endpoint and explicitly POST the action's reconcile endpoint with intent. Recovery adopts externally submitted ledger results and proves expiry only with complete RPC history. PREPARED or SUBMITTING retains the reservation; SUCCESS, FAILED or proven EXPIRED sets replacementAllowed:true, subject to current eligibility for a new preparation. RPC/history gaps retain reservations. No generic or token-only wallet consent.\n\nHosted testnet rehearsal remains required before advertising event availability; these paths describe the implemented API surface.\n\nRate limit: 10 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionControlPrepare"
+              },
+              "example": {
+                "walletAddress": "GDMFZ5QQMDSOTPEQ6YCAWPFAB626Q6C3KLRLYMO3VWMWHQHL4L2DSIHY"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Wallet control preparation, submission status or explicit recovery result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SubscriptionControlPrepared"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "intent": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d",
+                    "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+                    "expiresAt": "2026-10-12T12:03:00.000Z",
+                    "xdr": "SIMULATED_UNSIGNED_XDR",
+                    "network": "testnet",
+                    "networkPassphrase": "Test SDF Network ; September 2015",
+                    "action": "subscription.reactivate",
+                    "walletAddress": "GDMFZ5QQMDSOTPEQ6YCAWPFAB626Q6C3KLRLYMO3VWMWHQHL4L2DSIHY",
+                    "nodeId": "sub",
+                    "contractAddress": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+                    "tokenContractAddress": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/subscription/reactivate/submit": {
+      "post": {
+        "tags": ["Subscriptions"],
+        "operationId": "submitSubscriptionReactivate",
+        "summary": "submit wallet-authorized subscription reactivate",
+        "description": "Requires the deployment bearer token and ACTIVE service. Ordinary subscriptions are eligible. Existing Dev cancellation continues when Dev mode is disabled; Dev reactivation requires the feature enabled. Payroll and malformed or ambiguous snapshots are refused.\n\nPreparation reads the deployed current subscriber, asset and cancellation state. Only that configured wallet can cancel an active subscription or reactivate a cancelled subscription. The builder simulates on the server network with finite transaction bounds. Cancellation revokes allowance; reactivation grants no allowance, creates no subscriber and never immediately charges or changes billing.\n\nSign exactly the returned xdr in the subscriber wallet on networkPassphrase; submit intent and signedXdr. Changed envelopes, wrong signers and fee-bumps are refused. Submission rechecks live eligibility on the first send and durably admits the exact hash before broadcasting. Retrying an already claimed intent returns status, even when successful cancellation changed state.\n\nUNKNOWN, REJECTED, timeouts and expired clocks never authorize replacement. Poll the deployment transaction endpoint and explicitly POST the action's reconcile endpoint with intent. Recovery adopts externally submitted ledger results and proves expiry only with complete RPC history. PREPARED or SUBMITTING retains the reservation; SUCCESS, FAILED or proven EXPIRED sets replacementAllowed:true, subject to current eligibility for a new preparation. RPC/history gaps retain reservations. No generic or token-only wallet consent.\n\nHosted testnet rehearsal remains required before advertising event availability; these paths describe the implemented API surface.\n\nRate limit: 30 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WalletControlSubmit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Wallet control preparation, submission status or explicit recovery result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TransactionStatus"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+                    "network": "testnet",
+                    "status": "SUCCESS",
+                    "ledger": 1842917
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/subscription/reactivate/reconcile": {
+      "post": {
+        "tags": ["Subscriptions"],
+        "operationId": "reconcileSubscriptionReactivate",
+        "summary": "reconcile wallet-authorized subscription reactivate",
+        "description": "Requires the deployment bearer token and ACTIVE service. Ordinary subscriptions are eligible. Existing Dev cancellation continues when Dev mode is disabled; Dev reactivation requires the feature enabled. Payroll and malformed or ambiguous snapshots are refused.\n\nPreparation reads the deployed current subscriber, asset and cancellation state. Only that configured wallet can cancel an active subscription or reactivate a cancelled subscription. The builder simulates on the server network with finite transaction bounds. Cancellation revokes allowance; reactivation grants no allowance, creates no subscriber and never immediately charges or changes billing.\n\nSign exactly the returned xdr in the subscriber wallet on networkPassphrase; submit intent and signedXdr. Changed envelopes, wrong signers and fee-bumps are refused. Submission rechecks live eligibility on the first send and durably admits the exact hash before broadcasting. Retrying an already claimed intent returns status, even when successful cancellation changed state.\n\nUNKNOWN, REJECTED, timeouts and expired clocks never authorize replacement. Poll the deployment transaction endpoint and explicitly POST the action's reconcile endpoint with intent. Recovery adopts externally submitted ledger results and proves expiry only with complete RPC history. PREPARED or SUBMITTING retains the reservation; SUCCESS, FAILED or proven EXPIRED sets replacementAllowed:true, subject to current eligibility for a new preparation. RPC/history gaps retain reservations. No generic or token-only wallet consent.\n\nHosted testnet rehearsal remains required before advertising event availability; these paths describe the implemented API surface.\n\nRate limit: 30 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionControlReconcile"
+              },
+              "example": {
+                "intent": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Wallet control preparation, submission status or explicit recovery result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SubscriptionControlReconciled"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "intent": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d",
+                    "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+                    "action": "subscription.reactivate",
+                    "state": "PREPARED",
+                    "ledger": null,
+                    "replacementAllowed": false
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/deployments/{id}/balances": {
       "get": {
         "tags": ["Capabilities"],
@@ -542,7 +1578,7 @@
         "tags": ["Capabilities"],
         "operationId": "getDeploymentCapabilities",
         "summary": "Discover a deployment's supported integration paths",
-        "description": "Supported means the integration path exists for the recorded deployment. Conditional requires additional eligibility checks. Unsupported means no matching path can be established. No status guarantees current balances, configuration, consent, deadline or infrastructure readiness.\n\nRequires this deployment's pfk_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.\n\nOperations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are swapQuote (/api/v1/deployments/{id}/swap-quote), execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), subscriptionState (/api/v1/deployments/{id}/subscription/state), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.\n\nReturns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.\n\nRate limit: 60 requests per 60 seconds per token.",
+        "description": "Supported means the integration path exists for the recorded deployment. Conditional requires additional eligibility checks. Unsupported means no matching path can be established. No status guarantees current balances, configuration, consent, deadline or infrastructure readiness.\n\nRequires this deployment's pfk_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.\n\nOperations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are swapQuote (/api/v1/deployments/{id}/swap-quote), execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), subscriptionState (/api/v1/deployments/{id}/subscription/state), subscriptionCancel and subscriptionReactivate (subscription/cancel or subscription/reactivate prepare, submit and reconcile), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.\n\nReturns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.\n\nRate limit: 60 requests per 60 seconds per token.",
         "security": [
           {
             "bearerAuth": []
@@ -647,6 +1683,22 @@
                         "status": "unsupported",
                         "authentication": "deployment_token",
                         "requirements": ["Requires a subscription deployment."],
+                        "nodeIds": []
+                      },
+                      "subscriptionCancel": {
+                        "status": "unsupported",
+                        "authentication": "subscriber_wallet",
+                        "requirements": [
+                          "Requires a supported subscription and current subscriber wallet consent."
+                        ],
+                        "nodeIds": []
+                      },
+                      "subscriptionReactivate": {
+                        "status": "unsupported",
+                        "authentication": "subscriber_wallet",
+                        "requirements": [
+                          "Requires a supported cancelled subscription and current subscriber wallet consent."
+                        ],
                         "nodeIds": []
                       },
                       "subscriptionAllowance": {
@@ -2476,6 +3528,131 @@
       }
     },
     "schemas": {
+      "SubscriptionControlPrepare": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["walletAddress"],
+        "properties": {
+          "walletAddress": {
+            "type": "string",
+            "description": "Current configured subscriber's Stellar account address."
+          }
+        }
+      },
+      "WalletControlSubmit": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["intent", "signedXdr"],
+        "properties": {
+          "intent": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "signedXdr": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100000
+          }
+        }
+      },
+      "SubscriptionControlReconcile": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["intent"],
+        "properties": {
+          "intent": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "SubscriptionControlPrepared": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "intent",
+          "txHash",
+          "expiresAt",
+          "xdr",
+          "network",
+          "networkPassphrase",
+          "action",
+          "walletAddress",
+          "nodeId",
+          "contractAddress",
+          "tokenContractAddress"
+        ],
+        "properties": {
+          "intent": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "txHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "xdr": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string",
+            "enum": ["testnet", "mainnet"]
+          },
+          "networkPassphrase": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["subscription.cancel", "subscription.reactivate"]
+          },
+          "walletAddress": {
+            "type": "string"
+          },
+          "nodeId": {
+            "type": "string"
+          },
+          "contractAddress": {
+            "type": "string"
+          },
+          "tokenContractAddress": {
+            "type": "string",
+            "description": "Live token used when preparing, rather than stale graph asset metadata."
+          }
+        }
+      },
+      "SubscriptionControlReconciled": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["intent", "txHash", "action", "state", "ledger", "replacementAllowed"],
+        "properties": {
+          "intent": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "txHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["subscription.cancel", "subscription.reactivate"]
+          },
+          "state": {
+            "type": "string",
+            "enum": ["PREPARED", "SUBMITTING", "SUCCESS", "FAILED", "EXPIRED"]
+          },
+          "ledger": {
+            "type": ["integer", "null"]
+          },
+          "replacementAllowed": {
+            "type": "boolean"
+          }
+        }
+      },
       "CapabilityOperation": {
         "type": "object",
         "additionalProperties": false,
@@ -2918,6 +4095,8 @@
               "webhook",
               "subscriptionAllowance",
               "subscriptionState",
+              "subscriptionCancel",
+              "subscriptionReactivate",
               "swapQuote"
             ],
             "properties": {
@@ -2940,6 +4119,12 @@
                 "$ref": "#/components/schemas/CapabilityOperation"
               },
               "webhook": {
+                "$ref": "#/components/schemas/CapabilityOperation"
+              },
+              "subscriptionCancel": {
+                "$ref": "#/components/schemas/CapabilityOperation"
+              },
+              "subscriptionReactivate": {
                 "$ref": "#/components/schemas/CapabilityOperation"
               },
               "swapQuote": {

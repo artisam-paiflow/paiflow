@@ -4,18 +4,18 @@ Shared technical guidance updated Oct 12, 2026. API and product details checked 
 
 ## Choose the right resource
 
-| Resource                                                                                                             | Purpose                                                                                                                    |
-| -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| [Paiflow Guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/paiflow-guide.md)         | Wallet setup, building and deploying a flow, and configuring the ready-wired starter.                                      |
-| [API quickstart](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-api-quickstart.md) | A separate Next.js frontend/backend example for an app built without the starter. Do not copy its routes into the starter. |
-| [Full API reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md)                     | Endpoint schemas, errors, limits, pagination and advanced workflows.                                                       |
-| [OpenAPI JSON](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json) | Machine-readable endpoint schemas for integration tools. |
-| [Postman collection](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) | Runnable API requests for your configured deployment. |
-| [Starter configuration](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/.env.example) | Server-only mode, platform origin, deployment UUID and token settings. |
-| [Starter agent instructions](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/AGENTS.md) | Coding boundaries, event scope and verification commands. |
-| [Starter package manifest](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/package.json) | Node.js range, package manager, dependencies and scripts. |
-| [Starter server client](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/lib/paiflow.ts) | Current implementation of mode guards and Paiflow API calls. |
-| This `llms.md`                                                                                                       | Product constraints, API details and examples for AI-assisted development. It complements the human walkthroughs.          |
+| Resource                                                                                                                      | Purpose                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| [Paiflow Guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/paiflow-guide.md)                      | Wallet setup, building and deploying a flow, and configuring the ready-wired starter.                                      |
+| [API quickstart](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-api-quickstart.md)          | A separate Next.js frontend/backend example for an app built without the starter. Do not copy its routes into the starter. |
+| [Full API reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md)                              | Endpoint schemas, errors, limits, pagination and advanced workflows.                                                       |
+| [OpenAPI JSON](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json)                                 | Machine-readable endpoint schemas for integration tools.                                                                   |
+| [Postman collection](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) | Runnable API requests for your configured deployment.                                                                      |
+| [Starter configuration](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/.env.example)                  | Server-only mode, platform origin, deployment UUID and token settings.                                                     |
+| [Starter agent instructions](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/AGENTS.md)                | Coding boundaries, event scope and verification commands.                                                                  |
+| [Starter package manifest](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/package.json)               | Node.js range, package manager, dependencies and scripts.                                                                  |
+| [Starter server client](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/lib/paiflow.ts)                | Current implementation of mode guards and Paiflow API calls.                                                               |
+| This `llms.md`                                                                                                                | Product constraints, API details and examples for AI-assisted development. It complements the human walkthroughs.          |
 
 Use the Markdown sources above when supplying references to an AI assistant. Participant-facing PDFs are presentation copies; keep them aligned with these sources.
 
@@ -196,7 +196,7 @@ The usual trigger QR opens this hosted page (or the allowance page for a subscri
 On builds containing capabilities discovery, `GET /api/v1/deployments/:id/capabilities` with the
 deployment's bearer token returns `data` with `network`, `triggerType`, initial `inputAsset` metadata,
 `configurationSource: "deployment_snapshot"` and `operations`. Operation keys are `execute`,
-`events`, `transactions`, `releaseEarly`, `payouts`, `webhook` and `subscriptionAllowance`. Each has
+`events`, `balances`, `transactions`, `releaseEarly`, `payouts`, `webhook`, `subscriptionState`, `subscriptionAllowance`, `subscriptionCancel` and `subscriptionReactivate`. Each has
 `status` (`supported`, `conditional` or `unsupported`), `authentication`, `requirements` and
 candidate `nodeIds`. This is recorded integration support, not live readiness: no RPC or transaction
 is performed, and current funds, deadlines, consent and eligibility must be checked through the
@@ -211,6 +211,26 @@ Limit: 60 requests/minute per token; confirmed deployments on this environment's
 Use `Authorization: Bearer pfk_<64 lowercase hex characters>`. A token is bound to exactly one deployment. Mint it in **API access** on the team's confirmed deployment; it is shown only once. Store it on the app server. Missing, malformed, unknown, expired, revoked or wrong-deployment tokens all return HTTP 401 `UNAUTHENTICATED`, with `A valid API token for this deployment is required`. A malformed deployment UUID is 404. Revocation takes effect on the next call.
 
 **Put all Paiflow calls in one typed, server-only `lib/paiflow.ts` module in the starter repo, and call the API through it.** Use `import "server-only";`, read `PAIFLOW_API_TOKEN` and `PAIFLOW_DEPLOYMENT_ID` from server environment, and expose `prepareExecute`, `submitExecute`, `listEvents`, `preparePayout`, `submitPayout`, `releaseEarly`. Its header should say: `starter code, not a supported package — edit freely.` Follow the shapes below and the public OpenAPI document. Do not invent other v1 methods. Keep the bearer token out of browser bundles, browser requests and logs.
+
+On builds containing #913, Subscription controls use POST
+
+- `POST /api/v1/deployments/{id}/subscription/cancel/prepare`
+- `POST /api/v1/deployments/{id}/subscription/cancel/submit`
+- `POST /api/v1/deployments/{id}/subscription/cancel/reconcile`
+- `POST /api/v1/deployments/{id}/subscription/reactivate/prepare`
+- `POST /api/v1/deployments/{id}/subscription/reactivate/submit`
+- `POST /api/v1/deployments/{id}/subscription/reactivate/reconcile`
+
+Read `subscription/state`, prepare with
+`{walletAddress}`, sign the returned exact `xdr` on `networkPassphrase`, then submit
+`{intent,signedXdr}`. Cancel requires active state and revokes allowance; reactivate requires
+cancelled state and grants no allowance, new subscriber or immediate charge. Both require the
+current configured subscriber's wallet, in addition to the scoped deployment token. Save the
+intent/hash and reconcile `{intent}` before replacing any uncertain preparation. Existing Dev cancellation
+continues when Dev is disabled; Dev reactivation requires Dev enabled. New Dev deployments
+remain unavailable for this hackathon. Hosted testnet verification is
+pending; confirm deployed revision and rehearse wallet consent, finality and actual state before
+claiming availability. See the [complete API example](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#subscription-cancellation-and-reactivation-913).
 
 Browser → your app's server → Paiflow is the API path. The server returns unsigned preparation data to the browser. The customer's wallet signs there; the browser sends the signed envelope back to your server, which submits it. No private key crosses that boundary. Protect your own server routes: a browser action must not let an unauthorised caller release escrow or choose a payout recipient merely because your server holds the token.
 

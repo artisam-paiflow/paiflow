@@ -238,7 +238,7 @@ function approvedValue(key: string, value: unknown): unknown {
         : undefined;
   if (key === "endpoint")
     return typeof value === "string" &&
-      /^\/api\/v1\/deployments\/:id\/(capabilities|events|execute(?:\/submit)?|payouts(?:\/submit)?|release-early|transactions\/:txHash|:unknown)$/.test(
+      /^\/api\/v1\/deployments\/:id\/(capabilities|events|subscription\/(?:cancel|reactivate)\/(?:prepare|submit|reconcile)|execute(?:\/submit)?|payouts(?:\/submit)?|release-early|transactions\/:txHash|:unknown)$/.test(
         value,
       )
       ? value

@@ -247,6 +247,26 @@ export function deploymentCapabilities(
         : operation("unsupported", [
             "Requires an unambiguous subscription-headed deployment; payroll and malformed snapshots are refused.",
           ]),
+      subscriptionCancel: operation(
+        stateCandidate ? "conditional" : "unsupported",
+        [
+          "Use subscription/cancel/prepare, sign with the currently configured subscriber, then submit the identical envelope. Requires an active subscription; cancellation revokes its allowance without charging. Recover an existing intent through subscription/cancel/reconcile before replacement.",
+          "Deployment bearer token is also required for every route. Existing Dev cancellation remains available when Dev mode is disabled; live state, consent and simulation determine eligibility.",
+        ],
+        stateCandidate ? [head!.nodeId] : [],
+        "subscriber_wallet",
+      ),
+      subscriptionReactivate: operation(
+        stateCandidate && (head?.templateKind !== "SUBSCRIPTION_DEV" || devModeEnabled)
+          ? "conditional"
+          : "unsupported",
+        [
+          "Use subscription/reactivate/prepare, sign with the currently configured subscriber, then submit the identical envelope. Requires a cancelled subscription; reactivation does not grant allowance, change billing, create a subscriber or immediately charge. Approve allowance separately. Recover through subscription/reactivate/reconcile before replacement.",
+          "Deployment bearer token is also required for every route. Dev reactivation requires Dev mode enabled; live state, consent and simulation determine eligibility.",
+        ],
+        stateCandidate ? [head!.nodeId] : [],
+        "subscriber_wallet",
+      ),
       subscriptionAllowance: allowanceCandidate
         ? operation(
             "conditional",

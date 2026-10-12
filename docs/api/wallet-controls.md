@@ -93,3 +93,15 @@ status attribution and recovery. PostgreSQL tests exercise simultaneous preparat
 concurrent single-claim submission, hash persistence before send, retirement refusal
 and durable failed status after RPC history expires. Testnet transactions remain
 part of the action-child acceptance and require separately authorized execution.
+
+## Subscription action routes (#913)
+
+Cancellation and reactivation adopt this protocol through the deployment-token
+`subscription/cancel/{prepare,submit,reconcile}` and
+`subscription/reactivate/{prepare,submit,reconcile}` routes. Preparation and the first
+submission check current deployed subscriber, token and cancellation state. Only the
+configured subscriber signs; an integration token never supplies that consent. Exact
+claimed retries and explicit reconciliation use durable intent evidence even after successful
+cancellation changed eligibility. Existing Dev cancellation continues when Dev mode is disabled; Dev reactivation
+requires the feature enabled. New Dev creation and configuration gates are unchanged.
+Hosted testnet verification remains pending in the action acceptance record below.

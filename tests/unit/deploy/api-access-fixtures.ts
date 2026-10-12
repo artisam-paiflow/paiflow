@@ -27,6 +27,14 @@ export function capabilities(
       releaseEarly: operation("unsupported"),
       payouts: operation("unsupported"),
       webhook: operation(triggerType === "webhook" ? "supported" : "unsupported", "webhook_secret"),
+      subscriptionCancel: operation(
+        triggerType === "subscription" ? "conditional" : "unsupported",
+        "subscriber_wallet",
+      ),
+      subscriptionReactivate: operation(
+        triggerType === "subscription" ? "conditional" : "unsupported",
+        "subscriber_wallet",
+      ),
       swapQuote: operation("unsupported"),
       subscriptionState: operation(triggerType === "subscription" ? "supported" : "unsupported"),
       subscriptionAllowance: operation(

@@ -83,6 +83,33 @@ export const examples = {
       },
     },
   },
+  subscriptionControlRequest: { walletAddress: EXAMPLE_FROM },
+  subscriptionControlReconcileRequest: { intent: EXAMPLE_DEPLOYMENT_ID },
+  subscriptionControlPrepared: {
+    data: {
+      intent: EXAMPLE_DEPLOYMENT_ID,
+      txHash: EXAMPLE_TX_HASH,
+      expiresAt: "2026-10-12T12:03:00.000Z",
+      xdr: "SIMULATED_UNSIGNED_XDR",
+      network: "testnet",
+      networkPassphrase: "Test SDF Network ; September 2015",
+      action: "subscription.cancel",
+      walletAddress: EXAMPLE_FROM,
+      nodeId: "sub",
+      contractAddress: USDC_SAC_TESTNET,
+      tokenContractAddress: XLM_SAC_TESTNET,
+    },
+  },
+  subscriptionControlReconciled: {
+    data: {
+      intent: EXAMPLE_DEPLOYMENT_ID,
+      txHash: EXAMPLE_TX_HASH,
+      action: "subscription.cancel",
+      state: "PREPARED",
+      ledger: null,
+      replacementAllowed: false,
+    },
+  },
   swapQuote: {
     data: {
       deploymentId: EXAMPLE_DEPLOYMENT_ID,
@@ -158,6 +185,12 @@ export const examples = {
         ]),
         subscriptionState: capabilityExample("unsupported", "deployment_token", [
           "Requires a subscription deployment.",
+        ]),
+        subscriptionCancel: capabilityExample("unsupported", "subscriber_wallet", [
+          "Requires a supported subscription and current subscriber wallet consent.",
+        ]),
+        subscriptionReactivate: capabilityExample("unsupported", "subscriber_wallet", [
+          "Requires a supported cancelled subscription and current subscriber wallet consent.",
         ]),
         subscriptionAllowance: capabilityExample("unsupported", "subscriber_wallet", [
           "Requires a subscription deployment.",
@@ -504,6 +537,11 @@ export const openApiDocument = {
       description:
         "Signal that work was delivered: release a timelock branch's before side ahead of its deadline.",
     },
+    {
+      name: "Subscriptions",
+      description:
+        "Current-subscriber wallet cancellation and reactivation with explicit finality recovery.",
+    },
     { name: "Events", description: "Cursor-based polling of a deployment's decoded events." },
     { name: "Spec", description: "This document." },
     {
@@ -521,6 +559,99 @@ export const openApiDocument = {
     },
   ],
   paths: {
+    ...Object.fromEntries(
+      (["cancel", "reactivate"] as const).flatMap((action) =>
+        (["prepare", "submit", "reconcile"] as const).map((step) => {
+          const request =
+            step === "prepare"
+              ? "SubscriptionControlPrepare"
+              : step === "submit"
+                ? "WalletControlSubmit"
+                : "SubscriptionControlReconcile";
+          const response =
+            step === "prepare"
+              ? "SubscriptionControlPrepared"
+              : step === "submit"
+                ? "TransactionStatus"
+                : "SubscriptionControlReconciled";
+          return [
+            `/api/v1/deployments/{id}/subscription/${action}/${step}`,
+            {
+              post: {
+                tags: ["Subscriptions"],
+                operationId: `${step}Subscription${action === "cancel" ? "Cancel" : "Reactivate"}`,
+                summary: `${step} wallet-authorized subscription ${action}`,
+                description: [
+                  "Requires the deployment bearer token and ACTIVE service. Ordinary subscriptions are eligible. Existing Dev cancellation continues when Dev mode is disabled; Dev reactivation requires the feature enabled. Payroll and malformed or ambiguous snapshots are refused.",
+                  "Preparation reads the deployed current subscriber, asset and cancellation state. Only that configured wallet can cancel an active subscription or reactivate a cancelled subscription. The builder simulates on the server network with finite transaction bounds. Cancellation revokes allowance; reactivation grants no allowance, creates no subscriber and never immediately charges or changes billing.",
+                  "Sign exactly the returned xdr in the subscriber wallet on networkPassphrase; submit intent and signedXdr. Changed envelopes, wrong signers and fee-bumps are refused. Submission rechecks live eligibility on the first send and durably admits the exact hash before broadcasting. Retrying an already claimed intent returns status, even when successful cancellation changed state.",
+                  "UNKNOWN, REJECTED, timeouts and expired clocks never authorize replacement. Poll the deployment transaction endpoint and explicitly POST the action's reconcile endpoint with intent. Recovery adopts externally submitted ledger results and proves expiry only with complete RPC history. PREPARED or SUBMITTING retains the reservation; SUCCESS, FAILED or proven EXPIRED sets replacementAllowed:true, subject to current eligibility for a new preparation. RPC/history gaps retain reservations. No generic or token-only wallet consent.",
+                  "Hosted testnet rehearsal remains required before advertising event availability; these paths describe the implemented API surface.",
+                  rate(
+                    V1_RATE_LIMITS[
+                      step === "prepare"
+                        ? "subscriptionControlPrepare"
+                        : step === "submit"
+                          ? "subscriptionControlSubmit"
+                          : "subscriptionControlReconcile"
+                    ],
+                    "per token",
+                  ),
+                ].join("\n\n"),
+                security: [{ bearerAuth: [] }],
+                parameters: [deploymentIdParam],
+                requestBody: {
+                  required: true,
+                  content: json(
+                    { $ref: `#/components/schemas/${request}` },
+                    step === "prepare"
+                      ? examples.subscriptionControlRequest
+                      : step === "reconcile"
+                        ? examples.subscriptionControlReconcileRequest
+                        : undefined,
+                  ),
+                },
+                responses: {
+                  "200": {
+                    description:
+                      "Wallet control preparation, submission status or explicit recovery result.",
+                    content: json(
+                      dataEnvelope(`#/components/schemas/${response}`),
+                      step === "prepare"
+                        ? {
+                            data: {
+                              ...examples.subscriptionControlPrepared.data,
+                              action: `subscription.${action}`,
+                            },
+                          }
+                        : step === "reconcile"
+                          ? {
+                              data: {
+                                ...examples.subscriptionControlReconciled.data,
+                                action: `subscription.${action}`,
+                              },
+                            }
+                          : examples.transactionStatus,
+                    ),
+                  },
+                  ...errors(
+                    "UNAUTHENTICATED",
+                    "FORBIDDEN",
+                    "NOT_FOUND",
+                    "CONFLICT",
+                    "VALIDATION",
+                    "RATE_LIMITED",
+                    "UPSTREAM_RPC",
+                    "INTERNAL",
+                    "INSUFFICIENT_FUNDS",
+                  ),
+                },
+              },
+            },
+          ];
+        }),
+      ),
+    ),
     "/api/v1/deployments/{id}/balances": {
       get: {
         tags: ["Capabilities"],
@@ -639,7 +770,7 @@ export const openApiDocument = {
         description: [
           DeploymentCapabilitiesSchema.description,
           "Requires this deployment's pfk_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.",
-          "Operations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are swapQuote (/api/v1/deployments/{id}/swap-quote), execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), subscriptionState (/api/v1/deployments/{id}/subscription/state), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.",
+          "Operations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are swapQuote (/api/v1/deployments/{id}/swap-quote), execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), subscriptionState (/api/v1/deployments/{id}/subscription/state), subscriptionCancel and subscriptionReactivate (subscription/cancel or subscription/reactivate prepare, submit and reconcile), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.",
           "Returns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.",
           rate(V1_RATE_LIMITS.capabilities, "per token"),
         ].join("\n\n"),
@@ -1265,6 +1396,81 @@ export const openApiDocument = {
       },
     },
     schemas: {
+      SubscriptionControlPrepare: {
+        type: "object",
+        additionalProperties: false,
+        required: ["walletAddress"],
+        properties: {
+          walletAddress: {
+            type: "string",
+            description: "Current configured subscriber's Stellar account address.",
+          },
+        },
+      },
+      WalletControlSubmit: {
+        type: "object",
+        additionalProperties: false,
+        required: ["intent", "signedXdr"],
+        properties: {
+          intent: { type: "string", format: "uuid" },
+          signedXdr: { type: "string", minLength: 1, maxLength: 100000 },
+        },
+      },
+      SubscriptionControlReconcile: {
+        type: "object",
+        additionalProperties: false,
+        required: ["intent"],
+        properties: { intent: { type: "string", format: "uuid" } },
+      },
+      SubscriptionControlPrepared: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "intent",
+          "txHash",
+          "expiresAt",
+          "xdr",
+          "network",
+          "networkPassphrase",
+          "action",
+          "walletAddress",
+          "nodeId",
+          "contractAddress",
+          "tokenContractAddress",
+        ],
+        properties: {
+          intent: { type: "string", format: "uuid" },
+          txHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+          expiresAt: { type: "string", format: "date-time" },
+          xdr: { type: "string" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          networkPassphrase: { type: "string" },
+          action: { type: "string", enum: ["subscription.cancel", "subscription.reactivate"] },
+          walletAddress: { type: "string" },
+          nodeId: { type: "string" },
+          contractAddress: { type: "string" },
+          tokenContractAddress: {
+            type: "string",
+            description: "Live token used when preparing, rather than stale graph asset metadata.",
+          },
+        },
+      },
+      SubscriptionControlReconciled: {
+        type: "object",
+        additionalProperties: false,
+        required: ["intent", "txHash", "action", "state", "ledger", "replacementAllowed"],
+        properties: {
+          intent: { type: "string", format: "uuid" },
+          txHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+          action: { type: "string", enum: ["subscription.cancel", "subscription.reactivate"] },
+          state: {
+            type: "string",
+            enum: ["PREPARED", "SUBMITTING", "SUCCESS", "FAILED", "EXPIRED"],
+          },
+          ledger: { type: ["integer", "null"] },
+          replacementAllowed: { type: "boolean" },
+        },
+      },
       CapabilityOperation: {
         type: "object",
         additionalProperties: false,
@@ -1495,6 +1701,8 @@ export const openApiDocument = {
               "webhook",
               "subscriptionAllowance",
               "subscriptionState",
+              "subscriptionCancel",
+              "subscriptionReactivate",
               "swapQuote",
             ],
             properties: {
@@ -1505,6 +1713,8 @@ export const openApiDocument = {
               releaseEarly: { $ref: "#/components/schemas/CapabilityOperation" },
               payouts: { $ref: "#/components/schemas/CapabilityOperation" },
               webhook: { $ref: "#/components/schemas/CapabilityOperation" },
+              subscriptionCancel: { $ref: "#/components/schemas/CapabilityOperation" },
+              subscriptionReactivate: { $ref: "#/components/schemas/CapabilityOperation" },
               swapQuote: { $ref: "#/components/schemas/CapabilityOperation" },
               subscriptionState: { $ref: "#/components/schemas/CapabilityOperation" },
               subscriptionAllowance: { $ref: "#/components/schemas/CapabilityOperation" },

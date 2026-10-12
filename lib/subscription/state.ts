@@ -13,7 +13,7 @@ import {
   readTokenAllowance,
 } from "@/lib/stellar/relayer";
 
-async function readSubscriptionState(id: string, opts: { snapshotOnly?: boolean } = {}) {
+export async function readSubscriptionState(id: string, opts: { snapshotOnly?: boolean } = {}) {
   const d = await db.deployment.findFirst({
     where: { id, status: "CONFIRMED" },
     select: {

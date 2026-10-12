@@ -30,6 +30,8 @@ const OPERATION_LABELS = {
   subscriptionAllowance: "Approve a subscription allowance",
   swapQuote: "Estimate a deployed Swap output",
   subscriptionState: "Read current subscription state",
+  subscriptionCancel: "Cancel a subscription with the subscriber wallet",
+  subscriptionReactivate: "Reactivate a subscription with the subscriber wallet",
 } satisfies Record<keyof DeploymentCapabilities["operations"], string>;
 
 const AUTH_LABELS = {

@@ -1,0 +1,131 @@
+import "server-only";
+import type { Deployment } from "@prisma/client";
+import { AppError } from "@/lib/errors";
+import { stellarPassphrase } from "@/lib/env";
+import { clientIp } from "@/lib/rate-limit";
+import { readSubscriptionState } from "@/lib/subscription/state";
+import { pipelineNodesOfKind } from "@/lib/pipeline-snapshot";
+import { sorobanRpc } from "@/lib/stellar/client";
+import {
+  prepareSubscriptionSubscribeInvocation,
+  prepareSubscriptionUnsubscribeInvocation,
+} from "@/lib/stellar/invoke";
+import { linkApiTransaction } from "@/lib/api/request-history/context";
+import { deploymentCapabilities } from "./capabilities";
+import { createControlIntent, readControlIntent, type WalletControlAction } from "./control-intent";
+import { submitControlIntent } from "./control-submission";
+
+export type SubscriptionControlAction = Extract<
+  WalletControlAction,
+  "subscription.cancel" | "subscription.reactivate"
+>;
+
+function assertSupported(deployment: Deployment, action: SubscriptionControlAction) {
+  const operation =
+    action === "subscription.cancel" ? "subscriptionCancel" : "subscriptionReactivate";
+  if (deploymentCapabilities(deployment).operations[operation].status === "unsupported")
+    throw new AppError(
+      "VALIDATION",
+      "Subscription control is unsupported on this deployment or server",
+    );
+}
+
+async function eligible(
+  deployment: Deployment,
+  action: SubscriptionControlAction,
+  walletAddress: string,
+) {
+  assertSupported(deployment, action);
+  const state = await readSubscriptionState(deployment.id, { snapshotOnly: true });
+  if (!state.subscriber)
+    throw new AppError("VALIDATION", "Configure the Dev subscriber before using wallet controls");
+  if (state.subscriber !== walletAddress)
+    throw new AppError("FORBIDDEN", "Wallet does not match the current configured subscriber");
+  if (state.isCancelled !== (action === "subscription.reactivate"))
+    throw new AppError(
+      "CONFLICT",
+      action === "subscription.cancel"
+        ? "Subscription is already cancelled"
+        : "Subscription is already active",
+    );
+  const nodes = pipelineNodesOfKind(deployment.pipelineSnapshot, state.templateKind);
+  if (nodes.length !== 1 || nodes[0]!.contractAddress !== state.contractAddress)
+    throw new AppError(
+      "VALIDATION",
+      "Subscription snapshot no longer matches the selected contract",
+    );
+  return { state, node: nodes[0]! };
+}
+
+export async function prepareSubscriptionControl(
+  deployment: Deployment,
+  action: SubscriptionControlAction,
+  walletAddress: string,
+) {
+  const { state, node } = await eligible(deployment, action, walletAddress);
+  // Cover the full simulation/signing window when proving an abandoned intent expired.
+  let preparationLedger: number;
+  try {
+    preparationLedger = (await sorobanRpc().getLatestLedger()).sequence;
+  } catch {
+    throw new AppError("UPSTREAM_RPC", "Cannot establish the control preparation ledger");
+  }
+  const builder =
+    action === "subscription.cancel"
+      ? prepareSubscriptionUnsubscribeInvocation
+      : prepareSubscriptionSubscribeInvocation;
+  const { xdr } = await builder({
+    contractAddress: node.contractAddress,
+    subscriberAddress: walletAddress,
+  });
+  // A Dev setter may change subscriber/token while the builder simulates. Do not
+  // return token metadata or reserve an intent for a different observed configuration.
+  const afterSimulation = await eligible(deployment, action, walletAddress);
+  if (
+    afterSimulation.state.tokenContractAddress !== state.tokenContractAddress ||
+    afterSimulation.node.nodeId !== node.nodeId ||
+    afterSimulation.node.contractAddress !== node.contractAddress
+  )
+    throw new AppError("CONFLICT", "Subscription configuration changed during preparation");
+  const preparation = await createControlIntent({
+    deployment,
+    nodeId: node.nodeId,
+    action,
+    walletAddress,
+    unsignedXdr: xdr,
+    preparationLedger,
+  });
+  linkApiTransaction(preparation.txHash);
+  return {
+    ...preparation,
+    xdr,
+    network: state.network,
+    networkPassphrase: stellarPassphrase(),
+    action,
+    walletAddress,
+    nodeId: node.nodeId,
+    contractAddress: node.contractAddress,
+    tokenContractAddress: state.tokenContractAddress,
+  };
+}
+
+export async function submitSubscriptionControl(input: {
+  deployment: Deployment;
+  action: SubscriptionControlAction;
+  intent: string;
+  signedXdr: string;
+  tokenId: string;
+  req: Parameters<typeof clientIp>[0];
+}) {
+  // A valid signed retry uses durable finality even after cancellation/configuration changed.
+  const intent = await readControlIntent(input.intent, input.deployment.id, input.action);
+  return submitControlIntent({
+    ...input,
+    ip: clientIp(input.req),
+    assertEligible: async () => {
+      const { node } = await eligible(input.deployment, input.action, intent.walletAddress);
+      if (node.nodeId !== intent.nodeId || node.contractAddress !== intent.contractAddress)
+        throw new AppError("VALIDATION", "Subscription control target changed since preparation");
+    },
+  });
+}

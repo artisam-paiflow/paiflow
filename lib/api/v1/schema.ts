@@ -283,6 +283,8 @@ export const DeploymentCapabilitiesSchema = z
         webhook: CapabilityOperationSchema,
         subscriptionAllowance: CapabilityOperationSchema,
         subscriptionState: CapabilityOperationSchema,
+        subscriptionCancel: CapabilityOperationSchema,
+        subscriptionReactivate: CapabilityOperationSchema,
         swapQuote: CapabilityOperationSchema,
       })
       .strict(),
@@ -355,3 +357,42 @@ export const DeploymentBalancesSchema = z
   })
   .strict();
 export type DeploymentBalances = z.infer<typeof DeploymentBalancesSchema>;
+/** The integration token never substitutes for the configured subscriber's signature. */
+export const SubscriptionControlPrepareSchema = z
+  .object({
+    walletAddress: z
+      .string()
+      .refine(StrKey.isValidEd25519PublicKey, "Invalid Stellar wallet address"),
+  })
+  .strict();
+export type SubscriptionControlPrepare = z.infer<typeof SubscriptionControlPrepareSchema>;
+export const SubscriptionControlReconcileSchema = z.object({ intent: z.string().uuid() }).strict();
+export type SubscriptionControlReconcile = z.infer<typeof SubscriptionControlReconcileSchema>;
+
+export const SubscriptionControlPreparedSchema = z
+  .object({
+    intent: z.string().uuid(),
+    txHash: z.string().regex(/^[0-9a-f]{64}$/),
+    expiresAt: z.string().datetime(),
+    xdr: z.string().min(1),
+    network: z.enum(["testnet", "mainnet"]),
+    networkPassphrase: z.string().min(1),
+    action: z.enum(["subscription.cancel", "subscription.reactivate"]),
+    walletAddress: z.string().refine(StrKey.isValidEd25519PublicKey),
+    nodeId: z.string().min(1),
+    contractAddress: z.string().refine(StrKey.isValidContract),
+    tokenContractAddress: z.string().refine(StrKey.isValidContract),
+  })
+  .strict();
+export type SubscriptionControlPrepared = z.infer<typeof SubscriptionControlPreparedSchema>;
+export const SubscriptionControlReconciledSchema = z
+  .object({
+    intent: z.string().uuid(),
+    txHash: z.string().regex(/^[0-9a-f]{64}$/),
+    action: z.enum(["subscription.cancel", "subscription.reactivate"]),
+    state: z.enum(["PREPARED", "SUBMITTING", "SUCCESS", "FAILED", "EXPIRED"]),
+    ledger: z.number().int().positive().nullable(),
+    replacementAllowed: z.boolean(),
+  })
+  .strict();
+export type SubscriptionControlReconciled = z.infer<typeof SubscriptionControlReconciledSchema>;

@@ -834,6 +834,83 @@ The shared [wallet control foundation](wallet-controls.md) documents the prepara
 submission and recovery protocol for future wallet-authorized controls; it does not
 by itself expose cancellation/reactivation routes.
 
+### Subscription cancellation and reactivation (#913)
+
+The deployment token opens the integration API; the currently configured subscriber's
+wallet supplies consent. Read `subscription/state` and check `subscriptionCancel` or
+`subscriptionReactivate` in capabilities first. These operations are conditional on
+live state and successful simulation. Ordinary subscriptions are supported by the
+implementation. Existing Dev cancellation continues with `FEATURE_DEV_MODE_ENABLED=false`;
+Dev reactivation requires the feature enabled. New Dev deployments remain disabled for the
+hackathon. Payroll, unsupported variants and ambiguous snapshots are refused.
+Hosted testnet verification is pending; confirm deployed availability before rehearsal.
+
+Both actions expose three POST routes below `/api/v1/deployments/{id}`:
+
+| Route suffix                                                           | Body                                | Limit per token |
+| ---------------------------------------------------------------------- | ----------------------------------- | --------------- |
+| `subscription/cancel/prepare` or `subscription/reactivate/prepare`     | `{"walletAddress":"G…"}`            | 10/minute       |
+| `subscription/cancel/submit` or `subscription/reactivate/submit`       | `{"intent":"UUID","signedXdr":"…"}` | 30/minute       |
+| `subscription/cancel/reconcile` or `subscription/reactivate/reconcile` | `{"intent":"UUID"}`                 | 30/minute       |
+
+Cancellation requires an active subscription, calls `unsubscribe` and revokes that
+subscription's token allowance. Reactivation requires cancelled state and calls
+`subscribe`; it grants no allowance, creates no subscriber and does not immediately
+charge or change billing. Use the existing public allowance approval workflow separately
+before later scheduled charges can resume.
+
+A complete browser/backend integration keeps the bearer token on its server and the
+subscriber's private key in their wallet. Your authenticated application server proxies
+only this deployment's action routes. Browser pseudocode with your wallet adapter:
+
+```js
+const action = "cancel"; // Use "reactivate" only after observing cancelled state.
+const walletAddress = await wallet.getAddress();
+const base = `/your-backend/subscription/${action}`;
+const preparedResponse = await fetch(`${base}/prepare`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ walletAddress }),
+});
+const preparedBody = await preparedResponse.json();
+if (!preparedResponse.ok) throw new Error(preparedBody.error.message);
+const p = preparedBody.data;
+// Save p.intent and p.txHash before signing; reconcile these after interruptions.
+const signedXdr = await wallet.signTransaction(p.xdr, {
+  networkPassphrase: p.networkPassphrase,
+});
+const submission = await fetch(`${base}/submit`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ intent: p.intent, signedXdr }),
+});
+// After any response or transport interruption, poll the same p.txHash through
+// GET /api/v1/deployments/{id}/transactions/{txHash} on your authenticated backend.
+// Never interpret UNKNOWN, REJECTED, a 404 or a timeout as permission to replace.
+```
+
+Your server forwards these bodies unchanged and adds `Authorization: Bearer pfk_…`.
+Preparation returns `{data:{intent,txHash,expiresAt,xdr,network,networkPassphrase,action,
+walletAddress,nodeId,contractAddress,tokenContractAddress}}`. Only envelope signatures
+may be added; source, sequence, fee, bounds, operation and authorization must stay exact.
+Submission returns the existing `{data:{txHash,network,status,...}}` transaction status.
+It records the admitted hash before broadcasting; exact signed retries use the same
+intent and status. Changed envelopes and wrong-wallet signatures are refused.
+
+To recover a lost response, an externally submitted envelope or an abandoned preparation,
+POST the saved intent to the corresponding `reconcile` route. It returns
+`{data:{intent,txHash,action,state,ledger,replacementAllowed}}`. `PREPARED` and `SUBMITTING`
+retain the reservation; `SUCCESS`, `FAILED` and ledger-proven `EXPIRED` permit a new
+preparation subject to current eligibility. RPC history gaps, queue refusal and local
+clock expiry retain the reservation. A successful cancellation can therefore be reconciled
+without satisfying the now-false "active" precondition again. Retired services do not reopen
+API access for recovery; internal retirement reconciliation retains unresolved evidence.
+See [wallet-control finality protocol](wallet-controls.md) for the exact recovery rules.
+
+After `SUCCESS`, read state again and verify actual cancellation or reactivation. An empty
+event feed alone proves nothing. Rehearse cancel → finality → cancelled state/zero allowance →
+reactivate → finality → active state → separate allowance approval using a real consenting
+testnet wallet before advertising availability.
 ## Deployment-specific Swap estimates
 
 The source API adds `GET /api/v1/deployments/{id}/swap-quote?amountStroops=10000000`

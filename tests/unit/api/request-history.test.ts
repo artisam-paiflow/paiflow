@@ -212,6 +212,25 @@ describe("API request history boundary", () => {
       "/api/v1/deployments/:id/subscription/state",
     );
   });
+  it.each(
+    ["cancel", "reactivate"].flatMap((action) =>
+      ["prepare", "submit", "reconcile"].map((step) => `subscription/${action}/${step}`),
+    ),
+  )(
+    "records wallet control %s without exposing request bodies or wallet signatures",
+    async (suffix) => {
+      await v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () =>
+        NextResponse.json({ data: {} }),
+      )(request(suffix), ctx);
+      const record = ApiRequestRecordSchema.parse(mocks.queue.mock.calls[0]![0]);
+      expect(record.endpoint).toBe(`/api/v1/deployments/:id/${suffix}`);
+      expect(eventProperties("api_request_completed", { endpoint: record.endpoint })).toEqual({
+        endpoint: record.endpoint,
+      });
+      expect(record).not.toHaveProperty("signedXdr");
+      expect(record).not.toHaveProperty("walletAddress");
+    },
+  );
   it("normalizes unknown and hash-bearing paths", () => {
     expect(requestEndpoint(`/api/v1/deployments/credential/swap-quote`)).toBe(
       "/api/v1/deployments/:id/swap-quote",
