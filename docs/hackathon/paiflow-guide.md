@@ -1,6 +1,6 @@
-# Paiflow Developer Guide
+# Paiflow Guide
 
-Updated Oct 10, 2026
+Updated Oct 11, 2026
 
 Build your first payment integration: a customer's XLM payment automatically splits 90% to a shop and 10% to a community fund. Start with a working flow, prove its payout, then connect your own app.
 
@@ -8,14 +8,14 @@ Build your first payment integration: a customer's XLM payment automatically spl
 
 | Resource                                                                                                                             | Use it when you want to…                                                                                           |
 | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| [Developer guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-guide.md)                  | Set up wallets, build and deploy a flow, then configure and customise the ready-wired starter.                     |
-| [API quickstart](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-api-quickstart.md)          | Integrate your own app without the starter, using a complete frontend/backend example.                             |
+| [Paiflow Guide](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing)                  | Set up wallets, build and deploy a flow, then configure and customise the ready-wired starter.                     |
+| [API quickstart](https://drive.google.com/file/d/1mTFaoICZwW2Ha3OttgJkp2q50o2H5siJ/view?usp=sharing)          | Integrate your own app without the starter, using a complete frontend/backend example.                             |
 | [Full API reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md)                              | Look up endpoint schemas, errors, limits, pagination and advanced workflows.                                       |
 | [OpenAPI JSON](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json)                                 | Import the machine-readable API contract into development tools.                                                   |
 | [Postman collection](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) | Try API requests with your deployment UUID and token.                                                              |
 | [AI developer context (`llms.md`)](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/llms.md)                   | Give your AI assistant product rules, API details and worked examples.                                             |
 | [Starter repository](https://github.com/artisam-paiflow/paiflow-hackathon-starter)                                                   | Get working payment preparation, Freighter signing, submission and event reads without implementing them yourself. |
-| [Freighter Testnet setup](https://developers.stellar.org/docs/build/guides/freighter/connect-testnet)                                | Create a wallet, select Testnet and obtain testnet XLM.                                                            |
+| [Freighter Testnet setup (video)](https://youtu.be/OBFtQsRe4b0)                                | Create a wallet, select Testnet and obtain testnet XLM.                                                            |
 | [Stellar Expert Testnet](https://stellar.expert/explorer/testnet)                                                                    | Inspect transaction evidence and verify actual payouts.                                                            |
 
 Follow your participant brief for event rules, preparation permissions, deadlines and submissions.
@@ -46,7 +46,6 @@ Paiflow is the money logic behind your app. Your app handles who pays and why; a
 | [Paiflow](https://beta.app.paiflow.xyz)     | Build, deploy and inspect your payment flow      |
 | A full/team Paiflow account             | Create your own deployment API token             |
 | [Freighter](https://www.freighter.app/) | Connect wallets and approve testnet transactions |
-| Node.js 22, pnpm 10 and git             | Run the supplied starter app                     |
 | Dedicated testnet wallets               | Deploy, pay and receive the split                |
 
 **Sandbox or team account?** The sandbox supports practice using its available features, including flows and test payments. Sandbox accounts cannot create deployment API tokens or connect their deployments to your app through the partner API. Use a full/team account for the integration steps.
@@ -69,7 +68,7 @@ Keep wallet secrets in Freighter. Never paste a secret key or recovery phrase in
 
 1. Open [Paiflow](https://beta.app.paiflow.xyz) and log in, or use the sandbox to try it out.
 2. Create a flow, using **On Receive** as its trigger and **Split** as its action. Connect On Receive to Split.
-3. Select native **XLM** as the flow's asset. Remove unrelated blocks or default recipients from the example graph.
+3. Select native **XLM** as the flow's asset and keep **Dev mode off** for this example. Remove unrelated blocks or default recipients from the example graph.
 4. Configure two percentage recipients using your actual funded public addresses:
 
 | Recipient      | Percentage | Expected share of 1 XLM |
@@ -109,7 +108,7 @@ For this example, the payment should route **0.9 XLM to the shop and 0.1 XLM to 
 2. Open **API access**, create a token and copy it immediately. The full token is shown once.
 3. Keep the token with your confirmed deployment UUID for the starter's server configuration.
 
-See the [API quickstart](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-api-quickstart.md) for preparing, signing and submitting payments, checking transaction status and reading events.
+See the [API quickstart](https://drive.google.com/file/d/1mTFaoICZwW2Ha3OttgJkp2q50o2H5siJ/view?usp=sharing) for preparing, signing and submitting payments, checking transaction status and reading events.
 
 | Value            | How to recognise it                                                    |
 | ---------------- | ---------------------------------------------------------------------- |
@@ -120,6 +119,8 @@ See the [API quickstart](https://github.com/artisam-paiflow/paiflow/blob/develop
 **Keep the API token server-side.** Do not put it in browser code, `NEXT_PUBLIC_` variables, screenshots or public repositories. If exposed, revoke it and issue a replacement. Customers approve their own payments in their wallets; your server never needs their secret keys.
 
 ## Run the starter in preparation mode
+
+**For the supplied starter, install Node.js 22, pnpm 10 and Git.** Run `pnpm install` to install the starter's application dependencies. These development tools are needed only from this section onward; the wallet, flow and hosted-payment steps use your browser and Freighter.
 
 Use the [Paiflow hackathon starter](https://github.com/artisam-paiflow/paiflow-hackathon-starter). Run these commands in a terminal:
 
