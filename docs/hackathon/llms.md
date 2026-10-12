@@ -29,6 +29,8 @@ This guide explains how to build with Paiflow. Early deployment, app integration
 
 ## Preparation and starter modes
 
+For the supplied starter, use **Node.js 22** (`>=22 <23`) and **pnpm 10.4.1**, as declared in its `package.json`. Follow the [Paiflow Guide setup instructions](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/paiflow-guide.md#run-the-starter-in-preparation-mode) to install/select Node and install pnpm using npm. Install pnpm with `npm install --global pnpm@10.4.1`; verify `node --version` starts with `v22.` and `pnpm --version` prints `10.4.1` before installing dependencies. Keep the starter's `packageManager` pin unchanged.
+
 - Choose a problem, research users and sketch your app according to your event's preparation rules.
 - Build your app before the event, including its payment integration. Use onboarding to resolve setup questions and rehearse your flow.
 - Flow deployment, Paiflow API integration, test payments and the live feed may be used before the event. Ask organisers for your team credentials in advance; configure team mode when your confirmed deployment and token are ready.
