@@ -136,19 +136,18 @@ node --version
 
 Check that the output starts with `v22.`; use `nvm use 22` in each new terminal. On Windows, select **22.x** in the [official Node.js downloads](https://nodejs.org/en/download), install it, reopen your terminal and check `node --version`.
 
-### Clone the starter and enable pnpm through Corepack
+### Clone the starter and install pnpm using npm
 
-[Corepack](https://github.com/nodejs/corepack#readme) uses the pnpm version pinned in the starter's `package.json`:
+Install the pinned pnpm version with npm, which comes with Node.js:
 
 ```bash
 git clone https://github.com/artisam-paiflow/paiflow-hackathon-starter.git
 cd paiflow-hackathon-starter
-corepack enable pnpm
-corepack install --global pnpm@10.4.1
+npm install --global pnpm@10.4.1
 pnpm --version
 ```
 
-Check that pnpm prints `10.4.1`. If `corepack` is missing or reports a signing-key error, run `npm install --global corepack@latest`, then repeat the Corepack commands above. Downloads need an internet connection.
+Check that pnpm prints `10.4.1`. If it is already installed at that version, skip installation. Downloads need an internet connection.
 
 ### Install dependencies and start the app
 
@@ -225,8 +224,7 @@ For subscriptions, schedules, escrow, webhooks or changing recipients per paymen
 | Symptom                                   | What to check                                                                                               |
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | Wrong Node version or unsupported engine | Run `node --version`; select Node 22, reopen your terminal and retry `pnpm install`                         |
-| `corepack` missing or signing-key error   | Run `npm install --global corepack@latest`, then repeat the Corepack setup above                            |
-| `pnpm` missing or wrong version          | Run the Corepack setup inside the starter directory; verify `pnpm --version` prints `10.4.1`                |
+| `pnpm` missing or wrong version          | Run `npm install --global pnpm@10.4.1`; verify `pnpm --version` prints `10.4.1`                |
 | Freighter missing or not connecting       | Install/unlock it in this browser; approve this site's access; check the active account and Testnet network |
 | No payment controls or `PREPARATION_MODE` | Set server-only `PAIFLOW_MODE=team` when permitted; restart the app                                         |
 | Configuration error, `401` or `404`       | Check the origin, confirmed deployment UUID and active token belonging to that deployment                   |

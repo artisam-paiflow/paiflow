@@ -151,9 +151,8 @@ Install Node.js **22.22.2 or newer in the 22.x line** (`>=22.22.2 <23`). On macO
 git clone https://github.com/webnxt-2030/pinkraft.git
 cd pinkraft
 
-# 2. Enable the pinned pnpm version and install dependencies
-corepack enable pnpm
-corepack install --global pnpm@10.4.1
+# 2. Install the pinned pnpm version and dependencies
+npm install --global pnpm@10.4.1
 pnpm --version # Expected: 10.4.1
 pnpm install
 
@@ -233,10 +232,10 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 
 ### Prerequisites
 
-Corepack manages the pnpm version pinned in `package.json`. If it is missing or reports a signing-key error, run `npm install --global corepack@latest`, then repeat the Corepack commands above. Downloads need an internet connection. With nvm, run `nvm use 22` in each new terminal.
+Downloads need an internet connection. With nvm, run `nvm use 22` in each new terminal.
 
 - Node `>=22.22.2 <23` — use the latest Node 22 patch; see the installation steps above
-- pnpm `10.4.1` — `corepack enable pnpm`, then `corepack install --global pnpm@10.4.1`; verify with `pnpm --version`
+- pnpm `10.4.1` — `npm install --global pnpm@10.4.1`; verify with `pnpm --version`
 - Docker (for Postgres / Redis / MinIO)
 - _(Optional)_ A [Resend](https://resend.com) account for outbound transactional email (password reset). When unset, emails are logged to the dev console.
 - _(Optional)_ A [Groq](https://groq.com) API key for raft-log voice input + AI features. When unset, those features degrade gracefully.

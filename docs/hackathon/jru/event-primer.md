@@ -106,7 +106,7 @@ Use the [starter](https://github.com/artisam-paiflow/paiflow-hackathon-starter),
 
 ### What to prepare and bring
 
-Install **Node.js 22, pnpm 10.4.1 through Corepack, Git and Freighter**. Follow the Paiflow Guide linked above for setup and version checks. Have a GitHub account. Run `pnpm install` in the starter to install its app dependencies. Prepare funded testnet wallets; USDC needs its exact trustline and separate funding. Friendbot supplies XLM only.
+Install **Node.js 22, pnpm 10.4.1 using npm, Git and Freighter**. Follow the Paiflow Guide linked above for setup and version checks. Have a GitHub account. Run `pnpm install` in the starter to install its app dependencies. Prepare funded testnet wallets; USDC needs its exact trustline and separate funding. Friendbot supplies XLM only.
 
 **Bring your own internet connection**, such as mobile data or a hotspot. Wallet and funding support will be available on site, with fallback wallets as a last resort. Organisers retain their keys; never use them for real funds or import them into a wallet used for real money.
 

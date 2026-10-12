@@ -151,7 +151,7 @@ Choose your idea now. Build and integrate before the event; use October 14 to fi
 - [ ] Register through the [Google Form](https://forms.gle/eTabEoJMh9zfYNLD6) by October 11, 2026, 12:59 PM
 - [ ] Attend onboarding on October 12, 2026, 9:00 PM; the meeting link will be provided through blockhub.academy or through the student organisation representatives. Share the instructions with your team
 - [ ] Install [Freighter](https://www.freighter.app/) on at least one team laptop and set it to testnet
-- [ ] Install Node.js 22, pnpm 10.4.1 through Corepack, and Git; follow the [Paiflow Guide setup instructions](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing). Have a GitHub account
+- [ ] Install Node.js 22, pnpm 10.4.1 using npm, and Git; follow the [Paiflow Guide setup instructions](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing). Have a GitHub account
 - [ ] Arrange your own internet connection for the event (for example, mobile data or a personal hotspot)
 - [ ] Pick an idea
 
