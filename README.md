@@ -14,7 +14,7 @@ Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a
 
 [`Live App`](https://paiflow.xyz) — Stellar **testnet**; no account needed, use _Try the sandbox_ on the login page
 
-For wallet setup, flow deployment and the ready-wired starter, follow the [Paiflow Guide](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing). To integrate your own app without the starter, use the [API quickstart](https://drive.google.com/file/d/1mTFaoICZwW2Ha3OttgJkp2q50o2H5siJ/view?usp=sharing). See the [full API reference](docs/api/README.md) for endpoint details and the [documentation sync map](docs/hackathon/README.md) for related resources. These guides are event-neutral.
+For wallet setup, flow deployment and the ready-wired starter, follow the [Paiflow Guide](docs/hackathon/paiflow-guide.md). To integrate your own app without the starter, use the [API quickstart](docs/hackathon/developer-api-quickstart.md). See the [full API reference](docs/api/README.md) for endpoint details and the [documentation sync map](docs/hackathon/README.md) for related resources. These guides are event-neutral. PDF copies are available on Drive: [Paiflow Guide](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing) and [API quickstart](https://drive.google.com/file/d/1mTFaoICZwW2Ha3OttgJkp2q50o2H5siJ/view?usp=sharing).
 
 [`Survey Responses`](https://docs.google.com/spreadsheets/d/1qpaEZPdl_vHMjrSe1Ld6OEMmiliarMKl-i4zdRtLIJQ/edit?usp=sharing) — view aggregated feedback
 

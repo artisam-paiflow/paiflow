@@ -1,15 +1,23 @@
 # Paiflow developer context guide
 
-Shared technical guidance updated Oct 11, 2026. API and product details checked against pinkraft `staging` @ b945e6a. Testnet only.
+Shared technical guidance updated Oct 12, 2026. API and product details checked against pinkraft `staging` @ b945e6a. Testnet only.
 
 ## Choose the right resource
 
 | Resource                                                                                                             | Purpose                                                                                                                    |
 | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| [Paiflow Guide](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing)         | Wallet setup, building and deploying a flow, and configuring the ready-wired starter.                                      |
-| [API quickstart](https://drive.google.com/file/d/1mTFaoICZwW2Ha3OttgJkp2q50o2H5siJ/view?usp=sharing) | A separate Next.js frontend/backend example for an app built without the starter. Do not copy its routes into the starter. |
+| [Paiflow Guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/paiflow-guide.md)         | Wallet setup, building and deploying a flow, and configuring the ready-wired starter.                                      |
+| [API quickstart](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-api-quickstart.md) | A separate Next.js frontend/backend example for an app built without the starter. Do not copy its routes into the starter. |
 | [Full API reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md)                     | Endpoint schemas, errors, limits, pagination and advanced workflows.                                                       |
+| [OpenAPI JSON](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json) | Machine-readable endpoint schemas for integration tools. |
+| [Postman collection](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) | Runnable API requests for your configured deployment. |
+| [Starter configuration](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/.env.example) | Server-only mode, platform origin, deployment UUID and token settings. |
+| [Starter agent instructions](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/AGENTS.md) | Coding boundaries, event scope and verification commands. |
+| [Starter package manifest](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/package.json) | Node.js range, package manager, dependencies and scripts. |
+| [Starter server client](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/lib/paiflow.ts) | Current implementation of mode guards and Paiflow API calls. |
 | This `llms.md`                                                                                                       | Product constraints, API details and examples for AI-assisted development. It complements the human walkthroughs.          |
+
+Use the Markdown sources above when supplying references to an AI assistant. Participant-facing PDFs are presentation copies; keep them aligned with these sources.
 
 Both human guides live directly in `docs/hackathon/` and are event-neutral. Their PDFs mirror their Markdown sources. Event rules belong in the participant brief. `PAIFLOW_MODE` is a starter/sample control, not a Paiflow API setting; the API quickstart does not use it.
 
