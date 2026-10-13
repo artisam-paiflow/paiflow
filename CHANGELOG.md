@@ -7,6 +7,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Unreleased standalone Node SDK package scaffold with ESM declarations and clean-consumer artifact validation ([#955](https://github.com/webnxt-2030/pinkraft/issues/955)).
+
 - Proposed Node SDK contract and existing-deployment API coverage ([#954](https://github.com/webnxt-2030/pinkraft/issues/954)); no package published yet.
 
 - App, API, and future SDK release policy, with contributor and agent guidance.

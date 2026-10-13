@@ -60,7 +60,10 @@
     "db:seed:all-events": "tsx scripts/seed-all-events.ts",
     "docker:up": "docker compose --profile full up -d",
     "docker:down": "docker compose down -v",
-    "prepare": "husky || true"
+    "prepare": "husky || true",
+    "sdk:build": "pnpm --dir packages/sdk run build",
+    "sdk:typecheck": "pnpm --dir packages/sdk run typecheck",
+    "sdk:test:package": "pnpm --dir packages/sdk run test:package"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",
