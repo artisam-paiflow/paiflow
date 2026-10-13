@@ -7,6 +7,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Typed Node SDK deployment reads, bounded event pagination, public utilities,
+  hosted URL helpers and public embed snapshot SSE (#957).
+
 - Add the unreleased SDK HTTP foundation: isolated authentication, response metadata,
   typed errors and cancellation/timeouts (#956).
 
