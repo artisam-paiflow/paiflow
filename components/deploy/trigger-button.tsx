@@ -610,7 +610,12 @@ export function TriggerButton({
     const raw = sessionStorage.getItem("paiflow_pending_wc");
     if (!raw) return;
     try {
-      const data = JSON.parse(raw) as { network: string; timestamp: number; walletId?: string };
+      const data = JSON.parse(raw) as {
+        network: string;
+        timestamp: number;
+        walletId?: string;
+        pairingTopic?: string;
+      };
       if (Date.now() - data.timestamp > 120_000) {
         sessionStorage.removeItem("paiflow_pending_wc");
         return;
@@ -624,16 +629,35 @@ export function TriggerButton({
         .then(async ({ kit, module: walletConnectModule, client }) => {
           if (!walletConnectModule) throw new Error(WALLET_CONNECT_UNCONFIGURED);
           kit.setWallet("wallet_connect");
-          const [topic] = usableSessionTopics(client, {
-            chain: stellarChainId(network),
-            preferWalletId: data.walletId,
-          });
+          // New pending attempts identify their exact pairing. An older saved
+          // connection must not replace the one just approved after a reload.
+          const [topic] = data.pairingTopic
+            ? (client?.session.values ?? [])
+                .filter(
+                  (session) =>
+                    session.pairingTopic === data.pairingTopic &&
+                    isLiveSession(session) &&
+                    sessionHasChain(session, stellarChainId(network)),
+                )
+                .map((session) => session.topic)
+            : usableSessionTopics(client, {
+                chain: stellarChainId(network),
+                preferWalletId: data.walletId,
+              });
           if (!topic) {
             throw new Error("No session found after returning from wallet");
           }
           walletConnectModule.setSession(topic);
           sessionStorage.removeItem("paiflow_pending_wc");
           const { address } = await kit.getAddress();
+          if (data.pairingTopic && data.walletId && client) {
+            const remembered = approvedMobileSession(
+              { topic, address, walletId: data.walletId },
+              client.session.values,
+              network,
+            );
+            if (remembered) rememberMobileSession(remembered);
+          }
           toast.success(`Connected: ${address.slice(0, 6)}...${address.slice(-4)}`);
           await submitTrigger(address, kit, () => setShowOpenWallet(true));
         })
@@ -743,7 +767,12 @@ export function TriggerButton({
     setBusy(true);
     sessionStorage.setItem(
       "paiflow_pending_wc",
-      JSON.stringify({ network, timestamp: Date.now(), walletId }),
+      JSON.stringify({
+        network,
+        timestamp: Date.now(),
+        walletId,
+        pairingTopic: /^wc:([^@]+)@2\?/u.exec(pairing.uri)?.[1],
+      }),
     );
     window.open(mobileWalletLink(walletId, pairing.uri)!, "_self", "noreferrer noopener");
     void completeMobileConnect({ pairing });

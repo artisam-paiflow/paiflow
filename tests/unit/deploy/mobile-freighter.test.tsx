@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   request: vi.fn(),
   sessions: [] as {
     topic: string;
+    pairingTopic?: string;
     expiry: number;
     namespaces: { stellar: { accounts: string[]; methods: string[] } };
   }[],
@@ -211,4 +212,61 @@ describe("mobile Freighter deposit", () => {
       expect(fetchMock).toHaveBeenCalledTimes(outcome === "approve" ? 2 : 1);
     },
   );
+
+  it("remembers the exact newly approved pairing after reload instead of the older saved wallet", async () => {
+    const address = `G${"A".repeat(55)}`;
+    const oldAddress = `G${"B".repeat(55)}`;
+    const old = { topic: "old-topic", walletId: "lobstr", address: oldAddress };
+    localStorage.setItem("paiflow_mobile_wallet:testnet", JSON.stringify(old));
+    for (const [topic, pairingTopic, account] of [
+      [old.topic, "old-pairing", oldAddress],
+      ["resumed-topic", "new-pairing", address],
+    ])
+      mocks.sessions.push({
+        topic: topic!,
+        pairingTopic,
+        expiry: Math.floor(Date.now() / 1000) + 3600,
+        namespaces: {
+          stellar: { accounts: [`stellar:testnet:${account}`], methods: ["stellar_signXDR"] },
+        },
+      });
+    sessionStorage.setItem(
+      "paiflow_pending_wc",
+      JSON.stringify({
+        network: "testnet",
+        timestamp: Date.now(),
+        walletId: "freighter",
+        pairingTopic: "new-pairing",
+      }),
+    );
+    mocks.sign.mockResolvedValue({ signedTxXdr: "signed" });
+    mocks.poll.mockResolvedValue({ status: "SUCCESS" });
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ data: { xdr: "unsigned", networkPassphrase: "testnet" } }),
+        })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { txHash: "hash" } }) }),
+    );
+    await act(async () => {
+      render(
+        <TriggerButton deploymentId="deposit-id" network="testnet" amount="10000000" isDeposit />,
+      );
+    });
+    expect(mocks.setSession).toHaveBeenCalledWith("resumed-topic");
+    expect(JSON.parse(localStorage.getItem("paiflow_mobile_wallet:testnet")!)).toEqual({
+      topic: "resumed-topic",
+      walletId: "freighter",
+      address,
+    });
+    expect(sessionStorage.getItem("paiflow_pending_wc")).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /connect wallet & deposit/i }));
+    });
+    expect(screen.getByRole("button", { name: /send with GAAAAA…AAAA/i })).toBeTruthy();
+    expect(mocks.connect).not.toHaveBeenCalled();
+  });
 });
