@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { sorobanRpc } from "@/lib/stellar/client";
-import { createTriggerReceipt } from "@/lib/stellar/trigger-receipt";
 import { StrKey } from "@stellar/stellar-sdk";
 import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
@@ -54,15 +52,6 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const hint = await buildPipelineErrorHint(pipeline);
 
-    // Captured before exposing the envelope; expiry proof needs complete history
-    // from before any possible submission of this hash.
-    const { sequence: preparationLedger } = await sorobanRpc().getLatestLedger();
-    if (
-      !Number.isInteger(preparationLedger) ||
-      preparationLedger <= 0 ||
-      preparationLedger > 0xffff_ffff
-    )
-      throw new AppError("UPSTREAM_RPC", "Cannot establish payment preparation ledger");
     let xdr: string;
     if (isWebhook) {
       const result = await prepareWebhookDepositTx({
@@ -95,16 +84,12 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
       xdr = result.xdr;
     }
 
-    return NextResponse.json(
-      {
-        data: {
-          xdr,
-          ...createTriggerReceipt(xdr, id, preparationLedger),
-          networkPassphrase: stellarPassphrase(),
-        },
+    return NextResponse.json({
+      data: {
+        xdr,
+        networkPassphrase: stellarPassphrase(),
       },
-      { headers: { "Cache-Control": "no-store" } },
-    );
+    });
   });
 }
 

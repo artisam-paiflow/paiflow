@@ -1,10 +1,8 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Account, Keypair, Networks, Operation, TransactionBuilder } from "@stellar/stellar-sdk";
 import { TriggerButton } from "@/components/deploy/trigger-button";
 
 const mocks = vi.hoisted(() => ({
-  address: "",
   connect: vi.fn(),
   setSession: vi.fn(),
   sign: vi.fn(),
@@ -42,79 +40,18 @@ vi.mock("@creit.tech/stellar-wallets-kit/modules/walletconnect.module", () => ({
 }));
 vi.mock("@creit.tech/stellar-wallets-kit", () => ({
   StellarWalletsKit: class {
-    getAddress = async () => ({ address: mocks.address });
+    getAddress = async () => ({ address: `G${"A".repeat(55)}` });
     signTransaction = mocks.sign;
     setWallet() {}
   },
   FreighterModule: class {},
-  WalletNetwork: {
-    TESTNET: "Test SDF Network ; September 2015",
-    PUBLIC: "Public Global Stellar Network ; September 2015",
-  },
+  WalletNetwork: { TESTNET: "testnet", PUBLIC: "mainnet" },
 }));
 
-let unsigned: string;
-let signed: string;
-let wrongSigned: string;
-let hash: string;
-let originalLocks: PropertyDescriptor | undefined;
-const pendingAtSubmit: (string | null)[] = [];
-const pendingKey = "paiflow_trigger_pending:deposit-id:testnet";
-const receipt = "scoped.preparation.receipt";
-function preparation(networkPassphrase = Networks.TESTNET) {
-  return {
-    ok: true,
-    json: async () => ({ data: { xdr: unsigned, networkPassphrase, txHash: hash, receipt } }),
-  };
-}
-function submitted() {
-  // The original hash and receipt must be durable before sending the envelope.
-  pendingAtSubmit.push(localStorage.getItem(pendingKey));
-  return { ok: true, json: async () => ({ data: { txHash: hash } }) };
-}
-
 describe("mobile Freighter deposit", () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
-    pendingAtSubmit.length = 0;
-    originalLocks = Object.getOwnPropertyDescriptor(navigator, "locks");
-    vi.stubGlobal("Uint8Array", Object.getPrototypeOf(Buffer.prototype).constructor);
-    const signer = Keypair.fromRawEd25519Seed(Buffer.alloc(32, 1));
-    mocks.address = signer.publicKey();
-    const transaction = new TransactionBuilder(new Account(signer.publicKey(), "1"), {
-      fee: "100",
-      networkPassphrase: Networks.TESTNET,
-    })
-      .addOperation(Operation.manageData({ name: "mobile-regression", value: "payment" }))
-      .setTimeout(300)
-      .build();
-    unsigned = transaction.toXDR();
-    hash = transaction.hash().toString("hex");
-    transaction.sign(signer);
-    signed = transaction.toXDR();
-    const different = new TransactionBuilder(new Account(signer.publicKey(), "2"), {
-      fee: "100",
-      networkPassphrase: Networks.TESTNET,
-    })
-      .addOperation(Operation.manageData({ name: "mobile-regression", value: "different" }))
-      .setTimeout(300)
-      .build();
-    different.sign(signer);
-    wrongSigned = different.toXDR();
-    Object.defineProperty(navigator, "locks", {
-      configurable: true,
-      value: {
-        request: async (_key: string, _options: unknown, action: (lock: object) => Promise<void>) =>
-          action({}),
-      },
-    });
-    // Settle lazy SDK imports under the registered mocks before prewarming.
-    await Promise.all([
-      import("@walletconnect/sign-client"),
-      import("@walletconnect/modal"),
-      import("@creit.tech/stellar-wallets-kit"),
-      import("@creit.tech/stellar-wallets-kit/modules/walletconnect.module"),
-    ]);
+    vi.useFakeTimers();
     vi.stubEnv("NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID", "test-project");
     vi.stubGlobal("matchMedia", () => ({ matches: true }));
     sessionStorage.clear();
@@ -123,8 +60,8 @@ describe("mobile Freighter deposit", () => {
   });
 
   afterEach(() => {
-    if (originalLocks) Object.defineProperty(navigator, "locks", originalLocks);
-    else Reflect.deleteProperty(navigator, "locks");
+    vi.clearAllTimers();
+    vi.useRealTimers();
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -151,8 +88,14 @@ describe("mobile Freighter deposit", () => {
       mocks.poll.mockResolvedValue({ status: "SUCCESS" });
       const fetchMock = vi
         .fn()
-        .mockResolvedValueOnce(preparation())
-        .mockImplementationOnce(submitted);
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ data: { xdr: "unsigned", networkPassphrase: "server-network" } }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ data: { txHash: "test-hash" } }),
+        });
       vi.stubGlobal("fetch", fetchMock);
       const open = vi.spyOn(window, "open").mockReturnValue(null);
 
@@ -162,11 +105,6 @@ describe("mobile Freighter deposit", () => {
         );
       });
       fireEvent.click(screen.getByRole("button", { name: /connect wallet & deposit/i }));
-      await waitFor(() =>
-        expect(
-          (screen.getByRole("button", { name: "Freighter" }) as HTMLButtonElement).disabled,
-        ).toBe(false),
-      );
       fireEvent.click(screen.getByRole("button", { name: "Freighter" }));
       expect(open).toHaveBeenCalledWith(
         `freighterwallet://wc-redirect/wc?uri=${encodeURIComponent(uri)}`,
@@ -179,136 +117,113 @@ describe("mobile Freighter deposit", () => {
         approveConnection({ topic: "approved-topic" });
       });
       expect(mocks.setSession).toHaveBeenCalledWith("approved-topic");
-      expect(mocks.sign).toHaveBeenCalledWith(unsigned, {
-        address: mocks.address,
-        networkPassphrase: Networks.TESTNET,
+      expect(mocks.sign).toHaveBeenCalledWith("unsigned", {
+        address: `G${"A".repeat(55)}`,
+        networkPassphrase: "server-network",
       });
       expect(fetchMock).toHaveBeenCalledOnce();
       fireEvent.click(screen.getByRole("button", { name: /open freighter to sign/i }));
       expect(open).toHaveBeenLastCalledWith("freighterwallet://wc-redirect", "_self");
 
       await act(async () => {
-        if (decision === "approve") approveSignature({ signedTxXdr: signed });
+        if (decision === "approve") approveSignature({ signedTxXdr: "signed" });
         else rejectSignature(new Error("User rejected the request"));
       });
       if (decision === "approve") {
         expect(fetchMock).toHaveBeenCalledTimes(2);
         expect(fetchMock).toHaveBeenLastCalledWith(
           "/api/deployments/deposit-id/submit-trigger",
-          expect.objectContaining({ body: JSON.stringify({ signedXdr: signed }) }),
+          expect.objectContaining({ body: JSON.stringify({ signedXdr: "signed" }) }),
         );
-        // Assert outside the transport mock: lost-response handling catches fetch errors.
-        expect(pendingAtSubmit).toEqual([JSON.stringify({ txHash: hash, receipt })]);
-        expect(mocks.poll).toHaveBeenCalledWith(
-          "deposit-id",
-          hash,
-          expect.any(AbortSignal),
-          `/api/deployments/deposit-id/tx-status?txHash=${hash}&receipt=${encodeURIComponent(receipt)}`,
-        );
+        expect(mocks.poll).toHaveBeenCalled();
       } else {
         expect(fetchMock).toHaveBeenCalledOnce();
         expect(mocks.poll).not.toHaveBeenCalled();
-        expect(localStorage.getItem(pendingKey)).toBeNull();
       }
     },
   );
 
-  it.each([
-    "approve",
-    "reject",
-    "network mismatch",
-    "missing signature",
-    "disconnect",
-    "changed transaction",
-  ] as const)("reuses only the approved topic: %s", async (outcome) => {
-    const address = mocks.address;
-    const session = { topic: "approved-topic", walletId: "freighter", address };
-    localStorage.setItem("paiflow_mobile_wallet:testnet", JSON.stringify(session));
-    // An older topic with the same account must never shadow the approved one.
-    for (const topic of ["older-topic", session.topic])
-      mocks.sessions.push({
-        topic,
-        expiry: Math.floor(Date.now() / 1000) + 3600,
-        namespaces: {
-          stellar: { accounts: [`stellar:testnet:${address}`], methods: ["stellar_signXDR"] },
-        },
+  it.each(["approve", "reject", "network mismatch", "missing signature", "disconnect"] as const)(
+    "reuses only the approved topic: %s",
+    async (outcome) => {
+      const address = `G${"A".repeat(55)}`;
+      const session = { topic: "approved-topic", walletId: "freighter", address };
+      localStorage.setItem("paiflow_mobile_wallet:testnet", JSON.stringify(session));
+      // An older topic with the same account must never shadow the approved one.
+      for (const topic of ["older-topic", session.topic])
+        mocks.sessions.push({
+          topic,
+          expiry: Math.floor(Date.now() / 1000) + 3600,
+          namespaces: {
+            stellar: { accounts: [`stellar:testnet:${address}`], methods: ["stellar_signXDR"] },
+          },
+        });
+      if (outcome === "reject")
+        mocks.request.mockRejectedValue(new Error("User rejected the request"));
+      else
+        mocks.request.mockResolvedValue(
+          outcome === "missing signature" ? {} : { signedXDR: "signed" },
+        );
+      mocks.poll.mockResolvedValue({ status: "SUCCESS" });
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: {
+              xdr: "unsigned",
+              networkPassphrase: outcome === "network mismatch" ? "mainnet" : "testnet",
+            },
+          }),
+        })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { txHash: "hash" } }) });
+      vi.stubGlobal("fetch", fetchMock);
+      const open = vi.spyOn(window, "open").mockReturnValue(null);
+      await act(async () => {
+        render(
+          <TriggerButton deploymentId="deposit-id" network="testnet" amount="10000000" isDeposit />,
+        );
       });
-    if (outcome === "reject")
-      mocks.request.mockRejectedValue(new Error("User rejected the request"));
-    else
-      mocks.request.mockResolvedValue(
-        outcome === "missing signature"
-          ? {}
-          : { signedXDR: outcome === "changed transaction" ? wrongSigned : signed },
-      );
-    mocks.poll.mockResolvedValue({ status: "SUCCESS" });
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        preparation(outcome === "network mismatch" ? Networks.PUBLIC : Networks.TESTNET),
-      )
-      .mockImplementationOnce(submitted);
-    vi.stubGlobal("fetch", fetchMock);
-    const open = vi.spyOn(window, "open").mockReturnValue(null);
-    await act(async () => {
-      render(
-        <TriggerButton deploymentId="deposit-id" network="testnet" amount="10000000" isDeposit />,
-      );
-    });
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /connect wallet & deposit/i }));
-    });
-    expect(screen.getByRole("button", { name: /send with G.+…/i }).title).toBe(address);
-    expect(fetchMock).not.toHaveBeenCalled();
-    if (outcome === "disconnect") mocks.sessions.splice(1, 1);
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /send with G.+…/i }));
-      // The native link must open before an async boundary loses Chrome's
-      // user activation, without waiting for preparation or signing.
-      expect(open).toHaveBeenCalledTimes(outcome === "disconnect" ? 0 : 1);
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /connect wallet & deposit/i }));
+      });
+      expect(screen.getByRole("button", { name: /send with GAAAAA…AAAA/i }).title).toBe(address);
       expect(fetchMock).not.toHaveBeenCalled();
-    });
-    if (outcome === "disconnect") {
-      expect(open).not.toHaveBeenCalled();
-      expect(mocks.request).not.toHaveBeenCalled();
-      expect(fetchMock).not.toHaveBeenCalled();
-      expect(screen.getByRole("button", { name: "Freighter" })).toBeTruthy();
-      return;
-    }
-    expect(open).toHaveBeenCalledOnce();
-    expect(open).toHaveBeenCalledWith("freighterwallet://wc-redirect", "_self");
-    expect(mocks.connect).not.toHaveBeenCalled();
-    if (outcome === "network mismatch") {
-      expect(mocks.request).not.toHaveBeenCalled();
-      expect(fetchMock).toHaveBeenCalledOnce();
-      expect(mocks.poll).not.toHaveBeenCalled();
-      expect(pendingAtSubmit).toEqual([]);
-      expect(localStorage.getItem(pendingKey)).toBeNull();
-      return;
-    }
-    expect(mocks.request).toHaveBeenCalledWith({
-      topic: session.topic,
-      chainId: "stellar:testnet",
-      request: { method: "stellar_signXDR", params: { xdr: unsigned } },
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(outcome === "approve" ? 2 : 1);
-    if (outcome === "approve") {
-      expect(pendingAtSubmit).toEqual([JSON.stringify({ txHash: hash, receipt })]);
-      expect(mocks.poll).toHaveBeenCalledWith(
-        "deposit-id",
-        hash,
-        expect.any(AbortSignal),
-        `/api/deployments/deposit-id/tx-status?txHash=${hash}&receipt=${encodeURIComponent(receipt)}`,
-      );
-    } else {
-      expect(mocks.poll).not.toHaveBeenCalled();
-      expect(localStorage.getItem(pendingKey)).toBeNull();
-    }
-  });
+      if (outcome === "disconnect") mocks.sessions.splice(1, 1);
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /send with GAAAAA…AAAA/i }));
+        // The native link must open before an async boundary loses Chrome's
+        // user activation, without waiting for preparation or signing.
+        expect(open).toHaveBeenCalledTimes(outcome === "disconnect" ? 0 : 1);
+        expect(fetchMock).not.toHaveBeenCalled();
+      });
+      if (outcome === "disconnect") {
+        expect(open).not.toHaveBeenCalled();
+        expect(mocks.request).not.toHaveBeenCalled();
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(screen.getByRole("button", { name: "Freighter" })).toBeTruthy();
+        return;
+      }
+      expect(open).toHaveBeenCalledOnce();
+      expect(open).toHaveBeenCalledWith("freighterwallet://wc-redirect", "_self");
+      expect(mocks.connect).not.toHaveBeenCalled();
+      if (outcome === "network mismatch") {
+        expect(mocks.request).not.toHaveBeenCalled();
+        expect(fetchMock).toHaveBeenCalledOnce();
+        return;
+      }
+      expect(mocks.request).toHaveBeenCalledWith({
+        topic: session.topic,
+        chainId: "stellar:testnet",
+        request: { method: "stellar_signXDR", params: { xdr: "unsigned" } },
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(outcome === "approve" ? 2 : 1);
+    },
+  );
 
   it("remembers the exact newly approved pairing after reload instead of the older saved wallet", async () => {
-    const address = mocks.address;
-    const oldAddress = Keypair.fromRawEd25519Seed(Buffer.alloc(32, 2)).publicKey();
+    const address = `G${"A".repeat(55)}`;
+    const oldAddress = `G${"B".repeat(55)}`;
     const old = { topic: "old-topic", walletId: "lobstr", address: oldAddress };
     localStorage.setItem("paiflow_mobile_wallet:testnet", JSON.stringify(old));
     for (const [topic, pairingTopic, account] of [
@@ -332,11 +247,17 @@ describe("mobile Freighter deposit", () => {
         pairingTopic: "new-pairing",
       }),
     );
-    mocks.sign.mockResolvedValue({ signedTxXdr: signed });
+    mocks.sign.mockResolvedValue({ signedTxXdr: "signed" });
     mocks.poll.mockResolvedValue({ status: "SUCCESS" });
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValueOnce(preparation()).mockImplementationOnce(submitted),
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ data: { xdr: "unsigned", networkPassphrase: "testnet" } }),
+        })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { txHash: "hash" } }) }),
     );
     await act(async () => {
       render(
@@ -353,7 +274,7 @@ describe("mobile Freighter deposit", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /connect wallet & deposit/i }));
     });
-    expect(screen.getByRole("button", { name: /send with G.+…/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /send with GAAAAA…AAAA/i })).toBeTruthy();
     expect(mocks.connect).not.toHaveBeenCalled();
   });
 });

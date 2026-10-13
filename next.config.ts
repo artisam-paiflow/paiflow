@@ -1,9 +1,9 @@
 import type { NextConfig } from "next";
-import { LANTERN_PUBLIC_ROUTE_PATTERN } from "./lib/csp";
 
 const SECURITY_HEADERS = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "X-Frame-Options", value: "DENY" },
   {
     key: "Strict-Transport-Security",
     value: "max-age=63072000; includeSubDomains; preload",
@@ -54,13 +54,6 @@ const nextConfig: NextConfig = {
       {
         source: "/:path*",
         headers: SECURITY_HEADERS,
-      },
-      {
-        // Keep DENY on every other route, including assets outside middleware.
-        // Public payment pages use middleware's exact CSP ancestor allowlist;
-        // an X-Frame-Options DENY here would conflict with that permission.
-        source: `/:path((?!${LANTERN_PUBLIC_ROUTE_PATTERN}$).*)`,
-        headers: [{ key: "X-Frame-Options", value: "DENY" }],
       },
     ];
   },

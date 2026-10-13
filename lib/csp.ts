@@ -3,22 +3,6 @@
  * Node-only APIs — everything here uses Web Crypto.
  */
 
-export const LANTERN_PARENT_ORIGINS = [
-  "https://android.golantern.xyz",
-  "chrome-extension://iflpkjgolcbleombhldiibhojohjpnmd",
-] as const;
-
-// Shared with Next's static header rules. Deployment IDs are database UUIDs.
-// Invalid IDs (including image-like paths skipped by middleware) must retain
-// static DENY rather than lose both XFO and middleware's ancestor policy.
-export const LANTERN_PUBLIC_ROUTE_PATTERN =
-  "(?:trigger|allowance)/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
-const lanternPublicRoute = new RegExp(`^/${LANTERN_PUBLIC_ROUTE_PATTERN}$`);
-
-export function isLanternPublicRoute(pathname: string): boolean {
-  return lanternPublicRoute.test(pathname);
-}
-
 export function makeNonce(): string {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
@@ -34,7 +18,7 @@ export function makeNonce(): string {
  * - Stellar RPC over HTTPS
  * - WebAuthn (no extra origins required)
  */
-export function cspHeader(nonce: string, isDev: boolean, pathname = ""): string {
+export function cspHeader(nonce: string, isDev: boolean): string {
   const directives: Record<string, string[]> = {
     "default-src": ["'self'"],
     "script-src": [
@@ -71,7 +55,7 @@ export function cspHeader(nonce: string, isDev: boolean, pathname = ""): string 
     // on every page load; the pairing survives it, but the console fills with
     // violations and the origin never resolves as verified (#594).
     "frame-src": ["'self'", "https://verify.walletconnect.com", "https://verify.walletconnect.org"],
-    "frame-ancestors": isLanternPublicRoute(pathname) ? [...LANTERN_PARENT_ORIGINS] : ["'none'"],
+    "frame-ancestors": ["'none'"],
     "base-uri": ["'self'"],
     "form-action": ["'self'"],
     "object-src": ["'none'"],

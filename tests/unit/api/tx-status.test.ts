@@ -32,7 +32,7 @@ vi.mock("@/lib/analytics/outcomes", () => ({
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockRpc, mockDb, mockEnforceRateLimit, mockRedis, mockCapture } = vi.hoisted(() => ({
-  mockRpc: { getTransaction: vi.fn(), getLatestLedger: vi.fn(), getLedgers: vi.fn() },
+  mockRpc: { getTransaction: vi.fn() },
   mockDb: { deployment: { findUnique: vi.fn() }, signedTransaction: { findUnique: vi.fn() } },
   mockEnforceRateLimit: vi.fn(async (_opts: { key: string }) => undefined),
   mockRedis: { set: vi.fn(), del: vi.fn(), expire: vi.fn() },
@@ -370,73 +370,5 @@ describe("GET /api/deployments/[id]/tx-status", () => {
       expect.objectContaining({ signer_address: SIGNER }),
       { personProfile: false },
     );
-  });
-});
-
-// Uses real signed receipts and the existing conservative expiry proof.
-import { Account, Keypair, Networks, Operation, TransactionBuilder } from "@stellar/stellar-sdk";
-import { createTriggerReceipt } from "@/lib/stellar/trigger-receipt";
-describe("receipt-backed public trigger expiry", () => {
-  const kp = Keypair.random();
-  const tx = new TransactionBuilder(new Account(kp.publicKey(), "1"), {
-    fee: "100",
-    networkPassphrase: Networks.TESTNET,
-  })
-    .addOperation(Operation.manageData({ name: "test", value: "1" }))
-    .setTimebounds(0, 100)
-    .build();
-  const prepared = createTriggerReceipt(tx.toXDR(), DEPLOYMENT_ID, 1000);
-  function receiptCall(receipt = prepared.receipt, txHash = prepared.txHash) {
-    return GET(
-      new Request(
-        `http://localhost/api/deployments/${DEPLOYMENT_ID}/tx-status?txHash=${txHash}&receipt=${encodeURIComponent(receipt)}`,
-      ) as unknown as import("next/server").NextRequest,
-      { params: Promise.resolve({ id: DEPLOYMENT_ID }) },
-    );
-  }
-  beforeEach(() => {
-    mockRpc.getTransaction.mockReset();
-    mockRpc.getLatestLedger.mockResolvedValue({ sequence: 1100 });
-    mockRpc.getLedgers.mockResolvedValue({ ledgers: [{ sequence: 1100, ledgerCloseTime: "200" }] });
-  });
-  it("releases only after fresh covered NOT_FOUND beyond maxTime", async () => {
-    mockRpc.getTransaction.mockResolvedValue({
-      status: "NOT_FOUND",
-      latestLedger: 1100,
-      oldestLedger: 900,
-      latestLedgerCloseTime: "200",
-      oldestLedgerCloseTime: "50",
-    });
-    const res = await receiptCall();
-    expect(res.status).toBe(200);
-    expect((await res.json()).data).toMatchObject({
-      status: "FAILED",
-      errorMessage: "Payment expired without confirmation",
-    });
-  });
-  it.each(["missing history", "stale lookup", "uncovered lookup"])(
-    "never unlocks %s",
-    async (scenario) => {
-      mockRpc.getTransaction.mockResolvedValue({
-        status: "NOT_FOUND",
-        ...(scenario === "missing history"
-          ? {}
-          : {
-              latestLedger: scenario === "stale lookup" ? 1050 : 1100,
-              oldestLedger: scenario === "uncovered lookup" ? 1001 : 900,
-              latestLedgerCloseTime: "200",
-              oldestLedgerCloseTime: "50",
-            }),
-      });
-      expect((await receiptCall()).status).toBe(502);
-    },
-  );
-  it("does not treat ordinary NOT_FOUND as expiry without a receipt", async () => {
-    mockRpc.getTransaction.mockResolvedValue({ status: "NOT_FOUND" });
-    expect((await (await call(prepared.txHash)).json()).data.status).toBe("PENDING");
-  });
-  it("rejects a swapped receipt/hash before querying the RPC", async () => {
-    expect((await receiptCall(prepared.receipt, "a".repeat(64))).status).toBe(422);
-    expect(mockRpc.getTransaction).not.toHaveBeenCalled();
   });
 });

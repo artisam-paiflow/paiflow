@@ -1,19 +1,10 @@
 "use client";
 
-import { useRef, useState, useEffect, useLayoutEffect } from "react";
-import {
-  clearPendingTrigger,
-  readPendingTrigger,
-  savePendingTrigger,
-  triggerPendingKey,
-  withTriggerLock,
-  type PendingTrigger,
-} from "@/lib/trigger-pending";
+import { useRef, useState, useEffect } from "react";
 import { toast } from "sonner";
 import { toastError } from "@/lib/friendly-toast";
-import { selectLanternWallet, trustedLanternOrigin, type LanternWallet } from "./lantern-wallet";
-import type { WalletConnectModal } from "@walletconnect/modal";
-import type { SignClient } from "@walletconnect/sign-client";
+import { WalletConnectModal } from "@walletconnect/modal";
+import { SignClient } from "@walletconnect/sign-client";
 import { usePollTxStatus } from "@/lib/hooks/use-poll-tx-status";
 import { apiError } from "@/lib/friendly-error";
 import { trackWalletConnection } from "@/lib/wallet-tracking";
@@ -33,8 +24,6 @@ import {
   WALLET_CONNECT_UNCONFIGURED,
   walletConnectProjectId,
 } from "./wallet-connect-config";
-
-type PaymentAttempt = { controller: AbortController; selected: boolean };
 
 type TriggerButtonProps = {
   deploymentId: string;
@@ -110,163 +99,6 @@ export function TriggerButton({
   disabled = false,
 }: TriggerButtonProps) {
   const [busy, setBusy] = useState(false);
-  const lanternRef = useRef<LanternWallet | null>(null);
-  const lanternFrameRef = useRef(false);
-  // Only public testnet payments opt in. Selection performs no bridge requests.
-  useLayoutEffect(() => {
-    lanternFrameRef.current = Boolean(trustedLanternOrigin());
-    const wallet =
-      network === "testnet" && (mode === "trigger" || templateKind !== "PAYROLL")
-        ? selectLanternWallet(network)
-        : null;
-    lanternRef.current = wallet;
-    return () => {
-      wallet?.disconnect();
-      if (lanternRef.current === wallet) lanternRef.current = null;
-    };
-  }, [deploymentId, network, mode, amount, templateKind, isDeposit]);
-  const clickInFlightRef = useRef(false);
-  const activeAttemptRef = useRef<PaymentAttempt | null>(null);
-  function beginAttempt(): PaymentAttempt {
-    activeAttemptRef.current?.controller.abort();
-    const attempt = { controller: new AbortController(), selected: false };
-    activeAttemptRef.current = attempt;
-    clickInFlightRef.current = true;
-    return attempt;
-  }
-  function isActiveAttempt(attempt: PaymentAttempt) {
-    return activeAttemptRef.current === attempt && !attempt.controller.signal.aborted;
-  }
-  function assertActiveAttempt(attempt: PaymentAttempt) {
-    if (!isActiveAttempt(attempt)) throw new Error("Payment cancelled before submission");
-  }
-  function finishAttempt(attempt: PaymentAttempt) {
-    if (activeAttemptRef.current !== attempt) return;
-    activeAttemptRef.current = null;
-    attempt.controller.abort();
-    clickInFlightRef.current = false;
-    setBusy(false);
-    setPendingWallet(null);
-    setShowPicker(false);
-    setShowOpenWallet(false);
-  }
-  // Invalidate before passive effects or a delayed wallet event can use the old
-  // payment intent. A submitted hash stays durable for later reconciliation.
-  useLayoutEffect(() => {
-    setBusy(false);
-    setShowPicker(false);
-    setShowOpenWallet(false);
-    setPendingWallet(null);
-    return () => {
-      activeAttemptRef.current?.controller.abort();
-      activeAttemptRef.current = null;
-      clickInFlightRef.current = false;
-    };
-  }, [deploymentId, network, mode, amount, templateKind, isDeposit]);
-  const isTrigger = mode === "trigger";
-  const pendingKey = triggerPendingKey(deploymentId, network);
-  const [pendingTrigger, setPendingTrigger] = useState<PendingTrigger | null>(null);
-  const [triggerMessage, setTriggerMessage] = useState<string | null>(null);
-  const [storageBlocked, setStorageBlocked] = useState(false);
-
-  function loadPendingTrigger() {
-    try {
-      const pending = readPendingTrigger(pendingKey);
-      setPendingTrigger(pending);
-      setStorageBlocked(false);
-      return pending;
-    } catch {
-      setStorageBlocked(true);
-      setTriggerMessage(
-        "Payment status storage is unavailable or invalid. Resolve it before paying again.",
-      );
-      throw new Error("Payment status storage is unavailable or invalid");
-    }
-  }
-  async function checkTriggerStatus(pending: PendingTrigger, signal?: AbortSignal) {
-    if (signal?.aborted) return null;
-    setTriggerMessage(`Checking payment ${pending.txHash}`);
-    try {
-      const result = await pollTxStatus(
-        deploymentId,
-        pending.txHash,
-        signal,
-        pending.receipt
-          ? `/api/deployments/${deploymentId}/tx-status?txHash=${pending.txHash}&receipt=${encodeURIComponent(pending.receipt)}`
-          : undefined,
-      );
-      if (signal?.aborted) return null;
-      // Only authoritative chain finality or receipt-backed expiry can release
-      // a payment. A missing RPC hash, HTTP error or timeout never can.
-      if (result.status !== "SUCCESS" && result.status !== "FAILED")
-        throw new Error("Unknown finality");
-      clearPendingTrigger(pendingKey, pending.txHash);
-      loadPendingTrigger();
-      setTriggerMessage(
-        result.status === "SUCCESS"
-          ? `Payment confirmed: ${pending.txHash}`
-          : `${result.errorMessage ?? "Payment failed on the network"}: ${pending.txHash}. You can try again.`,
-      );
-      if (result.status === "SUCCESS")
-        toast.success(isDeposit ? "Deposited!" : "Distribution triggered!");
-      return result;
-    } catch {
-      if (!signal?.aborted)
-        setTriggerMessage(
-          `Confirmation is still unknown for ${pending.txHash}. Check its status before paying again.`,
-        );
-      return null;
-    }
-  }
-  useEffect(() => {
-    setTriggerMessage(null);
-    setPendingTrigger(null);
-    setStorageBlocked(false);
-    setBusy(false);
-    if (!isTrigger) return;
-    const controller = new AbortController();
-    const refresh = () => {
-      try {
-        loadPendingTrigger();
-      } catch {
-        /* fail closed */
-      }
-    };
-    let pending: PendingTrigger | null = null;
-    try {
-      pending = loadPendingTrigger();
-    } catch {
-      /* fail closed */
-    }
-    if (pending) {
-      setBusy(true);
-      void checkTriggerStatus(pending, controller.signal).finally(() => {
-        if (!controller.signal.aborted) setBusy(false);
-      });
-    }
-    window.addEventListener("storage", refresh);
-    window.addEventListener("paiflow-trigger-pending", refresh);
-    const onReturn = () => {
-      if (document.visibilityState !== "visible" || clickInFlightRef.current) return;
-      try {
-        const current = loadPendingTrigger();
-        if (current) void checkTriggerStatus(current, controller.signal);
-      } catch {
-        /* fail closed */
-      }
-    };
-    window.addEventListener("focus", onReturn);
-    document.addEventListener("visibilitychange", onReturn);
-    return () => {
-      controller.abort();
-      window.removeEventListener("storage", refresh);
-      window.removeEventListener("paiflow-trigger-pending", refresh);
-      window.removeEventListener("focus", onReturn);
-      document.removeEventListener("visibilitychange", onReturn);
-    };
-    // Reconcile this scope on mount; never resume wallet preparation for it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingKey, isTrigger]);
   const allowanceIntentRef = useRef<string | null>(null);
   const [pendingAllowanceHash, setPendingAllowanceHash] = useState<string | null>(null);
   const [allowanceMessage, setAllowanceMessage] = useState<string | null>(null);
@@ -290,7 +122,6 @@ export function TriggerButton({
   }
 
   async function checkAllowanceStatus(hash: string, signal?: AbortSignal) {
-    if (signal?.aborted) return null;
     setAllowanceMessage(`Checking approval ${hash}`);
     try {
       const outcome = await pollTxStatus(
@@ -301,7 +132,6 @@ export function TriggerButton({
           ? `/api/deployments/${deploymentId}/subscription-allowance/status?intent=${encodeURIComponent(allowanceIntentRef.current)}`
           : undefined,
       );
-      if (signal?.aborted) return null;
       rememberAllowance(null);
       if (outcome.status === "SUCCESS") {
         setAllowanceMessage(`Allowance confirmed: ${hash}`);
@@ -313,7 +143,6 @@ export function TriggerButton({
       }
       return outcome;
     } catch {
-      if (signal?.aborted) return null;
       setAllowanceMessage(
         `Confirmation is still unknown for ${hash}. Check its status before approving again.`,
       );
@@ -340,9 +169,7 @@ export function TriggerButton({
     setPendingAllowanceHash(hash);
     const controller = new AbortController();
     setBusy(true);
-    void checkAllowanceStatus(hash, controller.signal).finally(() => {
-      if (!controller.signal.aborted) setBusy(false);
-    });
+    void checkAllowanceStatus(hash, controller.signal).finally(() => setBusy(false));
     return () => controller.abort();
     // Resume the existing hash when returning from a wallet or reloading.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -396,6 +223,12 @@ export function TriggerButton({
   const [pairingState, setPairingState] = useState<"idle" | "preparing" | "ready" | "failed">(
     "idle",
   );
+  const abortRef = useRef<AbortController | null>(null);
+  // Wallet-kit 1.9.5 can still fire onClosed after a wallet was picked: the
+  // modal waits 280ms before dispatching wallet-selected, its backdrop stays
+  // clickable meanwhile, and openModal never detaches the modal-closed
+  // listener on selection. Once this is set, a close is not a cancellation.
+  const signingStartedRef = useRef(false);
   const selectedWalletRef = useRef<string | null>(null);
   // Where the current attempt got to, so a failure is reported with its stage.
   const attemptRef = useRef<{
@@ -419,81 +252,45 @@ export function TriggerButton({
   // Pre-warm WalletConnect init on page load so the user doesn't wait
   // when tapping a wallet in the mobile picker.
   useEffect(() => {
-    if (!lanternFrameRef.current && isMobile()) {
-      const generation = initGenerationRef.current;
+    if (isMobile()) {
       void ensureWalletConnect()
         .then(({ client }) => {
-          if (generation !== initGenerationRef.current) return;
           const session = storedMobileSession(client);
           if (session) setConnectedWallet(session);
           else void beginPairing({ silent: true });
         })
-        .catch(() => {
-          if (generation === initGenerationRef.current) void beginPairing({ silent: true });
-        });
+        .catch(() => void beginPairing({ silent: true }));
     }
     return () => {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [network]);
+  }, []);
 
   const initLockRef = useRef<Promise<any> | null>(null);
-  const initializedNetworkRef = useRef(network);
-  const initGenerationRef = useRef(0);
-  type WalletConnection = {
+  const wcRef = useRef<{
     client: InstanceType<typeof SignClient> | null;
     modal: WalletConnectModal | null;
     module: any;
     kit: any;
     method: string;
-  };
-  const wcRef = useRef<WalletConnection | null>(null);
-
-  useLayoutEffect(() => {
-    initializedNetworkRef.current = network;
-    initGenerationRef.current += 1;
-    wcRef.current = null;
-    initLockRef.current = null;
-    pairingInFlightRef.current = null;
-    readyRef.current = null;
-    setPairingState("idle");
-    setConnectedWallet(null);
-    return () => {
-      initGenerationRef.current += 1;
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-    };
-  }, [network]);
+  } | null>(null);
 
   async function ensureWalletConnect() {
-    if (lanternFrameRef.current) throw new Error("Use Lantern for payments inside this frame.");
-    if (initializedNetworkRef.current !== network)
-      throw new Error("Wallet initialization cancelled after network change");
     if (wcRef.current) {
       return wcRef.current;
     }
 
     if (!initLockRef.current) {
-      const generation = initGenerationRef.current;
-      const remember = (connection: WalletConnection) => {
-        if (generation === initGenerationRef.current) wcRef.current = connection;
-        return connection;
-      };
       initLockRef.current = (async () => {
         const [
-          { SignClient },
-          { WalletConnectModal },
           { StellarWalletsKit, WalletNetwork, FreighterModule },
           { WalletConnectModule, WalletConnectAllowedMethods },
         ] = await Promise.all([
-          import("@walletconnect/sign-client"),
-          import("@walletconnect/modal"),
           import("@creit.tech/stellar-wallets-kit"),
           import("@creit.tech/stellar-wallets-kit/modules/walletconnect.module"),
         ]);
 
-        if (generation !== initGenerationRef.current)
-          throw new Error("Wallet initialization cancelled");
         const walletNetwork = network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET;
         const projectId = walletConnectProjectId();
 
@@ -505,13 +302,14 @@ export function TriggerButton({
             network: walletNetwork,
             modules: [new FreighterModule()],
           });
-          return remember({
+          wcRef.current = {
             client: null,
             modal: null,
             module: null,
             kit,
             method: WalletConnectAllowedMethods.SIGN,
-          });
+          };
+          return wcRef.current;
         }
 
         const chain = network === "mainnet" ? "stellar:pubnet" : "stellar:testnet";
@@ -540,8 +338,6 @@ export function TriggerButton({
           console.error = originalConsoleError;
         }
 
-        if (generation !== initGenerationRef.current)
-          throw new Error("Wallet initialization cancelled");
         // Remove stale modal elements so we don't accumulate DOM nodes
         document.querySelectorAll("wcm-modal").forEach((el) => el.remove());
 
@@ -604,17 +400,19 @@ export function TriggerButton({
           modules,
         });
 
-        return remember({
+        wcRef.current = {
           client: walletConnectClient,
           modal: walletConnectModal,
           module: walletConnectModule,
           kit,
           method: WalletConnectAllowedMethods.SIGN,
-        });
+        };
+
+        return wcRef.current;
       })();
 
       initLockRef.current.catch(() => {
-        if (generation === initGenerationRef.current) initLockRef.current = null;
+        initLockRef.current = null;
       });
     }
 
@@ -636,64 +434,43 @@ export function TriggerButton({
     toast.info("Reusing existing session...");
   }
 
-  async function runDesktopFlow(attempt: PaymentAttempt) {
+  async function runDesktopFlow() {
     const { kit, module: walletConnectModule, client } = await ensureWalletConnect();
-    assertActiveAttempt(attempt);
-    // openModal resolves after installing listeners, before user selection.
-    // Own the callback lifetime rather than treating that return as completion.
-    await new Promise<void>((resolve, reject) => {
-      const complete = () => {
-        attempt.controller.signal.removeEventListener("abort", complete);
-        resolve();
-      };
-      attempt.controller.signal.addEventListener("abort", complete, { once: true });
-      void kit
-        .openModal({
-          onWalletSelected: async (wallet: { id: string; name: string }) => {
-            if (!isActiveAttempt(attempt) || attempt.selected) return;
-            attempt.selected = true;
-            try {
-              toast.info(`Selected wallet: ${wallet.name}`);
-              kit.setWallet(wallet.id);
-              if (wallet.id === "wallet_connect") {
-                await prepareWalletConnectSession(walletConnectModule, client);
-                assertActiveAttempt(attempt);
-              } else {
-                toast.info("Connecting to Freighter extension...");
-              }
-              const { address } = await kit.getAddress();
-              assertActiveAttempt(attempt);
-              toast.success(`Connected: ${address.slice(0, 6)}...${address.slice(-4)}`);
-              void trackWalletConnection({
-                address,
-                network,
-                walletId: wallet.id,
-                surface: "trigger",
-              });
-              await submitTrigger(address, kit, attempt);
-            } catch (err) {
-              if (isActiveAttempt(attempt)) {
-                trackTriggerFailure(err);
-                toastError(err, "Connection failed");
-              }
-            } finally {
-              finishAttempt(attempt);
-              complete();
-            }
-          },
-          onClosed: () => {
-            // v1 can emit close after selection. Neither that event nor one from
-            // an older modal may cancel an active/newer signing attempt.
-            if (!isActiveAttempt(attempt) || attempt.selected) return;
-            toast.warning("Connection cancelled");
-            finishAttempt(attempt);
-            complete();
-          },
-        })
-        .catch((err: unknown) => {
-          attempt.controller.signal.removeEventListener("abort", complete);
-          reject(err);
-        });
+
+    signingStartedRef.current = false;
+    await kit.openModal({
+      onWalletSelected: async (wallet: { id: string; name: string }) => {
+        signingStartedRef.current = true;
+        setBusy(true);
+        try {
+          toast.info(`Selected wallet: ${wallet.name}`);
+          kit.setWallet(wallet.id);
+          const isWalletConnect = wallet.id === "wallet_connect";
+
+          if (isWalletConnect) {
+            await prepareWalletConnectSession(walletConnectModule, client);
+          } else {
+            toast.info("Connecting to Freighter extension...");
+          }
+
+          const { address } = await kit.getAddress();
+          toast.success(`Connected: ${address.slice(0, 6)}...${address.slice(-4)}`);
+          void trackWalletConnection({ address, network, walletId: wallet.id, surface: "trigger" });
+
+          await submitTrigger(address, kit);
+        } catch (err) {
+          trackTriggerFailure(err);
+          toastError(err, "Connection failed");
+        } finally {
+          setBusy(false);
+        }
+      },
+      onClosed: () => {
+        if (signingStartedRef.current) return;
+        toast.warning("Connection cancelled");
+        abortRef.current?.abort();
+        setBusy(false);
+      },
     });
   }
 
@@ -703,46 +480,16 @@ export function TriggerButton({
       getAddress: () => Promise<{ address: string }>;
       signTransaction: (
         xdr: string,
-        opts: { address?: string; networkPassphrase: string; signal?: AbortSignal },
+        opts: { address?: string; networkPassphrase: string },
       ) => Promise<{ signedTxXdr: string }>;
     },
-    attempt: PaymentAttempt,
     onAwaitingSignature?: () => void,
   ) {
-    assertActiveAttempt(attempt);
-    if (isTrigger) {
-      if (!navigator.locks) {
-        setTriggerMessage(
-          "This browser cannot safely coordinate payment tabs. Open Paiflow in a current supported browser to pay.",
-        );
-      }
-      return withTriggerLock(pendingKey, async () => {
-        assertActiveAttempt(attempt);
-        const existing = loadPendingTrigger();
-        if (existing) {
-          await checkTriggerStatus(existing, attempt.controller.signal);
-          return;
-        }
-        await prepareSignAndSubmit(address, kit, attempt, onAwaitingSignature);
-      });
-    }
-    await prepareSignAndSubmit(address, kit, attempt, onAwaitingSignature);
-  }
-
-  async function prepareSignAndSubmit(
-    address: string,
-    kit: {
-      getAddress: () => Promise<{ address: string }>;
-      signTransaction: (
-        xdr: string,
-        opts: { address?: string; networkPassphrase: string; signal?: AbortSignal },
-      ) => Promise<{ signedTxXdr: string }>;
-    },
-    attempt: PaymentAttempt,
-    onAwaitingSignature?: () => void,
-  ) {
-    assertActiveAttempt(attempt);
-    const controller = attempt.controller;
+    // Created here, not in onTrigger: the WalletConnect resume effect runs on a
+    // fresh mount and calls this directly, so it used to reach the poll with no
+    // controller and throw after the transaction was already broadcast (#451).
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     attemptRef.current.stage = "prepare";
     toast.info("Preparing transaction...");
@@ -764,7 +511,6 @@ export function TriggerButton({
       body: JSON.stringify({ amount, userAddress: address }),
     });
     const data = await res.json();
-    assertActiveAttempt(attempt);
     if (!res.ok) throw apiError(data, "Failed to prepare transaction");
 
     const xdr = data.data.xdr ?? data.data.unsignedXdr;
@@ -773,22 +519,19 @@ export function TriggerButton({
     // Prevent WalletConnect from auto-redirecting to a stale wallet choice
     // (e.g. MetaMask) during signing, which causes an Android intent chooser.
     try {
-      if (!lanternRef.current) localStorage.removeItem("WALLETCONNECT_DEEPLINK_CHOICE");
+      localStorage.removeItem("WALLETCONNECT_DEEPLINK_CHOICE");
     } catch {
       /* ignore */
     }
 
-    assertActiveAttempt(attempt);
     onAwaitingSignature?.();
     attemptRef.current.stage = "sign";
     toast.info("Awaiting signature...");
     const signed = await kit.signTransaction(xdr, {
       address,
       networkPassphrase: data.data.networkPassphrase,
-      ...(lanternRef.current ? { signal: controller.signal } : {}),
     });
 
-    assertActiveAttempt(attempt);
     attemptRef.current.stage = "submit";
     toast.info("Submitting transaction...");
     if (isPublicAllowance) {
@@ -815,13 +558,11 @@ export function TriggerButton({
       } catch {
         // Transport/5xx uncertainty is resolved against the prepared hash.
       }
-      if (!isActiveAttempt(attempt)) return;
       if (refusal) {
         rememberAllowance(null);
         setAllowanceMessage(null);
         throw refusal;
       }
-      if (!isActiveAttempt(attempt)) return;
       attemptRef.current.stage = "status_poll";
       const outcome = await checkAllowanceStatus(txHash, controller.signal);
       if (outcome?.status === "SUCCESS")
@@ -833,48 +574,12 @@ export function TriggerButton({
         });
       return;
     }
-    if (isTrigger) {
-      const { TransactionBuilder } = await import("@stellar/stellar-sdk");
-      const hash = TransactionBuilder.fromXDR(signed.signedTxXdr, data.data.networkPassphrase)
-        .hash()
-        .toString("hex");
-      if (hash !== data.data.txHash || typeof data.data.receipt !== "string")
-        throw new Error("Signed payment does not match its prepared status receipt");
-      assertActiveAttempt(attempt);
-      const pending = { txHash: hash, receipt: data.data.receipt };
-      // Storage is mandatory before send: a reload must retain the original
-      // hash. Failure here leaves the signed envelope unsubmitted.
-      savePendingTrigger(pendingKey, pending);
-      setPendingTrigger(pending);
-      attemptRef.current.txHash = hash;
-      try {
-        await fetch(submitPath, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ signedXdr: signed.signedTxXdr }),
-        });
-      } catch {
-        /* Lost responses and server failures are reconciled by hash. */
-      }
-      if (!isActiveAttempt(attempt)) return;
-      attemptRef.current.stage = "status_poll";
-      const outcome = await checkTriggerStatus(pending, controller.signal);
-      if (outcome?.status === "SUCCESS")
-        track("trigger_succeeded", {
-          deployment_id: deploymentId,
-          tx_hash: hash,
-          signer_address: address,
-          elapsed_ms: Date.now() - attemptRef.current.startedAt,
-        });
-      return;
-    }
     const submit = await fetch(submitPath, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ signedXdr: signed.signedTxXdr }),
     });
     const subData = await submit.json();
-    if (!isActiveAttempt(attempt)) return;
     if (!submit.ok) throw apiError(subData, "Submit failed");
 
     const txHash = subData.data.txHash as string;
@@ -902,17 +607,6 @@ export function TriggerButton({
   }
 
   useEffect(() => {
-    if (lanternFrameRef.current) return;
-    if (isTrigger) {
-      try {
-        if (loadPendingTrigger()) {
-          sessionStorage.removeItem("paiflow_pending_wc");
-          return;
-        }
-      } catch {
-        return;
-      }
-    }
     const raw = sessionStorage.getItem("paiflow_pending_wc");
     if (!raw) return;
     try {
@@ -929,12 +623,10 @@ export function TriggerButton({
       if (data.network !== network) return;
       if (data.walletId) selectedWalletRef.current = data.walletId;
 
-      const attempt = beginAttempt();
       attemptRef.current = { stage: "wallet", startedAt: data.timestamp };
       setBusy(true);
       ensureWalletConnect()
         .then(async ({ kit, module: walletConnectModule, client }) => {
-          assertActiveAttempt(attempt);
           if (!walletConnectModule) throw new Error(WALLET_CONNECT_UNCONFIGURED);
           kit.setWallet("wallet_connect");
           // New pending attempts identify their exact pairing. An older saved
@@ -958,7 +650,6 @@ export function TriggerButton({
           walletConnectModule.setSession(topic);
           sessionStorage.removeItem("paiflow_pending_wc");
           const { address } = await kit.getAddress();
-          assertActiveAttempt(attempt);
           if (data.pairingTopic && data.walletId && client) {
             const remembered = approvedMobileSession(
               { topic, address, walletId: data.walletId },
@@ -968,15 +659,18 @@ export function TriggerButton({
             if (remembered) rememberMobileSession(remembered);
           }
           toast.success(`Connected: ${address.slice(0, 6)}...${address.slice(-4)}`);
-          await submitTrigger(address, kit, attempt, () => setShowOpenWallet(true));
+          await submitTrigger(address, kit, () => setShowOpenWallet(true));
         })
         .catch((err) => {
-          if (!isActiveAttempt(attempt)) return;
           sessionStorage.removeItem("paiflow_pending_wc");
           trackTriggerFailure(err);
           toastError(err, "Connection failed");
         })
-        .finally(() => finishAttempt(attempt));
+        .finally(() => {
+          setBusy(false);
+          setShowPicker(false);
+          setShowOpenWallet(false);
+        });
     } catch {
       sessionStorage.removeItem("paiflow_pending_wc");
     }
@@ -1000,15 +694,11 @@ export function TriggerButton({
     // Join the attempt already running rather than racing a second one.
     if (pairingInFlightRef.current) return pairingInFlightRef.current;
 
-    const generation = initGenerationRef.current;
-    const isCurrent = () =>
-      generation === initGenerationRef.current && initializedNetworkRef.current === network;
     const attempt = (async () => {
       readyRef.current = null;
       setPairingState("preparing");
       try {
         const { client, module: walletConnectModule, method } = await ensureWalletConnect();
-        if (!isCurrent()) return;
         if (!client || !walletConnectModule) throw new Error(WALLET_CONNECT_UNCONFIGURED);
 
         // A pairing is always prepared, even when a reusable session exists:
@@ -1023,14 +713,12 @@ export function TriggerButton({
             },
           },
         });
-        if (!isCurrent()) return;
         if (!uri) throw new Error("WalletConnect returned no pairing URI");
         const expiresAt = pairingExpiresAt(uri);
         readyRef.current = { uri, approval, expiresAt };
         setPairingState("ready");
         schedulePairingRefresh(expiresAt);
       } catch (err) {
-        if (!isCurrent()) return;
         setPairingState("failed");
         // On page load nobody has asked for a wallet yet, so a toast and a
         // trigger_failed event would both be noise. The retry when the picker
@@ -1040,7 +728,7 @@ export function TriggerButton({
           toastError(err, "Connection failed");
         }
       } finally {
-        if (isCurrent()) pairingInFlightRef.current = null;
+        pairingInFlightRef.current = null;
       }
     })();
 
@@ -1052,8 +740,6 @@ export function TriggerButton({
   // user activation, so nothing may be awaited before window.open. Everything
   // that awaits lives in completeMobileConnect.
   function openMobileWallet(walletId: string) {
-    const attempt = activeAttemptRef.current;
-    if (!attempt || !isActiveAttempt(attempt) || attempt.selected) return;
     if (!mobileWalletLink(walletId)) {
       toast.error("Unknown wallet");
       return;
@@ -1077,7 +763,6 @@ export function TriggerButton({
       return;
     }
 
-    attempt.selected = true;
     setPendingWallet(walletId);
     setBusy(true);
     sessionStorage.setItem(
@@ -1090,19 +775,16 @@ export function TriggerButton({
       }),
     );
     window.open(mobileWalletLink(walletId, pairing.uri)!, "_self", "noreferrer noopener");
-    void completeMobileConnect({ pairing, attempt });
+    void completeMobileConnect({ pairing });
   }
 
   async function completeMobileConnect({
     pairing,
-    attempt,
   }: {
     pairing: { approval: () => Promise<{ topic: string }> };
-    attempt: PaymentAttempt;
   }) {
     try {
       const { kit, module: walletConnectModule, client } = await ensureWalletConnect();
-      assertActiveAttempt(attempt);
       if (!client || !walletConnectModule) throw new Error(WALLET_CONNECT_UNCONFIGURED);
       kit.setWallet("wallet_connect");
 
@@ -1112,7 +794,6 @@ export function TriggerButton({
           setTimeout(() => reject(new Error("Wallet connection timed out")), 60_000),
         ),
       ]);
-      assertActiveAttempt(attempt);
       readyRef.current = null;
       setPairingState("idle");
       walletConnectModule.setSession(session.topic);
@@ -1121,7 +802,6 @@ export function TriggerButton({
 
       setShowPicker(false);
       const { address } = await kit.getAddress();
-      assertActiveAttempt(attempt);
       if (selectedWalletRef.current)
         rememberMobileSession({
           topic: session.topic,
@@ -1135,26 +815,24 @@ export function TriggerButton({
         walletId: selectedWalletRef.current ?? "wallet_connect",
         surface: "trigger",
       });
-      await submitTrigger(address, kit, attempt, () => setShowOpenWallet(true));
+      await submitTrigger(address, kit, () => setShowOpenWallet(true));
     } catch (err) {
-      if (!isActiveAttempt(attempt)) return;
       trackTriggerFailure(err);
       toastError(err, "Connection failed");
       sessionStorage.removeItem("paiflow_pending_wc");
     } finally {
-      finishAttempt(attempt);
+      setBusy(false);
+      setPendingWallet(null);
+      setShowPicker(false);
+      setShowOpenWallet(false);
     }
   }
 
   async function continueMobileSession() {
-    const attempt = activeAttemptRef.current;
-    if (!connectedWallet || busy || !attempt || !isActiveAttempt(attempt) || attempt.selected)
-      return;
-    attempt.selected = true;
+    if (!connectedWallet || busy) return;
     setBusy(true);
     setShowPicker(false);
     selectedWalletRef.current = connectedWallet.walletId;
-    let reconnect = false;
     try {
       // Android Chrome requires the native handoff within the user's tap.
       // Validate the pre-warmed connection before leaving the browser; the
@@ -1166,13 +844,9 @@ export function TriggerButton({
       const link = cachedSession && mobileWalletLink(cachedSession.walletId);
       if (link) window.open(link, "_self");
       const { client } = await ensureWalletConnect();
-      assertActiveAttempt(attempt);
       const session =
         client && approvedMobileSession(connectedWallet, client.session.values, network);
       if (!client || !session) {
-        reconnect = true;
-        attempt.selected = false;
-        setBusy(false);
         setConnectedWallet(null);
         setShowPicker(true);
         void beginPairing();
@@ -1180,7 +854,6 @@ export function TriggerButton({
         return;
       }
       const { WalletNetwork } = await import("@creit.tech/stellar-wallets-kit");
-      assertActiveAttempt(attempt);
       const expectedPassphrase =
         network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET;
       // Bypass the kit's account-based session search: the user chose this
@@ -1190,7 +863,6 @@ export function TriggerButton({
         {
           getAddress: async () => ({ address: session.address }),
           signTransaction: async (xdr, opts) => {
-            assertActiveAttempt(attempt);
             if (opts.networkPassphrase !== expectedPassphrase)
               throw new Error("Wallet and payment networks do not match.");
             if (
@@ -1214,97 +886,41 @@ export function TriggerButton({
             return { signedTxXdr: result.signedXDR };
           },
         },
-        attempt,
         () => setShowOpenWallet(true),
       );
     } catch (err) {
-      if (!isActiveAttempt(attempt)) return;
       trackTriggerFailure(err);
       toastError(err, "Payment failed");
     } finally {
-      // A failed connection stays in the picker for a fresh pairing.
-      if (!reconnect) finishAttempt(attempt);
+      setBusy(false);
+      setShowOpenWallet(false);
     }
   }
 
   async function onTrigger() {
-    if (
-      disabled ||
-      busy ||
-      clickInFlightRef.current ||
-      showPicker ||
-      pendingAllowanceHash ||
-      pendingTrigger ||
-      storageBlocked
-    )
-      return;
-    if (isTrigger) {
-      try {
-        if (loadPendingTrigger()) return;
-      } catch {
-        return;
-      }
-    }
+    if (disabled || showPicker || pendingAllowanceHash) return;
     if (!amount || !/^\d+$/.test(amount) || amount === "0") {
       toast.error("Enter a valid amount");
       return;
     }
-    if (lanternFrameRef.current && mode === "allowance" && templateKind === "PAYROLL") {
-      toast.error(
-        "Payroll wallet actions inside Lantern require the authenticated-app milestone. Open Paiflow in your browser to approve Payroll allowance.",
-      );
-      return;
-    }
-    if (lanternFrameRef.current && network !== "testnet") {
-      toast.error(
-        "Lantern public payments currently support Testnet only. Open a Testnet deployment in Lantern.",
-      );
-      return;
-    }
-    const attempt = beginAttempt();
+    abortRef.current?.abort();
     setShowOpenWallet(false);
     attemptRef.current = { stage: "wallet", startedAt: Date.now() };
     track("trigger_started", { deployment_id: deploymentId, mode, amount_stroops: amount });
 
-    if (lanternRef.current) {
-      const wallet = lanternRef.current;
-      setBusy(true);
-      selectedWalletRef.current = "lantern";
-      try {
-        const { address } = await wallet.getAddress({ signal: attempt.controller.signal });
-        assertActiveAttempt(attempt);
-        void trackWalletConnection({ address, network, walletId: "lantern", surface: "trigger" });
-        await submitTrigger(address, wallet, attempt);
-      } catch (err) {
-        if (!isActiveAttempt(attempt)) return;
-        trackTriggerFailure(err);
-        toastError(err, mode === "allowance" ? "Approval failed" : "Trigger failed");
-      } finally {
-        wallet.disconnect();
-        finishAttempt(attempt);
-      }
-    } else if (isMobile()) {
+    if (isMobile()) {
       setShowPicker(true);
       // Pairing normally happened on load; re-pair only if it has gone stale,
       // expired, or never succeeded.
       if (connectedWallet) {
-        try {
-          const { client } = await ensureWalletConnect();
-          assertActiveAttempt(attempt);
-          const session = approvedMobileSession(
-            connectedWallet,
-            client?.session.values ?? [],
-            network,
-          );
-          setConnectedWallet(session);
-          if (session) return;
-        } catch (err) {
-          if (!isActiveAttempt(attempt)) return;
-          trackTriggerFailure(err);
-          toastError(err, "Connection failed");
-          finishAttempt(attempt);
-          return;
-        }
+        const { client } = await ensureWalletConnect();
+        const session = approvedMobileSession(
+          connectedWallet,
+          client?.session.values ?? [],
+          network,
+        );
+        setConnectedWallet(session);
+        if (session) return;
       }
       if (isReadyToTap()) {
         setPairingState("ready");
@@ -1312,16 +928,14 @@ export function TriggerButton({
         void beginPairing();
       }
     } else {
-      clickInFlightRef.current = true;
       setBusy(true);
       try {
-        await runDesktopFlow(attempt);
+        await runDesktopFlow();
       } catch (err) {
-        if (!isActiveAttempt(attempt)) return;
         trackTriggerFailure(err);
         toastError(err, isDeposit ? "Deposit failed" : "Trigger failed");
       } finally {
-        finishAttempt(attempt);
+        setBusy(false);
       }
     }
   }
@@ -1431,8 +1045,7 @@ export function TriggerButton({
                 // good for five minutes, and a cancel here is usually a change
                 // of mind rather than a failure. An in-flight connect() cannot
                 // be cancelled either way.
-                const attempt = activeAttemptRef.current;
-                if (attempt) finishAttempt(attempt);
+                abortRef.current?.abort();
               }}
               disabled={busy}
               className="hover:bg-background-2 text-label-sm text-on-background/80 mt-4 w-full rounded-xl py-3 font-medium transition-colors disabled:opacity-50"
@@ -1444,14 +1057,7 @@ export function TriggerButton({
       )}
       <button
         onClick={onTrigger}
-        disabled={
-          disabled ||
-          busy ||
-          showPicker ||
-          Boolean(pendingAllowanceHash) ||
-          Boolean(pendingTrigger) ||
-          storageBlocked
-        }
+        disabled={disabled || busy || showPicker || Boolean(pendingAllowanceHash)}
         className="bg-primary px-md text-label-md text-on-primary inline-flex w-full items-center justify-center gap-2 rounded-lg py-3 font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_24px_rgba(255,177,196,0.55)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
       >
         {busy ? (
@@ -1473,28 +1079,6 @@ export function TriggerButton({
         )}
       </button>
 
-      {isTrigger && triggerMessage && (
-        <p role="status" className="text-label-sm text-on-background/80 mt-3 break-all">
-          {triggerMessage}
-        </p>
-      )}
-      {isTrigger && pendingTrigger && (
-        <button
-          disabled={busy}
-          className="text-primary mt-3 w-full rounded border p-3 disabled:opacity-50"
-          onClick={() => {
-            if (clickInFlightRef.current) return;
-            const attempt = beginAttempt();
-            setBusy(true);
-            void checkTriggerStatus(pendingTrigger, attempt.controller.signal).finally(() =>
-              finishAttempt(attempt),
-            );
-          }}
-        >
-          CHECK PAYMENT STATUS
-        </button>
-      )}
-
       {isPublicAllowance && allowanceMessage && (
         <p role="status" className="text-label-sm text-on-background/80 mt-3 break-all">
           {allowanceMessage}
@@ -1505,19 +1089,15 @@ export function TriggerButton({
           disabled={busy}
           className="text-primary mt-3 w-full rounded border p-3 disabled:opacity-50"
           onClick={() => {
-            if (clickInFlightRef.current) return;
-            const attempt = beginAttempt();
             setBusy(true);
-            void checkAllowanceStatus(pendingAllowanceHash, attempt.controller.signal).finally(() =>
-              finishAttempt(attempt),
-            );
+            void checkAllowanceStatus(pendingAllowanceHash).finally(() => setBusy(false));
           }}
         >
           CHECK APPROVAL STATUS
         </button>
       )}
 
-      {!lanternFrameRef.current && isMobile() && showOpenWallet && selectedWalletRef.current && (
+      {isMobile() && showOpenWallet && selectedWalletRef.current && (
         <div>
           <button
             onClick={() => {

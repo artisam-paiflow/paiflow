@@ -2,19 +2,12 @@ import "server-only";
 import { AppError } from "@/lib/errors";
 import { sorobanRpc } from "./client";
 
-type ExpiryProof = { txHash: string; maxTime: string; preparationLedger?: number };
-export function allowanceHasExpired(tx: ExpiryProof): Promise<boolean> {
-  return transactionHasExpired(
-    tx,
-    "Cannot establish approval finality; check its status again before approving",
-  );
-}
-
-/** NOT_FOUND plus wall-clock time cannot prove an uncertain transaction expired. */
-export async function transactionHasExpired(
-  tx: ExpiryProof,
-  errorMessage = "Cannot establish payment finality; check its status again before paying",
-): Promise<boolean> {
+/** NOT_FOUND plus wall-clock time cannot prove an uncertain approval expired. */
+export async function allowanceHasExpired(tx: {
+  txHash: string;
+  maxTime: string;
+  preparationLedger?: number;
+}): Promise<boolean> {
   try {
     const server = sorobanRpc();
     const got = await server.getTransaction(tx.txHash);
@@ -67,6 +60,9 @@ export async function transactionHasExpired(
       throw new Error();
     return true;
   } catch {
-    throw new AppError("UPSTREAM_RPC", errorMessage);
+    throw new AppError(
+      "UPSTREAM_RPC",
+      "Cannot establish approval finality; check its status again before approving",
+    );
   }
 }
