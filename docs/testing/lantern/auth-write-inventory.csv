@@ -1,0 +1,100 @@
+source,unsafe_exports,auth_signals_in_file,origin_check_in_file,body_readers_in_file,verification_status
+app/api/account/google/link/route.ts,POST,requireSession,literal Origin check,req.json,source inventory only; runtime negative tests pending
+app/api/account/passkeys/[id]/route.ts,DELETE,requireSession,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/account/password/route.ts,POST,requireSession,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/address-book/[id]/route.ts,"PUT,DELETE",requireSession,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/address-book/route.ts,POST,requireSession,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/admin/deployments/[id]/settlement/route.ts,POST,requireSession,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/admin/google-signup-codes/[id]/route.ts,PATCH,requireSession,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/admin/google-signup-codes/route.ts,POST,requireSession,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/admin/offramp-credentials/route.ts,POST,requireSession,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/admin/users/[id]/route.ts,PATCH,requireSession,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/admin/users/route.ts,POST,requireSession,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/audit/wallet-connection/route.ts,POST,getSessionUser,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/auth/[...nextauth]/route.ts,POST,handlers.POST,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/auth/google/signup/route.ts,POST,inspect custom/imported handler,literal Origin check,req.json,source inventory only; runtime negative tests pending
+app/api/auth/new-password/route.ts,POST,inspect custom/imported handler,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/auth/passkey/login/options/route.ts,POST,inspect custom/imported handler,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/auth/passkey/login/verify/route.ts,POST,inspect custom/imported handler,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/auth/passkey/register/options/route.ts,POST,requireSession,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/auth/passkey/register/verify/route.ts,POST,requireSession,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/auth/password-reset/route.ts,POST,inspect custom/imported handler,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/auth/register/route.ts,POST,inspect custom/imported handler,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/auth/sandbox/route.ts,POST,inspect custom/imported handler,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/auth/sessions/revoke-all/route.ts,POST,requireSession,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/cron/auto-charge-payroll/route.ts,POST,requireCronSecret,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/cron/auto-charge-subscriptions/route.ts,POST,requireCronSecret,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/cron/auto-release/route.ts,POST,requireCronSecret,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/cron/finalize-deployments/route.ts,POST,requireCronSecret,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/cron/maintain-ttl/route.ts,POST,requireCronSecret,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/cron/poll-events/route.ts,POST,requireCronSecret,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/cron/process-offramp-jobs/route.ts,POST,requireCronSecret,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/cron/process-streamer-jobs/route.ts,POST,requireCronSecret,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/cron/reconcile-transactions/route.ts,POST,requireCronSecret,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/api-tokens/[tokenId]/route.ts,DELETE,deploymentServiceRoute;service-mode:owner,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/api-tokens/route.ts,POST,deploymentServiceRoute;service-mode:owner,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/dev-cash-out/route.ts,POST,requireDevAuth;deploymentServiceRoute;service-mode:dev,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/dev-payer/route.ts,POST,requireDevAuth;deploymentServiceRoute;service-mode:dev,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/dev-splitter/route.ts,POST,requireDevAuth;deploymentServiceRoute;service-mode:dev,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/dev-subscription/route.ts,POST,requireDevAuth;deploymentServiceRoute;service-mode:dev,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/employees/bank/route.ts,"POST,DELETE",requireDevAuth;deploymentServiceRoute;service-mode:dev,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/invoke/route.ts,POST,deploymentServiceRoute;service-mode:public,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/offramp-enable/route.ts,POST,requireDevAuth;deploymentServiceRoute;service-mode:dev,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/offramp-sender/route.ts,POST,requireDevAuth;deploymentServiceRoute;service-mode:dev,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/payroll-allowance/route.ts,POST,requireDevAuth;deploymentServiceRoute;service-mode:dev,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/payroll-charge/route.ts,POST,requireSession;deploymentServiceRoute;service-mode:owner,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/payroll-record-run/route.ts,POST,requireDevAuth;deploymentServiceRoute;service-mode:dev,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/payroll-relayer/route.ts,POST,requireSession;deploymentServiceRoute;service-mode:owner,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/payroll-subscribe/route.ts,POST,requireSession;deploymentServiceRoute;service-mode:owner,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/payroll-unsubscribe/route.ts,POST,requireSession;deploymentServiceRoute;service-mode:owner,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/payroll-update-recipients/route.ts,POST,requireDevAuth;deploymentServiceRoute;service-mode:dev,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/release-early/route.ts,POST,requireSession;deploymentServiceRoute;service-mode:owner,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/retirement/route.ts,POST,requireSession,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/route.ts,PATCH,requireSession;deploymentServiceRoute;service-mode:owner,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/submit/route.ts,POST,requireSession;deploymentServiceRoute;service-mode:owner,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/submit-invoke/route.ts,POST,deploymentServiceRoute;getSessionUser;service-mode:public,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/submit-trigger/route.ts,POST,deploymentServiceRoute;getSessionUser;service-mode:public,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/subscription-allowance/route.ts,POST,deploymentServiceRoute;service-mode:public,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/subscription-allowance/submit/route.ts,POST,deploymentServiceRoute;getSessionUser;service-mode:public,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/subscription-charge/route.ts,POST,requireSession;deploymentServiceRoute;service-mode:owner,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/subscription-relayer/route.ts,POST,requireSession;deploymentServiceRoute;service-mode:owner,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/subscription-subscribe/route.ts,POST,deploymentServiceRoute;service-mode:public,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/subscription-unsubscribe/route.ts,POST,deploymentServiceRoute;service-mode:public,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/[id]/trigger/route.ts,POST,deploymentServiceRoute;service-mode:public,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/dev-payroll/route.ts,POST,requireDevApiToken,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/deployments/prepare/route.ts,POST,requireSession,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/files/[id]/route.ts,DELETE,getSessionUser,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/files/route.ts,POST,requireSession,no literal Origin check in route,req.formData,source inventory only; runtime negative tests pending
+app/api/flows/[id]/edit/route.ts,POST,requireSession,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/flows/[id]/resolve-addresses/route.ts,POST,requireSession,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/flows/[id]/route.ts,"PATCH,DELETE",requireSession,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/flows/[id]/validate/route.ts,POST,requireSession,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/flows/new/route.ts,POST,requireSession,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/flows/route.ts,POST,requireSession,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/transcribe/route.ts,POST,requireSession,no literal Origin check in route,req.formData,source inventory only; runtime negative tests pending
+app/api/v1/demo-token/route.ts,POST,requireSession;v1Route,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/execute/route.ts,POST,v1Route,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/execute/submit/route.ts,POST,v1Route,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/funding/reconcile/route.ts,POST,v1Route,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/funding/route.ts,POST,v1Route,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/funding/submit/route.ts,POST,v1Route,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/payouts/route.ts,POST,v1Route,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/payouts/submit/route.ts,POST,v1Route,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/release-early/route.ts,POST,v1Route,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/schedule/pause/reconcile/route.ts,POST,v1Route,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/schedule/pause/route.ts,POST,v1Route,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/schedule/pause/submit/route.ts,POST,v1Route,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/schedule/resume/reconcile/route.ts,POST,v1Route,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/schedule/resume/route.ts,POST,v1Route,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/schedule/resume/submit/route.ts,POST,v1Route,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/schedule/retrieve/reconcile/route.ts,POST,v1Route,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/schedule/retrieve/route.ts,POST,v1Route,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/schedule/retrieve/submit/route.ts,POST,v1Route,no literal Origin check in route,none/custom handler,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/subscription/cancel/prepare/route.ts,POST,v1Route,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/subscription/cancel/reconcile/route.ts,POST,v1Route,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/subscription/cancel/submit/route.ts,POST,v1Route,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/subscription/reactivate/prepare/route.ts,POST,v1Route,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/subscription/reactivate/reconcile/route.ts,POST,v1Route,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/v1/deployments/[id]/subscription/reactivate/submit/route.ts,POST,v1Route,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/webhooks/[id]/route.ts,POST,deploymentServiceRoute,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
+app/api/webhooks/offramp/route.ts,POST,inspect custom/imported handler,no literal Origin check in route,req.json,source inventory only; runtime negative tests pending
