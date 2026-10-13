@@ -124,6 +124,26 @@ deployment.funding.prepare({fromAddress: "wallet", tokenContractAddress: "contra
 deployment.funding.reconcile({action: "schedule.pause", intent: "uuid"});
 // @ts-expect-error Funding reconciliation has no replacementAllowed field.
 const inventedReplacement: boolean = ({} as sdk.FundingReconciled).replacementAllowed;
+const scheduleState: Promise<sdk.ApiResponse<sdk.ScheduleState>> = deployment.schedule.get({nodeId: "schedule"});
+const schedulePrepared: Promise<sdk.ApiResponse<sdk.SchedulePrepared<"retrieve">>> = deployment.schedule.retrieve.prepare({walletAddress: "wallet"});
+async function scheduleSigning(p: sdk.ApiResponse<sdk.SchedulePrepared<"pause">>) {
+ const signed = await deployment.schedule.pause.signPrepared(p, signer, {walletAddress: "wallet"});
+ const receipt: Promise<sdk.ApiResponse<sdk.ScheduleSubmitted>> = deployment.schedule.pause.submit(signed.submission, signed.submissionOptions);
+ return receipt;
+}
+async function scheduleTypes() {
+ const p = await deployment.schedule.pause.prepare({walletAddress: "wallet"});
+ // @ts-expect-error Only retrieve preparations contain an estimated amount.
+ p.data.estimatedAmountStroops;
+ const r = await deployment.schedule.retrieve.prepare({walletAddress: "wallet"});
+ const amount: string = r.data.estimatedAmountStroops;
+ // @ts-expect-error Different action preparations cannot be signed by pause namespace.
+ deployment.schedule.pause.signPrepared(r, signer, {walletAddress: "wallet"});
+ // @ts-expect-error Caller cannot select retrieval amount.
+ deployment.schedule.retrieve.prepare({walletAddress: "wallet", amountStroops: "1"});
+ return amount;
+}
+void [scheduleState, schedulePrepared, scheduleSigning, scheduleTypes];
 void [fundingDiscovery, fundingPrepared, fundingSubmitted, fundingReconciled, fundingSigning, inventedReplacement];
 void [balances, capabilities, quote, pages, snapshot, preparation, submitted, publicPreparation, publicStatus, signing];
 // @ts-expect-error SDK payment amount requires a string.

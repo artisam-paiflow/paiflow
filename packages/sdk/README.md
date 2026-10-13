@@ -257,3 +257,25 @@ stale envelope. There are no automatic retries, re-preparations, submissions or
 reconciliation calls. Retain receipts and explicitly query/reconcile after errors.
 These workflows have local source-contract fixtures; hosted verification remains
 pending. See the [funding API documentation](https://github.com/webnxt-2030/pinkraft/blob/testing/docs/api/funding.md).
+
+### Schedule controls
+
+`deployment.schedule.get({ nodeId })` reads controller, permissions, eligibility,
+holdings and vested entitlement as distinct stroop strings. Contract controllers
+can be read; wallet controls require the current G-address controller. A deployment
+token grants API access, never wallet consent.
+
+Each of `schedule.pause`, `schedule.resume`, and `schedule.retrieve` exposes
+`prepare({ walletAddress, nodeId? })`, optional `signPrepared(prepared, signer,
+options)`, `submit({ intent, signedXdr }, options?)`, and `reconcile({ intent })`.
+Signing retains the original preparation and history linkage; it uses the canonical
+passphrase for the server-returned network. Submit remains an explicit separate call.
+Retrieve alone returns recipient, token and estimated amount. Callers cannot choose
+recipient or amount; execution determines the final retrieval to the controller.
+
+Preserve the original action, intent and transaction hash when interrupted. Reconcile
+through that action namespace and preserve `replacementAllowed` from the server.
+Local expiry, wallet denial, timeout, UNKNOWN or missing history never permits a
+replacement. No method automatically signs, submits, resends or prepares another
+intent. Hosted verification remains pending; local SDK tests do not establish
+live Schedule readiness. See [Schedule API controls](../../docs/api/schedule-controls.md).

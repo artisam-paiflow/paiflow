@@ -7,6 +7,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Typed SDK Schedule state and explicit pause/resume/retrieve wallet controls,
+  retaining server reconciliation and replacement evidence (#960).
+
 - Typed SDK funding discovery, preparation, explicit signing/submission and intent
   reconciliation for Schedule and Webhook nodes, preserving wallet consent and
   uncertain transaction recovery (#959).
