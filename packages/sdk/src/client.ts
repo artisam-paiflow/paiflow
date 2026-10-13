@@ -1,3 +1,4 @@
+import { fundingMethods } from "./funding.js";
 import { paymentMethods } from "./payment.js";
 import { PaiflowTransport, PaiflowMalformedResponseError, PaiflowAbortError } from "./transport.js";
 import type { ApiResponse, PaiflowOptions, RequestOptions } from "./transport.js";
@@ -93,6 +94,7 @@ export class Paiflow {
   }
 }
 export class PaiflowDeployment {
+  readonly funding;
   readonly execute;
   readonly publicPayment;
   readonly capabilities;
@@ -108,6 +110,7 @@ export class PaiflowDeployment {
     readonly deploymentId: string,
   ) {
     input(() => uuid(deploymentId));
+    this.funding = fundingMethods(transport, deploymentId);
     const payments = paymentMethods(transport, deploymentId);
     this.execute = payments.execute;
     this.publicPayment = payments.publicPayment;

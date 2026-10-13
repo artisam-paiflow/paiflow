@@ -75,6 +75,10 @@ assert.equal(deployment.urls.embed(), "https://example.com/deployments/11111111-
 const payment = new sdk.Paiflow({baseUrl: "https://example.com", token: "pfk_test", fetch: async () => new Response(JSON.stringify({data: {txHash: "a".repeat(64), status: "FAILED", error: {code: "ONCHAIN_FAILED", message: "failed"}}}))});
 assert.equal((await payment.deployment("11111111-1111-4111-8111-111111111111").execute.submit({signedXdr: "signed-envelope"})).data.status, "FAILED");
 assert.equal(typeof sdk.signPrepared, "function");
+assert.equal("signPreparedEnvelope" in sdk, false);
+const funding = new sdk.Paiflow({baseUrl: "https://example.com", token: "pfk_test", fetch: async () => new Response(JSON.stringify({data: {intent: "11111111-1111-4111-8111-111111111111", action: "schedule.fund", txHash: "a".repeat(64), network: "testnet", state: "SUBMITTING", expiresAt: "2000-01-01T00:00:00Z"}}))}).deployment("11111111-1111-4111-8111-111111111111");
+assert.equal((await funding.funding.reconcile({action: "schedule.fund", intent: "11111111-1111-4111-8111-111111111111"})).data.state, "SUBMITTING");
+assert.equal(typeof funding.funding.signPrepared, "function");
 await assert.rejects(import("@paiflow/sdk/dist/index.js"), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });
 `,
   );
@@ -104,6 +108,23 @@ const publicPreparation: Promise<sdk.ApiResponse<sdk.PublicPaymentPrepared>> = d
 const publicStatus: Promise<sdk.ApiResponse<sdk.PublicPaymentStatus>> = deployment.publicPayment.status("hash");
 const signer: sdk.SignTransaction = async request => ({signedXdr: request.xdr});
 async function signing(p: sdk.ApiResponse<sdk.ExecutePrepared>) {const signed = await sdk.signPrepared(p, signer, {walletAddress: "wallet"}); const original: sdk.ExecutePrepared = signed.preparation.data; void original;}
+const fundingDiscovery: Promise<sdk.ApiResponse<sdk.FundingDiscovery>> = deployment.funding.get();
+const fundingPrepared: Promise<sdk.ApiResponse<sdk.FundingPrepared>> = deployment.funding.prepare({fromAddress: "wallet", tokenContractAddress: "contract", amountStroops: "1"});
+const fundingSubmitted: Promise<sdk.ApiResponse<sdk.FundingSubmitted>> = deployment.funding.submit({action: "schedule.fund", intent: "uuid", signedXdr: "signed"});
+const fundingReconciled: Promise<sdk.ApiResponse<sdk.FundingReconciled>> = deployment.funding.reconcile({action: "webhook.fund", intent: "uuid"});
+async function fundingSigning(p: sdk.ApiResponse<sdk.FundingPrepared>) {
+  const signed = await deployment.funding.signPrepared(p, signer, {walletAddress: "wallet"});
+  const body: sdk.FundingSubmitInput = signed.submission;
+  const original: sdk.ApiResponse<sdk.FundingPrepared> = signed.preparation;
+  void [body, original];
+}
+// @ts-expect-error Funding money requires canonical string amounts.
+deployment.funding.prepare({fromAddress: "wallet", tokenContractAddress: "contract", amountStroops: 1});
+// @ts-expect-error Funding requires exact funding actions.
+deployment.funding.reconcile({action: "schedule.pause", intent: "uuid"});
+// @ts-expect-error Funding reconciliation has no replacementAllowed field.
+const inventedReplacement: boolean = ({} as sdk.FundingReconciled).replacementAllowed;
+void [fundingDiscovery, fundingPrepared, fundingSubmitted, fundingReconciled, fundingSigning, inventedReplacement];
 void [balances, capabilities, quote, pages, snapshot, preparation, submitted, publicPreparation, publicStatus, signing];
 // @ts-expect-error SDK payment amount requires a string.
 deployment.execute.prepare({amount: 1, from: "wallet"});
