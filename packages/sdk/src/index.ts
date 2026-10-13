@@ -94,3 +94,15 @@ export type {
   AllowancePrepared,
   AllowanceStatus,
 } from "./subscription.js";
+
+export type {
+  WebhookEscrowInput,
+  WebhookNativeInput,
+  WebhookTriggerInput,
+  WebhookUnkeyedOptions,
+  WebhookTriggerOptions,
+  WebhookAttempt,
+  WebhookUnkeyedResult,
+  ReleaseEarlyInput,
+  Released,
+} from "./webhook.js";

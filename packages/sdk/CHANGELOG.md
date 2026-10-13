@@ -7,6 +7,9 @@ policy in `docs/releasing.md`; this metadata does not claim a published release.
 
 ### Added
 
+- Typed SDK keyed and explicitly unkeyed webhook callbacks with isolated secrets,
+  signed-authorization error redaction and token-authorized early release (#962).
+
 - Typed SDK Subscription state, cancellation/reactivation wallet controls and
   public additive allowance consent, preserving distinct intent/status protocols (#961).
 

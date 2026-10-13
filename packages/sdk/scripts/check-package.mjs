@@ -167,6 +167,22 @@ async function subscriptionTypes() {
  status.data.replacementAllowed;
  return [receipt, allowanceReceipt, ledger];
 }
+const webhookAttempt: Promise<sdk.ApiResponse<sdk.WebhookAttempt>> = deployment.webhook.trigger(
+ {escrow: true, amount: "10000000"}, {webhookSecret: "configured", idempotencyKey: "persisted-event"});
+const nativeAttempt = deployment.webhook.trigger({from: "wallet", amount: "1", auth: ["signed-entry"]}, {webhookSecret: "configured", idempotencyKey: "native-event"});
+const unkeyed: Promise<sdk.ApiResponse<sdk.WebhookUnkeyedResult>> = deployment.webhook.triggerUnkeyed({escrow: true}, {webhookSecret: "configured"});
+const released: Promise<sdk.ApiResponse<sdk.Released>> = deployment.releaseEarly({nodeId: "deadline"});
+// @ts-expect-error Keyed triggers require a caller-persisted key.
+deployment.webhook.trigger({escrow: true}, {webhookSecret: "configured"});
+// @ts-expect-error Webhook secrets cannot be inherited from a deployment token.
+deployment.webhook.trigger({escrow: true}, {idempotencyKey: "event"});
+// @ts-expect-error Stroops must be strings.
+deployment.webhook.trigger({escrow: true, amount: 1}, {webhookSecret: "configured", idempotencyKey: "event"});
+// @ts-expect-error Native webhook execution needs the funding address.
+deployment.webhook.trigger({amount: "1"}, {webhookSecret: "configured", idempotencyKey: "event"});
+// @ts-expect-error Legacy unkeyed responses do not invent network metadata.
+const legacyNetwork = ({} as sdk.WebhookUnkeyedResult).network;
+void [webhookAttempt, nativeAttempt, unkeyed, released, legacyNetwork];
 void [subscriptionState, subscriptionTypes];
 void [scheduleState, schedulePrepared, scheduleSigning, scheduleTypes];
 void [fundingDiscovery, fundingPrepared, fundingSubmitted, fundingReconciled, fundingSigning, inventedReplacement];
