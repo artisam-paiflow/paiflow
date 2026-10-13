@@ -1,3 +1,4 @@
+import { subscriptionMethods } from "./subscription.js";
 import { scheduleMethods } from "./schedule.js";
 import { fundingMethods } from "./funding.js";
 import { paymentMethods } from "./payment.js";
@@ -95,6 +96,7 @@ export class Paiflow {
   }
 }
 export class PaiflowDeployment {
+  readonly subscription;
   readonly schedule;
   readonly funding;
   readonly execute;
@@ -112,6 +114,7 @@ export class PaiflowDeployment {
     readonly deploymentId: string,
   ) {
     input(() => uuid(deploymentId));
+    this.subscription = subscriptionMethods(transport, deploymentId);
     this.schedule = scheduleMethods(transport, deploymentId);
     this.funding = fundingMethods(transport, deploymentId);
     const payments = paymentMethods(transport, deploymentId);
