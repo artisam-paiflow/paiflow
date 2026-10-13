@@ -135,3 +135,60 @@ Neither stream closure nor fallback polling establishes transaction finality.
 
 These features are verified against source contracts and local fixtures, not fresh
 hosted testnet transactions. Full workflow validation remains in #964.
+
+## Payments and signing (unreleased)
+
+```ts
+import { Paiflow, signPrepared } from "@paiflow/sdk";
+
+const flow = new Paiflow({ baseUrl: "https://your-paiflow-host.example", token }).deployment(id);
+const prepared = await flow.execute.prepare({ amount: "10000000", from: walletAddress });
+// Persist prepared before requesting consent. The callback signs the unchanged envelope
+// using the server passphrase. Implement it using your own wallet integration.
+const signed = await signPrepared(prepared, signTransaction, {
+  walletAddress,
+  expectedNetwork: "testnet",
+  signal,
+  timeoutMs: 120000,
+});
+// Persist original signed envelope before submission; retain it after uncertainty.
+const result = await flow.execute.submit(signed.submission, {
+  ...signed.submissionOptions,
+  wait: false,
+  signal,
+});
+// HTTP success may return FAILED or PENDING; inspect result.data.status.
+```
+
+The callback receives `{xdr, networkPassphrase, walletAddress, signal}` and returns
+`{signedXdr}`. It must sign the original transaction without changing its source,
+sequence, operations or time bounds. The SDK validates string bounds, network and
+provided wallet metadata; it does **not** parse XDR, verify operations, or determine
+the signer from the envelope. Execute/public preparation contains no wallet field:
+pass the same address used in prepare; your wallet integration must check the source.
+No private keys are accepted. Callback exceptions are replaced with a generic signing
+error; cancellation and the deadline settle even if a wallet ignores AbortSignal.
+The helper never sends a transaction. Preserve the original preparation on failure.
+
+`signPrepared` preserves the exact preparation response and returns submission
+options linking its history UUID when available. It accepts `xdr` or `unsignedXdr`,
+using a server passphrase or the canonical passphrase for a server-returned network.
+It rejects conflicting fields, unsupported networks, wallet mismatch when a wallet
+field exists, and expired preparation before/after signing. These guards do not
+prove replacement safety or recover finality.
+
+`execute.submit({signedXdr}, {wait})` defaults to server wait behavior. There are no
+automatic retries, replacement envelopes, signing retries or polling loops. After
+uncertainty preserve the original signed envelope/hash and explicitly query
+`transactions.get(hash)` or resubmit that same envelope when appropriate. UNKNOWN,
+REJECTED, missing transactions and elapsed time do not authorize a new payment.
+
+Public methods are separate and omit deployment tokens:
+`publicPayment.prepare({amount,userAddress})`, `publicPayment.submit({signedXdr})`,
+and `publicPayment.status(txHash)`. Preparation returns only XDR/passphrase; it has
+no expiry, hash, intent or receipt. Submission returns `{txHash,status?:"PENDING"}`.
+Status returns SUCCESS/FAILED/PENDING with optional errorMessage. It is global chain
+lookup: SUCCESS does not prove this deployment executed, and NOT_FOUND appears as
+PENDING. It provides no receipt reconciliation or replacement-safety evidence.
+A public submit 502 may be uncertain; never automatically create a replacement.
+Amounts are positive integer stroop strings bounded to i128; never floating point.

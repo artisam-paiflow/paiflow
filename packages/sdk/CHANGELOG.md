@@ -7,6 +7,9 @@ policy in `docs/releasing.md`; this metadata does not claim a published release.
 
 ### Added
 
+- Explicit SDK execute/public payment preparation, submission and legacy status,
+  with optional caller signing, cancellation and preparation metadata retention (#958).
+
 - Typed Node SDK deployment reads, bounded event pagination, public utilities,
   hosted URL helpers and public embed snapshot SSE (#957).
 
