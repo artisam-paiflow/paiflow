@@ -53,3 +53,14 @@ export type {
   SignOptions,
   PreparedEnvelope,
 } from "./payment.js";
+
+export type {
+  FundingAction,
+  FundingPrepareInput,
+  FundingSubmitInput,
+  FundingReconcileInput,
+  FundingDiscovery,
+  FundingPrepared,
+  FundingSubmitted,
+  FundingReconciled,
+} from "./funding.js";

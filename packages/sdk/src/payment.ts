@@ -189,10 +189,19 @@ export interface PreparedEnvelope {
   expiresAt?: string;
   walletAddress?: string;
 }
-export async function signPrepared<T extends PreparedEnvelope>(
+export function signPrepared<T extends PreparedEnvelope>(
   prepared: ApiResponse<T>,
   signer: PreparedSigner,
   options: SignOptions,
+) {
+  return signPreparedEnvelope(prepared, signer, options, submission);
+}
+/** Internal signing engine; workflow supplies its own signed-envelope bounds. */
+export async function signPreparedEnvelope<T extends PreparedEnvelope>(
+  prepared: ApiResponse<T>,
+  signer: PreparedSigner,
+  options: SignOptions,
+  validateSubmission: (body: SignedSubmission) => SignedSubmission,
 ): Promise<{
   submission: SignedSubmission;
   preparation: ApiResponse<T>;
@@ -254,7 +263,7 @@ export async function signPrepared<T extends PreparedEnvelope>(
     if (expiry !== undefined && expiry <= Date.now())
       throw new TypeError("Preparation expired during signing");
     return {
-      submission: submission(signedResult),
+      submission: validateSubmission(signedResult),
       preparation: prepared,
       submissionOptions:
         prepared.metadata.historyRequestId === undefined

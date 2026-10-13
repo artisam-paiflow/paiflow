@@ -1,7 +1,7 @@
 # @paiflow/sdk
 
-Unreleased Node SDK with typed deployment reads, public utilities and embed SSE.
-Mutation workflows other than explicit demo-token creation are not implemented yet.
+Unreleased Node SDK with typed deployment reads, payments, funding, public utilities
+and embed SSE. Schedule and Subscription controls and webhooks remain planned.
 This is not yet a complete integration SDK.
 Publishing requires separate authorization and control of the `@paiflow` npm scope.
 
@@ -192,3 +192,68 @@ lookup: SUCCESS does not prove this deployment executed, and NOT_FOUND appears a
 PENDING. It provides no receipt reconciliation or replacement-safety evidence.
 A public submit 502 may be uncertain; never automatically create a replacement.
 Amounts are positive integer stroop strings bounded to i128; never floating point.
+
+## Funding (unreleased)
+
+Funding supports deployed STREAMER Schedule and WEBHOOK pool nodes. These calls
+add funds only; they do not execute a payout, reward or Webhook callback.
+All HTTP funding methods require a deployment token. The token grants API access;
+any consenting funder's wallet signs, independently of the owner or controller.
+
+```ts
+const discovery = await flow.funding.get();
+const node = discovery.data.nodes.find((node) => node.nodeId === chosenNodeId);
+if (!node) throw new Error("Choose a supported funding node");
+const prepared = await flow.funding.prepare({
+  nodeId: node.nodeId,
+  fromAddress: fundingWalletAddress,
+  tokenContractAddress: node.tokenContractAddress,
+  amountStroops: "10000000",
+});
+// Persist preparation, including action/intent/txHash, before opening the wallet.
+const signed = await flow.funding.signPrepared(prepared, signTransaction, {
+  walletAddress: fundingWalletAddress,
+  expectedNetwork: "testnet",
+  signal,
+});
+// Persist the signed envelope before submitting. This helper does not submit.
+const submitted = await flow.funding.submit(signed.submission, {
+  ...signed.submissionOptions,
+  signal,
+});
+const status = await flow.transactions.get(prepared.data.txHash);
+const recovery = await flow.funding.reconcile({
+  action: prepared.data.action,
+  intent: prepared.data.intent,
+});
+// Inspect recovery.data.state explicitly; no replacementAllowed field is provided.
+```
+
+`funding.signPrepared` applies the existing signing callback/cancellation protocol,
+checks the funding wallet against `fromAddress`, and returns exact
+`{action,intent,signedXdr}` submission arguments, the original preparation and
+history correlation options. It enforces funding's 1–100,000-character signed XDR
+limit. Use this funding-specific helper rather than the top-level payment helper.
+The callback must sign the unchanged envelope using the server's passphrase.
+No wallet SDK or private key is accepted by this package.
+
+Discovery reads live assets, exposes authorization/effect, and supports at most
+sixteen candidates. Choose `nodeId` explicitly if several nodes exist; the SDK
+never chooses one or guesses an asset. Amounts must be positive canonical integer
+strings up to i128::MAX, with no leading zeroes. Request bodies contain only the
+published fields; extra caller properties are omitted. Submission returns the
+existing transaction status including UNKNOWN or REJECTED; HTTP 200 alone does
+not prove finality. Response parsers tolerate additive fields without inventing
+recovery flags.
+
+One unresolved intent per node blocks replacement funding and controls across
+wallets. Conflict errors preserve the existing intent/hash in `error.fields`.
+Reconcile that original intent. Reconciliation returns PREPARED, SUBMITTING,
+SUCCESS, FAILED or ledger-proven EXPIRED. Only durable terminal finality or
+ledger-proven expiry releases the reservation. UNKNOWN, REJECTED, missing history,
+404, timeout, elapsed `expiresAt`, signing cancellation or absent events never
+permit a replacement deposit. The helper's expiry guard only prevents signing a
+stale envelope. There are no automatic retries, re-preparations, submissions or
+reconciliation calls. Retain receipts and explicitly query/reconcile after errors.
+These workflows have local source-contract fixtures; hosted verification remains
+pending. See the [funding API documentation](https://github.com/webnxt-2030/pinkraft/blob/testing/docs/api/funding.md).
