@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -221,6 +221,46 @@ import "@paiflow/sdk/dist/index.js";
     ],
     consumer,
   );
+  // Consumer-only optional Stellar dependency and Node declarations come from
+  // existing dev installation; SDK itself remains dependency-free and packed.
+  for (const [name, source] of [
+    ["@stellar/stellar-sdk", "../../node_modules/@stellar/stellar-sdk"],
+    ["@types/node", "../../node_modules/@types/node"],
+  ]) {
+    const target = join(consumer, "node_modules", name);
+    await mkdir(dirname(target), { recursive: true });
+    await symlink(resolve(packageRoot, source), target);
+  }
+  const examples = join(consumer, "examples");
+  await cp(join(packageRoot, "examples"), examples, { recursive: true });
+  // Stellar SDK currently lacks js-xdr declarations; skip dependency internals
+  // only for these optional consumer examples. SDK-only declaration smoke stays strict.
+  run(
+    process.execPath,
+    [
+      compiler,
+      "--strict",
+      "--skipLibCheck",
+      "true",
+      "--module",
+      "NodeNext",
+      "--moduleResolution",
+      "NodeNext",
+      "--target",
+      "ES2022",
+      "--lib",
+      "ES2022,DOM,DOM.Iterable",
+      "--types",
+      "node",
+      "--outDir",
+      "examples/compiled",
+      "examples/payment-server.ts",
+      "examples/payment-browser.ts",
+      "examples/workflows.ts",
+    ],
+    consumer,
+  );
+  process.stdout.write(run(process.execPath, ["examples/check-examples.mjs"], consumer));
   process.stdout.write(
     "SDK tarball: file allowlist, clean ESM import, export boundary and declarations passed.\n",
   );

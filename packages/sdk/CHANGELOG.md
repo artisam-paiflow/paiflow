@@ -7,6 +7,9 @@ policy in `docs/releasing.md`; this metadata does not claim a published release.
 
 ### Added
 
+- SDK quickstart, API migration/coverage guide and packed-package examples for
+  browser-wallet payments, controls, funding, allowance, Webhooks and event recovery (#963).
+
 - Typed SDK keyed and explicitly unkeyed webhook callbacks with isolated secrets,
   signed-authorization error redaction and token-authorized early release (#962).
 

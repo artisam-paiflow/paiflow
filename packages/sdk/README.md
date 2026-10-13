@@ -2,17 +2,29 @@
 
 Unreleased Node SDK with typed deployment reads, payments, funding, Schedule and
 Subscription controls, public allowance consent, public utilities and embed SSE.
-Webhooks and early release remain planned.
-This is not yet a complete integration SDK.
+Includes keyed/unkeyed Webhook callbacks and early release. All 42 HTTP operations
+in the coverage matrix are implemented; fresh hosted workflow verification is
+pending.
 Publishing requires separate authorization and control of the `@paiflow` npm scope.
 
-The planned SDK covers existing-deployment user APIs: API v1 and the explicitly
+The SDK covers existing-deployment user APIs: API v1 and the explicitly
 listed unversioned routes in [the SDK contract](https://github.com/webnxt-2030/pinkraft/blob/testing/docs/sdk/contract.md).
 It does not create or deploy flows.
 
 Supported runtime: Node `>=22.22.2 <23`. Output is ESM with TypeScript declarations;
 CommonJS consumers can use dynamic import. There are no runtime dependencies.
 Package versions advance independently of the app and API versions.
+
+Start with the [quickstart and migration guide](https://github.com/webnxt-2030/pinkraft/blob/testing/docs/sdk/quickstart.md).
+The package is **not published**. Build and pack locally, then install the tarball:
+
+```sh
+pnpm sdk:build
+mkdir -p /tmp/paiflow-sdk-artifacts
+npm pack ./packages/sdk --ignore-scripts --pack-destination /tmp/paiflow-sdk-artifacts
+# In your Node ESM consumer (use the actual emitted filename):
+npm install /tmp/paiflow-sdk-artifacts/paiflow-sdk-0.1.0.tgz
+```
 
 From the repository root, after installing root development dependencies:
 
@@ -24,8 +36,8 @@ pnpm sdk:test:package
 ```
 
 The package uses the repository's existing TypeScript compiler without inheriting
-its Next.js configuration. No pnpm workspace is introduced. Artifact validation
-packs into a temporary directory, installs that tarball into a clean consumer,
+its Next.js configuration. No pnpm workspace is introduced. Artifact validation also compiles and runs the [consumer examples](https://github.com/webnxt-2030/pinkraft/tree/testing/packages/sdk/examples)
+using the packed SDK. It packs into a temporary directory, installs that tarball into a clean consumer,
 checks ESM import and declarations, and rejects unexpected published files.
 Generated output and tarballs are ignored by Git. The package's `prepack` script
 builds declarations and JavaScript before normal packing.
@@ -167,6 +179,11 @@ sequence, operations or time bounds. The SDK validates string bounds, network an
 provided wallet metadata; it does **not** parse XDR, verify operations, or determine
 the signer from the envelope. Execute/public preparation contains no wallet field:
 pass the same address used in prepare; your wallet integration must check the source.
+Before submission, bind the returned signed envelope to your saved original
+preparation. The [payment example](https://github.com/webnxt-2030/pinkraft/blob/testing/packages/sdk/examples/payment-server.ts)
+compares transaction-body hashes using an optional application Stellar dependency.
+Existing execute envelope validation does not bind a payment to your application
+order price. Verify business receipt conditions before fulfilment.
 No private keys are accepted. Callback exceptions are replaced with a generic signing
 error; cancellation and the deadline settle even if a wallet ignores AbortSignal.
 The helper never sends a transaction. Preserve the original preparation on failure.
