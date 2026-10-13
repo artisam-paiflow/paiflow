@@ -634,12 +634,12 @@ export function TriggerButton({
           const [topic] = data.pairingTopic
             ? (client?.session.values ?? [])
                 .filter(
-                  (session) =>
+                  (session: StoredSession) =>
                     session.pairingTopic === data.pairingTopic &&
                     isLiveSession(session) &&
                     sessionHasChain(session, stellarChainId(network)),
                 )
-                .map((session) => session.topic)
+                .map((session: StoredSession) => session.topic)
             : usableSessionTopics(client, {
                 chain: stellarChainId(network),
                 preferWalletId: data.walletId,
