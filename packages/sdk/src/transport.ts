@@ -31,6 +31,8 @@ export interface JsonRequest<T> {
   body?: unknown;
   query?: Readonly<Record<string, string>>;
   raw?: boolean;
+  /** Optional workflow-specific response body bound. */
+  maxResponseBytes?: number;
   parse: (value: unknown) => T;
 }
 export class PaiflowTransportError extends Error {
@@ -245,10 +247,16 @@ export class PaiflowTransport {
           if (!reader) throw new Error();
           const decoder = new TextDecoder();
           let text = "";
+          let bytes = 0;
           try {
             while (true) {
               const chunk = await reader.read();
               if (chunk.done) break;
+              bytes += chunk.value.byteLength;
+              if (request.maxResponseBytes !== undefined && bytes > request.maxResponseBytes) {
+                void reader.cancel().catch(() => {});
+                throw new Error();
+              }
               text += decoder.decode(chunk.value, { stream: true });
             }
             text += decoder.decode();
@@ -302,6 +310,176 @@ export class PaiflowTransport {
       clearTimeout(timer);
       options.signal?.removeEventListener("abort", abort);
       controller.signal.removeEventListener("abort", onAbort);
+    }
+  }
+  /** One public SSE connection; no retries or automatic reconnection. */
+  async *stream<T>(
+    path: string,
+    parse: (event: string, value: unknown) => T | undefined,
+    options: RequestOptions = {},
+  ): AsyncGenerator<ApiResponse<T>> {
+    if (!/^\/api\/deployments\/[A-Za-z0-9_-]+\/embed\/events$/.test(path))
+      throw new TypeError("Invalid public stream path");
+    if (options.preparationRequestId !== undefined)
+      throw new TypeError("Preparation ID does not apply to streams");
+    const headers = new Headers({ Accept: "text/event-stream" });
+    if (options.requestId !== undefined) {
+      if (!/^[A-Za-z0-9._:-]{1,128}$/.test(options.requestId))
+        throw new TypeError("Invalid requestId");
+      headers.set("x-request-id", options.requestId);
+    }
+    const controller = new AbortController();
+    let expired = false;
+    const abort = () => controller.abort();
+    const interrupted = () => (expired ? new PaiflowTimeoutError() : new PaiflowAbortError());
+    if (options.signal?.aborted) throw new PaiflowAbortError();
+    options.signal?.addEventListener("abort", abort, { once: true });
+    const timer = setTimeout(
+      () => {
+        expired = true;
+        controller.abort();
+      },
+      duration(options.timeoutMs ?? this.#timeout),
+    );
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    const cancel = () => {
+      void reader?.cancel().catch(() => {});
+    };
+    controller.signal.addEventListener("abort", cancel);
+    // Race each outstanding operation so injected fetch/reader cannot hang cancellation.
+    const wait = async <R>(operation: Promise<R>): Promise<R> => {
+      if (controller.signal.aborted) {
+        void operation.catch(() => {});
+        throw interrupted();
+      }
+      let stop: (() => void) | undefined;
+      const cancelled = new Promise<never>((_, reject) => {
+        stop = () => reject(interrupted());
+        controller.signal.addEventListener("abort", stop, { once: true });
+      });
+      try {
+        return await Promise.race([operation, cancelled]);
+      } finally {
+        if (stop) controller.signal.removeEventListener("abort", stop);
+      }
+    };
+    let metadata: ResponseMetadata = { status: 0 };
+    try {
+      const fetching = this.#fetch(new URL(path, this.origin), {
+        method: "GET",
+        headers,
+        signal: controller.signal,
+        redirect: "error",
+        credentials: "omit",
+      });
+      // If abort wins before an injected fetch resolves, release its eventual body.
+      void fetching.then(
+        (response) => {
+          if (controller.signal.aborted) void response.body?.cancel().catch(() => {});
+        },
+        () => {},
+      );
+      const response = await wait(fetching);
+      metadata = { status: response.status };
+      for (const [key, name] of [
+        ["requestId", "x-request-id"],
+        ["historyRequestId", "x-history-request-id"],
+        ["retryAfter", "retry-after"],
+      ] as const) {
+        const value = response.headers.get(name);
+        if (value !== null) metadata[key] = value;
+      }
+      if (response.redirected || (response.url && new URL(response.url).origin !== this.origin)) {
+        void response.body?.cancel().catch(() => {});
+        throw new PaiflowTransportError("Unexpected response origin");
+      }
+      if (!response.ok) {
+        void response.body?.cancel().catch(() => {});
+        // Public SSE admission can return plain text. Do not expose response bodies.
+        throw new PaiflowApiError(
+          response.status,
+          "HTTP_ERROR",
+          "Paiflow HTTP request failed",
+          undefined,
+          undefined,
+          metadata,
+        );
+      }
+      if (
+        !/^text\/event-stream(?:;|$)/i.test(response.headers.get("content-type") ?? "") ||
+        !response.body
+      ) {
+        void response.body?.cancel().catch(() => {});
+        throw new PaiflowMalformedResponseError(metadata);
+      }
+      reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8", { fatal: true });
+      let pending = "",
+        event = "",
+        data: string[] = [],
+        frameLength = 0;
+      const line = (value: string): T | undefined => {
+        frameLength += value.length;
+        if (frameLength > 262144) throw new PaiflowMalformedResponseError(metadata);
+        if (value === "") {
+          const name = event;
+          const body = data.join("\n");
+          event = "";
+          data = [];
+          frameLength = 0;
+          if (!body || (name !== "connected" && name !== "snapshot")) return undefined;
+          return parse(name, JSON.parse(body));
+        }
+        if (value.startsWith(":")) return undefined;
+        const colon = value.indexOf(":");
+        const key = colon < 0 ? value : value.slice(0, colon);
+        let field = colon < 0 ? "" : value.slice(colon + 1);
+        if (field.startsWith(" ")) field = field.slice(1);
+        if (key === "event") event = field;
+        else if (key === "data") data.push(field);
+        return undefined;
+      };
+      while (true) {
+        const chunk = await wait(reader.read());
+        if (controller.signal.aborted) throw interrupted();
+        if (chunk.done) {
+          pending += decoder.decode();
+          if (pending.endsWith("\r")) {
+            const result = line(pending.slice(0, -1));
+            if (result !== undefined) yield { data: result, metadata };
+          }
+          break;
+        }
+        if (chunk.value.byteLength > 1048576) throw new PaiflowMalformedResponseError(metadata);
+        pending += decoder.decode(chunk.value, { stream: true });
+        while (true) {
+          const index = pending.search(/[\r\n]/);
+          if (index < 0 || (pending[index] === "\r" && index === pending.length - 1)) break;
+          const value = pending.slice(0, index);
+          const width = pending[index] === "\r" && pending[index + 1] === "\n" ? 2 : 1;
+          pending = pending.slice(index + width);
+          const result = line(value);
+          if (result !== undefined) yield { data: result, metadata };
+        }
+        if (pending.length + frameLength > 262144)
+          throw new PaiflowMalformedResponseError(metadata);
+      }
+      // SSE dispatch requires a blank line; an unfinished last frame is discarded.
+    } catch (error) {
+      if (controller.signal.aborted) throw interrupted();
+      if (error instanceof PaiflowTransportError || error instanceof PaiflowApiError) throw error;
+      if (error instanceof SyntaxError || error instanceof TypeError)
+        throw new PaiflowMalformedResponseError(metadata);
+      throw new PaiflowTransportError();
+    } finally {
+      clearTimeout(timer);
+      options.signal?.removeEventListener("abort", abort);
+      controller.signal.removeEventListener("abort", cancel);
+      controller.abort();
+      if (reader) {
+        void reader.cancel().catch(() => {});
+        reader.releaseLock();
+      }
     }
   }
 }

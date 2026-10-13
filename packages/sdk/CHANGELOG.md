@@ -7,6 +7,9 @@ policy in `docs/releasing.md`; this metadata does not claim a published release.
 
 ### Added
 
+- Typed Node SDK deployment reads, bounded event pagination, public utilities,
+  hosted URL helpers and public embed snapshot SSE (#957).
+
 - Standalone ESM package scaffold, declarations, isolated build and clean-consumer
   artifact validation ([#955](https://github.com/webnxt-2030/pinkraft/issues/955)).
 

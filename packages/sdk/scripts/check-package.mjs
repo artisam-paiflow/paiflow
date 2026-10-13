@@ -68,6 +68,10 @@ import * as sdk from "@paiflow/sdk";
 assert.equal(typeof sdk.PaiflowTransport, "function");
 const transport = new sdk.PaiflowTransport({ baseUrl: "https://example.com", fetch: async () => new Response(JSON.stringify({data: true})) });
 assert.equal((await transport.request({path: "/api/v1/openapi.json", method: "GET", auth: {kind: "public"}, parse: value => value})).data, true);
+const reads = new sdk.Paiflow({baseUrl: "https://example.com", fetch: async () => new Response(JSON.stringify({data: {paused: true, available: "9007199254740993", retrieveAllowed: false}}))});
+const deployment = reads.deployment("11111111-1111-4111-8111-111111111111");
+assert.equal((await deployment.publicSchedule.get()).data.available, "9007199254740993");
+assert.equal(deployment.urls.embed(), "https://example.com/deployments/11111111-1111-4111-8111-111111111111/embed");
 await assert.rejects(import("@paiflow/sdk/dist/index.js"), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });
 `,
   );
@@ -83,6 +87,19 @@ const result: Promise<sdk.ApiResponse<boolean>> = transport.request({path: "/api
   return value;
 }});
 void result;
+const client = new sdk.Paiflow({baseUrl: "https://example.com", token: "pfk_test"});
+const deployment = client.deployment("11111111-1111-4111-8111-111111111111");
+const balances: Promise<sdk.ApiResponse<sdk.DeploymentBalances>> = deployment.balances.get();
+const capabilities: Promise<sdk.ApiResponse<sdk.DeploymentCapabilities>> = deployment.capabilities.get();
+const quote: Promise<sdk.ApiResponse<sdk.SwapQuote>> = deployment.swap.quote({amountStroops: "9007199254740993"});
+const pages: AsyncGenerator<sdk.ApiResponse<sdk.ListEventsResponse>> = deployment.events.pages({limit: 50}, {maxPages: 10});
+const stream: AsyncGenerator<sdk.ApiResponse<sdk.PublicEmbedMessage>> = deployment.embed.stream();
+async function snapshot() {for await (const item of stream) {if (item.data.event === "snapshot") {const amount: string | undefined = item.data.snapshot.events[0]?.amountStroops; void amount;}}}
+void [balances, capabilities, quote, pages, snapshot];
+// @ts-expect-error SDK amounts are integer strings, never JS floating point.
+deployment.swap.quote({amountStroops: 1.2});
+// @ts-expect-error Package internals are deliberately not exported.
+import "@paiflow/sdk/dist/read-parsers.js";
 // @ts-expect-error Package internals are deliberately not exported.
 import "@paiflow/sdk/dist/index.js";
 `,

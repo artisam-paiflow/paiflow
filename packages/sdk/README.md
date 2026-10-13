@@ -1,8 +1,8 @@
 # @paiflow/sdk
 
-Unreleased shared HTTP foundation for the Paiflow TypeScript SDK.
-`PaiflowTransport` is exported; deployment workflow methods are not implemented yet.
-This foundation is not a complete integration SDK.
+Unreleased Node SDK with typed deployment reads, public utilities and embed SSE.
+Mutation workflows other than explicit demo-token creation are not implemented yet.
+This is not yet a complete integration SDK.
 Publishing requires separate authorization and control of the `@paiflow` npm scope.
 
 The planned SDK covers existing-deployment user APIs: API v1 and the explicitly
@@ -56,5 +56,82 @@ Paths must be canonical API paths. Query parameters cannot contain credentials;
 the opaque `intent` parameter is permitted only for the documented public
 subscription-allowance status protocol. Do not log that URL. Request options
 allow validated caller request IDs and UUID preparation-history correlation IDs,
-not arbitrary header overrides. Endpoint-specific methods and shape validation
-arrive in subsequent SDK issues.
+not arbitrary header overrides. Read methods validate published response fields and tolerate additive fields.
+Unknown transaction statuses are malformed; UNKNOWN and REJECTED are preserved.
+
+## Deployment reads and public utilities
+
+```ts
+import { Paiflow } from "@paiflow/sdk";
+
+const client = new Paiflow({
+  baseUrl: "https://your-paiflow-instance.example",
+  token: deploymentToken, // keep this credential in your Node server
+});
+const deployment = client.deployment(deploymentId);
+const { data: capabilities } = await deployment.capabilities.get();
+const { data: balances } = await deployment.balances.get();
+const quote = await deployment.swap.quote({ amountStroops: "10000000", nodeId: "swap" });
+const transaction = await deployment.transactions.get(txHash);
+
+for await (const page of deployment.events.pages({ txHash, limit: 50 }, { maxPages: 20, signal })) {
+  // Store page.data.nextCursor, including on an empty final page, for later polling.
+  consume(page.data.items);
+}
+```
+
+Methods return `{data, metadata}`. Money remains integer strings. Capability support
+is not live readiness; balance freshness, stale nodes and incomplete totals stay visible.
+Swap quotes estimate one deployed node, not an execution guarantee. Transaction
+UNKNOWN/REJECTED, event absence and network failures do not authorize replacing a payment.
+Response shapes follow the current v1 schemas and public route returns; unrelated
+extra fields are ignored. OpenAPI preserves extra document fields. Read bodies are
+bounded to 4 MiB and schema collections to 10,000 entries (events pages max 100).
+
+`events.list(query, options)` makes one request. `events.pages(query, options)`
+retains limit/hash filters, deduplicates by eventId across its pages, and rejects
+repeated/cyclic cursors when `hasMore` is true. Default page cap is 100 (configurable
+1–10,000). Hitting the cap ends iteration with the final yielded cursor available
+for explicit continuation; it does not mean history is complete. Cancellation throws
+`PaiflowAbortError`. Each page has its own request timeout. Stop or abort on consumer
+errors; there are no automatic retries or polling loops.
+
+Public methods work without a token and never send a configured bearer credential:
+
+- `client.getOpenApi(options)` returns the raw OpenAPI document as `data`.
+- `client.createDemoToken(options)` explicitly requests a short-lived demo token.
+  Construction and reads never create tokens; availability depends on operator setup.
+- `deployment.publicSchedule.get(options)` reads the legacy public streamer state.
+- `deployment.embed.activity(options)` returns at most 50 projected public events.
+- `deployment.urls.payment({amount: "1.25"})`, `.allowance()` and `.embed()` generate
+  hosted URLs without checking eligibility or sending HTTP requests. Payment amount
+  hints are decimal token text with at most seven decimals, not stroops; flow rules
+  can override them. Helpers do not expose owner-only QR routes.
+
+## Public embed stream
+
+```ts
+for await (const message of deployment.embed.stream({ signal, timeoutMs: 60_000 })) {
+  if (message.data.event === "snapshot") render(message.data.snapshot.events);
+}
+```
+
+One call opens one public connection and yields typed `connected` and `snapshot`
+messages. Snapshots contain the latest 50 public projected events, not complete
+cursor history or individual acknowledgements. Duplicate eventIds within a snapshot
+are removed; consumers deduplicate across snapshots using eventId and correlate
+payments using txHash. Do not append every snapshot as if it were new history.
+Use token-authenticated events for complete indexed history.
+
+The server closes streams after 55 seconds; reconnect explicitly with bounded
+backoff and consume the new snapshot. Default stream lifetime timeout uses the
+client's timeout (30 seconds by default); set 60 seconds for a complete server
+connection. Abort or breaking iteration cancels the reader and releases listeners
+and timers. Parser frames are bounded to 262,144 characters and individual chunks
+to 1 MiB. Malformed known events fail safely; unknown events and heartbeats are
+ignored. SSE admission errors retain HTTP metadata/Retry-After with a generic
+`HTTP_ERROR`, including plain-text 503 responses, without exposing server bodies.
+Neither stream closure nor fallback polling establishes transaction finality.
+
+These features are verified against source contracts and local fixtures, not fresh
+hosted testnet transactions. Full workflow validation remains in #964.
