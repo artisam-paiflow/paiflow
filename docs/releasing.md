@@ -11,7 +11,7 @@ release changes; [CLAUDE.md](../CLAUDE.md) describes the contribution workflow.
 | App release       | Root `package.json` → `version`          | A release of the Paiflow application, including its UI, backend, and bundled code. Currently `0.1.0`.                                              |
 | Public API major  | URL prefix, currently `/api/v1`          | The compatibility contract for API consumers.                                                                                                      |
 | API specification | `lib/api/v1/openapi.ts` → `info.version` | A revision of the documented API contract. Currently `1.0.0`. `openapi: "3.1.0"` identifies the specification format, not the Paiflow API version. |
-| SDK release       | Each SDK package's own version metadata  | A release of that SDK. No Paiflow SDK is defined yet.                                                                                              |
+| SDK release       | Each SDK package's own version metadata  | A release of that SDK. `packages/sdk` contains an unreleased Node SDK scaffold.                                                                    |
 
 These versions advance independently. A dashboard feature can bump the app version
 without changing the API contract or SDK. An SDK fix can ship without an app release.
