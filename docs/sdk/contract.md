@@ -215,8 +215,8 @@ A webhook 202 is successful HTTP with uncertain financial status. Timeout after
 sending is uncertainty. Keep the original signed envelope/hash and use its correct
 status/reconcile surface. UNKNOWN, REJECTED, 404, wall-clock expiry or network
 failure alone never permits replacement. Control/funding reconciliation must
-retain protocol state and ledger-proven finality/expiry. Subscription reconciliation
-returns `replacementAllowed`; do not invent it for Schedule or funding.
+retain protocol state and ledger-proven finality/expiry. Subscription and Schedule
+reconciliation return `replacementAllowed`; do not invent it for funding.
 
 Public trigger has **no prepare receipt, intent, trigger-status route or receipt
 reconciliation** at this baseline. Public tx-status is global chain lookup, reports
