@@ -64,3 +64,16 @@ export type {
   FundingSubmitted,
   FundingReconciled,
 } from "./funding.js";
+
+export type {
+  ScheduleAction,
+  ScheduleStateQuery,
+  SchedulePrepareInput,
+  ScheduleReconcileInput,
+  ScheduleSubmitInput,
+  SchedulePreparedBase,
+  SchedulePrepared,
+  ScheduleState,
+  ScheduleSubmitted,
+  ScheduleReconciled,
+} from "./schedule.js";
