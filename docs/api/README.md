@@ -1,5 +1,7 @@
 # Developer API
 
+For typed Node integrations with existing deployments, see the [unpublished SDK quickstart](../sdk/quickstart.md).
+
 For a complete frontend/backend integration without the starter, follow the [API quickstart](../hackathon/developer-api-quickstart.md). For wallet setup, flow deployment and the ready-wired starter, use the [Paiflow Guide](../hackathon/paiflow-guide.md). Both guides are event-neutral; this reference provides the detailed API contract.
 
 Paiflow's `/api/v1` lets your backend run a deployed **deposit-triggered flow** (Pay, Split, condition or swap) and watch what it did on
@@ -503,7 +505,7 @@ as a Soroban simulation diagnostic.
 | `INSUFFICIENT_FUNDS` | 402  | The `from` account doesn't exist on this network (prepare)                                                                                        |
 | `FORBIDDEN`          | 403  | Not allowed for this caller (sandbox), or the public demo is not enabled on this instance (demo token)                                            |
 | `NOT_FOUND`          | 404  | A malformed deployment id, or (execute) a deployment that isn't confirmed                                                                         |
-| `CONFLICT`           | 409  | Already 10 active tokens, or another operation holds a conflicting state                                                                           |
+| `CONFLICT`           | 409  | Already 10 active tokens, or another operation holds a conflicting state                                                                          |
 | `VALIDATION`         | 422  | Bad body or query; a deposit the simulation rejects; a flow that doesn't start with a deposit trigger; an envelope that isn't this flow's deposit |
 | `RATE_LIMITED`       | 429  | Too many requests in the window (see below); on the demo token, also when the instance has no shared rate limiter                                 |
 | `INTERNAL`           | 500  | Unexpected server error; on the demo token, also a deliberate refusal when the demo flow is misconfigured, with the reason logged                 |
@@ -861,6 +863,7 @@ After `SUCCESS`, read state again and verify actual cancellation or reactivation
 event feed alone proves nothing. Rehearse cancel → finality → cancelled state/zero allowance →
 reactivate → finality → active state → separate allowance approval using a real consenting
 testnet wallet before advertising availability.
+
 ## Deployment-specific Swap estimates
 
 The source API adds `GET /api/v1/deployments/{id}/swap-quote?amountStroops=10000000`

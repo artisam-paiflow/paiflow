@@ -1,7 +1,7 @@
 # Release and versioning policy
 
 This document is the source of truth for Paiflow release versioning. It applies to
-the app, public API, and future SDKs. [CHANGELOG.md](../CHANGELOG.md) records app
+the app, public API, and SDKs. [CHANGELOG.md](../CHANGELOG.md) records app
 release changes; [CLAUDE.md](../CLAUDE.md) describes the contribution workflow.
 
 ## Version ownership
@@ -11,7 +11,7 @@ release changes; [CLAUDE.md](../CLAUDE.md) describes the contribution workflow.
 | App release       | Root `package.json` → `version`          | A release of the Paiflow application, including its UI, backend, and bundled code. Currently `0.1.0`.                                              |
 | Public API major  | URL prefix, currently `/api/v1`          | The compatibility contract for API consumers.                                                                                                      |
 | API specification | `lib/api/v1/openapi.ts` → `info.version` | A revision of the documented API contract. Currently `1.0.0`. `openapi: "3.1.0"` identifies the specification format, not the Paiflow API version. |
-| SDK release       | Each SDK package's own version metadata  | A release of that SDK. `packages/sdk` contains an unreleased Node SDK scaffold.                                                                    |
+| SDK release       | Each SDK package's own version metadata  | A release of that SDK. `packages/sdk` contains an unreleased Node SDK.                                                                             |
 
 These versions advance independently. A dashboard feature can bump the app version
 without changing the API contract or SDK. An SDK fix can ship without an app release.
@@ -59,7 +59,7 @@ Changing the app version alone never permits breaking the current API contract.
 
 ## SDK releases
 
-When an SDK is introduced, give it its own package version, changelog, and documented
+Each SDK has its own package version, changelog, and documented
 API-major and runtime compatibility. Apply the same beta version rules above while
 it is below `1.0.0`; after `1.0.0`, use major/minor/patch for breaking changes,
 compatible features, and compatible fixes respectively.

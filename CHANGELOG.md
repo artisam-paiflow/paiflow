@@ -7,6 +7,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- SDK quickstart, API migration/coverage guide and packed-package examples for
+  browser-wallet payments, controls, funding, allowance, Webhooks and event recovery (#963).
+
 - Typed SDK keyed and explicitly unkeyed webhook callbacks with isolated secrets,
   signed-authorization error redaction and token-authorized early release (#962).
 

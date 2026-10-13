@@ -1,8 +1,9 @@
 # Node SDK contract and endpoint coverage
 
-Proposed design for [#954](https://github.com/webnxt-2030/pinkraft/issues/954), under
-[#953](https://github.com/webnxt-2030/pinkraft/issues/953). This specifies future
-SDK behavior, not a published package or verified hosted availability.
+Implementation contract originating in [#954](https://github.com/webnxt-2030/pinkraft/issues/954), under
+[#953](https://github.com/webnxt-2030/pinkraft/issues/953). The Node package implements this surface; it is not published and hosted
+availability has not been established by local SDK tests. See the
+[quickstart and migration guide](quickstart.md) for compiled examples.
 
 ## Scope and packaging
 
@@ -29,7 +30,8 @@ Any dependency must satisfy repository justification and audit rules.
 ## Endpoint matrix
 
 `V` = `/api/v1/deployments/{id}`; `P` = `/api/deployments/{id}`.
-Methods are proposed names, not current exports. All take request options.
+Methods are current deployment namespaces unless prefixed with `client`. HTTP
+methods take request options; signing and URL helpers have their own options.
 **Token** means server-side `Authorization: Bearer pfk_…`. A token never supplies
 wallet consent. **Public** methods omit bearer credentials. Webhooks need their
 own secret. Rates are requests per 60 seconds, per token/route unless stated.
@@ -42,50 +44,50 @@ Schema aliases below refer to these exact sources:
 - **C**: [control intent](../../lib/api/v1/control-intent.ts), including `WalletControlSubmitSchema`.
 - **A**: [allowance schemas](../../lib/subscription/schema.ts).
 
-| HTTP path                                | Proposed SDK method                        | Auth/consent                                | Rate                               | Input → output authority                                                         | Issue |
-| ---------------------------------------- | ------------------------------------------ | ------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------- | ----- |
-| GET V/capabilities                       | `capabilities.get()`                       | token                                       | 60                                 | S: DeploymentCapabilitiesSchema                                                  | #957  |
-| GET V/balances                           | `balances.get()`                           | token                                       | 30                                 | S: DeploymentBalancesSchema                                                      | #957  |
-| GET V/swap-quote                         | `swap.quote(query)`                        | token                                       | 20                                 | Q: SwapQuoteQuerySchema → SwapQuoteSchema                                        | #957  |
-| GET V/events                             | `events.list(query) / events.pages(query)` | token                                       | 120                                | S: ListEventsQuerySchema → ListEventsResponseSchema                              | #957  |
-| GET V/transactions/{txHash}              | `transactions.get(txHash)`                 | token                                       | 60                                 | 64-hex hash → S: TransactionStatusSchema                                         | #957  |
-| POST V/execute                           | `execute.prepare(input)`                   | token; funding wallet signs next            | 30                                 | S: ExecutePrepareSchema → ExecutePreparedSchema                                  | #958  |
-| POST V/execute/submit                    | `execute.submit(input, {wait})`            | token + wallet                              | 30                                 | S: ExecuteSubmitSchema + ExecuteSubmitQuerySchema → ExecuteSubmittedSchema       | #958  |
-| GET V/funding                            | `funding.get()`                            | token; funding wallet for submit            | 10                                 | F: FundingDiscoverySchema                                                        | #959  |
-| POST V/funding                           | `funding.prepare(input)`                   | token; funding wallet for submit            | 10                                 | F: FundingPrepareSchema → FundingPreparedSchema                                  | #959  |
-| POST V/funding/submit                    | `funding.submit(input)`                    | token; funding wallet for submit            | 30                                 | F: FundingSubmitSchema → S: TransactionStatusSchema                              | #959  |
-| POST V/funding/reconcile                 | `funding.reconcile(input)`                 | token; funding wallet for submit            | 30                                 | F: FundingReconcileSchema → FundingReconciledSchema                              | #959  |
-| GET V/schedule/state                     | `schedule.get(query)`                      | token                                       | 20                                 | S: ScheduleStateQuerySchema → ScheduleStateSchema                                | #960  |
-| POST V/schedule/pause                    | `schedule.pause.prepare(input)`            | token; controller signs next                | 10                                 | S: SchedulePrepareSchema → schedule implementation                               | #960  |
-| POST V/schedule/pause/submit             | `schedule.pause.submit(input)`             | token + controller wallet                   | 30                                 | C: WalletControlSubmitSchema → transaction status                                | #960  |
-| POST V/schedule/pause/reconcile          | `schedule.pause.reconcile(input)`          | token                                       | 20                                 | S: ScheduleReconcileSchema → schedule implementation                             | #960  |
-| POST V/schedule/resume                   | `schedule.resume.prepare(input)`           | token; controller signs next                | 10                                 | S: SchedulePrepareSchema → schedule implementation                               | #960  |
-| POST V/schedule/resume/submit            | `schedule.resume.submit(input)`            | token + controller wallet                   | 30                                 | C: WalletControlSubmitSchema → transaction status                                | #960  |
-| POST V/schedule/resume/reconcile         | `schedule.resume.reconcile(input)`         | token                                       | 20                                 | S: ScheduleReconcileSchema → schedule implementation                             | #960  |
-| POST V/schedule/retrieve                 | `schedule.retrieve.prepare(input)`         | token; controller signs next                | 10                                 | S: SchedulePrepareSchema → schedule implementation                               | #960  |
-| POST V/schedule/retrieve/submit          | `schedule.retrieve.submit(input)`          | token + controller wallet                   | 30                                 | C: WalletControlSubmitSchema → transaction status                                | #960  |
-| POST V/schedule/retrieve/reconcile       | `schedule.retrieve.reconcile(input)`       | token                                       | 20                                 | S: ScheduleReconcileSchema → schedule implementation                             | #960  |
-| GET V/subscription/state                 | `subscription.get()`                       | token                                       | 40                                 | S: SubscriptionStateSchema                                                       | #961  |
-| POST V/subscription/cancel/prepare       | `subscription.cancel.prepare(input)`       | token; subscriber wallet for submit         | 10                                 | S: SubscriptionControlPrepareSchema → SubscriptionControlPreparedSchema          | #961  |
-| POST V/subscription/cancel/submit        | `subscription.cancel.submit(input)`        | token; subscriber wallet for submit         | 30                                 | C: WalletControlSubmitSchema → transaction status                                | #961  |
-| POST V/subscription/cancel/reconcile     | `subscription.cancel.reconcile(input)`     | token; subscriber wallet for submit         | 30                                 | S: SubscriptionControlReconcileSchema → SubscriptionControlReconciledSchema      | #961  |
-| POST V/subscription/reactivate/prepare   | `subscription.reactivate.prepare(input)`   | token; subscriber wallet for submit         | 10                                 | S: SubscriptionControlPrepareSchema → SubscriptionControlPreparedSchema          | #961  |
-| POST V/subscription/reactivate/submit    | `subscription.reactivate.submit(input)`    | token; subscriber wallet for submit         | 30                                 | C: WalletControlSubmitSchema → transaction status                                | #961  |
-| POST V/subscription/reactivate/reconcile | `subscription.reactivate.reconcile(input)` | token; subscriber wallet for submit         | 30                                 | S: SubscriptionControlReconcileSchema → SubscriptionControlReconciledSchema      | #961  |
-| POST V/release-early                     | `releaseEarly(input)`                      | token; server relayer executes              | 10                                 | S: ReleaseBeforeSchema → ReleasedSchema                                          | #962  |
-| POST /api/webhooks/{id}                  | `webhook.trigger(input, {idempotencyKey})` | x-webhook-secret; auth entries where needed | 20/deployment/IP                   | Local PostSchema → S: WebhookAttemptResponseSchema (keyed); legacy unkeyed shape | #962  |
-| POST P/trigger                           | `publicPayment.prepare(input)`             | public; wallet for submit                   | 20/deployment/IP                   | Local PostSchema {amount,userAddress} → {xdr,networkPassphrase}                  | #958  |
-| POST P/submit-trigger                    | `publicPayment.submit(input)`              | public; wallet for submit                   | 20/deployment/IP                   | Local SubmitSchema {signedXdr} → {txHash,status?: PENDING}                       | #958  |
-| GET P/tx-status                          | `publicPayment.status(txHash)`             | public; wallet for submit                   | 60/deployment/IP + 600/IP          | Local QuerySchema → {txHash,status: SUCCESS/FAILED/PENDING,errorMessage?}        | #958  |
-| GET P/subscription-allowance             | `allowance.get()`                          | public; subscriber signs submit             | 40/IP                              | Public subscription state + allowance:string/setupRequired                       | #961  |
-| POST P/subscription-allowance            | `allowance.prepare(input)`                 | public; subscriber signs submit             | 20/IP                              | A: AllowancePrepareSchema → public prepared shape                                | #961  |
-| POST P/subscription-allowance/submit     | `allowance.submit(input)`                  | public; subscriber signs submit             | 20/IP                              | A: AllowanceSubmitSchema → {txHash,status,errorMessage?}                         | #961  |
-| GET P/subscription-allowance/status      | `allowance.status({intent})`               | public; subscriber signs submit             | 60/IP + delegated tx-status limits | A: AllowanceStatusSchema → public transaction status                             | #961  |
-| GET P/streamer-state                     | `publicSchedule.get()`                     | public                                      | No route-local limit               | {paused,available:string,retrieveAllowed}                                        | #957  |
-| GET P/embed/activity                     | `embed.activity()`                         | public                                      | 600/IP shared public reads         | {events}: public projected latest 50, no cursor                                  | #957  |
-| GET P/embed/events                       | `embed.stream()`                           | public                                      | 600/IP reads + 120/IP connects     | SSE connected/snapshot messages                                                  | #957  |
-| GET /api/v1/openapi.json                 | `client.getOpenApi()`                      | public                                      | 60/IP                              | Raw OpenAPI; no data envelope                                                    | #957  |
-| POST /api/v1/demo-token                  | `client.createDemoToken()`                 | public; explicit opt-in                     | 3/IP/hour + 60 instance/hour       | S: DemoTokenSchema                                                               | #957  |
+| HTTP path                                | Proposed SDK method                                      | Auth/consent                                | Rate                               | Input → output authority                                                         | Issue |
+| ---------------------------------------- | -------------------------------------------------------- | ------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------- | ----- |
+| GET V/capabilities                       | `capabilities.get()`                                     | token                                       | 60                                 | S: DeploymentCapabilitiesSchema                                                  | #957  |
+| GET V/balances                           | `balances.get()`                                         | token                                       | 30                                 | S: DeploymentBalancesSchema                                                      | #957  |
+| GET V/swap-quote                         | `swap.quote(query)`                                      | token                                       | 20                                 | Q: SwapQuoteQuerySchema → SwapQuoteSchema                                        | #957  |
+| GET V/events                             | `events.list(query) / events.pages(query)`               | token                                       | 120                                | S: ListEventsQuerySchema → ListEventsResponseSchema                              | #957  |
+| GET V/transactions/{txHash}              | `transactions.get(txHash)`                               | token                                       | 60                                 | 64-hex hash → S: TransactionStatusSchema                                         | #957  |
+| POST V/execute                           | `execute.prepare(input)`                                 | token; funding wallet signs next            | 30                                 | S: ExecutePrepareSchema → ExecutePreparedSchema                                  | #958  |
+| POST V/execute/submit                    | `execute.submit(input, {wait})`                          | token + wallet                              | 30                                 | S: ExecuteSubmitSchema + ExecuteSubmitQuerySchema → ExecuteSubmittedSchema       | #958  |
+| GET V/funding                            | `funding.get()`                                          | token; funding wallet for submit            | 10                                 | F: FundingDiscoverySchema                                                        | #959  |
+| POST V/funding                           | `funding.prepare(input)`                                 | token; funding wallet for submit            | 10                                 | F: FundingPrepareSchema → FundingPreparedSchema                                  | #959  |
+| POST V/funding/submit                    | `funding.submit(input)`                                  | token; funding wallet for submit            | 30                                 | F: FundingSubmitSchema → S: TransactionStatusSchema                              | #959  |
+| POST V/funding/reconcile                 | `funding.reconcile(input)`                               | token; funding wallet for submit            | 30                                 | F: FundingReconcileSchema → FundingReconciledSchema                              | #959  |
+| GET V/schedule/state                     | `schedule.get(query)`                                    | token                                       | 20                                 | S: ScheduleStateQuerySchema → ScheduleStateSchema                                | #960  |
+| POST V/schedule/pause                    | `schedule.pause.prepare(input)`                          | token; controller signs next                | 10                                 | S: SchedulePrepareSchema → schedule implementation                               | #960  |
+| POST V/schedule/pause/submit             | `schedule.pause.submit(input)`                           | token + controller wallet                   | 30                                 | C: WalletControlSubmitSchema → transaction status                                | #960  |
+| POST V/schedule/pause/reconcile          | `schedule.pause.reconcile(input)`                        | token                                       | 20                                 | S: ScheduleReconcileSchema → schedule implementation                             | #960  |
+| POST V/schedule/resume                   | `schedule.resume.prepare(input)`                         | token; controller signs next                | 10                                 | S: SchedulePrepareSchema → schedule implementation                               | #960  |
+| POST V/schedule/resume/submit            | `schedule.resume.submit(input)`                          | token + controller wallet                   | 30                                 | C: WalletControlSubmitSchema → transaction status                                | #960  |
+| POST V/schedule/resume/reconcile         | `schedule.resume.reconcile(input)`                       | token                                       | 20                                 | S: ScheduleReconcileSchema → schedule implementation                             | #960  |
+| POST V/schedule/retrieve                 | `schedule.retrieve.prepare(input)`                       | token; controller signs next                | 10                                 | S: SchedulePrepareSchema → schedule implementation                               | #960  |
+| POST V/schedule/retrieve/submit          | `schedule.retrieve.submit(input)`                        | token + controller wallet                   | 30                                 | C: WalletControlSubmitSchema → transaction status                                | #960  |
+| POST V/schedule/retrieve/reconcile       | `schedule.retrieve.reconcile(input)`                     | token                                       | 20                                 | S: ScheduleReconcileSchema → schedule implementation                             | #960  |
+| GET V/subscription/state                 | `subscription.get()`                                     | token                                       | 40                                 | S: SubscriptionStateSchema                                                       | #961  |
+| POST V/subscription/cancel/prepare       | `subscription.cancel.prepare(input)`                     | token; subscriber wallet for submit         | 10                                 | S: SubscriptionControlPrepareSchema → SubscriptionControlPreparedSchema          | #961  |
+| POST V/subscription/cancel/submit        | `subscription.cancel.submit(input)`                      | token; subscriber wallet for submit         | 30                                 | C: WalletControlSubmitSchema → transaction status                                | #961  |
+| POST V/subscription/cancel/reconcile     | `subscription.cancel.reconcile(input)`                   | token; subscriber wallet for submit         | 30                                 | S: SubscriptionControlReconcileSchema → SubscriptionControlReconciledSchema      | #961  |
+| POST V/subscription/reactivate/prepare   | `subscription.reactivate.prepare(input)`                 | token; subscriber wallet for submit         | 10                                 | S: SubscriptionControlPrepareSchema → SubscriptionControlPreparedSchema          | #961  |
+| POST V/subscription/reactivate/submit    | `subscription.reactivate.submit(input)`                  | token; subscriber wallet for submit         | 30                                 | C: WalletControlSubmitSchema → transaction status                                | #961  |
+| POST V/subscription/reactivate/reconcile | `subscription.reactivate.reconcile(input)`               | token; subscriber wallet for submit         | 30                                 | S: SubscriptionControlReconcileSchema → SubscriptionControlReconciledSchema      | #961  |
+| POST V/release-early                     | `releaseEarly(input?)`                                   | token; server relayer executes              | 10                                 | S: ReleaseBeforeSchema → ReleasedSchema                                          | #962  |
+| POST /api/webhooks/{id}                  | `webhook.trigger(input, {webhookSecret,idempotencyKey})` | x-webhook-secret; auth entries where needed | 20/deployment/IP                   | Local PostSchema → S: WebhookAttemptResponseSchema (keyed); legacy unkeyed shape | #962  |
+| POST P/trigger                           | `publicPayment.prepare(input)`                           | public; wallet for submit                   | 20/deployment/IP                   | Local PostSchema {amount,userAddress} → {xdr,networkPassphrase}                  | #958  |
+| POST P/submit-trigger                    | `publicPayment.submit(input)`                            | public; wallet for submit                   | 20/deployment/IP                   | Local SubmitSchema {signedXdr} → {txHash,status?: PENDING}                       | #958  |
+| GET P/tx-status                          | `publicPayment.status(txHash)`                           | public; wallet for submit                   | 60/deployment/IP + 600/IP          | Local QuerySchema → {txHash,status: SUCCESS/FAILED/PENDING,errorMessage?}        | #958  |
+| GET P/subscription-allowance             | `subscription.allowance.get()`                           | public; subscriber signs submit             | 40/IP                              | Public subscription state + allowance:string/setupRequired                       | #961  |
+| POST P/subscription-allowance            | `subscription.allowance.prepare(input)`                  | public; subscriber signs submit             | 20/IP                              | A: AllowancePrepareSchema → public prepared shape                                | #961  |
+| POST P/subscription-allowance/submit     | `subscription.allowance.submit(input)`                   | public; subscriber signs submit             | 20/IP                              | A: AllowanceSubmitSchema → {txHash,status,errorMessage?}                         | #961  |
+| GET P/subscription-allowance/status      | `subscription.allowance.status({intent})`                | public; subscriber signs submit             | 60/IP + delegated tx-status limits | A: AllowanceStatusSchema → public transaction status                             | #961  |
+| GET P/streamer-state                     | `publicSchedule.get()`                                   | public                                      | No route-local limit               | {paused,available:string,retrieveAllowed}                                        | #957  |
+| GET P/embed/activity                     | `embed.activity()`                                       | public                                      | 600/IP shared public reads         | {events}: public projected latest 50, no cursor                                  | #957  |
+| GET P/embed/events                       | `embed.stream()`                                         | public                                      | 600/IP reads + 120/IP connects     | SSE connected/snapshot messages                                                  | #957  |
+| GET /api/v1/openapi.json                 | `client.getOpenApi()`                                    | public                                      | 60/IP                              | Raw OpenAPI; no data envelope                                                    | #957  |
+| POST /api/v1/demo-token                  | `client.createDemoToken()`                               | public; explicit opt-in                     | 3/IP/hour + 60 instance/hour       | S: DemoTokenSchema                                                               | #957  |
 
 Every V path maps to the same suffix under `app/api/v1/deployments/[id]/…/route.ts`.
 Read rates from [limits](../../lib/api/v1/limits.ts), auth/headers from
@@ -128,6 +130,7 @@ interface ApiResponse<T> {
   data: T;
   metadata: ResponseMetadata;
 }
+// Logical wire aliases below are explanatory, not separately exported types.
 type Network = "testnet" | "mainnet";
 type Stroops = string;
 type TransactionState = "SUCCESS" | "FAILED" | "PENDING" | "UNKNOWN" | "REJECTED";
@@ -176,9 +179,16 @@ initiating wallet address and callback, normalizes `xdr`/`unsignedXdr`, and retu
 submission arguments without submitting. Preserve preparation, intent/hash and
 history metadata before signing; a signing failure cannot trigger submit/reprepare.
 Sign the exact transaction without changing operations, source, sequence, time
-bounds or network. No secret-key API, wallet discovery or automatic account funding.
-A Node app may forward SignRequest to its browser wallet; wallet examples are not
-SDK runtime integrations.
+bounds or network. No secret-key API, wallet discovery or automatic account funding. The helper
+does not parse XDR or verify the signed transaction body. Your application must
+bind a returned signed envelope to the persisted original preparation before
+submission; the payment example demonstrates hash comparison.
+A Node app may forward the serializable XDR/passphrase/address fields to its
+browser wallet (not the AbortSignal); wallet examples are not SDK runtime integrations.
+Public allowance signing requires `subscription.allowance.signPrepared(prepared,
+state, signer, options)` with an explicitly fetched public state snapshot. Other
+workflow helpers take `(prepared, signer, options)`; use workflow-specific helpers
+to retain each action/intent submission shape.
 
 Use the server response passphrase. For Schedule, map its server-returned network
 to the canonical Stellar passphrase in the signing adapter; never use wallet
