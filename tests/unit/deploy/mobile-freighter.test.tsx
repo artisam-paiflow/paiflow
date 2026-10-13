@@ -178,6 +178,7 @@ describe("mobile Freighter deposit", () => {
         })
         .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { txHash: "hash" } }) });
       vi.stubGlobal("fetch", fetchMock);
+      const open = vi.spyOn(window, "open").mockReturnValue(null);
       await act(async () => {
         render(
           <TriggerButton deploymentId="deposit-id" network="testnet" amount="10000000" isDeposit />,
@@ -191,13 +192,20 @@ describe("mobile Freighter deposit", () => {
       if (outcome === "disconnect") mocks.sessions.splice(1, 1);
       await act(async () => {
         fireEvent.click(screen.getByRole("button", { name: /send with GAAAAA…AAAA/i }));
+        // The native link must open before an async boundary loses Chrome's
+        // user activation, without waiting for preparation or signing.
+        expect(open).toHaveBeenCalledTimes(outcome === "disconnect" ? 0 : 1);
+        expect(fetchMock).not.toHaveBeenCalled();
       });
       if (outcome === "disconnect") {
+        expect(open).not.toHaveBeenCalled();
         expect(mocks.request).not.toHaveBeenCalled();
         expect(fetchMock).not.toHaveBeenCalled();
         expect(screen.getByRole("button", { name: "Freighter" })).toBeTruthy();
         return;
       }
+      expect(open).toHaveBeenCalledOnce();
+      expect(open).toHaveBeenCalledWith("freighterwallet://wc-redirect", "_self");
       expect(mocks.connect).not.toHaveBeenCalled();
       if (outcome === "network mismatch") {
         expect(mocks.request).not.toHaveBeenCalled();

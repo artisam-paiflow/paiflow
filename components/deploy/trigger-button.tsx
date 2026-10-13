@@ -834,6 +834,15 @@ export function TriggerButton({
     setShowPicker(false);
     selectedWalletRef.current = connectedWallet.walletId;
     try {
+      // Android Chrome requires the native handoff within the user's tap.
+      // Validate the pre-warmed connection before leaving the browser; the
+      // signing adapter checks it again once transaction preparation finishes.
+      const cachedClient = wcRef.current?.client;
+      const cachedSession =
+        cachedClient &&
+        approvedMobileSession(connectedWallet, cachedClient.session.values, network);
+      const link = cachedSession && mobileWalletLink(cachedSession.walletId);
+      if (link) window.open(link, "_self");
       const { client } = await ensureWalletConnect();
       const session =
         client && approvedMobileSession(connectedWallet, client.session.values, network);
