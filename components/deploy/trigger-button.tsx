@@ -10,6 +10,7 @@ import { apiError } from "@/lib/friendly-error";
 import { trackWalletConnection } from "@/lib/wallet-tracking";
 import { track } from "@/lib/analytics/client";
 import { classifyError } from "@/lib/analytics/classify-error";
+import { FREIGHTER_NATIVE_LINK, mobileWalletLink } from "./mobile-wallet-links";
 import {
   isExpiredSession,
   isLiveSession,
@@ -40,12 +41,6 @@ function isMobile() {
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|Opera Mini/u.test(navigator.userAgent),
   );
 }
-
-const WALLET_DEEP_LINKS: Record<string, (uri: string) => string> = {
-  freighter: (uri) => `freighterwallet://wc?uri=${encodeURIComponent(uri)}`,
-  lobstr: (uri) => `lobstr://wc?uri=${encodeURIComponent(uri)}`,
-  xbull: (uri) => `xbull://wc?uri=${encodeURIComponent(uri)}`,
-};
 
 /**
  * Topics of stored sessions usable *for this call*, best first.
@@ -339,7 +334,7 @@ export function TriggerButton({
               id: "freighter",
               name: "Freighter",
               links: {
-                native: "freighterwallet://wc-redirect",
+                native: FREIGHTER_NATIVE_LINK,
                 universal: "",
               },
             },
@@ -690,8 +685,7 @@ export function TriggerButton({
   // user activation, so nothing may be awaited before window.open. Everything
   // that awaits lives in completeMobileConnect.
   function openMobileWallet(walletId: string) {
-    const deepLink = WALLET_DEEP_LINKS[walletId];
-    if (!deepLink) {
+    if (!mobileWalletLink(walletId)) {
       toast.error("Unknown wallet");
       return;
     }
@@ -720,7 +714,7 @@ export function TriggerButton({
       "paiflow_pending_wc",
       JSON.stringify({ network, timestamp: Date.now(), walletId }),
     );
-    window.open(deepLink(pairing.uri), "_self", "noreferrer noopener");
+    window.open(mobileWalletLink(walletId, pairing.uri)!, "_self", "noreferrer noopener");
     void completeMobileConnect({ pairing });
   }
 
@@ -814,6 +808,9 @@ export function TriggerButton({
                 </span>
                 <p className="text-label-sm text-on-background mt-2 font-medium">
                   {pendingWallet ? `Waiting for ${pendingWallet}…` : "Connecting…"}
+                </p>
+                <p className="text-body-sm text-on-background/60 mt-2 px-4 text-center">
+                  Approve the connection in your wallet, then return here to continue.
                 </p>
               </div>
             )}
@@ -931,18 +928,13 @@ export function TriggerButton({
       {isMobile() && showOpenWallet && selectedWalletRef.current && (
         <button
           onClick={() => {
-            const schemes: Record<string, string> = {
-              freighter: "freighterwallet://",
-              lobstr: "lobstr://",
-              xbull: "xbull://",
-            };
-            const scheme = schemes[selectedWalletRef.current!];
-            if (scheme) window.open(scheme, "_self");
+            const link = mobileWalletLink(selectedWalletRef.current!);
+            if (link) window.open(link, "_self");
           }}
           className="border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-3 font-mono text-xs font-bold transition-colors"
         >
           <span className="material-symbols-outlined text-[16px]">open_in_new</span>
-          OPEN {selectedWalletRef.current.toUpperCase()}
+          OPEN {selectedWalletRef.current.toUpperCase()} TO SIGN
         </button>
       )}
     </>
