@@ -72,6 +72,9 @@ const reads = new sdk.Paiflow({baseUrl: "https://example.com", fetch: async () =
 const deployment = reads.deployment("11111111-1111-4111-8111-111111111111");
 assert.equal((await deployment.publicSchedule.get()).data.available, "9007199254740993");
 assert.equal(deployment.urls.embed(), "https://example.com/deployments/11111111-1111-4111-8111-111111111111/embed");
+const payment = new sdk.Paiflow({baseUrl: "https://example.com", token: "pfk_test", fetch: async () => new Response(JSON.stringify({data: {txHash: "a".repeat(64), status: "FAILED", error: {code: "ONCHAIN_FAILED", message: "failed"}}}))});
+assert.equal((await payment.deployment("11111111-1111-4111-8111-111111111111").execute.submit({signedXdr: "signed-envelope"})).data.status, "FAILED");
+assert.equal(typeof sdk.signPrepared, "function");
 await assert.rejects(import("@paiflow/sdk/dist/index.js"), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });
 `,
   );
@@ -95,7 +98,20 @@ const quote: Promise<sdk.ApiResponse<sdk.SwapQuote>> = deployment.swap.quote({am
 const pages: AsyncGenerator<sdk.ApiResponse<sdk.ListEventsResponse>> = deployment.events.pages({limit: 50}, {maxPages: 10});
 const stream: AsyncGenerator<sdk.ApiResponse<sdk.PublicEmbedMessage>> = deployment.embed.stream();
 async function snapshot() {for await (const item of stream) {if (item.data.event === "snapshot") {const amount: string | undefined = item.data.snapshot.events[0]?.amountStroops; void amount;}}}
-void [balances, capabilities, quote, pages, snapshot];
+const preparation: Promise<sdk.ApiResponse<sdk.ExecutePrepared>> = deployment.execute.prepare({amount: "1", from: "wallet"});
+const submitted: Promise<sdk.ApiResponse<sdk.ExecuteSubmitted>> = deployment.execute.submit({signedXdr: "signed"}, {wait: false});
+const publicPreparation: Promise<sdk.ApiResponse<sdk.PublicPaymentPrepared>> = deployment.publicPayment.prepare({amount: "1", userAddress: "wallet"});
+const publicStatus: Promise<sdk.ApiResponse<sdk.PublicPaymentStatus>> = deployment.publicPayment.status("hash");
+const signer: sdk.SignTransaction = async request => ({signedXdr: request.xdr});
+async function signing(p: sdk.ApiResponse<sdk.ExecutePrepared>) {const signed = await sdk.signPrepared(p, signer, {walletAddress: "wallet"}); const original: sdk.ExecutePrepared = signed.preparation.data; void original;}
+void [balances, capabilities, quote, pages, snapshot, preparation, submitted, publicPreparation, publicStatus, signing];
+// @ts-expect-error SDK payment amount requires a string.
+deployment.execute.prepare({amount: 1, from: "wallet"});
+// @ts-expect-error Legacy public preparation never invents expiry.
+const inventedExpiry: string = ({} as sdk.PublicPaymentPrepared).expiresAt;
+// @ts-expect-error Callback returns signedXdr object, not a private key or raw string.
+const invalidSigner: sdk.SignTransaction = async () => "secret";
+void [inventedExpiry, invalidSigner];
 // @ts-expect-error SDK amounts are integer strings, never JS floating point.
 deployment.swap.quote({amountStroops: 1.2});
 // @ts-expect-error Package internals are deliberately not exported.

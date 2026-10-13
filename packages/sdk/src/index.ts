@@ -35,3 +35,21 @@ export type {
   DemoToken,
   OpenApiDocument,
 } from "./read-parsers.js";
+
+export { signPrepared, PaiflowSigningError } from "./payment.js";
+export type {
+  ExecutePrepareInput,
+  PublicPaymentPrepareInput,
+  SignedSubmission,
+  ExecuteSubmitOptions,
+  ExecutePrepared,
+  ExecuteSubmitted,
+  PublicPaymentPrepared,
+  PublicPaymentSubmitted,
+  PublicPaymentStatus,
+  SignRequest,
+  SignTransaction,
+  PreparedSigner,
+  SignOptions,
+  PreparedEnvelope,
+} from "./payment.js";
