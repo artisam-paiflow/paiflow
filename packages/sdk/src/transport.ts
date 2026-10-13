@@ -31,7 +31,7 @@ export interface JsonRequest<T> {
   body?: unknown;
   query?: Readonly<Record<string, string>>;
   raw?: boolean;
-  /** Optional workflow-specific response body bound. */
+  /** Response body byte limit; defaults to 4 MiB. */
   maxResponseBytes?: number;
   parse: (value: unknown) => T;
 }
@@ -171,8 +171,9 @@ export class PaiflowTransport {
       typeof value === "string" &&
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
     const sensitive = (key: string, value: unknown) =>
-      /(?:signedxdr|secret|token|password|cookie|authorization|body)/i.test(key) ||
-      (/intent/i.test(key) && !uuid(value));
+      key.toLowerCase() !== "tokencontractaddress" &&
+      (/(?:signedxdr|secret|token|password|cookie|authorization|body)/i.test(key) ||
+        (/intent/i.test(key) && !uuid(value)));
     const collect = (value: unknown, depth = 0): void => {
       if (depth > 12) return;
       if (Array.isArray(value)) {
@@ -208,6 +209,9 @@ export class PaiflowTransport {
       return value;
     };
     const timeout = duration(options.timeoutMs ?? this.#timeout);
+    const maxResponseBytes = request.maxResponseBytes ?? 4194304;
+    if (!Number.isSafeInteger(maxResponseBytes) || maxResponseBytes < 1)
+      throw new TypeError("Invalid maxResponseBytes");
     const controller = new AbortController();
     let expired = false;
     const abort = () => controller.abort();
@@ -237,6 +241,12 @@ export class PaiflowTransport {
           redirect: "error",
           credentials: "omit",
         });
+        // The caller may already have returned after cancellation of injected fetch.
+        // Do not acquire a reader on a late response: release its body immediately.
+        if (controller.signal.aborted) {
+          void response.body?.cancel().catch(() => {});
+          throw expired ? new PaiflowTimeoutError() : new PaiflowAbortError();
+        }
         const metadata: ResponseMetadata = { status: response.status };
         for (const [key, name] of [
           ["requestId", "x-request-id"],
@@ -246,8 +256,10 @@ export class PaiflowTransport {
           const value = response.headers.get(name);
           if (value !== null) metadata[key] = value;
         }
-        if (response.redirected || (response.url && new URL(response.url).origin !== this.origin))
+        if (response.redirected || (response.url && new URL(response.url).origin !== this.origin)) {
+          void response.body?.cancel().catch(() => {});
           throw new PaiflowTransportError("Unexpected response origin");
+        }
         let payload: unknown;
         try {
           reader = response.body?.getReader();
@@ -260,7 +272,7 @@ export class PaiflowTransport {
               const chunk = await reader.read();
               if (chunk.done) break;
               bytes += chunk.value.byteLength;
-              if (request.maxResponseBytes !== undefined && bytes > request.maxResponseBytes) {
+              if (bytes > maxResponseBytes) {
                 void reader.cancel().catch(() => {});
                 throw new Error();
               }
@@ -335,19 +347,17 @@ export class PaiflowTransport {
         throw new TypeError("Invalid requestId");
       headers.set("x-request-id", options.requestId);
     }
+    const timeout = duration(options.timeoutMs ?? this.#timeout);
     const controller = new AbortController();
     let expired = false;
     const abort = () => controller.abort();
     const interrupted = () => (expired ? new PaiflowTimeoutError() : new PaiflowAbortError());
     if (options.signal?.aborted) throw new PaiflowAbortError();
     options.signal?.addEventListener("abort", abort, { once: true });
-    const timer = setTimeout(
-      () => {
-        expired = true;
-        controller.abort();
-      },
-      duration(options.timeoutMs ?? this.#timeout),
-    );
+    const timer = setTimeout(() => {
+      expired = true;
+      controller.abort();
+    }, timeout);
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     const cancel = () => {
       void reader?.cancel().catch(() => {});

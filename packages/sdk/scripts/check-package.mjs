@@ -12,6 +12,13 @@ const run = (command, args, cwd) =>
   execFileSync(command, args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 
 try {
+  // Regression: a former source module's outputs cannot survive a clean rebuild.
+  const stale = ["dist/deleted-module.js", "dist/deleted-module.d.ts"];
+  for (const path of stale) await writeFile(join(packageRoot, path), "// stale output\n");
+  run(process.execPath, ["scripts/build.mjs"], packageRoot);
+  for (const path of stale) {
+    await assert.rejects(readFile(join(packageRoot, path)), { code: "ENOENT" });
+  }
   // Ignore lifecycle scripts here: the caller already built the exact candidate.
   const [packed] = JSON.parse(
     run("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", scratch], packageRoot),
@@ -261,6 +268,7 @@ import "@paiflow/sdk/dist/index.js";
     consumer,
   );
   process.stdout.write(run(process.execPath, ["examples/check-examples.mjs"], consumer));
+  process.stdout.write(`SDK artifact: ${packed.filename} integrity=${packed.integrity}\n`);
   process.stdout.write(
     "SDK tarball: file allowlist, clean ESM import, export boundary and declarations passed.\n",
   );

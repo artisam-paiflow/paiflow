@@ -16,6 +16,8 @@ CommonJS consumers can use dynamic import. There are no runtime dependencies.
 Package versions advance independently of the app and API versions.
 
 Start with the [quickstart and migration guide](https://github.com/webnxt-2030/pinkraft/blob/testing/docs/sdk/quickstart.md).
+The [beta validation/publication checklist](https://github.com/webnxt-2030/pinkraft/blob/testing/docs/sdk/release-checklist.md) records local coverage and outstanding live checks.
+
 The package is **not published**. Build and pack locally, then install the tarball:
 
 ```sh
@@ -419,3 +421,5 @@ The SDK never redirects to the after side or retries. A successful response reta
 `nodeId`, `txHash` and optional `ledger`; it contains no invented network field.
 Authorize your own application's requester before using either server-held credential.
 These interfaces are source-tested; hosted/on-chain verification remains pending.
+
+JSON response bodies are limited to 4 MiB by default, including errors and payment/control receipts. Invalid or oversized successful responses produce a typed malformed response error; unreadable error responses retain HTTP status with a generic HTTP error. POST requests are never automatically repeated. Low-level `transport.request` callers may supply an explicit positive integer `maxResponseBytes`.
