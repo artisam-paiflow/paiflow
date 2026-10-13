@@ -1,7 +1,7 @@
 {
   "name": "@paiflow/sdk",
   "version": "0.1.0",
-  "description": "Node SDK for existing Paiflow deployments (unreleased scaffold)",
+  "description": "Node SDK foundation for existing Paiflow deployments (unreleased)",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -34,6 +34,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prepack": "pnpm run build",
-    "test:package": "pnpm run build && node scripts/check-package.mjs"
+    "test:package": "pnpm run build && node scripts/check-package.mjs",
+    "test": "pnpm run build && node --test tests/*.test.mjs"
   }
 }

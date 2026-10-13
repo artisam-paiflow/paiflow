@@ -1,2 +1,16 @@
-// Package scaffold only. The HTTP client and API methods arrive in subsequent issues.
-export {};
+export {
+  PaiflowTransport,
+  PaiflowApiError,
+  PaiflowTransportError,
+  PaiflowTimeoutError,
+  PaiflowAbortError,
+  PaiflowMalformedResponseError,
+} from "./transport.js";
+export type {
+  PaiflowOptions,
+  RequestOptions,
+  ResponseMetadata,
+  ApiResponse,
+  RequestAuth,
+  JsonRequest,
+} from "./transport.js";
