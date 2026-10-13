@@ -1,7 +1,8 @@
 # @paiflow/sdk
 
-Unreleased Node SDK with typed deployment reads, payments, funding, public utilities
-and embed SSE. Schedule and Subscription controls and webhooks remain planned.
+Unreleased Node SDK with typed deployment reads, payments, funding, Schedule and
+Subscription controls, public allowance consent, public utilities and embed SSE.
+Webhooks and early release remain planned.
 This is not yet a complete integration SDK.
 Publishing requires separate authorization and control of the `@paiflow` npm scope.
 
@@ -279,3 +280,79 @@ Local expiry, wallet denial, timeout, UNKNOWN or missing history never permits a
 replacement. No method automatically signs, submits, resends or prepares another
 intent. Hosted verification remains pending; local SDK tests do not establish
 live Schedule readiness. See [Schedule API controls](../../docs/api/schedule-controls.md).
+
+## Subscription and public allowance consent
+
+`deployment.subscription.get()` reads token-authenticated live state, including
+`templateKind`. `cancel` and `reactivate` each expose explicit `prepare`,
+`signPrepared`, `submit` and `reconcile`. Preparation requires the configured
+subscriber's `walletAddress`; the token supplies API access, never wallet consent.
+Cancellation revokes allowance. Reactivation grants no allowance and triggers no
+immediate charge. Neither action changes recipients or creates another customer
+subscription. Existing Dev variants work only where the API permits the operation;
+there are no SDK Dev setters or new deployment/configuration helpers.
+
+```ts
+const control = deployment.subscription.cancel;
+const prepared = await control.prepare({ walletAddress: subscriberAddress });
+// Save the original intent, hash, network and preparation/history metadata.
+const signed = await control.signPrepared(prepared, signer, {
+  walletAddress: subscriberAddress,
+  expectedNetwork: "testnet",
+});
+const result = await control.submit(signed.submission, signed.submissionOptions);
+// Explicit recovery, including UNKNOWN or lost submission responses:
+const reconciled = await control.reconcile({ intent: prepared.data.intent });
+```
+
+Control reconciliation preserves the server's action, state, nullable ledger and
+`replacementAllowed`; it has no network field. Keep the reservation while
+PREPARED/SUBMITTING or finality/history is uncertain. Local timeouts and expiry do
+not authorize a new intent. Controls use UUID intents and signed XDR length
+1–100000, distinct from public approval.
+
+`deployment.subscription.allowance` exposes public `get`, `prepare`, `submit`,
+`status` and optional `signPrepared`. These methods omit the deployment bearer
+token, even when the client has one. Public state omits `templateKind`.
+`prepare({ amount, userAddress })` adds a positive integer-string amount to the
+current allowance: it does not deposit funds or immediately charge the customer.
+The server checks the cumulative i128 limit. Leading zero inputs are accepted as
+by the source schema; use strings throughout.
+
+```ts
+const allowance = deployment.subscription.allowance;
+const state = await allowance.get();
+const prepared = await allowance.prepare({
+  amount: "10000000",
+  userAddress: subscriberAddress,
+});
+const signed = await allowance.signPrepared(prepared, state, signer, {
+  walletAddress: subscriberAddress,
+  expectedNetwork: "testnet",
+});
+const result = await allowance.submit(signed.submission, signed.submissionOptions);
+const status = await allowance.status({ intent: prepared.data.intent });
+```
+
+The allowance signing helper takes an explicitly fetched state snapshot because
+public preparation exposes only `xdr`, opaque signed `intent`, `txHash`,
+`networkPassphrase` and cumulative `allowance`. It checks the snapshot deployment,
+network, configured subscriber, cancellation and setup state before invoking the
+callback. It makes no extra read and cannot prove snapshot freshness or bind the
+opaque intent/envelope to those identifiers. The server remains authoritative
+for live eligibility and exact signed-envelope/intent binding. The SDK does not
+decode or verify the opaque intent, parse XDR operations, or invent expiry fields.
+The signer must sign the unchanged envelope using the server's passphrase.
+
+Keep the original preparation, intent/hash and history metadata through wallet
+rejection, cancellation and uncertain submission. Allowance submit requires
+signed XDR length 10–200000 and intent length 10–4096. Status uses the same opaque
+intent, including after submit-intent expiry; do not log its URL. Public status
+preserves SUCCESS/FAILED/PENDING and optional `errorMessage`, with no invented
+network or `replacementAllowed` flag. PENDING and unavailable RPC retain unknown
+finality; do not replace approval just because wall-clock time passed. This SDK
+never retries, re-prepares, submits from a signing helper or initiates a charge.
+A positive final allowance status permits a separate deliberate subsequent
+approval; server-proven expired-without-confirmation is returned as FAILED.
+Hosted/on-chain Subscription verification remains separately authorized and
+pending in the repository's manual verification queue.

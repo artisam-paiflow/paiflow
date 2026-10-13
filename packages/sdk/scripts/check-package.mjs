@@ -143,6 +143,31 @@ async function scheduleTypes() {
  deployment.schedule.retrieve.prepare({walletAddress: "wallet", amountStroops: "1"});
  return amount;
 }
+const subscriptionState: Promise<sdk.ApiResponse<sdk.SubscriptionState>> = deployment.subscription.get();
+async function subscriptionTypes() {
+ const p = await deployment.subscription.cancel.prepare({walletAddress: "wallet"});
+ const signed = await deployment.subscription.cancel.signPrepared(p, signer, {walletAddress: "wallet"});
+ const receipt: Promise<sdk.ApiResponse<sdk.SubscriptionSubmitted>> = deployment.subscription.cancel.submit(signed.submission, signed.submissionOptions);
+ const r = await deployment.subscription.cancel.reconcile({intent: p.data.intent});
+ const ledger: number | null = r.data.ledger;
+ // @ts-expect-error Cancellation preparations cannot be signed as reactivation.
+ deployment.subscription.reactivate.signPrepared(p, signer, {walletAddress: "wallet"});
+ const state = await deployment.subscription.allowance.get();
+ // @ts-expect-error Public state omits the partner templateKind field.
+ state.data.templateKind;
+ const approval = await deployment.subscription.allowance.prepare({amount: "1", userAddress: "wallet"});
+ const signedApproval = await deployment.subscription.allowance.signPrepared(approval, state, signer, {walletAddress: "wallet"});
+ const allowanceReceipt: Promise<sdk.ApiResponse<sdk.AllowanceStatus>> = deployment.subscription.allowance.submit(signedApproval.submission);
+ // @ts-expect-error Public preparation has no expiry field.
+ approval.data.expiresAt;
+ // @ts-expect-error Approval amounts must be strings.
+ deployment.subscription.allowance.prepare({amount: 1, userAddress: "wallet"});
+ const status = await deployment.subscription.allowance.status({intent: approval.data.intent});
+ // @ts-expect-error Public status has no replacementAllowed field.
+ status.data.replacementAllowed;
+ return [receipt, allowanceReceipt, ledger];
+}
+void [subscriptionState, subscriptionTypes];
 void [scheduleState, schedulePrepared, scheduleSigning, scheduleTypes];
 void [fundingDiscovery, fundingPrepared, fundingSubmitted, fundingReconciled, fundingSigning, inventedReplacement];
 void [balances, capabilities, quote, pages, snapshot, preparation, submitted, publicPreparation, publicStatus, signing];

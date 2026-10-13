@@ -7,6 +7,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Typed SDK Subscription state, cancellation/reactivation wallet controls and
+  public additive allowance consent, preserving distinct intent/status protocols (#961).
+
 - Typed SDK Schedule state and explicit pause/resume/retrieve wallet controls,
   retaining server reconciliation and replacement evidence (#960).
 

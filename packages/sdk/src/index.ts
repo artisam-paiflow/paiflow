@@ -77,3 +77,20 @@ export type {
   ScheduleSubmitted,
   ScheduleReconciled,
 } from "./schedule.js";
+
+export type {
+  SubscriptionAction,
+  SubscriptionPrepareInput,
+  SubscriptionReconcileInput,
+  SubscriptionSubmitInput,
+  SubscriptionState,
+  SubscriptionPrepared,
+  SubscriptionSubmitted,
+  SubscriptionReconciled,
+  AllowancePrepareInput,
+  AllowanceStatusInput,
+  AllowanceSubmitInput,
+  AllowanceState,
+  AllowancePrepared,
+  AllowanceStatus,
+} from "./subscription.js";
