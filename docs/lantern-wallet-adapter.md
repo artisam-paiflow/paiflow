@@ -1,10 +1,9 @@
 # Lantern embedded wallet adapter
 
 Issue [#930](https://github.com/webnxt-2030/pinkraft/issues/930) adds the client adapter in
-`components/deploy/lantern-wallet.ts`. Public trigger and Subscription allowance UI wiring,
-including WalletConnect initialization bypass, belongs to
-[#931](https://github.com/webnxt-2030/pinkraft/issues/931). Existing browser wallet behavior is
-unchanged by this adapter-only change.
+`components/deploy/lantern-wallet.ts`. Issue
+[#931](https://github.com/webnxt-2030/pinkraft/issues/931) connects it to public testnet trigger
+and Subscription allowance payments. Installed-device support still requires #933 evidence.
 
 ## Interface and selection
 
@@ -26,6 +25,40 @@ otherwise `document.referrer`. If neither exposes an approved origin, selection 
 Approved origins are shared with the framing policy in `lib/csp.ts`. Query parameters and storage
 are not wallet selection signals. Every reply must independently match `window.parent` and the
 selected exact origin. Every outbound message uses that exact target origin.
+
+## Public payment integration
+
+Both `/trigger/:deploymentId` and `/allowance/:deploymentId` use `TriggerButton`. Its layout
+selection runs before mobile prewarming and WalletConnect session restoration. In a trusted Lantern
+frame, public testnet actions connect/sign with Lantern and never initialize browser wallet SDKs,
+open a wallet picker, restore a WalletConnect pairing/session, or navigate to a mobile wallet.
+Embedded public mainnet actions show Testnet-only guidance before any browser wallet initialization.
+Standalone Freighter/WalletConnect mainnet and testnet behavior remains available. Payroll retains its
+existing browser wallet and session-protected server routes outside Lantern. Inside Lantern, Payroll
+wallet actions show authenticated-milestone guidance without wallet initialization or mobile navigation;
+authenticated actions are deferred to #932.
+
+The adapter belongs to the component's existing owned payment attempt. Connection and signing receive
+its abort signal; signing receives the account used for preparation and the server passphrase.
+Deployment, network, amount, mode, template, or deposit-intent changes and unmount disconnect the
+adapter and invalidate late replies. Terminal attempts also disconnect locally. Wallet connection
+analytics record `walletId: "lantern"` with the existing trigger surface.
+
+`getWalletKit(network, { publicPayment: true })` is an explicit public-flow opt-in, selected before
+browser SDK imports or cache access. Its discriminated result has `provider: "lantern"` and a typed
+`LanternWallet` for embedded testnet payments, or `provider: "browser"` with the existing browser kit.
+Lantern callers use `getAddress`/`signTransaction`/`disconnect`, not browser modal methods. Default
+`getWalletKit(network)` callers retain browser wallets outside Lantern and show unsupported
+authenticated-action guidance inside Lantern before SDK/cache access; public opt-in rejects embedded mainnet. The
+separate TriggerButton path owns its adapter directly because it also owns WalletConnect pairing UI.
+
+Preparation and submission stay on the existing server routes. Public trigger keeps #937's
+hash/receipt-only durable record before sending and requires Web Locks; Subscription allowance keeps
+its scoped intent and prepared hash. Unknown confirmation retains the original pending payment and
+reconciles after reload without preparing or signing again. No signed envelope is stored for recovery.
+Tests exercise actual distribute, pipeline/webhook deposit, streamer top-up, and token-approve
+preparation through RPC simulation fixtures and real SDK assembly. Each resulting normal Soroban envelope uses the customer transaction
+source, meeting Lantern's source rule without fee-bump conversion or a contract rewrite.
 
 ## Protocol and lifecycle
 

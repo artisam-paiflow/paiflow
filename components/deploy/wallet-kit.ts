@@ -1,7 +1,7 @@
 "use client";
 
-import { WalletConnectModal } from "@walletconnect/modal";
-import { SignClient } from "@walletconnect/sign-client";
+import { selectLanternWallet, trustedLanternOrigin, type LanternWallet } from "./lantern-wallet";
+import type { SignClient } from "@walletconnect/sign-client";
 import { WALLET_CONNECT_UNCONFIGURED, walletConnectProjectId } from "./wallet-connect-config";
 
 function isMobile() {
@@ -13,23 +13,56 @@ function isMobile() {
 }
 
 export type WalletKit = {
+  provider: "browser";
   kit: any;
   /** null when WalletConnect is not configured; the kit then carries Freighter only. */
   module: any;
   client: InstanceType<typeof SignClient> | null;
 };
 
+export type LanternPaymentKit = {
+  provider: "lantern";
+  kit: LanternWallet;
+  module: null;
+  client: null;
+};
+
 const cache = new Map<string, Promise<WalletKit>>();
 
-export async function getWalletKit(network: "testnet" | "mainnet"): Promise<WalletKit> {
+/** Public transport opt-in; standalone authenticated callers retain browser wallets. */
+export function getWalletKit(network: "testnet" | "mainnet"): Promise<WalletKit>;
+export function getWalletKit(
+  network: "testnet" | "mainnet",
+  options: { publicPayment: true },
+): Promise<WalletKit | LanternPaymentKit>;
+export async function getWalletKit(
+  network: "testnet" | "mainnet",
+  options?: { publicPayment?: boolean },
+): Promise<WalletKit | LanternPaymentKit> {
+  if (trustedLanternOrigin()) {
+    if (!options?.publicPayment)
+      throw new Error(
+        "Authenticated wallet actions inside Lantern are not enabled yet. Open Paiflow in your browser to use this action.",
+      );
+    if (network !== "testnet")
+      throw new Error(
+        "Lantern public payments currently support Testnet only. Open a Testnet deployment in Lantern.",
+      );
+    const lantern = selectLanternWallet(network);
+    if (lantern) return { provider: "lantern", kit: lantern, module: null, client: null };
+  }
   const key = network;
   if (cache.has(key)) return cache.get(key)!;
 
-  const promise = (async () => {
+  const promise: Promise<WalletKit> = (async () => {
     const [
+      { SignClient },
+      { WalletConnectModal },
       { StellarWalletsKit, WalletNetwork, FreighterModule },
       { WalletConnectModule, WalletConnectAllowedMethods },
     ] = await Promise.all([
+      import("@walletconnect/sign-client"),
+      import("@walletconnect/modal"),
       import("@creit.tech/stellar-wallets-kit"),
       import("@creit.tech/stellar-wallets-kit/modules/walletconnect.module"),
     ]);
@@ -47,7 +80,7 @@ export async function getWalletKit(network: "testnet" | "mainnet"): Promise<Wall
         network: walletNetwork,
         modules: [new FreighterModule()],
       });
-      return { kit, module: null, client: null };
+      return { provider: "browser", kit, module: null, client: null };
     }
 
     const chain = network === "mainnet" ? "stellar:pubnet" : "stellar:testnet";
@@ -135,7 +168,7 @@ export async function getWalletKit(network: "testnet" | "mainnet"): Promise<Wall
       modules,
     });
 
-    return { kit, module: walletConnectModule, client: walletConnectClient };
+    return { provider: "browser", kit, module: walletConnectModule, client: walletConnectClient };
   })();
 
   cache.set(key, promise);

@@ -11,8 +11,9 @@ import {
 } from "@/lib/trigger-pending";
 import { toast } from "sonner";
 import { toastError } from "@/lib/friendly-toast";
-import { WalletConnectModal } from "@walletconnect/modal";
-import { SignClient } from "@walletconnect/sign-client";
+import { selectLanternWallet, trustedLanternOrigin, type LanternWallet } from "./lantern-wallet";
+import type { WalletConnectModal } from "@walletconnect/modal";
+import type { SignClient } from "@walletconnect/sign-client";
 import { usePollTxStatus } from "@/lib/hooks/use-poll-tx-status";
 import { apiError } from "@/lib/friendly-error";
 import { trackWalletConnection } from "@/lib/wallet-tracking";
@@ -113,6 +114,21 @@ export function TriggerButton({
   disabled = false,
 }: TriggerButtonProps) {
   const [busy, setBusy] = useState(false);
+  const lanternRef = useRef<LanternWallet | null>(null);
+  const lanternFrameRef = useRef(false);
+  // Only public testnet payments opt in. Selection performs no bridge requests.
+  useLayoutEffect(() => {
+    lanternFrameRef.current = Boolean(trustedLanternOrigin());
+    const wallet =
+      network === "testnet" && (mode === "trigger" || templateKind !== "PAYROLL")
+        ? selectLanternWallet(network)
+        : null;
+    lanternRef.current = wallet;
+    return () => {
+      wallet?.disconnect();
+      if (lanternRef.current === wallet) lanternRef.current = null;
+    };
+  }, [deploymentId, network, mode, amount, templateKind, isDeposit]);
   const clickInFlightRef = useRef(false);
   const activeAttemptRef = useRef<PaymentAttempt | null>(null);
   function beginAttempt(): PaymentAttempt {
@@ -383,7 +399,7 @@ export function TriggerButton({
   // Pre-warm WalletConnect init on page load so the user doesn't wait
   // when tapping a wallet in the mobile picker.
   useEffect(() => {
-    if (isMobile()) {
+    if (!lanternFrameRef.current && isMobile()) {
       void beginPairing({ silent: true });
     }
     return () => {
@@ -419,6 +435,7 @@ export function TriggerButton({
   }, [network]);
 
   async function ensureWalletConnect() {
+    if (lanternFrameRef.current) throw new Error("Use Lantern for payments inside this frame.");
     if (initializedNetworkRef.current !== network)
       throw new Error("Wallet initialization cancelled after network change");
     if (wcRef.current) {
@@ -433,9 +450,13 @@ export function TriggerButton({
       };
       initLockRef.current = (async () => {
         const [
+          { SignClient },
+          { WalletConnectModal },
           { StellarWalletsKit, WalletNetwork, FreighterModule },
           { WalletConnectModule, WalletConnectAllowedMethods },
         ] = await Promise.all([
+          import("@walletconnect/sign-client"),
+          import("@walletconnect/modal"),
           import("@creit.tech/stellar-wallets-kit"),
           import("@creit.tech/stellar-wallets-kit/modules/walletconnect.module"),
         ]);
@@ -651,7 +672,7 @@ export function TriggerButton({
       getAddress: () => Promise<{ address: string }>;
       signTransaction: (
         xdr: string,
-        opts: { address?: string; networkPassphrase: string },
+        opts: { address?: string; networkPassphrase: string; signal?: AbortSignal },
       ) => Promise<{ signedTxXdr: string }>;
     },
     attempt: PaymentAttempt,
@@ -683,7 +704,7 @@ export function TriggerButton({
       getAddress: () => Promise<{ address: string }>;
       signTransaction: (
         xdr: string,
-        opts: { address?: string; networkPassphrase: string },
+        opts: { address?: string; networkPassphrase: string; signal?: AbortSignal },
       ) => Promise<{ signedTxXdr: string }>;
     },
     attempt: PaymentAttempt,
@@ -721,7 +742,7 @@ export function TriggerButton({
     // Prevent WalletConnect from auto-redirecting to a stale wallet choice
     // (e.g. MetaMask) during signing, which causes an Android intent chooser.
     try {
-      localStorage.removeItem("WALLETCONNECT_DEEPLINK_CHOICE");
+      if (!lanternRef.current) localStorage.removeItem("WALLETCONNECT_DEEPLINK_CHOICE");
     } catch {
       /* ignore */
     }
@@ -733,6 +754,7 @@ export function TriggerButton({
     const signed = await kit.signTransaction(xdr, {
       address,
       networkPassphrase: data.data.networkPassphrase,
+      ...(lanternRef.current ? { signal: controller.signal } : {}),
     });
 
     assertActiveAttempt(attempt);
@@ -849,6 +871,7 @@ export function TriggerButton({
   }
 
   useEffect(() => {
+    if (lanternFrameRef.current) return;
     if (isTrigger) {
       try {
         if (loadPendingTrigger()) {
@@ -1080,12 +1103,41 @@ export function TriggerButton({
       toast.error("Enter a valid amount");
       return;
     }
+    if (lanternFrameRef.current && mode === "allowance" && templateKind === "PAYROLL") {
+      toast.error(
+        "Payroll wallet actions inside Lantern require the authenticated-app milestone. Open Paiflow in your browser to approve Payroll allowance.",
+      );
+      return;
+    }
+    if (lanternFrameRef.current && network !== "testnet") {
+      toast.error(
+        "Lantern public payments currently support Testnet only. Open a Testnet deployment in Lantern.",
+      );
+      return;
+    }
     const attempt = beginAttempt();
     setShowOpenWallet(false);
     attemptRef.current = { stage: "wallet", startedAt: Date.now() };
     track("trigger_started", { deployment_id: deploymentId, mode, amount_stroops: amount });
 
-    if (isMobile()) {
+    if (lanternRef.current) {
+      const wallet = lanternRef.current;
+      setBusy(true);
+      selectedWalletRef.current = "lantern";
+      try {
+        const { address } = await wallet.getAddress({ signal: attempt.controller.signal });
+        assertActiveAttempt(attempt);
+        void trackWalletConnection({ address, network, walletId: "lantern", surface: "trigger" });
+        await submitTrigger(address, wallet, attempt);
+      } catch (err) {
+        if (!isActiveAttempt(attempt)) return;
+        trackTriggerFailure(err);
+        toastError(err, mode === "allowance" ? "Approval failed" : "Trigger failed");
+      } finally {
+        wallet.disconnect();
+        finishAttempt(attempt);
+      }
+    } else if (isMobile()) {
       setShowPicker(true);
       // Pairing normally happened on load; re-pair only if it has gone stale,
       // expired, or never succeeded.
@@ -1269,7 +1321,7 @@ export function TriggerButton({
         </button>
       )}
 
-      {isMobile() && showOpenWallet && selectedWalletRef.current && (
+      {!lanternFrameRef.current && isMobile() && showOpenWallet && selectedWalletRef.current && (
         <button
           onClick={() => {
             const schemes: Record<string, string> = {
