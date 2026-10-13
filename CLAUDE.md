@@ -474,6 +474,13 @@ in `components/deploy/deploy-review.tsx`). Any new one must carry it.
 
 ## 17. Process
 
+### Releases and versioning
+
+Follow [docs/releasing.md](docs/releasing.md) for app, API, and SDK versioning,
+compatibility, changelog entries, and release steps. Record noteworthy changes in
+[CHANGELOG.md](CHANGELOG.md) under `Unreleased`. Ordinary commits do not require an
+app version bump; preparing a release does.
+
 ### Questions and implementation
 
 - Before implementing, review the request and inspect relevant files. Gather questions about
