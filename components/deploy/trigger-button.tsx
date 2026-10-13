@@ -11,6 +11,7 @@ import { trackWalletConnection } from "@/lib/wallet-tracking";
 import { track } from "@/lib/analytics/client";
 import { classifyError } from "@/lib/analytics/classify-error";
 import { FREIGHTER_NATIVE_LINK, mobileWalletLink } from "./mobile-wallet-links";
+import { approvedMobileSession, type MobileWalletSession } from "./mobile-wallet-session";
 import {
   isExpiredSession,
   isLiveSession,
@@ -176,6 +177,30 @@ export function TriggerButton({
   const [showPicker, setShowPicker] = useState(false);
   const [pendingWallet, setPendingWallet] = useState<string | null>(null);
   const [showOpenWallet, setShowOpenWallet] = useState(false);
+  const [connectedWallet, setConnectedWallet] = useState<MobileWalletSession | null>(null);
+  const mobileSessionKey = `paiflow_mobile_wallet:${network}`;
+
+  function storedMobileSession(client: InstanceType<typeof SignClient> | null) {
+    if (!client) return null;
+    try {
+      return approvedMobileSession(
+        JSON.parse(localStorage.getItem(mobileSessionKey) ?? "null"),
+        client.session.values,
+        network,
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  function rememberMobileSession(session: MobileWalletSession) {
+    setConnectedWallet(session);
+    try {
+      localStorage.setItem(mobileSessionKey, JSON.stringify(session));
+    } catch {
+      /* The connection can still be reused in this page when storage is disabled. */
+    }
+  }
   // Pairing happens on page load, not on the wallet tap. Android Chrome
   // launches a custom-scheme app only while the tap's user activation is still
   // live — measured dead by 11s, and awaiting connect() on the tap took ~11s
@@ -228,7 +253,13 @@ export function TriggerButton({
   // when tapping a wallet in the mobile picker.
   useEffect(() => {
     if (isMobile()) {
-      void beginPairing({ silent: true });
+      void ensureWalletConnect()
+        .then(({ client }) => {
+          const session = storedMobileSession(client);
+          if (session) setConnectedWallet(session);
+          else void beginPairing({ silent: true });
+        })
+        .catch(() => void beginPairing({ silent: true }));
     }
     return () => {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
@@ -738,11 +769,16 @@ export function TriggerButton({
       setPairingState("idle");
       walletConnectModule.setSession(session.topic);
       sessionStorage.removeItem("paiflow_pending_wc");
-      // The pairing is spent; line up a fresh one for the next attempt.
-      void beginPairing({ silent: true });
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
 
       setShowPicker(false);
       const { address } = await kit.getAddress();
+      if (selectedWalletRef.current)
+        rememberMobileSession({
+          topic: session.topic,
+          walletId: selectedWalletRef.current,
+          address,
+        });
       toast.success(`Connected: ${address.slice(0, 6)}...${address.slice(-4)}`);
       void trackWalletConnection({
         address,
@@ -763,6 +799,66 @@ export function TriggerButton({
     }
   }
 
+  async function continueMobileSession() {
+    if (!connectedWallet || busy) return;
+    setBusy(true);
+    setShowPicker(false);
+    selectedWalletRef.current = connectedWallet.walletId;
+    try {
+      const { client } = await ensureWalletConnect();
+      const session =
+        client && approvedMobileSession(connectedWallet, client.session.values, network);
+      if (!client || !session) {
+        setConnectedWallet(null);
+        setShowPicker(true);
+        void beginPairing();
+        toast.info("Your wallet connection ended. Connect again to continue.");
+        return;
+      }
+      const { WalletNetwork } = await import("@creit.tech/stellar-wallets-kit");
+      const expectedPassphrase =
+        network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET;
+      // Bypass the kit's account-based session search: the user chose this
+      // exact connection, even if another stored topic has the same account.
+      await submitTrigger(
+        session.address,
+        {
+          getAddress: async () => ({ address: session.address }),
+          signTransaction: async (xdr, opts) => {
+            if (opts.networkPassphrase !== expectedPassphrase)
+              throw new Error("Wallet and payment networks do not match.");
+            if (
+              !approvedMobileSession(session, client.session.values, network) ||
+              opts.address !== session.address
+            )
+              throw new Error("Wallet connection ended. Connect again to continue.");
+            const result: unknown = await client.request({
+              topic: session.topic,
+              chainId: stellarChainId(network),
+              request: { method: "stellar_signXDR", params: { xdr } },
+            });
+            if (
+              !result ||
+              typeof result !== "object" ||
+              !("signedXDR" in result) ||
+              typeof result.signedXDR !== "string" ||
+              !result.signedXDR
+            )
+              throw new Error("Wallet returned no signed transaction");
+            return { signedTxXdr: result.signedXDR };
+          },
+        },
+        () => setShowOpenWallet(true),
+      );
+    } catch (err) {
+      trackTriggerFailure(err);
+      toastError(err, "Payment failed");
+    } finally {
+      setBusy(false);
+      setShowOpenWallet(false);
+    }
+  }
+
   async function onTrigger() {
     if (disabled || showPicker || pendingAllowanceHash) return;
     if (!amount || !/^\d+$/.test(amount) || amount === "0") {
@@ -778,6 +874,16 @@ export function TriggerButton({
       setShowPicker(true);
       // Pairing normally happened on load; re-pair only if it has gone stale,
       // expired, or never succeeded.
+      if (connectedWallet) {
+        const { client } = await ensureWalletConnect();
+        const session = approvedMobileSession(
+          connectedWallet,
+          client?.session.values ?? [],
+          network,
+        );
+        setConnectedWallet(session);
+        if (session) return;
+      }
       if (isReadyToTap()) {
         setPairingState("ready");
       } else {
@@ -815,50 +921,78 @@ export function TriggerButton({
               </div>
             )}
             <h3 className="text-label-lg text-on-background mb-1 text-center font-bold">
-              Select Wallet
+              {connectedWallet
+                ? mode === "allowance"
+                  ? "Confirm Approval"
+                  : "Confirm Payment"
+                : "Select Wallet"}
             </h3>
             <p className="text-body-sm text-on-background/60 mb-5 text-center">
-              Choose a wallet to connect
+              {connectedWallet ? "Review and sign in your wallet" : "Choose a wallet to connect"}
             </p>
-            <div className="space-y-3">
-              <button
-                onClick={() => openMobileWallet("freighter")}
-                disabled={busy || pairingState !== "ready"}
-                className="bg-background-2 hover:bg-background-3 disabled:hover:bg-background-2 flex w-full items-center gap-3 rounded-xl p-3 transition-colors disabled:opacity-50"
-              >
-                <img
-                  src="https://stellar.creit.tech/wallet-icons/freighter.png"
-                  alt=""
-                  className="h-10 w-10 rounded-lg"
-                />
-                <span className="text-label-sm text-on-background font-medium">Freighter</span>
-              </button>
-              <button
-                onClick={() => openMobileWallet("lobstr")}
-                disabled={busy || pairingState !== "ready"}
-                className="bg-background-2 hover:bg-background-3 disabled:hover:bg-background-2 flex w-full items-center gap-3 rounded-xl p-3 transition-colors disabled:opacity-50"
-              >
-                <img
-                  src="https://stellar.creit.tech/wallet-icons/lobstr.png"
-                  alt=""
-                  className="h-10 w-10 rounded-lg"
-                />
-                <span className="text-label-sm text-on-background font-medium">LOBSTR</span>
-              </button>
-              <button
-                onClick={() => openMobileWallet("xbull")}
-                disabled={busy || pairingState !== "ready"}
-                className="bg-background-2 hover:bg-background-3 disabled:hover:bg-background-2 flex w-full items-center gap-3 rounded-xl p-3 transition-colors disabled:opacity-50"
-              >
-                <img
-                  src="https://stellar.creit.tech/wallet-icons/xbull.png"
-                  alt=""
-                  className="h-10 w-10 rounded-lg"
-                />
-                <span className="text-label-sm text-on-background font-medium">xBull</span>
-              </button>
-            </div>
-            {pairingState !== "ready" && !busy && (
+            {connectedWallet ? (
+              <div className="space-y-3">
+                <button
+                  onClick={() => void continueMobileSession()}
+                  disabled={busy}
+                  title={connectedWallet.address}
+                  className="bg-primary text-on-primary w-full rounded-xl p-3 font-medium disabled:opacity-50"
+                >
+                  {mode === "allowance" ? "Approve" : "Send"} with{" "}
+                  {connectedWallet.address.slice(0, 6)}…{connectedWallet.address.slice(-4)}
+                </button>
+                <button
+                  onClick={() => {
+                    setConnectedWallet(null);
+                    void beginPairing();
+                  }}
+                  disabled={busy}
+                  className="text-on-background w-full rounded-xl p-3 font-medium disabled:opacity-50"
+                >
+                  Reconnect wallet
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <button
+                  onClick={() => openMobileWallet("freighter")}
+                  disabled={busy || pairingState !== "ready"}
+                  className="bg-background-2 hover:bg-background-3 disabled:hover:bg-background-2 flex w-full items-center gap-3 rounded-xl p-3 transition-colors disabled:opacity-50"
+                >
+                  <img
+                    src="https://stellar.creit.tech/wallet-icons/freighter.png"
+                    alt=""
+                    className="h-10 w-10 rounded-lg"
+                  />
+                  <span className="text-label-sm text-on-background font-medium">Freighter</span>
+                </button>
+                <button
+                  onClick={() => openMobileWallet("lobstr")}
+                  disabled={busy || pairingState !== "ready"}
+                  className="bg-background-2 hover:bg-background-3 disabled:hover:bg-background-2 flex w-full items-center gap-3 rounded-xl p-3 transition-colors disabled:opacity-50"
+                >
+                  <img
+                    src="https://stellar.creit.tech/wallet-icons/lobstr.png"
+                    alt=""
+                    className="h-10 w-10 rounded-lg"
+                  />
+                  <span className="text-label-sm text-on-background font-medium">LOBSTR</span>
+                </button>
+                <button
+                  onClick={() => openMobileWallet("xbull")}
+                  disabled={busy || pairingState !== "ready"}
+                  className="bg-background-2 hover:bg-background-3 disabled:hover:bg-background-2 flex w-full items-center gap-3 rounded-xl p-3 transition-colors disabled:opacity-50"
+                >
+                  <img
+                    src="https://stellar.creit.tech/wallet-icons/xbull.png"
+                    alt=""
+                    className="h-10 w-10 rounded-lg"
+                  />
+                  <span className="text-label-sm text-on-background font-medium">xBull</span>
+                </button>
+              </div>
+            )}
+            {!connectedWallet && pairingState !== "ready" && !busy && (
               <p className="text-body-sm text-on-background/60 mt-4 text-center">
                 {pairingState === "failed"
                   ? "Could not reach the wallet network. Close this and try again."
@@ -926,16 +1060,21 @@ export function TriggerButton({
       )}
 
       {isMobile() && showOpenWallet && selectedWalletRef.current && (
-        <button
-          onClick={() => {
-            const link = mobileWalletLink(selectedWalletRef.current!);
-            if (link) window.open(link, "_self");
-          }}
-          className="border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-3 font-mono text-xs font-bold transition-colors"
-        >
-          <span className="material-symbols-outlined text-[16px]">open_in_new</span>
-          OPEN {selectedWalletRef.current.toUpperCase()} TO SIGN
-        </button>
+        <div>
+          <button
+            onClick={() => {
+              const link = mobileWalletLink(selectedWalletRef.current!);
+              if (link) window.open(link, "_self");
+            }}
+            className="border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-3 font-mono text-xs font-bold transition-colors"
+          >
+            <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+            OPEN {selectedWalletRef.current.toUpperCase()} TO SIGN
+          </button>
+          <p role="status" className="text-body-sm text-on-background/60 mt-2 text-center">
+            Approve in your wallet, then switch back to Chrome or your browser to see the result.
+          </p>
+        </div>
       )}
     </>
   );
