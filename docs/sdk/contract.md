@@ -135,7 +135,8 @@ type IntentState = "PREPARED" | "SUBMITTING" | "SUCCESS" | "FAILED" | "EXPIRED";
 ```
 
 `new Paiflow(options).deployment(id)` binds matrix namespaces to one deployment
-UUID. Webhooks configure a separate secret. The safe `webhook.trigger` requires
+UUID. Webhooks require a separate `webhookSecret` in each call’s options; it is
+never inherited from the client deployment token. The safe `webhook.trigger` requires
 an explicit stable idempotency key; expose explicitly named `triggerUnkeyed` for
 legacy compatibility with no retries. Never invent a new key after uncertainty.
 No arbitrary header overrides or credential forwarding to redirected origins.

@@ -356,3 +356,49 @@ A positive final allowance status permits a separate deliberate subsequent
 approval; server-proven expired-without-confirmation is returned as FAILED.
 Hosted/on-chain Subscription verification remains separately authorized and
 pending in the repository's manual verification queue.
+
+## Webhook callbacks and early release
+
+Webhook pool top-ups use `funding`; callbacks release an already funded pool.
+Authenticate each callback with an explicit `webhookSecret`, separately from the
+client's deployment token. Persist a stable event key and its effective arguments
+before calling; the SDK never generates a key or retries a request.
+
+```ts
+const reward = await deployment.webhook.trigger(
+  { escrow: true, amount: "100000000" },
+  { webhookSecret, idempotencyKey: persistedCompletionKey },
+);
+```
+
+Webhook amounts are canonical integer stroop strings within nonnegative i128.
+For escrow, omitting `amount` or passing `"0"` releases the entire available pool.
+The SDK sends only relevant fields. Native execution uses `{ from, amount,
+ auth?: string[] }` (`escrow` omitted or false); `auth` holds opaque caller-signed
+Soroban authorization entries, not private keys. A webhook secret does not supply
+wallet consent; the server/contract enforce required authorization. The SDK does
+not build or sign these entries. Keep them out of logs.
+
+Keyed results retain `attemptId`, `network`, `status`, optional `txHash`, `ledger`
+and `error`. HTTP 202 with PENDING/UNKNOWN is not a confirmed payout. Explicitly
+repeat the same key and effective arguments to recover the original attempt; if
+there is a hash, `transactions.get(hash)` uses the separately configured deployment
+token for tracking. Changed effective arguments return 409. Keys never expire or
+reopen automatically. UNKNOWN without a hash requires operator review. A timeout,
+error or missing hash never permits a fresh key, a replacement or an unkeyed call.
+
+`webhook.triggerUnkeyed(input, { webhookSecret })` preserves legacy compatibility:
+every deliberate call can pay again. It never sends an idempotency header, even
+if extra untyped options contain a key. Its result is `{txHash, status?: "PENDING"}`,
+with no invented network, attempt ID or SUCCESS status. Never replay an uncertain
+unkeyed callback. Both methods retain HTTP status and response metadata.
+
+`deployment.releaseEarly({ nodeId })` requests the before side of an eligible
+timelock branch using the deployment token and server relayer. With one candidate,
+`releaseEarly()` sends `{}`; with multiple candidates, choose their actual node ID.
+Node IDs are trimmed and limited to 1–128 characters. The server enforces confirmed
+active deployment, correct node, live deadline, held funds and relayer support.
+The SDK never redirects to the after side or retries. A successful response retains
+`nodeId`, `txHash` and optional `ledger`; it contains no invented network field.
+Authorize your own application's requester before using either server-held credential.
+These interfaces are source-tested; hosted/on-chain verification remains pending.

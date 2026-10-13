@@ -174,10 +174,17 @@ export class PaiflowTransport {
       /(?:signedxdr|secret|token|password|cookie|authorization|body)/i.test(key) ||
       (/intent/i.test(key) && !uuid(value));
     const collect = (value: unknown, depth = 0): void => {
-      if (depth > 12 || !record(value)) return;
+      if (depth > 12) return;
+      if (Array.isArray(value)) {
+        for (const child of value) collect(child, depth + 1);
+        return;
+      }
+      if (!record(value)) return;
       for (const [key, child] of Object.entries(value)) {
         if (sensitive(key, child) && typeof child === "string") secrets.push(child);
-        else collect(child, depth + 1);
+        else if (key === "auth" && Array.isArray(child)) {
+          for (const entry of child) if (typeof entry === "string") secrets.push(entry);
+        } else collect(child, depth + 1);
       }
     };
     collect(request.body);

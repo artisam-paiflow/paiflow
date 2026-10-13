@@ -1,3 +1,4 @@
+import { webhookMethods, releaseEarlyMethod } from "./webhook.js";
 import { subscriptionMethods } from "./subscription.js";
 import { scheduleMethods } from "./schedule.js";
 import { fundingMethods } from "./funding.js";
@@ -96,6 +97,8 @@ export class Paiflow {
   }
 }
 export class PaiflowDeployment {
+  readonly webhook;
+  readonly releaseEarly;
   readonly subscription;
   readonly schedule;
   readonly funding;
@@ -114,6 +117,8 @@ export class PaiflowDeployment {
     readonly deploymentId: string,
   ) {
     input(() => uuid(deploymentId));
+    this.webhook = webhookMethods(transport, deploymentId);
+    this.releaseEarly = releaseEarlyMethod(transport, deploymentId);
     this.subscription = subscriptionMethods(transport, deploymentId);
     this.schedule = scheduleMethods(transport, deploymentId);
     this.funding = fundingMethods(transport, deploymentId);
