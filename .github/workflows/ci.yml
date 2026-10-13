@@ -51,6 +51,7 @@ jobs:
       - run: pnpm db:migrate:deploy
       - run: pnpm typecheck
       - run: pnpm sdk:typecheck
+      - run: pnpm sdk:test
       - run: pnpm sdk:test:package
       - run: pnpm test:ci
       - run: pnpm test:sse-shutdown

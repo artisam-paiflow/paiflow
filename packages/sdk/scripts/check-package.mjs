@@ -65,7 +65,9 @@ try {
     `
 import assert from "node:assert/strict";
 import * as sdk from "@paiflow/sdk";
-assert.equal(typeof sdk, "object");
+assert.equal(typeof sdk.PaiflowTransport, "function");
+const transport = new sdk.PaiflowTransport({ baseUrl: "https://example.com", fetch: async () => new Response(JSON.stringify({data: true})) });
+assert.equal((await transport.request({path: "/api/v1/openapi.json", method: "GET", auth: {kind: "public"}, parse: value => value})).data, true);
 await assert.rejects(import("@paiflow/sdk/dist/index.js"), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });
 `,
   );
@@ -75,7 +77,12 @@ await assert.rejects(import("@paiflow/sdk/dist/index.js"), { code: "ERR_PACKAGE_
     `
 import * as sdk from "@paiflow/sdk";
 const module: typeof import("@paiflow/sdk") = sdk;
-void module;
+const transport = new module.PaiflowTransport({ baseUrl: "https://example.com" });
+const result: Promise<sdk.ApiResponse<boolean>> = transport.request({path: "/api/v1/openapi.json", method: "GET", auth: {kind: "public"}, parse: value => {
+  if (typeof value !== "boolean") throw new Error("Expected boolean");
+  return value;
+}});
+void result;
 // @ts-expect-error Package internals are deliberately not exported.
 import "@paiflow/sdk/dist/index.js";
 `,

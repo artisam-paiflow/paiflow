@@ -9,3 +9,6 @@ policy in `docs/releasing.md`; this metadata does not claim a published release.
 
 - Standalone ESM package scaffold, declarations, isolated build and clean-consumer
   artifact validation ([#955](https://github.com/webnxt-2030/pinkraft/issues/955)).
+
+- Shared HTTP transport with explicit credential boundaries, structured errors,
+  response metadata, timeouts/cancellation and built-package tests (#956).
