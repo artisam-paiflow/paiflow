@@ -265,3 +265,136 @@ test("body cancellation releases stream reader and aborts fetch signal", async (
   assert.equal(signal.aborted, true);
   assert.equal(stream.locked, false);
 });
+
+for (const kind of ["timeout", "abort"]) {
+  test(`late JSON response after ${kind} cancels without locking its body`, async () => {
+    let resolveFetch;
+    let cancelled = false;
+    const body = new ReadableStream({
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const controller = new AbortController();
+    const pending = client(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = resolve;
+        }),
+    ).request(request, { timeoutMs: kind === "timeout" ? 5 : 30000, signal: controller.signal });
+    if (kind === "abort") controller.abort();
+    await assert.rejects(pending, kind === "timeout" ? PaiflowTimeoutError : PaiflowAbortError);
+    resolveFetch(new Response(body));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(cancelled, true);
+    assert.equal(body.locked, false);
+  });
+}
+
+test("invalid SSE timeout installs no caller abort listener", async () => {
+  const { getEventListeners } = await import("node:events");
+  const controller = new AbortController();
+  const sdk = client(async () => {
+    throw new Error("Must not fetch");
+  });
+  for (const timeoutMs of [0, -1, NaN, 1.5, Infinity]) {
+    await assert.rejects(
+      sdk
+        .stream("/api/deployments/id/embed/events", (value) => value, {
+          signal: controller.signal,
+          timeoutMs,
+        })
+        .next(),
+      TypeError,
+    );
+    assert.equal(getEventListeners(controller.signal, "abort").length, 0);
+  }
+});
+
+test("JSON defaults bound response bytes and cancel oversized bodies", async () => {
+  let cancelled = false;
+  const body = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new Uint8Array(4194305));
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+  await assert.rejects(
+    client(async () => new Response(body)).request(request),
+    PaiflowMalformedResponseError,
+  );
+  assert.equal(cancelled, true);
+  assert.equal(body.locked, false);
+  for (const maxResponseBytes of [0, -1, NaN, 1.5, Infinity]) {
+    await assert.rejects(
+      client(async () => {
+        throw new Error("Must not fetch");
+      }).request({ ...request, maxResponseBytes }),
+      TypeError,
+    );
+  }
+});
+
+test("contract address validation diagnostics remain useful while credentials stay redacted", async () => {
+  const address = "CBPUBLICCONTRACTADDRESS";
+  const sdk = client(async () =>
+    json(
+      {
+        error: {
+          code: "VALIDATION",
+          message: `Invalid asset ${address}`,
+          fields: {
+            tokenContractAddress: ["Must match the deployed asset"],
+            token: "private-token",
+            accessToken: "private-token",
+          },
+          details: { tokenContractAddress: address, token: "private-token" },
+        },
+      },
+      422,
+    ),
+  );
+  await assert.rejects(
+    sdk.request({
+      ...request,
+      method: "POST",
+      body: { tokenContractAddress: address, token: "private-token" },
+    }),
+    (error) => {
+      assert.equal(error.message, `Invalid asset ${address}`);
+      assert.deepEqual(error.fields.tokenContractAddress, ["Must match the deployed asset"]);
+      assert.equal(error.details.tokenContractAddress, address);
+      assert.equal(error.fields.token, "[redacted]");
+      assert.equal(error.fields.accessToken, "[redacted]");
+      assert.equal(error.details.token, "[redacted]");
+      return true;
+    },
+  );
+});
+
+test("nested signed authorization arrays never leak through echoed error text", async () => {
+  const authorization = "opaque-signed-auth-entry";
+  await assert.rejects(
+    client(async () =>
+      json(
+        {
+          error: {
+            code: "CONFLICT",
+            message: authorization,
+            fields: { auth: ["Invalid authorization"] },
+            details: { nested: [authorization] },
+          },
+        },
+        409,
+      ),
+    ).request({ ...request, method: "POST", body: { nested: [{ auth: [authorization] }] } }),
+    (error) => {
+      assert.equal(error.message, "[redacted]");
+      assert.deepEqual(error.details.nested, ["[redacted]"]);
+      assert.deepEqual(error.fields.auth, ["Invalid authorization"]);
+      return true;
+    },
+  );
+});

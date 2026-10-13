@@ -219,6 +219,11 @@ with caps of 200 total, 40/IP, 60/deployment
 ([admission](../../lib/deployments/public-stream-slots.ts)). 503 can be plain text
 with Retry-After. Closure or polling fallback says nothing about finality.
 
+JSON responses are bounded to 4 MiB by default; low-level requests may set an explicit
+positive byte limit. Oversized responses do not authorize replaying a write.
+See the [beta validation checklist](release-checklist.md) for endpoint evidence and
+outstanding live/release gates.
+
 Default transport retries: none. Optional bounded GET retries may honor Retry-After,
 jitter and cancellation. POST never automatically reprepares, signs or submits;
 reconcile is explicit. Execute wait defaults true, but can still return PENDING.

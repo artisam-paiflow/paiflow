@@ -40,6 +40,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Harden SDK cancellation cleanup and JSON bounds, retain contract-address validation
+  diagnostics, and remove stale build outputs before packing; record beta coverage
+  and outstanding live verification (#964).
+
 - Run the existing Node and Rust CI checks for pushes and pull requests to `testing`.
 
 Historical releases have not been reconstructed. The existing `0.1.0` package

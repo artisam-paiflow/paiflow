@@ -5,6 +5,12 @@ policy in `docs/releasing.md`; this metadata does not claim a published release.
 
 ## [Unreleased]
 
+### Fixed
+
+- Harden SDK cancellation cleanup and JSON bounds, retain contract-address validation
+  diagnostics, and remove stale build outputs before packing; record beta coverage
+  and outstanding live verification (#964).
+
 ### Added
 
 - SDK quickstart, API migration/coverage guide and packed-package examples for
