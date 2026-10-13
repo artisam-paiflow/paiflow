@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import NextAuth from "next-auth";
 import { authConfig } from "@/auth.config";
-import { cspHeader, isLanternPublicRoute, makeNonce } from "@/lib/csp";
+import { cspHeader, makeNonce } from "@/lib/csp";
 import { isSandboxAllowed } from "@/lib/sandbox-paths";
 
 const { auth } = NextAuth(authConfig);
@@ -64,14 +64,7 @@ function isAuthEntryPage(pathname: string): boolean {
 function applySecurityHeaders(res: NextResponse, req: NextRequest): NextResponse {
   const isDev = process.env.NODE_ENV !== "production";
   const nonce = makeNonce();
-  // Redirects and rejected requests retain the closed framing policy, even
-  // when the original URL was a public payment route (e.g. sandbox allowance).
-  const frameable = res.status === 200 && isLanternPublicRoute(req.nextUrl.pathname);
-  res.headers.set(
-    "Content-Security-Policy",
-    cspHeader(nonce, isDev, frameable ? req.nextUrl.pathname : ""),
-  );
-  if (!frameable) res.headers.set("X-Frame-Options", "DENY");
+  res.headers.set("Content-Security-Policy", cspHeader(nonce, isDev));
   res.headers.set("x-paiflow-nonce", nonce);
   // Surface a request id so logs can be correlated.
   const rid =
