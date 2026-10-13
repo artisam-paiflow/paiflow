@@ -28,6 +28,12 @@ const { mockDb, mockPrepareTriggerTx, mockPrepareWebhookDepositTx, mockPrepareSt
     mockPrepareWebhookDepositTx: vi.fn(async () => ({ xdr: "XDR" })),
     mockPrepareStreamerTopUp: vi.fn(async () => ({ xdr: "XDR" })),
   }));
+vi.mock("@/lib/stellar/client", () => ({
+  sorobanRpc: () => ({ getLatestLedger: async () => ({ sequence: 1000 }) }),
+}));
+vi.mock("@/lib/stellar/trigger-receipt", () => ({
+  createTriggerReceipt: () => ({ txHash: "a".repeat(64), receipt: "receipt" }),
+}));
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/stellar/trigger", () => ({
   prepareTriggerTx: mockPrepareTriggerTx,

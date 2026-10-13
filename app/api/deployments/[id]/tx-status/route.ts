@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readTriggerReceipt } from "@/lib/stellar/trigger-receipt";
+import { transactionHasExpired } from "@/lib/stellar/allowance-status";
 import { z } from "zod";
 import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { recordTransactionOutcome } from "@/lib/analytics/outcomes";
@@ -15,6 +17,7 @@ import { redis } from "@/lib/redis";
 import { captureServer } from "@/lib/analytics/server";
 
 const QuerySchema = z.object({
+  receipt: z.string().min(1).max(4000).optional(),
   // A Stellar transaction hash is a SHA-256, so 64 hex characters. Anything else
   // is rejected before it can reach the RPC or the database. Lowercased because
   // that is the form the SDK produces and therefore the form the audit rows
@@ -184,10 +187,18 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
     await enforceRateLimit({ key: `tx-status:${id}:${ip}`, limit: 60, windowSeconds: 60 });
 
     const { searchParams } = new URL(req.url);
-    const parsed = QuerySchema.safeParse({ txHash: searchParams.get("txHash") });
+    const parsed = QuerySchema.safeParse({
+      txHash: searchParams.get("txHash"),
+      receipt: searchParams.get("receipt") ?? undefined,
+    });
     if (!parsed.success) throw new AppError("VALIDATION", "Missing or invalid txHash");
 
-    const { txHash } = parsed.data;
+    const { txHash, receipt: token } = parsed.data;
+    const receipt = token ? readTriggerReceipt(token, id, txHash) : undefined;
+    if (receipt && (await transactionHasExpired(receipt)))
+      return NextResponse.json({
+        data: { status: "FAILED", txHash, errorMessage: "Payment expired without confirmation" },
+      });
 
     const server = sorobanRpc();
     const got = await server.getTransaction(txHash);
