@@ -13,12 +13,15 @@
  *  - `/api/flows/:id/edit` and `/api/transcribe` bill a third-party AI
  *    provider, and their per-user rate limits would not hold behind a fresh
  *    identity every session.
- *  - `invoke`, `submit-invoke` and `streamer-state` look up a deployment by id
+ *  - `invoke` and `submit-invoke` look up a deployment by id
  *    WITHOUT an ownership check. That is a pre-existing gap; do not widen its
  *    blast radius to callers who never signed up. Deploy-and-trigger does not
  *    need them — `submit-invoke` is only used by the subscription/payroll
  *    allowance flow, which a sandbox session cannot deploy anyway (see
  *    `app/api/deployments/prepare/route.ts`).
+ *  - `streamer-state` is intentionally public for anonymous integrations, but
+ *    remains excluded from the sandbox-session allowlist. Making a read public
+ *    does not expand the capabilities of a sandbox session (#977).
  *  - `/api/v1/*` is the partner API, a machine surface for a deployment token
  *    an owner chose to mint. A sandbox identity is disposable; nothing it does
  *    should reach a surface built for credentials that outlive a session.

@@ -40,6 +40,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Allow anonymous Schedule state reads through middleware while retaining sandbox,
+  deployment lifecycle and mutation authentication guards (#977).
+
 - Harden SDK cancellation cleanup and JSON bounds, retain contract-address validation
   diagnostics, and remove stale build outputs before packing; record beta coverage
   and outstanding live verification (#964).
