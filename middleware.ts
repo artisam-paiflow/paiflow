@@ -29,6 +29,7 @@ const PUBLIC_PATHS = [
   /^\/api\/deployments\/[^/]+\/trigger$/,
   /^\/api\/deployments\/[^/]+\/submit-trigger$/,
   /^\/api\/deployments\/[^/]+\/tx-status$/,
+  /^\/api\/deployments\/[^/]+\/streamer-state$/,
   // Machine-auth endpoints handle their own secret-token auth inside the route.
   /^\/api\/deployments\/dev-payroll$/,
   /^\/api\/deployments\/[^/]+\/dev-.*$/,
