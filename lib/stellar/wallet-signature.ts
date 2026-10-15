@@ -34,3 +34,16 @@ export function assertSignedWalletTransaction(
     throw new Error("Wallet did not sign with the connected account on the requested network.");
   }
 }
+
+/** Compute the recovery hash only after binding every wallet's response. */
+export function signedWalletTransactionHash(
+  network: "testnet" | "mainnet",
+  originalXdr: string,
+  signedXdr: string,
+  address: string,
+  networkPassphrase: string,
+): string {
+  assertWalletNetwork(network, networkPassphrase);
+  assertSignedWalletTransaction(originalXdr, signedXdr, address, networkPassphrase);
+  return TransactionBuilder.fromXDR(signedXdr, networkPassphrase).hash().toString("hex");
+}

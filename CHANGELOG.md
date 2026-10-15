@@ -7,6 +7,11 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Keep contract-action signing bound to the selected wallet connection, cancelling
+  stale approvals when the deployment, network or action arguments change. Preserve
+  submitted hashes across view changes and reloads until finality is known; require
+  browser transaction locks and recovery storage before sending (#1003).
+
 - Share wallet initialization between payment triggers and contract calls, preserving
   mobile pairing, wallet return and pending-transaction recovery (#397).
 
