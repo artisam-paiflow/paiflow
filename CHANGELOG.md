@@ -7,6 +7,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Record two expired real unsigned Testnet scan samples (factory deployment and
+  deposit), with decoded public metadata and explicit remaining Lantern acceptance
+  and capture-provenance limits; retain the five synthetic examples (#1003).
+
 - Centralize mobile wallet names, icons and handoff links while preserving existing
   Freighter, LOBSTR and xBull behavior; keep Lantern gated on official metadata.
 

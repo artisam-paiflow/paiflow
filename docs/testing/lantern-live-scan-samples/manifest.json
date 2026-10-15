@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Expired real unsigned scanner-input samples only; not Lantern scan acceptance or wallet-support evidence",
+  "network": {
+    "name": "testnet",
+    "passphrase": "Test SDF Network ; September 2015",
+    "provenance": "Pinned Railway testing environment and known successful Testnet transaction hashes. Raw server prepare passphrase was not retained; XDR has no network field."
+  },
+  "coverage": {
+    "realSamples": 2,
+    "requestedSamples": 5,
+    "missingRealSamples": ["splitter-distribute", "streamer-top-up", "token-approve"]
+  },
+  "samples": [
+    {
+      "id": "factory-deploy-pipeline",
+      "file": "factory-deploy-pipeline.unsigned.xdr",
+      "capture": {
+        "revision": "6b320e717b69878e272871fea1ef08d468ea8298",
+        "preparedAt": null,
+        "environment": "Railway testing",
+        "provenance": "batch-public-receipt.json; actual fee independently checked through Testnet Horizon by the integration orchestrator and reviewer",
+        "receiptObservedAt": "2026-10-15T15:52:49.387987Z",
+        "rawSimulationResponseRetained": false,
+        "rawServerPassphraseRetained": false,
+        "simulationEvidence": "The captured revision preparation builder requires successful simulation and assembly before returning XDR; the raw simulation response was not retained. Successful chain execution is separate evidence below."
+      },
+      "transactionHashTestnet": "2994ae4fce8176ee373d1baf7524504e069c68b259018ec3ab6cf40d3b1e8420",
+      "source": "GCDF6TFSMWXBK7DGO4AQ4WYBSTS5OHM6S4OJRG7MZ7V34AT2LYSOJNWZ",
+      "sequence": "22379515506327553",
+      "maximumFeeStroops": "981994",
+      "actualFeeChargedStroops": "851202",
+      "timeBounds": {
+        "minTime": "0",
+        "maxTime": "1792079534"
+      },
+      "expiresAt": "2026-10-15T15:52:14.000Z",
+      "transactionSignatures": 0,
+      "addressAuthorizationEntries": 0,
+      "amountStroops": null,
+      "operations": [
+        {
+          "type": "invokeHostFunction",
+          "hostFunctionType": "hostFunctionTypeInvokeContract",
+          "contract": "CBFZTEZZN2M7PV3LHM5TSHO6K45RDKT4ICX2YUNWRX6RXWVIOJ3KZJNK",
+          "method": "deploy_pipeline",
+          "arguments": [
+            "GCDF6TFSMWXBK7DGO4AQ4WYBSTS5OHM6S4OJRG7MZ7V34AT2LYSOJNWZ",
+            [
+              {
+                "constructor_args": [
+                  "GCDF6TFSMWXBK7DGO4AQ4WYBSTS5OHM6S4OJRG7MZ7V34AT2LYSOJNWZ",
+                  "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+                  [
+                    {
+                      "address": "CDC5R564G4IHBX6NZMG66YJ5EZGXXJZA373SORYOG7Y7EMBNVRVX2DME",
+                      "data": ""
+                    }
+                  ]
+                ],
+                "salt": {
+                  "bytesHex": "298f2b07a6f3752ee38f56e902b5bcad70853ccf1b26134a6c1c53c343e4d40a"
+                },
+                "wasm_hash": {
+                  "bytesHex": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602"
+                }
+              },
+              {
+                "constructor_args": [
+                  "GCDF6TFSMWXBK7DGO4AQ4WYBSTS5OHM6S4OJRG7MZ7V34AT2LYSOJNWZ",
+                  "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+                  [
+                    {
+                      "address": "GCDF6TFSMWXBK7DGO4AQ4WYBSTS5OHM6S4OJRG7MZ7V34AT2LYSOJNWZ",
+                      "amount": "1000000",
+                      "bps": 0,
+                      "is_cash_out": false
+                    }
+                  ],
+                  "1000000",
+                  "CAICBJOPVUT6F5RK4QQO5ZNMPNGQH6N33KZG722EXCH7GJD4UXDETFTL",
+                  []
+                ],
+                "salt": {
+                  "bytesHex": "81f2f6a4aaeae730f21fb58bfc8820fdf6af1e5e8a72bda2d92086ff4e85f500"
+                },
+                "wasm_hash": {
+                  "bytesHex": "14405917781ee8cb9476c8a43b6245a5bae033537d5c2de72dec2a7b27dabce5"
+                }
+              }
+            ]
+          ],
+          "auth": [
+            {
+              "credential": "sorobanCredentialsSourceAccount",
+              "root": "sorobanAuthorizedFunctionTypeContractFn"
+            }
+          ]
+        }
+      ],
+      "chainExecution": {
+        "network": "testnet",
+        "status": "SUCCESS",
+        "ledger": 5211160,
+        "horizonTransactionUrl": "https://horizon-testnet.stellar.org/transactions/2994ae4fce8176ee373d1baf7524504e069c68b259018ec3ab6cf40d3b1e8420"
+      }
+    },
+    {
+      "id": "deposit",
+      "file": "deposit.unsigned.xdr",
+      "capture": {
+        "revision": "67402e0ba2f9e822c15b8a9b768b4fecdc2fc226",
+        "preparedAt": "2026-10-15T16:07:29.921Z",
+        "environment": "Railway testing",
+        "provenance": "payment-fresh-validation.json and payment-public-receipt.json",
+        "receiptObservedAt": "2026-10-15T16:10:22.284398Z",
+        "rawSimulationResponseRetained": false,
+        "rawServerPassphraseRetained": false,
+        "simulationEvidence": "The captured revision preparation builder requires successful simulation and assembly before returning XDR; the raw simulation response was not retained. Successful chain execution is separate evidence below."
+      },
+      "transactionHashTestnet": "2f68d076c7521c27506186a1e4a4b1b6036acd8a7d84a93d8d5f884a0cbb29b6",
+      "source": "GCDF6TFSMWXBK7DGO4AQ4WYBSTS5OHM6S4OJRG7MZ7V34AT2LYSOJNWZ",
+      "sequence": "22379515506327554",
+      "maximumFeeStroops": "523953967",
+      "actualFeeChargedStroops": "455616244",
+      "timeBounds": {
+        "minTime": "0",
+        "maxTime": "1792080630"
+      },
+      "expiresAt": "2026-10-15T16:10:30.000Z",
+      "transactionSignatures": 0,
+      "addressAuthorizationEntries": 0,
+      "amountStroops": "1000000",
+      "operations": [
+        {
+          "type": "invokeHostFunction",
+          "hostFunctionType": "hostFunctionTypeInvokeContract",
+          "contract": "CAICBJOPVUT6F5RK4QQO5ZNMPNGQH6N33KZG722EXCH7GJD4UXDETFTL",
+          "method": "deposit",
+          "arguments": ["GCDF6TFSMWXBK7DGO4AQ4WYBSTS5OHM6S4OJRG7MZ7V34AT2LYSOJNWZ", "1000000"],
+          "auth": [
+            {
+              "credential": "sorobanCredentialsSourceAccount",
+              "root": "sorobanAuthorizedFunctionTypeContractFn"
+            }
+          ]
+        }
+      ],
+      "chainExecution": {
+        "network": "testnet",
+        "status": "SUCCESS",
+        "ledger": 5211379,
+        "horizonTransactionUrl": "https://horizon-testnet.stellar.org/transactions/2f68d076c7521c27506186a1e4a4b1b6036acd8a7d84a93d8d5f884a0cbb29b6"
+      }
+    }
+  ]
+}
