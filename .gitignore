@@ -30,3 +30,7 @@ hackathon-teams/
 
 # Local organiser policies; excluded from participant publications.
 /docs/hackathon/internal-judging-notes.md
+
+# SDK build and package artifacts
+/packages/sdk/dist/
+/packages/sdk/*.tgz

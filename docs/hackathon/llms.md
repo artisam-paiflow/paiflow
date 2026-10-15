@@ -25,9 +25,11 @@ Both human guides live directly in `docs/hackathon/` and are event-neutral. Thei
 
 This guide explains how to build with Paiflow. Early deployment, app integration and test payments are allowed for this hackathon once your team's credentials and deployment are ready. Follow your event's primer for onboarding, credentials, submission requirements and judging. If event information is missing, ask the organisers.
 
-**Hackathon availability:** Dev mode will stay disabled for the duration of the hackathon. Configure all recipients and required values before deployment. Per-payment recipients (`payouts`), **Fill value via API**, **Dev values** and deferred subscriber/recipient setup are unavailable during the event. Use standard flows and `execute` with configured recipients. `PAIFLOW_MODE=team` and `pnpm dev` do not enable flow Dev mode. The Dev-mode sections below describe product features only where enabled; do not use them for this hackathon.
+**Hackathon availability:** Dev mode will stay disabled for the duration of the hackathon. Configure all recipients and required values before deployment. Per-payment recipients, **Fill value via API**, **Dev values** and deferred subscriber/recipient setup are unavailable during the event. Use standard flows and `execute` with configured recipients. `PAIFLOW_MODE=team` and `pnpm dev` do not enable flow Dev mode.
 
 ## Preparation and starter modes
+
+For the supplied starter, use **Node.js 22** (`>=22 <23`) and **pnpm 10.4.1**, as declared in its `package.json`. Follow the [Paiflow Guide setup instructions](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/paiflow-guide.md#run-the-starter-in-preparation-mode) to install/select Node and install pnpm using npm. Install pnpm with `npm install --global pnpm@10.4.1`; verify `node --version` starts with `v22.` and `pnpm --version` prints `10.4.1` before installing dependencies. Keep the starter's `packageManager` pin unchanged.
 
 - Choose a problem, research users and sketch your app according to your event's preparation rules.
 - Build your app before the event, including its payment integration. Use onboarding to resolve setup questions and rehearse your flow.
@@ -127,7 +129,7 @@ Pay one recipient. Unless full amount or deferred value is selected, choose a mo
 
 **Unavailable during this hackathon:** Dev mode stays disabled. The following deferred-value behavior applies only where Dev mode is enabled.
 
-`fillValueViaApi` is only allowed with graph `devMode: true`. That mutable Pay can deploy before its recipient/value is filled. Set these in **Dev values**, or use `payouts` for a per-payment recipient; do not call `execute` against an unconfigured Pay. A deferred-value payout configures that Pay to 100%.
+`fillValueViaApi` is only allowed with graph `devMode: true`. That mutable Pay can deploy before its recipient/value is filled. This configuration requires Dev mode and is unavailable for the event. Configure the recipient and amount before deployment.
 
 ## Split — `split`
 
@@ -196,7 +198,9 @@ The usual trigger QR opens this hosted page (or the allowance page for a subscri
 On builds containing capabilities discovery, `GET /api/v1/deployments/:id/capabilities` with the
 deployment's bearer token returns `data` with `network`, `triggerType`, initial `inputAsset` metadata,
 `configurationSource: "deployment_snapshot"` and `operations`. Operation keys are `execute`,
-`events`, `balances`, `transactions`, `releaseEarly`, `payouts`, `webhook`, `subscriptionState`, `subscriptionAllowance`, `subscriptionCancel` and `subscriptionReactivate`. Each has
+`events`, `balances`, `funding`, `transactions`, `releaseEarly`, `payouts`, `webhook`,
+`subscriptionState`, `subscriptionAllowance`, `subscriptionCancel`,
+`subscriptionReactivate`, `swapQuote`, `scheduleState` and `scheduleControls`. Each has
 `status` (`supported`, `conditional` or `unsupported`), `authentication`, `requirements` and
 candidate `nodeIds`. This is recorded integration support, not live readiness: no RPC or transaction
 is performed, and current funds, deadlines, consent and eligibility must be checked through the
@@ -210,7 +214,7 @@ Limit: 60 requests/minute per token; confirmed deployments on this environment's
 
 Use `Authorization: Bearer pfk_<64 lowercase hex characters>`. A token is bound to exactly one deployment. Mint it in **API access** on the team's confirmed deployment; it is shown only once. Store it on the app server. Missing, malformed, unknown, expired, revoked or wrong-deployment tokens all return HTTP 401 `UNAUTHENTICATED`, with `A valid API token for this deployment is required`. A malformed deployment UUID is 404. Revocation takes effect on the next call.
 
-**Put all Paiflow calls in one typed, server-only `lib/paiflow.ts` module in the starter repo, and call the API through it.** Use `import "server-only";`, read `PAIFLOW_API_TOKEN` and `PAIFLOW_DEPLOYMENT_ID` from server environment, and expose `prepareExecute`, `submitExecute`, `listEvents`, `preparePayout`, `submitPayout`, `releaseEarly`. Its header should say: `starter code, not a supported package — edit freely.` Follow the shapes below and the public OpenAPI document. Do not invent other v1 methods. Keep the bearer token out of browser bundles, browser requests and logs.
+**Put all Paiflow calls in one typed, server-only `lib/paiflow.ts` module in the starter repo, and call the API through it.** Use `import "server-only";`, read `PAIFLOW_API_TOKEN` and `PAIFLOW_DEPLOYMENT_ID` from server environment, and expose `prepareExecute`, `submitExecute`, `listEvents`, `releaseEarly`. Its header should say: `starter code, not a supported package — edit freely.` Follow the shapes below and the public OpenAPI document. Do not invent other v1 methods. Keep the bearer token out of browser bundles, browser requests and logs.
 
 On builds containing #913, Subscription controls use POST
 
@@ -232,7 +236,7 @@ remain unavailable for this hackathon. Hosted testnet verification is
 pending; confirm deployed revision and rehearse wallet consent, finality and actual state before
 claiming availability. See the [complete API example](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#subscription-cancellation-and-reactivation-913).
 
-Browser → your app's server → Paiflow is the API path. The server returns unsigned preparation data to the browser. The customer's wallet signs there; the browser sends the signed envelope back to your server, which submits it. No private key crosses that boundary. Protect your own server routes: a browser action must not let an unauthorised caller release escrow or choose a payout recipient merely because your server holds the token.
+Browser → your app's server → Paiflow is the API path. The server returns unsigned preparation data to the browser. The customer's wallet signs there; the browser sends the signed envelope back to your server, which submits it. No private key crosses that boundary. Protect your own server routes: a browser action must not let an unauthorised caller release escrow merely because your server holds the token.
 
 ## Routes, responses and limits
 
@@ -244,8 +248,6 @@ Success uses `{ "data": ... }`; preparation and submission return HTTP 200. Erro
 | `POST /api/v1/deployments/:id/execute`        | 30 / 60 seconds per token                       |
 | `POST /api/v1/deployments/:id/execute/submit` | 30 / 60 seconds per token                       |
 | `GET /api/v1/deployments/:id/events`          | 120 / 60 seconds per token                      |
-| `POST /api/v1/deployments/:id/payouts`        | 10 / 60 seconds per token                       |
-| `POST /api/v1/deployments/:id/payouts/submit` | 30 / 60 seconds per token                       |
 | `POST /api/v1/deployments/:id/release-early`  | 10 / 60 seconds per token                       |
 | `GET /api/v1/openapi.json` (public, no token) | 60 / 60 seconds per client IP                   |
 | `POST /api/v1/demo-token` (public, no token)  | 3 / hour per client IP; 60 / hour instance-wide |
@@ -258,7 +260,7 @@ Limits use fixed windows, separately per endpoint. Owner-session token managemen
 | 402  | `INSUFFICIENT_FUNDS` | Fund the `from` account on testnet.                           |
 | 403  | `FORBIDDEN`          | Feature/caller unavailable, including a disabled public demo. |
 | 404  | `NOT_FOUND`          | Check UUID and confirmed deployment.                          |
-| 409  | `CONFLICT`           | Wait for payout finality/expiry and retry as described below. |
+| 409  | `CONFLICT`           | Check the operation status and `Retry-After` before retrying. |
 | 422  | `VALIDATION`         | Fix input or the simulated flow; inspect fields and message.  |
 | 429  | `RATE_LIMITED`       | Back off using `Retry-After`.                                 |
 | 500  | `INTERNAL`           | Keep request id and ask platform support.                     |
@@ -386,7 +388,7 @@ async function call<T>(
     );
   }
   if (!response.ok) throw new Error(unexpected);
-  if (endpoint === "execute" || endpoint === "payouts") {
+  if (endpoint === "execute") {
     return { ...result.data, preparationRequestId: response.headers.get("x-history-request-id") };
   }
   return result.data;
@@ -406,7 +408,7 @@ export const submitExecute = (
   );
 ```
 
-In your browser checkout: request preparation from your own server, hand `xdr` and `networkPassphrase` to the wallet's transaction-signing function, then send its returned signed XDR to your own submit handler. Use the wallet adapter already in your starter; signing return shapes depend on that adapter. Do not add the bearer token to either browser call. The server handlers call `prepareExecute` and `submitExecute` above. Keep the same signed envelope and its `preparationRequestId` while status is uncertain. Pass `submitExecute({ signedXdr, preparationRequestId: prepared.preparationRequestId })`; use the same metadata with `submitPayout`. Forward this non-secret ID through your own server/browser boundary. Each new preparation gets its own ID; never reuse an earlier preparation's ID for a new envelope.
+In your browser checkout: request preparation from your own server, hand `xdr` and `networkPassphrase` to the wallet's transaction-signing function, then send its returned signed XDR to your own submit handler. Use the wallet adapter already in your starter; signing return shapes depend on that adapter. Do not add the bearer token to either browser call. The server handlers call `prepareExecute` and `submitExecute` above. Keep the same signed envelope and its `preparationRequestId` while status is uncertain. Pass `submitExecute({ signedXdr, preparationRequestId: prepared.preparationRequestId })`. Forward this non-secret ID through your own server/browser boundary. Each new preparation gets its own ID; never reuse an earlier preparation's ID for a new envelope.
 
 ## GET events: cursor paging and freshness
 
@@ -454,61 +456,6 @@ export function listEvents(input: { cursor?: string; limit?: number; txHash?: st
 // const page = await listEvents({ cursor: savedCursor ?? undefined });
 // savedCursor = page.nextCursor;
 // return page; // browser drains hasMore, then waits before asking again
-```
-
-## Per-payment payouts
-
-**Unavailable during this hackathon:** Dev mode stays disabled; use `execute` with configured recipients. The following payout reference applies only where Dev mode is enabled.
-
-`payouts` prepares a deposit **after configuring one mutable Pay for its recipient**. Requires a confirmed deposit-triggered flow and a Pay block with **Fill value via API** on, in a Dev mode flow. Body is `{ from, amount, recipient, nodeId? }`; `nodeId` is required when multiple deployed mutable Pay nodes exist. `recipient` is a valid account address, amount is positive stroops bounded by i128 (and percentage multiplication range). Account/trustline checks must succeed before recipient mutation. Preparation returns Execute's fields plus `nodeId`; its deposit has a **60-second validity window**, so sign promptly. Submit through `payouts/submit` using the same token and deployment.
-
-Supported routes to that Pay are immediate amount conditions or fixed Split. A fixed Split must have zero token/accumulated balances, positive fixed recipients, one next step, and incoming amount greater than its fixed total; surplus reaches Pay. Percentage Split consumes everything; a shortfall accumulates; neither qualifies. Time holds, Swap and other delayed/unsupported paths are refused. Pay must have no existing pooled balance. Deferred value sets Pay to 100%; otherwise current configuration is preserved: percentage must consume all incoming funds, or incoming must not exceed a fixed cap. These checks concern the amount reaching Pay after upstream payouts.
-
-**One payout at a time per deployment.** A lease keeps the chosen recipient protected during preparation/configuration and until the exact deposit is final or ledger-time expiry is proven. HTTP 409 means retry after `Retry-After` when provided; it is advisory and you may still get 409 because ledger time lags. If no header is present, wait and retry with bounded backoff. If the earlier deposit was submitted, retry that same signed envelope to get its status. PENDING, uncertain RPC results and some send refusals retain protection; do not change recipients or start another payout while waiting. A wall-clock timeout alone does not prove that an abandoned deposit cannot execute. Functioning coordination is required; a 502 coordination failure needs platform support.
-
-**A deposit outside `/payouts` pays the last recipient set. Execute and direct deposits bypass the payout lease.** Keep them, owner changes and UI mutations from running concurrently with payouts. The lease does not isolate your deployment from those other paths. Only add envelope signatures to the prepared payout; changing source, amount, bounds, operations or authorisation entries is refused. Final retries are retained for seven days.
-
-```bash
-curl -sS --fail-with-body -D /tmp/paiflow-payout.headers -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/payouts" \
-  -H "Authorization: Bearer $PAIFLOW_TOKEN" -H 'Content-Type: application/json' \
-  --data "$(jq -nc --arg from "$FROM" --arg recipient "$RECIPIENT" \
-    '{from:$from,amount:"100000000",recipient:$recipient,nodeId:"pay"}')" \
-  > /tmp/paiflow-payout.json
-PAYOUT_PREPARATION_ID=$(awk 'tolower($1)=="x-history-request-id:" {gsub("\r", "", $2); print $2}' /tmp/paiflow-payout.headers)
-jq '.data | {nodeId,xdr,networkPassphrase,network,expiresAt}' /tmp/paiflow-payout.json
-# Change nodeId "pay" to your actual Pay node id, or omit it if there is just one.
-# Customer signs .data.xdr in the browser wallet, with .data.networkPassphrase.
-read -r -p 'Wallet-signed payout XDR: ' SIGNED_XDR
-curl -sS --fail-with-body -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/payouts/submit" \
-  -H "x-preparation-request-id: $PAYOUT_PREPARATION_ID" \
-  -H "Authorization: Bearer $PAIFLOW_TOKEN" -H 'Content-Type: application/json' \
-  --data "$(jq -nc --arg signedXdr "$SIGNED_XDR" '{signedXdr:$signedXdr}')"
-```
-
-Append to the same module; submit results and `?wait=false` behave like execute:
-
-```ts
-export const preparePayout = (input: {
-  from: string;
-  amount: string;
-  recipient: string;
-  nodeId?: string;
-}) => call<Prepared & { nodeId: string }>("payouts", "POST", input);
-export const submitPayout = (
-  input: { signedXdr: string; preparationRequestId?: string | null },
-  wait = true,
-) =>
-  call<Submitted>(
-    "payouts/submit",
-    "POST",
-    { signedXdr: input.signedXdr },
-    new URLSearchParams({ wait: String(wait) }),
-    input.preparationRequestId,
-  );
-
-// Catch PaiflowError in your server handler. For status 409/429, forward status
-// and Retry-After to your UI; wait that many seconds before retrying.
-// Keep a submitted envelope to retry submitPayout while outcome is uncertain.
 ```
 
 ## Release early
@@ -579,15 +526,13 @@ To test payments before or during the event, use different wallets to simulate c
 
 Organiser-provided fallback wallets are testnet-only; organisers hold copies of their keys. Never send real (mainnet) funds to them or import them into a wallet you use for real money. Anyone with the key can take what's in them.
 
-**USDC trustlines:** a fresh Stellar wallet usually cannot hold USDC until it adds a trustline to that exact asset code and issuer. A missing recipient trustline can show `TrustlineMissingError` / `The payout recipient has no trustline for {asset}. The recipient must add a trustline for {asset} before this flow can pay them.` in simulation, surfaced as 422 `VALIDATION`; the whole payment reverts. A deploy warning does not block deployment or require acknowledgement, so successful deployment does not prove recipients are ready. In the recipient's testnet wallet, use Add asset / Add trustline for code `USDC`, issuer `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`, and have that wallet sign its change-trust transaction. Fund a new account with testnet XLM via Friendbot first so it exists and has reserves/fees. A trustline to another issuer's USDC will not work; native XLM needs no trustline. Check the exact trustline and required balances in every wallet, including any organiser-provided fallback wallet. Adding a trustline enables receipt, not a USDC balance: obtain testnet USDC separately, then prepare the failed payment again. Payouts checks recipient readiness before changing it; an inconclusive check also refuses mutation.
+**USDC trustlines:** a fresh Stellar wallet usually cannot hold USDC until it adds a trustline to that exact asset code and issuer. A missing recipient trustline can show `TrustlineMissingError` / `The payout recipient has no trustline for {asset}. The recipient must add a trustline for {asset} before this flow can pay them.` in simulation, surfaced as 422 `VALIDATION`; the whole payment reverts. A deploy warning does not block deployment or require acknowledgement, so successful deployment does not prove recipients are ready. In the recipient's testnet wallet, use Add asset / Add trustline for code `USDC`, issuer `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`, and have that wallet sign its change-trust transaction. Fund a new account with testnet XLM via Friendbot first so it exists and has reserves/fees. A trustline to another issuer's USDC will not work; native XLM needs no trustline. Check the exact trustline and required balances in every wallet, including any organiser-provided fallback wallet. Adding a trustline enables receipt, not a USDC balance: obtain testnet USDC separately, then prepare the failed payment again.
 
 **Testnet USDC funding:** after funding the wallet with XLM and adding the exact USDC trustline, open [Circle's testnet faucet](https://faucet.circle.com/), select **USDC** and **Stellar Testnet**, and enter the customer's public wallet address (`G…`). Confirm the USDC balance before testing payments. Repeat for any wallet that will fund a flow, and choose test amounts that fit the available balance. Friendbot supplies XLM, not USDC.
 
 # 6. Timing advice
 
 Recommend **at least five minutes** for On Schedule and Subscription charge intervals; when using Allowance for a subscription, plan its charges on that same minimum interval. Allowance itself is approval, not a separate timed block. Payments land **one to two minutes after they are due** because automation is polled. Shorter intervals make a demo look stalled and drain testnet funds quickly: 10 USDC/minute requires about 2,400 USDC over four hours. Choose demo amounts to fit your available balance. Deployments share relayer infrastructure. The builder allows one-minute intervals; this is advice, not enforcement, avoid them for shared-infrastructure demos.
-
-For `/payouts`, **reuse a small, fixed set of recipients**. A new recipient costs one extra relayer configuration transaction; matching existing recipient and value can skip that mutation. Leave time for signing within its 60-second window and for the preceding payout to finish.
 
 The **live feed can lag by up to a minute** in normal background polling. Do not send another payment just because the animation has not appeared. Poll events with the rules above, track submission status/hash, and allow extra time when the network is slow; a minute is not a guaranteed upper bound.
 
@@ -604,13 +549,8 @@ The quoted text below is returned by the API or its contract error translation. 
 | `BalanceError`: `There isn't enough {asset} to cover this transfer.`                                                                                                        | Check payer/input balance, and any funded contract balance needed by the flow. Top up the correct testnet asset.                                                         |
 | `Insufficient balance to cover this transaction. Check the account balance and try again.`                                                                                  | Check testnet asset balance and XLM for fees/reserves.                                                                                                                   |
 | `txInsufficientBalance`: ``The `from` account cannot cover the fee for this transaction.``                                                                                  | Fund the signing account with testnet XLM.                                                                                                                               |
-| Pay `NotConfigured`: `This flow's Pay step has no recipient yet. Set it in Dev values on the deployment page, or per payment through POST /api/v1/deployments/:id/payouts.` | Fill Pay in Dev values, or use payouts prepare/sign/submit. Retrying execute without configuring cannot fix it.                                                          |
-| Split `NotConfigured`: `This flow's Split step has no recipients yet. Set them in Dev values on the deployment page.`                                                       | Fill the roster in Dev values and check shares/amounts before retrying.                                                                                                  |
-| 422 `VALIDATION`: `Recipient account/trustline readiness could not be established; no relayer mutation was sent`                                                            | Check recipient exists and trusts the asset; if checks cannot reach the network, retry later.                                                                            |
 | 429 `RATE_LIMITED`: `Too many requests`                                                                                                                                     | Stop immediate retries and wait the `Retry-After` seconds; reduce polling and duplicate submit loops.                                                                    |
-| 409 `CONFLICT`: `Another payout is preparing or can still execute; submit its prepared envelope or retry after finality`                                                    | Submit/recheck the earlier prepared envelope; otherwise wait using `Retry-After` if provided, then retry. Never work around this with execute/direct deposits.           |
-| `txTooLate`: `The transaction's 180-second window expired before it reached the network. Prepare it again.`                                                                 | Execute expired: prepare again and sign promptly. This shared error wording also appears for a payout even though payouts' actual window is 60 seconds; use `expiresAt`. |
-| 422 `VALIDATION`: `This prepared payout has expired; prepare a new payout`                                                                                                  | The unconfirmed old payout no longer owns protection. Prepare a new one; do not submit an altered old body.                                                              |
+| `txTooLate`: `The transaction's 180-second window expired before it reached the network. Prepare it again.`                                                                 | Execute expired: prepare again and sign promptly. Use the new preparation before its `expiresAt`. |
 | `txBadSeq`: ``The `from` account's sequence number moved since this envelope was prepared. Prepare it again.``                                                              | Avoid simultaneous transactions from the same customer wallet; prepare again after its other transaction finishes.                                                       |
 | `txBadAuth`: ``The envelope is not signed by the `from` account.``                                                                                                          | Reconnect the selected customer's wallet and sign with the returned passphrase.                                                                                          |
 
@@ -638,7 +578,7 @@ For example, a **3.50 USDC** payment splits into **3.15 USDC to the vendor + 0.3
 
 Graph: **On Receive USDC → Pay full amount to the store wallet**, or → percentage Split for the store and partner. The app's basket total supplies input `amount` as stroops. This one deployment serves this store; it does not create a new contract for every shopper.
 
-App calls: prepareExecute for the customer's address and checkout amount → browser wallet signs → submitExecute → listEvents, optionally filtering `txHash` to show that checkout's payout. Only mark the payment complete on SUCCESS, not merely HTTP 200. For this hackathon, keep the store and partner recipients configured in the deployment. Choosing a recipient per sale requires Dev mode and is unavailable throughout the event. Outside this hackathon, where Dev mode is enabled, that path uses a Dev Pay with deferred value and preparePayout → sign → submitPayout; serialise payouts and do not mix execute/QR payments into that deployment while a payout lease is held.
+App calls: prepareExecute for the customer's address and checkout amount → browser wallet signs → submitExecute → listEvents, optionally filtering `txHash` to show that checkout's payout. Only mark the payment complete on SUCCESS, not merely HTTP 200. Keep the store and partner recipients configured in the deployment.
 
 ## Freelance escrow
 

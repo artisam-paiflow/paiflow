@@ -144,13 +144,16 @@ Key boundaries:
 
 ## 🚀 How to Run Locally
 
+Install Node.js **22.22.2 or newer in the 22.x line** (`>=22.22.2 <23`). On macOS/Linux, install [nvm](https://github.com/nvm-sh/nvm#installing-and-updating), reopen your terminal, then run `nvm install 22` and `nvm use 22`. On Windows, select **22.x** in the [Node.js downloads](https://nodejs.org/en/download), install it and reopen your terminal. Check `node --version` before continuing.
+
 ```bash
 # 1. Clone
 git clone https://github.com/webnxt-2030/pinkraft.git
 cd pinkraft
 
-# 2. Install deps (requires Node 22.22.x and pnpm 10.4.1)
-corepack enable && corepack prepare pnpm@10.4.1 --activate
+# 2. Install the pinned pnpm version and dependencies
+npm install --global pnpm@10.4.1
+pnpm --version # Expected: 10.4.1
 pnpm install
 
 # 3. Configure environment
@@ -229,8 +232,10 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 
 ### Prerequisites
 
-- Node `22.22.x` (capped at `<23` — see `engines` in `package.json`)
-- pnpm `10.4.1` — `corepack enable && corepack prepare pnpm@10.4.1 --activate`
+Downloads need an internet connection. With nvm, run `nvm use 22` in each new terminal.
+
+- Node `>=22.22.2 <23` — use the latest Node 22 patch; see the installation steps above
+- pnpm `10.4.1` — `npm install --global pnpm@10.4.1`; verify with `pnpm --version`
 - Docker (for Postgres / Redis / MinIO)
 - _(Optional)_ A [Resend](https://resend.com) account for outbound transactional email (password reset). When unset, emails are logged to the dev console.
 - _(Optional)_ A [Groq](https://groq.com) API key for raft-log voice input + AI features. When unset, those features degrade gracefully.
@@ -267,6 +272,22 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 | `pnpm typecheck` | `tsc --noEmit`                               |
 | `pnpm lint`      | `next lint`                                  |
 | `pnpm format`    | Prettier across the repo                     |
+
+#### Analytics snapshots
+
+Run this command whenever you want a fresh snapshot and changes since the previous compatible run:
+
+```bash
+pnpm analytics:snapshot --network testnet --audience EXTERNAL
+```
+
+It reads `DATABASE_URL` from the shell, `.env.local`, or `.env` (in that order), and saves timestamped JSON files in `reports/analytics/` (gitignored). The terminal shows previous totals, current totals, and signed deltas for wallet connections, distinct addresses, transaction attempts, confirmed deployments, executions, active accounts, and unresolved/rejected/failed transactions. The first run establishes a baseline.
+
+The start defaults to the usage-v2 tracking activation time, and the end defaults to now. Set `--start` to an ISO timestamp to begin a different series; keep that start fixed on later runs. `--end` accepts a fixed timestamp to revisit an earlier window. Comparisons require the same network, audience, tracking version, activation time, and start, with a nondecreasing end. Separate filters automatically get separate baselines. Use a separate `--dir` for each database/environment so their histories are never mixed.
+
+Deltas are net changes to cumulative totals. An unresolved count can decrease as older transactions confirm; unique-account deltas count newly observed accounts within the cumulative window, not all accounts active since the last run. Wallets and accounts are not participant counts. Only data captured since tracking activation is included. API request health and PostHog interaction funnels are not part of this command.
+
+History files are retained without overwriting. Invalid history stops the run instead of silently dropping a baseline. A directory lock prevents concurrent runs; after a process crash, remove `reports/analytics/.snapshot.lock` only after checking that no snapshot process is running. Run `pnpm analytics:snapshot --help` for options.
 
 #### Tests
 
@@ -357,6 +378,11 @@ homepage/        Static marketing site (index, about, privacy, terms); its own R
 ```
 
 ### Branching & CI
+
+Release versioning and compatibility rules live in [docs/releasing.md](docs/releasing.md).
+Record noteworthy changes in [CHANGELOG.md](CHANGELOG.md) under `Unreleased`; bump the
+app version when preparing a release, rather than on every commit. Coding agents
+should start with [AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md).
 
 | Branch                  | Role                                                                   |
 | ----------------------- | ---------------------------------------------------------------------- |

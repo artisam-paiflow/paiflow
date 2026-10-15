@@ -1,0 +1,41 @@
+{
+  "name": "@paiflow/sdk",
+  "version": "0.1.0",
+  "description": "Node SDK for existing Paiflow deployments",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.22.2 <23"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "tag": "beta"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/webnxt-2030/pinkraft.git",
+    "directory": "packages/sdk"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepack": "pnpm run build",
+    "test:package": "pnpm run build && node scripts/check-package.mjs",
+    "test": "pnpm run build && node --test tests/*.test.mjs"
+  }
+}

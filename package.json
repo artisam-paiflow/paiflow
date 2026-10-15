@@ -46,6 +46,7 @@
     "soroswap:check": "tsx scripts/soroswap-check.ts",
     "instawards:changelog": "tsx scripts/instawards-changelog.ts",
     "analytics:metrics": "tsx --conditions=react-server scripts/usage-metrics-v2.ts",
+    "analytics:snapshot": "node --conditions=react-server --import tsx scripts/analytics-snapshot.ts",
     "instawards:metrics": "tsx scripts/instawards-metrics.ts",
     "instawards:transactions": "tsx scripts/instawards-transactions.ts",
     "instawards:alpha-metrics": "tsx scripts/alpha-metrics.ts",
@@ -60,7 +61,11 @@
     "db:seed:all-events": "tsx scripts/seed-all-events.ts",
     "docker:up": "docker compose --profile full up -d",
     "docker:down": "docker compose down -v",
-    "prepare": "husky || true"
+    "prepare": "husky || true",
+    "sdk:build": "pnpm --dir packages/sdk run build",
+    "sdk:typecheck": "pnpm --dir packages/sdk run typecheck",
+    "sdk:test:package": "pnpm --dir packages/sdk run test:package",
+    "sdk:test": "pnpm --dir packages/sdk run test"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",
@@ -71,8 +76,8 @@
     "@simplewebauthn/server": "^14.0.1",
     "@stellar/stellar-sdk": "^16.3.1",
     "@tanstack/react-query": "^5.62.7",
-    "@walletconnect/modal": "2.6.2",
-    "@walletconnect/sign-client": "2.11.2",
+    "@walletconnect/modal": "2.7.0",
+    "@walletconnect/sign-client": "2.26.0",
     "@xyflow/react": "^12.4.1",
     "argon2": "^0.41.1",
     "class-variance-authority": "^0.7.1",
@@ -164,7 +169,9 @@
       "source-map-js": ">=1.2.2 <2",
       "fast-copy": ">=4.1.0 <5",
       "jayson": ">=5.0.0 <6",
-      "stream-json": ">=3.6.0 <4"
+      "stream-json": ">=3.6.0 <4",
+      "@creit.tech/stellar-wallets-kit>@walletconnect/sign-client": "2.26.0",
+      "@creit.tech/stellar-wallets-kit>@walletconnect/modal": "2.7.0"
     },
     "patchedDependencies": {
       "minio@8.0.7": "patches/minio@8.0.7.patch"

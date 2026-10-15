@@ -105,8 +105,11 @@ describe("OpenAPI document", () => {
     expect(committed).toEqual(JSON.parse(JSON.stringify(openApiDocument)));
   });
 
-  it("documents every /api/v1 route and method, and nothing that does not exist", () => {
-    const routes = routeOperations("api/v1");
+  it("documents every published /api/v1 route and method, and nothing that does not exist", () => {
+    // Per-payment recipient endpoints remain implemented but are hidden while Dev mode is disabled.
+    const routes = routeOperations("api/v1").filter(
+      (route) => !/^\/api\/v1\/deployments\/\{id\}\/payouts(?:\/submit)? post$/.test(route),
+    );
     expect(routes.length).toBeGreaterThan(0);
     expect(specOperations("/api/v1/")).toEqual(routes);
   });
