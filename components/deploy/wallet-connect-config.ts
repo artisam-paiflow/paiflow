@@ -1,3 +1,5 @@
+import { findMobileWallet } from "./mobile-wallet-registry";
+
 export const WALLET_CONNECT_UNCONFIGURED =
   "Mobile wallet connection is not configured on this deployment " +
   "(NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID is unset). Use Freighter on desktop, " +
@@ -106,12 +108,6 @@ export function sessionHasChain(
 // The peer name a wallet reports is free-form third-party metadata
 // ("Freighter", "LOBSTR", "xBull Wallet"), so this is a keyword match rather
 // than an identifier comparison.
-const WALLET_PEER_KEYWORDS: Record<string, string> = {
-  freighter: "freighter",
-  lobstr: "lobstr",
-  xbull: "xbull",
-};
-
 /**
  * Whether a session's peer *claims* to be the given wallet. A ranking signal —
  * never a trust decision.
@@ -131,7 +127,7 @@ export function sessionMatchesWallet(
   peerName: string | null | undefined,
   walletId: string,
 ): boolean {
-  const keyword = WALLET_PEER_KEYWORDS[walletId];
+  const keyword = findMobileWallet(walletId)?.peerKeyword;
   if (!keyword || typeof peerName !== "string") return false;
   return peerName.toLowerCase().includes(keyword);
 }
