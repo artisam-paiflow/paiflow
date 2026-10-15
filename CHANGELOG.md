@@ -7,9 +7,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
-- Record four expired real unsigned Testnet scan samples: factory deployment,
-  deposit, Streamer top-up, and a read-only actual-builder distribution simulation. Preserve public
-  metadata and explicit remaining Lantern acceptance and capture-provenance limits;
+- Record five expired real unsigned Testnet scan samples: factory deployment,
+  deposit, Streamer top-up, one-stroop token approval, and a read-only actual-builder
+  distribution simulation. Preserve public metadata and explicit remaining Lantern
+  acceptance and capture-provenance limits;
   retain the five synthetic examples (#1003).
 
 - Centralize mobile wallet names, icons and handoff links while preserving existing

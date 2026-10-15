@@ -61,6 +61,17 @@ const known = [
     expires: "1792085763",
     revision: "b7b92a49f9dbce9e9a3e6d1815690ab0f6958afd",
   },
+  {
+    id: "token-approve",
+    hash: "6dabd461593b301a897807ecc9abf32b7eb3e7b9cfae4ac4a36050608dd8045d",
+    method: "approve",
+    contract: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+    maximumFee: "3068799",
+    actualFee: "2664845",
+    ledger: 5212632,
+    expires: "1792086899",
+    revision: "b7b92a49f9dbce9e9a3e6d1815690ab0f6958afd",
+  },
 ];
 function jsonValue(value: unknown): unknown {
   if (typeof value === "bigint") return value.toString();
@@ -97,7 +108,7 @@ function scanInput(envelope: string): Transaction {
 }
 
 describe("sanitized real unsigned Testnet scan samples", () => {
-  it("contains exactly four real samples and explicitly retains all acceptance/provenance gaps", () => {
+  it("contains exactly five real samples and explicitly retains all acceptance/provenance gaps", () => {
     expect(Object.keys(manifest).sort()).toEqual([
       "coverage",
       "network",
@@ -108,9 +119,9 @@ describe("sanitized real unsigned Testnet scan samples", () => {
     expect(manifest.schemaVersion).toBe(2);
     expect(manifest.samples.map((sample) => sample.id)).toEqual(known.map((sample) => sample.id));
     expect(manifest.coverage).toEqual({
-      realSamples: 4,
+      realSamples: 5,
       requestedSamples: 5,
-      missingRealSamples: ["token-approve"],
+      missingRealSamples: [],
     });
     expect(manifest.network.name).toBe("testnet");
     expect(manifest.network.passphrase).toBe(Networks.TESTNET);
@@ -245,6 +256,26 @@ describe("sanitized real unsigned Testnet scan samples", () => {
     expect(transfer.functionName().toString()).toBe("transfer");
     expect(transfer.args().map(scValToNative).map(jsonValue)).toEqual([source, target, "1000000"]);
     expect(child.subInvocations()).toHaveLength(0);
+  });
+  it("binds the approval to one stroop, the pinned subscription spender and exact expiration ledger", () => {
+    const sample = manifest.samples.find((candidate) => candidate.id === "token-approve")!;
+    const spender = "CCKHNCKLTVSQJXILPH7P4HSHVT6EAJJGAZKUXEZ7NPPQN57JXMFQGPP5";
+    const args = [source, spender, "1", 8323016];
+    expect(sample.operations[0]!.arguments).toEqual(args);
+    expect(sample.amountStroops).toBe("1");
+    expect(sample.capture.kind).toBe("application UI capture");
+    const tx = scanInput(unsigned(sample.file));
+    const operation = tx.operations[0]!;
+    if (operation.type !== "invokeHostFunction") throw new Error("Unexpected operation");
+    const root = operation.auth![0]!.rootInvocation();
+    expect(root.function().switch().name).toBe("sorobanAuthorizedFunctionTypeContractFn");
+    const fn = root.function().contractFn();
+    expect(Address.fromScAddress(fn.contractAddress()).toString()).toBe(
+      Asset.native().contractId(Networks.TESTNET),
+    );
+    expect(fn.functionName().toString()).toBe("approve");
+    expect(fn.args().map(scValToNative).map(jsonValue)).toEqual(args);
+    expect(root.subInvocations()).toHaveLength(0);
   });
   it("preserves genuine whitelisted public simulation evidence without claiming submission", () => {
     const sample = manifest.samples.find((candidate) => candidate.id === "splitter-distribute")!;

@@ -1,17 +1,18 @@
-# Real unsigned Testnet scan samples — four of five
+# Real unsigned Testnet scan samples — five of five
 
 **Local preparation only: not approved for publication or external handoff.** A
 previous export attempt was rejected by automatic approval review; this expanded
 payload requires explicit user approval for the exact files and destination before
 any push, PR or other export. Keeping it local is not Lantern delivery or scan acceptance.
 
-This package contains four **real, expired, unsigned** envelopes. Factory
+This package contains five **real, expired, unsigned** envelopes. Factory
 deployment and deposit were captured from the pinned Railway testing application
 during the authorized 2026-10-15 Testnet verification. Splitter distribution was
 prepared later through the actual repository builder using read-only public
 Testnet RPC simulation; it is explicitly **not** an application/server UI capture.
-Streamer top-up is an existing application capture from the final integration
-revision, separately checked against its pinned native-XLM Streamer. Packaging
+Streamer top-up and the one-stroop token approval are existing application
+captures from the final integration revision, separately checked against pinned
+native-XLM Streamer and subscription targets. Packaging
 these existing captures performs no new application prepare, signing, submission
 or financial action. It supplements the [five synthetic offline fixtures](../lantern-scan-fixtures/README.md),
 which remain unchanged.
@@ -22,6 +23,7 @@ which remain unchanged.
 | [Deposit](deposit.unsigned.xdr)                            | `deposit(from, 1000000)`             | `67402e0ba2f9e822c15b8a9b768b4fecdc2fc226` | `2f68d076c7521c27506186a1e4a4b1b6036acd8a7d84a93d8d5f884a0cbb29b6` |
 | [Splitter distribution](splitter-distribute.unsigned.xdr)  | `distribute(from, 1000000)`          | `437beafef0c7e444bbef225e190e4e2ad48e4dd3` | `0217cd1936cc6cc0b8b8b5b186895f3c3f98ab0cc3bac91bbab877cdf1fd190e` |
 | [Streamer top-up](streamer-top-up.unsigned.xdr)            | `top_up(from, 1000000)`              | `b7b92a49f9dbce9e9a3e6d1815690ab0f6958afd` | `4cba2f6a867558e845c1f0e401ee9e0c910b6dbd0790588bb9b902e3a99a2184` |
+| [Token approval](token-approve.unsigned.xdr)               | `approve(from, spender, 1, 8323016)` | `b7b92a49f9dbce9e9a3e6d1815690ab0f6958afd` | `6dabd461593b301a897807ecc9abf32b7eb3e7b9cfae4ac4a36050608dd8045d` |
 
 The deployment calls a real factory contract through `invokeHostFunction` /
 `hostFunctionTypeInvokeContract`. Its two decoded blueprints create an
@@ -31,9 +33,9 @@ The deposit targets that deployed on-receive contract. The manifest records exac
 source, contract addresses, constructor arguments, public salts/WASM hashes,
 sequence, fee, time bounds and expiration for independent decoding.
 
-All four envelopes have **zero transaction signatures**, source-account authorization
+All five envelopes have **zero transaction signatures**, source-account authorization
 credentials only, no address-authorization signatures, and no memo. They contain no
-scoped allowance intent. The factory, deposit and top-up transaction bodies were subsequently signed and
+scoped allowance intent. The factory, deposit, top-up and approval transaction bodies were subsequently signed and
 executed during authorized tests. The distribution was simulated only, never signed or
 submitted; its actual fee charged is therefore unknown/inapplicable rather than
 an inferred resource fee. This package includes no signed envelope, key,
@@ -83,12 +85,33 @@ payload, private receipt or controller state was copied. For this sample, false
 raw-response retention flags mean those responses are not included in this packet;
 no claim is made about unrelated private instrumentation.
 
+The fifth sample is the existing application approval capture from the same final
+revision. Its top-level call and sole source-only authorization root are exactly
+native token `approve(owner, spender, 1, 8323016)`, with no authorization
+sub-invocations. The token is
+`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` and the
+independently pinned subscription spender is
+`CCKHNCKLTVSQJXILPH7P4HSHVT6EAJJGAZKUXEZ7NPPQN57JXMFQGPP5`.
+The amount is **one stroop**, not one XLM. `8323016` is the token allowance's
+expiration ledger; it is distinct from the transaction time bound that expired
+at 17:54:59 UTC. This sample was copied into the packet only after that transaction
+expiry was independently checked to have elapsed.
+
+The integration orchestrator separately verified Testnet SUCCESS at ledger
+5212632, actual fee 2664845 stroops, and a direct RPC allowance read of 1 stroop,
+below the 1000000-stroop subscription period. This is historical approval evidence,
+not proof of any later subscription charge, current allowance, or lifecycle
+completion. Those chain facts are not inferred from unsigned XDR. No raw
+simulation/passphrase response, scoped intent, API body, private receipt or
+controller state is included; the retention flags describe this packet only.
+
 | Sample                | Maximum envelope fee (stroops) | Actual chain fee charged (stroops) | Successful ledger | Expired at (UTC)    |
 | --------------------- | -----------------------------: | ---------------------------------: | ----------------: | ------------------- |
 | Factory deployment    |                         981994 |                             851202 |           5211160 | 2026-10-15 15:52:14 |
 | Deposit               |                      523953967 |                          455616244 |           5211379 | 2026-10-15 16:10:30 |
 | Splitter distribution |                          14784 |                      Not submitted |     Not submitted | 2026-10-15 16:53:12 |
 | Streamer top-up       |                         782160 |                             676793 |           5212404 | 2026-10-15 17:36:03 |
+| Token approval        |                        3068799 |                            2664845 |           5212632 | 2026-10-15 17:54:59 |
 
 Maximum fee is decoded from the unsigned envelope. Actual fee charged is a separate
 chain receipt fact; the deployment amount was independently checked against Testnet
@@ -108,14 +131,15 @@ The tests decode the committed bytes, compare all intended operations/arguments,
 verify the TESTNET hashes, require PUBLIC hashes to differ, reject transaction
 signatures and all address authorization, and require bounded already-expired time
 bounds. They also constrain manifest fields to prevent appending private capture
-state. The top-up test verifies the entire source-only native transfer authorization tree.
+state. The top-up test verifies the entire source-only native transfer authorization tree;
+the approval test pins the native token, subscription spender, one-stroop amount,
+expiration ledger and absence of authorization sub-invocations.
 The distribution test additionally parses retained raw simulation fields,
 compares assembled resource data/auth entries, and verifies its source/recipient
 preflight and absence of an actual chain execution/charged fee. The tests use no
 network or database.
 
-A real token `approve` capture remains missing: this is
-**four of the five** requested real scan examples, including one expressly
+This local packet contains **all five** requested real scan examples, including one expressly
 read-only actual-builder RPC sample. No external handoff/upload to Lantern occurred. Lantern scanner interpretation, risk labels,
 provider compatibility, real handset behavior and wallet-support acceptance remain
 unverified. Do not sign or submit these expired historical samples.

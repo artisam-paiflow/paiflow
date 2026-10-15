@@ -4,12 +4,12 @@
   "network": {
     "name": "testnet",
     "passphrase": "Test SDF Network ; September 2015",
-    "provenance": "The first two and fourth samples use pinned Railway testing and known successful Testnet hashes; raw server passphrases are not included in this packet. The third explicitly verifies Testnet via public RPC getNetwork. XDR has no network field."
+    "provenance": "The first two, fourth and fifth samples use pinned Railway testing and known successful Testnet hashes; raw server passphrases are not included in this packet. The third explicitly verifies Testnet via public RPC getNetwork. XDR has no network field."
   },
   "coverage": {
-    "realSamples": 4,
+    "realSamples": 5,
     "requestedSamples": 5,
-    "missingRealSamples": ["token-approve"]
+    "missingRealSamples": []
   },
   "samples": [
     {
@@ -250,6 +250,61 @@
         "status": "SUCCESS",
         "ledger": 5212404,
         "horizonTransactionUrl": "https://horizon-testnet.stellar.org/transactions/4cba2f6a867558e845c1f0e401ee9e0c910b6dbd0790588bb9b902e3a99a2184"
+      }
+    },
+    {
+      "id": "token-approve",
+      "file": "token-approve.unsigned.xdr",
+      "capture": {
+        "revision": "b7b92a49f9dbce9e9a3e6d1815690ab0f6958afd",
+        "preparedAt": null,
+        "environment": "Railway testing",
+        "provenance": "subscription-one-stroop-approval-public.json; existing unsigned application capture; integration orchestrator independently verified Testnet Horizon success/fees and a direct RPC allowance read of 1 stroop below the 1000000-stroop period. Only safe public projection metadata is included.",
+        "receiptObservedAt": null,
+        "rawSimulationResponseRetained": false,
+        "rawServerPassphraseRetained": false,
+        "simulationEvidence": "The captured revision preparation builder requires successful simulation and assembly before returning XDR; raw simulation/passphrase responses are not included in this packet. Successful chain execution and the allowance read are separate receipt evidence.",
+        "kind": "application UI capture",
+        "publicRpcEvidenceFile": null
+      },
+      "transactionHashTestnet": "6dabd461593b301a897807ecc9abf32b7eb3e7b9cfae4ac4a36050608dd8045d",
+      "source": "GCDF6TFSMWXBK7DGO4AQ4WYBSTS5OHM6S4OJRG7MZ7V34AT2LYSOJNWZ",
+      "sequence": "22379515506327560",
+      "maximumFeeStroops": "3068799",
+      "actualFeeChargedStroops": "2664845",
+      "timeBounds": {
+        "minTime": "0",
+        "maxTime": "1792086899"
+      },
+      "expiresAt": "2026-10-15T17:54:59.000Z",
+      "transactionSignatures": 0,
+      "addressAuthorizationEntries": 0,
+      "amountStroops": "1",
+      "operations": [
+        {
+          "type": "invokeHostFunction",
+          "hostFunctionType": "hostFunctionTypeInvokeContract",
+          "contract": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+          "method": "approve",
+          "arguments": [
+            "GCDF6TFSMWXBK7DGO4AQ4WYBSTS5OHM6S4OJRG7MZ7V34AT2LYSOJNWZ",
+            "CCKHNCKLTVSQJXILPH7P4HSHVT6EAJJGAZKUXEZ7NPPQN57JXMFQGPP5",
+            "1",
+            8323016
+          ],
+          "auth": [
+            {
+              "credential": "sorobanCredentialsSourceAccount",
+              "root": "sorobanAuthorizedFunctionTypeContractFn"
+            }
+          ]
+        }
+      ],
+      "chainExecution": {
+        "network": "testnet",
+        "status": "SUCCESS",
+        "ledger": 5212632,
+        "horizonTransactionUrl": "https://horizon-testnet.stellar.org/transactions/6dabd461593b301a897807ecc9abf32b7eb3e7b9cfae4ac4a36050608dd8045d"
       }
     }
   ]
