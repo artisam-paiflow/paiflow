@@ -80,16 +80,18 @@ export function findMobileWallet(
 
 export function mobilePickerWallets(
   platform: MobileWalletPlatform = currentMobileWalletPlatform(),
+  registry: readonly MobileWalletDefinition[] = MOBILE_WALLETS,
 ): MobileWalletDefinition[] {
-  return availableMobileWallets(platform).sort(
+  return availableMobileWallets(platform, registry).sort(
     (left, right) => left.pickerOrder - right.pickerOrder,
   );
 }
 
 export function walletConnectMobileWallets(
   platform: MobileWalletPlatform = currentMobileWalletPlatform(),
+  registry: readonly MobileWalletDefinition[] = MOBILE_WALLETS,
 ) {
-  return availableMobileWallets(platform).map((wallet) => ({
+  return availableMobileWallets(platform, registry).map((wallet) => ({
     id: wallet.id,
     name: wallet.name,
     links: { ...wallet.walletConnectLinks },
@@ -98,9 +100,10 @@ export function walletConnectMobileWallets(
 
 export function mobileWalletImages(
   platform: MobileWalletPlatform = currentMobileWalletPlatform(),
+  registry: readonly MobileWalletDefinition[] = MOBILE_WALLETS,
 ): Record<string, string> {
   return Object.fromEntries(
-    availableMobileWallets(platform).map((wallet) => [wallet.id, wallet.icon]),
+    availableMobileWallets(platform, registry).map((wallet) => [wallet.id, wallet.icon]),
   );
 }
 

@@ -1,7 +1,8 @@
 # Lantern Android wallet readiness
 
 The mobile wallet registry centralizes Paiflow's existing Freighter, LOBSTR and
-xBull metadata. It supports platform restrictions so a future Android-only wallet
+xBull metadata for the WalletConnect modal, trigger picker, native handoff,
+session-restoration allowlist and peer-name ranking. It supports platform restrictions so a future Android-only wallet
 can stay hidden on iOS, including iPadOS desktop user agents. Generic fixture tests
 exercise this filtering; they are not evidence of Lantern or real-phone support.
 

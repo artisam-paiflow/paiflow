@@ -7,6 +7,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Centralize mobile wallet names, icons and handoff links while preserving existing
+  Freighter, LOBSTR and xBull behavior; keep Lantern gated on official metadata.
+
 - Share wallet initialization between payment triggers and contract calls, preserving
   mobile pairing, wallet return and pending-transaction recovery (#397).
 

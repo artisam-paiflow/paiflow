@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { mobileWalletLink } from "@/components/deploy/mobile-wallet-links";
 import {
   availableMobileWallets,
   currentMobileWalletPlatform,
@@ -94,12 +95,22 @@ describe("mobile wallet registry", () => {
     const registry = [...MOBILE_WALLETS, restricted];
     expect(availableMobileWallets("android", registry).at(-1)).toEqual(restricted);
     expect(findMobileWallet(restricted.id, "android", registry)).toEqual(restricted);
+    expect(walletConnectMobileWallets("android", registry).at(-1)?.id).toBe(restricted.id);
+    expect(mobilePickerWallets("android", registry).at(-1)?.id).toBe(restricted.id);
+    expect(mobileWalletImages("android", registry)[restricted.id]).toBe(restricted.icon);
     expect(nativeMobileWalletLink(restricted.id, "wc:test@2", "android", registry)).toBe(
       "fixture-wallet://wc?uri=wc%3Atest%402",
     );
     for (const platform of ["ios", "other"] as const) {
       expect(availableMobileWallets(platform, registry)).toEqual(MOBILE_WALLETS);
       expect(findMobileWallet(restricted.id, platform, registry)).toBeUndefined();
+      expect(
+        walletConnectMobileWallets(platform, registry).some(({ id }) => id === restricted.id),
+      ).toBe(false);
+      expect(mobilePickerWallets(platform, registry).some(({ id }) => id === restricted.id)).toBe(
+        false,
+      );
+      expect(mobileWalletImages(platform, registry)[restricted.id]).toBeUndefined();
       expect(nativeMobileWalletLink(restricted.id, "wc:test@2", platform, registry)).toBeNull();
     }
     expect(MOBILE_WALLETS.some(({ id }) => id === restricted.id || id === "lantern")).toBe(false);
@@ -117,6 +128,7 @@ describe("mobile wallet registry", () => {
         pairedPrefix + encodeURIComponent(uri),
       );
       expect(nativeMobileWalletLink(id, uri, "android")).toContain("abc%252Fdef");
+      expect(mobileWalletLink(id, uri)).toBe(pairedPrefix + encodeURIComponent(uri));
     },
   );
   it.each(["unknown", "lantern", "constructor", "toString", "__proto__"])(

@@ -119,6 +119,22 @@ describe("mobile trigger using the shared wallet kit", () => {
     await mount();
     await picker();
     expect(mocks.init).toHaveBeenCalledOnce();
+    const walletButtons = screen
+      .getAllByRole("button")
+      .filter((button) => ["Freighter", "LOBSTR", "xBull"].includes(button.textContent ?? ""));
+    expect(walletButtons.map((button) => button.textContent)).toEqual([
+      "Freighter",
+      "LOBSTR",
+      "xBull",
+    ]);
+    expect(walletButtons.map((button) => button.querySelector("img")?.getAttribute("src"))).toEqual(
+      [
+        "https://stellar.creit.tech/wallet-icons/freighter.png",
+        "https://stellar.creit.tech/wallet-icons/lobstr.png",
+        "https://stellar.creit.tech/wallet-icons/xbull.png",
+      ],
+    );
+    expect(screen.queryByRole("button", { name: "Lantern" })).toBeNull();
     expect(mocks.connect).toHaveBeenCalledWith({
       requiredNamespaces: {
         stellar: {
