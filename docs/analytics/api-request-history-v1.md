@@ -91,6 +91,9 @@ to this environment's Redis, not filtered reporting-window totals.
 
 ## Operator report
 
+The detailed raw-history report below keeps its existing scope and retention.
+For longer-term endpoint counts, use the [daily report](#durable-daily-aggregates).
+
 Run with a server-only context and the intended read-only reporting database:
 
 ```sh
@@ -188,3 +191,102 @@ matched before/after windows at representative load. Record traffic and versions
 local checks do not establish hosted performance or live collection. Installing
 these dashboard definitions and changing PostHog retention are separate operator
 steps. No historical mutation or live rollout is performed by this implementation.
+
+## Durable daily aggregates
+
+The `20261015130000_api_request_daily_aggregates` migration adds a separate,
+identity-free aggregate store. It does not extend raw request or request-outbox
+retention, change API coverage, or configure a cron in any environment.
+
+`ApiRequestDailyAggregate` groups requests by UTC date of `occurredAt`, network,
+analytics environment, audience, tracking version, normalized endpoint and method.
+It preserves request/error/401/429 counts, total handler duration, min/max duration
+and the most recent request timestamp. Counts and duration sums are bigint values;
+reports serialize them as strings. Weighted mean duration is sum/count. No account,
+token, deployment or wallet identifiers, bodies, query strings or credentials are
+retained in these aggregates. Daily counts cannot recover distinct users or exact
+p50/p95 latency; use the detailed raw report for those within its retention window.
+
+An AFTER INSERT statement trigger consumes the batch of newly inserted request
+rows and updates the aggregate in the same transaction. A failed aggregate update
+rolls back the raw insertion, so the existing drainer leaves queue members for
+retry. Raw rows are treated as immutable: deleting them for retention does not
+subtract from aggregates, and editing persisted history is not a correction API.
+There is no separate periodic rollup that can fall behind raw retention.
+
+`ApiRequestAggregateReceipt` stores only each server-generated request UUID. Its
+primary key prevents counting a telemetry replay twice, even if the original raw
+row has already expired and the same UUID is inserted again. A fresh HTTP retry
+gets a new UUID and counts as another request. These receipts and the aggregates
+are retained indefinitely; the receipt ledger grows with persisted request volume.
+Deleting receipts breaks replay protection and is not part of raw-history cleanup.
+
+### Migration, backfill and coverage
+
+The migration installs the tables and trigger and backfills retained raw rows in
+one transaction. It takes a write-blocking lock on `ApiRequestLog` for that work;
+size and schedule the deployment accordingly. Normal API responses do not write
+this table synchronously, but telemetry persistence can wait/retry during the lock.
+The new storage is maintained by the database, including inserts from older app
+versions; the existing 200-record drainer and 30-day cleanup do not need new code.
+Migration/application roles must be able to insert receipts and update aggregates.
+A restricted custom ingestion role needs those privileges as well as raw INSERT.
+
+Backfill cannot recreate requests already deleted. `ApiRequestDailyCoverage`
+records the backfill time and a conservative coverage start: the later of the
+original `api-requests-v1` cutover and 30 days before migration. Reports reject
+start dates before that UTC boundary day rather than showing fabricated zeroes.
+The boundary day may be partial and is flagged. Older raw rows that happen to
+remain during incremental cleanup are backfilled too, but the report does not
+claim their entire older period is complete.
+
+Late arrivals update their original request date, so historical counts can change.
+A current/future end date is flagged as incomplete. Queue admission failures,
+missing cron processing, telemetry not yet persisted, and routes outside the v1
+wrapper remain outside these counts. The coverage boundary describes preserved
+persisted data; it does not certify complete capture of all API traffic.
+
+### Daily report
+
+```bash
+DATABASE_URL="$STAGING_DATABASE_URL" pnpm analytics:api-report --daily \
+  --start 2026-10-13 --end 2026-10-15 \
+  --network testnet --environment beta --audience EXTERNAL \
+  --output reports/api-daily.json
+```
+
+Dates are **UTC**, `YYYY-MM-DD`, with an exclusive end; they are not Philippine
+calendar-day windows. Windows may span up to 3,660 days and are independent of raw
+retention. Output includes overall totals, per-day totals, and up to 1,000
+endpoint/method groups with a truncation flag. It does not aggregate per-day
+percentiles or distinct-account totals. Queries run in a read-only repeatable-read
+transaction with a five-second statement timeout and no Redis dependency.
+
+The existing report without `--daily` is unchanged in scope. It still reads raw
+rows for account/token breakdowns, p50/p95, transaction linkage, activation,
+preparation/recovery analysis and scheduled jobs. The daily report is a complement,
+not a superset. The snapshot command does not automatically include this report.
+
+After deploying the migration, grant an existing reporting login SELECT only on
+the new report tables (the receipt ledger is not needed for reporting):
+
+```sql
+GRANT SELECT ON TABLE
+  public."ApiRequestDailyAggregate",
+  public."ApiRequestDailyCoverage"
+TO analytics_reader;
+```
+
+The login also needs CONNECT to the intended database and USAGE on `public`, as
+with the existing read-only setup. Do not replace the application connection URL
+with the analytics login.
+
+### Local integration verification
+
+`tests/unit/api/request-daily-integration.test.ts` is opt-in and resets the public
+schema **only** on the dedicated local database `api_daily_test` at
+`127.0.0.1:55489`. It requires PostgreSQL and `psql`; set
+`API_DAILY_TEST_DATABASE_URL` to that disposable database. Never point it at shared
+data. It applies the prior migrations, seeds retained history, then applies the
+aggregate migration to verify backfill, cleanup/replay, rollback, concurrent
+inserts, UTC dates, scope and reporting after the raw retention period.

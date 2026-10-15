@@ -21,6 +21,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Durable daily API request aggregates and a `--daily` report mode, preserving
+  endpoint counts and mergeable latency statistics beyond 30-day raw retention.
+
 - Save compatible cumulative analytics snapshots with exact integer deltas between
   runs using `pnpm analytics:snapshot` (#995).
 
