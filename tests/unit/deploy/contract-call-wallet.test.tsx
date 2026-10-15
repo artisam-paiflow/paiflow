@@ -111,6 +111,30 @@ async function choose(id = "freighter") {
 }
 
 describe("contract actions using the shared selected connection", () => {
+  it.each([
+    ["testnet", "Public Global Stellar Network ; September 2015"],
+    ["mainnet", TESTNET],
+  ] as const)(
+    "refuses %s actions with another server network before asking desktop to sign",
+    async (network, wrongPassphrase) => {
+      props = { ...props, network };
+      prepare.mockResolvedValue({ xdr: "unsigned", networkPassphrase: wrongPassphrase });
+      await open();
+      await choose("freighter");
+      await waitFor(() =>
+        expect(mocks.toastError).toHaveBeenCalledWith(
+          expect.objectContaining({ message: "Wallet and transaction networks do not match." }),
+          "Transaction failed",
+        ),
+      );
+      expect(prepare).toHaveBeenCalledWith(ADDRESS);
+      expect(mocks.sign).not.toHaveBeenCalled();
+      expect(mocks.signedHash).not.toHaveBeenCalled();
+      expect(submit).not.toHaveBeenCalled();
+      expect(mocks.poll).not.toHaveBeenCalled();
+      expect(localStorage.getItem(contractCallPendingKey(props.deploymentId, network))).toBeNull();
+    },
+  );
   it("waits for selection and confirms through the supplied endpoints and server passphrase", async () => {
     await open();
     expect(prepare).not.toHaveBeenCalled();
