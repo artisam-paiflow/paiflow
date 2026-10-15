@@ -11,6 +11,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
   across navigation and reloads. Block replacement actions, cancel stale roster
   approvals and validate all wallet responses before dispatch.
 
+- Report browser wallet-deployment acceptance as explicitly pending rather than
+  passing after a timeout; retain active draft-builder and deployment-review
+  assertions (#1003).
+
 - Validate every deployment wallet response and persist its public deployment ID
   and transaction hash before submission. Preserve unresolved submissions across
   navigation and reloads, with status-only recovery and browser admission locks.
