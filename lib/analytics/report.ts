@@ -1,8 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { AppError } from "@/lib/errors";
 import { TRACKING_VERSION } from "./policy";
-import { UsageReportSchema, type UsageReportInput } from "./report-schema";
+import { UsageReportError, UsageReportSchema, type UsageReportInput } from "./report-schema";
 type Totals = {
   connections: bigint;
   connected_addresses: bigint;
@@ -25,7 +24,7 @@ export async function usageReport(input: UsageReportInput) {
   const start = new Date(options.start),
     end = new Date(options.end);
   if (start < policy.activatedAt)
-    throw new AppError("VALIDATION", "Report start precedes the usage-v2 cutover");
+    throw new UsageReportError("Report start precedes the usage-v2 cutover");
   const [totals] = await db.$queryRaw<Totals[]>`
     WITH connections AS (
       SELECT * FROM "WalletConnection" WHERE "trackingVersion" = ${TRACKING_VERSION}

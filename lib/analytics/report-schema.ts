@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { AUDIENCES } from "./policy";
+/** Report diagnostics without initializing application auth or logging configuration. */
+export class UsageReportError extends Error {
+  readonly code = "VALIDATION";
+}
 export const UsageReportSchema = z
   .object({
     start: z.string().datetime({ offset: true }),

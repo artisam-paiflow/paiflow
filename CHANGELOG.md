@@ -7,6 +7,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Save analytics snapshots beside an explicitly selected environment file by
+  default; retain `--dir` overrides and the existing fallback without `--env-file`.
+
 - Add an optional total relayer transaction fee ceiling before envelope signing;
   configuring it also refuses automatic restoration in the invocation builder.
 
@@ -20,6 +23,21 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
   scheduler and release-readiness limits, with links to the live evidence (#964).
 
 ### Added
+
+- Include API request totals, endpoint/method counts and deltas in analytics
+  snapshots by default, with compatible API baselines and `--no-api` opt-out.
+
+- Optional host-scoped PostHog event/account aggregates in analytics snapshots,
+  retaining separate compatible baselines and publishing history atomically.
+
+- Default snapshots to staging/testnet, EXTERNAL and PostHog enabled; add
+  `--env-file` for an explicit private credential source and `--no-posthog` opt-out.
+
+- A daily API report batch command and separate Railway cron configuration, saving
+  dated report revisions with bounded refresh for late-arriving telemetry.
+
+- Durable daily API request aggregates and a `--daily` report mode, preserving
+  endpoint counts and mergeable latency statistics beyond 30-day raw retention.
 
 - Save compatible cumulative analytics snapshots with exact integer deltas between
   runs using `pnpm analytics:snapshot` (#995).
