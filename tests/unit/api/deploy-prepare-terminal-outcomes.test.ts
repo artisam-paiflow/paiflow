@@ -53,6 +53,7 @@ it("binds Return to the preparing wallet and persists the original graph", async
     json: async () => ({ flowId: FLOW, sourceAccount: SOURCE }),
   } as unknown as import("next/server").NextRequest);
   expect(res.status).toBe(200);
+  expect((await res.json()).data.networkPassphrase).toBe("Test SDF Network ; September 2015");
   const input = prepare.mock.calls[0]?.[0];
   expect(input.sourceAccount).toBe(SOURCE);
   expect(input.nodes.map((n: { nodeId: string }) => n.nodeId)).toEqual(["t", "c", "r"]);
