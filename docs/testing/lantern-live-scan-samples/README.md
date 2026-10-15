@@ -46,7 +46,7 @@ Maximum fee is decoded from the unsigned envelope. Actual fee charged is a separ
 chain receipt fact; the deployment amount was independently checked against Testnet
 Horizon by the integration orchestrator and reviewer. Public transaction links are
 included in the manifest. The unusually high deposit fee reflected the earlier
-Testnet code-TTL restoration; it is historical evidence, not a fee recommendation
+Testnet code-TTL renewal; it is historical evidence, not a fee recommendation
 or permission to repeat the payment. Actual fees cannot be inferred from unsigned
 XDR, and the decoder tests do not independently re-query chain receipts.
 
