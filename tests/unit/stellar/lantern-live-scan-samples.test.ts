@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   Address,
+  Asset,
   Keypair,
   Networks,
   rpc,
@@ -49,6 +50,17 @@ const known = [
     expires: "1792083192",
     revision: "437beafef0c7e444bbef225e190e4e2ad48e4dd3",
   },
+  {
+    id: "streamer-top-up",
+    hash: "4cba2f6a867558e845c1f0e401ee9e0c910b6dbd0790588bb9b902e3a99a2184",
+    method: "top_up",
+    contract: "CB7WSHK5TWPVSZVZ3IPRQHCACRHOIYET3AP43H7CYTTE7Z2O2WIVGMRU",
+    maximumFee: "782160",
+    actualFee: "676793",
+    ledger: 5212404,
+    expires: "1792085763",
+    revision: "b7b92a49f9dbce9e9a3e6d1815690ab0f6958afd",
+  },
 ];
 function jsonValue(value: unknown): unknown {
   if (typeof value === "bigint") return value.toString();
@@ -85,7 +97,7 @@ function scanInput(envelope: string): Transaction {
 }
 
 describe("sanitized real unsigned Testnet scan samples", () => {
-  it("contains exactly three real samples and explicitly retains all acceptance/provenance gaps", () => {
+  it("contains exactly four real samples and explicitly retains all acceptance/provenance gaps", () => {
     expect(Object.keys(manifest).sort()).toEqual([
       "coverage",
       "network",
@@ -96,9 +108,9 @@ describe("sanitized real unsigned Testnet scan samples", () => {
     expect(manifest.schemaVersion).toBe(2);
     expect(manifest.samples.map((sample) => sample.id)).toEqual(known.map((sample) => sample.id));
     expect(manifest.coverage).toEqual({
-      realSamples: 3,
+      realSamples: 4,
       requestedSamples: 5,
-      missingRealSamples: ["streamer-top-up", "token-approve"],
+      missingRealSamples: ["token-approve"],
     });
     expect(manifest.network.name).toBe("testnet");
     expect(manifest.network.passphrase).toBe(Networks.TESTNET);
@@ -207,6 +219,32 @@ describe("sanitized real unsigned Testnet scan samples", () => {
     const sample = manifest.samples.find((candidate) => candidate.id === "deposit")!;
     expect(sample.operations[0]!.arguments).toEqual([source, "1000000"]);
     expect(sample.amountStroops).toBe("1000000");
+  });
+  it("binds the top-up to the pinned Streamer, exact native transfer and source-only auth tree", () => {
+    const sample = manifest.samples.find((candidate) => candidate.id === "streamer-top-up")!;
+    expect(sample.operations[0]!.arguments).toEqual([source, "1000000"]);
+    expect(sample.amountStroops).toBe("1000000");
+    expect(sample.capture.kind).toBe("application UI capture");
+    const tx = scanInput(unsigned(sample.file));
+    const operation = tx.operations[0]!;
+    if (operation.type !== "invokeHostFunction") throw new Error("Unexpected operation");
+    const root = operation.auth![0]!.rootInvocation();
+    expect(root.function().switch().name).toBe("sorobanAuthorizedFunctionTypeContractFn");
+    const fn = root.function().contractFn();
+    const target = "CB7WSHK5TWPVSZVZ3IPRQHCACRHOIYET3AP43H7CYTTE7Z2O2WIVGMRU";
+    expect(Address.fromScAddress(fn.contractAddress()).toString()).toBe(target);
+    expect(fn.functionName().toString()).toBe("top_up");
+    expect(fn.args().map(scValToNative).map(jsonValue)).toEqual([source, "1000000"]);
+    expect(root.subInvocations()).toHaveLength(1);
+    const child = root.subInvocations()[0]!;
+    expect(child.function().switch().name).toBe("sorobanAuthorizedFunctionTypeContractFn");
+    const transfer = child.function().contractFn();
+    expect(Address.fromScAddress(transfer.contractAddress()).toString()).toBe(
+      Asset.native().contractId(Networks.TESTNET),
+    );
+    expect(transfer.functionName().toString()).toBe("transfer");
+    expect(transfer.args().map(scValToNative).map(jsonValue)).toEqual([source, target, "1000000"]);
+    expect(child.subInvocations()).toHaveLength(0);
   });
   it("preserves genuine whitelisted public simulation evidence without claiming submission", () => {
     const sample = manifest.samples.find((candidate) => candidate.id === "splitter-distribute")!;

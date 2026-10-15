@@ -7,8 +7,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
-- Record three expired real unsigned Testnet scan samples: factory deployment,
-  deposit, and a read-only actual-builder distribution simulation. Preserve public
+- Record four expired real unsigned Testnet scan samples: factory deployment,
+  deposit, Streamer top-up, and a read-only actual-builder distribution simulation. Preserve public
   metadata and explicit remaining Lantern acceptance and capture-provenance limits;
   retain the five synthetic examples (#1003).
 

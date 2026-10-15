@@ -4,12 +4,12 @@
   "network": {
     "name": "testnet",
     "passphrase": "Test SDF Network ; September 2015",
-    "provenance": "The first two samples use pinned Railway testing and known successful Testnet hashes; their raw server passphrase was not retained. The third explicitly verifies Testnet via public RPC getNetwork. XDR has no network field."
+    "provenance": "The first two and fourth samples use pinned Railway testing and known successful Testnet hashes; raw server passphrases are not included in this packet. The third explicitly verifies Testnet via public RPC getNetwork. XDR has no network field."
   },
   "coverage": {
-    "realSamples": 3,
+    "realSamples": 4,
     "requestedSamples": 5,
-    "missingRealSamples": ["streamer-top-up", "token-approve"]
+    "missingRealSamples": ["token-approve"]
   },
   "samples": [
     {
@@ -201,6 +201,56 @@
         }
       ],
       "chainExecution": null
+    },
+    {
+      "id": "streamer-top-up",
+      "file": "streamer-top-up.unsigned.xdr",
+      "capture": {
+        "revision": "b7b92a49f9dbce9e9a3e6d1815690ab0f6958afd",
+        "preparedAt": null,
+        "environment": "Railway testing",
+        "provenance": "Existing unsigned application capture; integration orchestrator independently verified Testnet Horizon success/fees and the pinned Streamer native SAC at ledger 5212530. No private receipt, request payload or controller state is included.",
+        "receiptObservedAt": null,
+        "rawSimulationResponseRetained": false,
+        "rawServerPassphraseRetained": false,
+        "simulationEvidence": "The captured revision preparation builder requires successful simulation and assembly before returning XDR; raw simulation/passphrase responses are not included in this packet. Successful chain execution is separate receipt evidence.",
+        "kind": "application UI capture",
+        "publicRpcEvidenceFile": null
+      },
+      "transactionHashTestnet": "4cba2f6a867558e845c1f0e401ee9e0c910b6dbd0790588bb9b902e3a99a2184",
+      "source": "GCDF6TFSMWXBK7DGO4AQ4WYBSTS5OHM6S4OJRG7MZ7V34AT2LYSOJNWZ",
+      "sequence": "22379515506327556",
+      "maximumFeeStroops": "782160",
+      "actualFeeChargedStroops": "676793",
+      "timeBounds": {
+        "minTime": "0",
+        "maxTime": "1792085763"
+      },
+      "expiresAt": "2026-10-15T17:36:03.000Z",
+      "transactionSignatures": 0,
+      "addressAuthorizationEntries": 0,
+      "amountStroops": "1000000",
+      "operations": [
+        {
+          "type": "invokeHostFunction",
+          "hostFunctionType": "hostFunctionTypeInvokeContract",
+          "contract": "CB7WSHK5TWPVSZVZ3IPRQHCACRHOIYET3AP43H7CYTTE7Z2O2WIVGMRU",
+          "method": "top_up",
+          "arguments": ["GCDF6TFSMWXBK7DGO4AQ4WYBSTS5OHM6S4OJRG7MZ7V34AT2LYSOJNWZ", "1000000"],
+          "auth": [
+            {
+              "credential": "sorobanCredentialsSourceAccount",
+              "root": "sorobanAuthorizedFunctionTypeContractFn"
+            }
+          ]
+        }
+      ],
+      "chainExecution": {
+        "network": "testnet",
+        "status": "SUCCESS",
+        "ledger": 5212404,
+        "horizonTransactionUrl": "https://horizon-testnet.stellar.org/transactions/4cba2f6a867558e845c1f0e401ee9e0c910b6dbd0790588bb9b902e3a99a2184"
+      }
     }
   ]
 }
