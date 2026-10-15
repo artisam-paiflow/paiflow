@@ -1,8 +1,8 @@
 # SDK beta validation and release checklist
 
 Local validation for [#964](https://github.com/webnxt-2030/pinkraft/issues/964)
-began on 2026-10-13; the live checkpoint below is dated 2026-10-15. This candidate
-is **unreleased**. Bounded, separately authorized testnet workflows now have
+began on 2026-10-13; the live checkpoint below is dated 2026-10-15. This first-beta candidate
+is **unpublished**, with version `0.1.0` prepared on 2026-10-15. Bounded, separately authorized testnet workflows now have
 [SDK live evidence](../testing/2026-10-14-sdk-live-verification.md); remaining
 limitations, independent final-candidate review and exact-head CI remain separate
 gates. Historical hackathon evidence does not establish this SDK's live support.
@@ -10,12 +10,19 @@ No release tag or npm publication is authorized by this checklist.
 
 ## Candidate identity and compatibility
 
-- Package: `@paiflow/sdk`, starting metadata version `0.1.0`; no historical release
-  date or npm availability is implied. SDK and app versions advance independently.
-- Source baseline: `testing` commit `6478bd0459cd840f3bd71c7045e3fb020946011f`,
-  after the SDK docs/examples PR. The final candidate's full commit and exact-head
-  CI/review evidence must be recorded in its PR before merge; a merge does not
-  identify the app revision running on a hosted environment.
+- Package: `@paiflow/sdk@0.1.0`, first-beta release candidate dated 2026-10-15;
+  npm publication and its final artifact integrity are not yet established. SDK
+  and app versions advance independently.
+- Source baseline: `testing` commit `71e9326b62d18bf9366ffbf0564fdd62847c3af6`,
+  after the reviewed real-Swap evidence PR. Release preparation changes metadata
+  and documentation; SDK runtime, tests, scripts and dependencies remain unchanged.
+  Record the final release candidate's full commit, review, exact-head CI and new
+  tarball integrity before approval. Historical packed-artifact integrity does
+  not identify the release tarball after its metadata/docs change.
+- npm ownership verified on 2026-10-15: authenticated account `saltshin` is an
+  owner of the `@paiflow` organization. Registry lookup returned 404 for
+  `@paiflow/sdk`; the name was unpublished at that check. These observations do
+  not establish a completed publication, future access or registry availability.
 - API: `/api/v1` plus the explicitly listed unversioned public/Webhook routes in
   [the contract](contract.md). No new backend routes or behavior changes.
 - Runtime: Node `>=22.22.2 <23`, ESM only; CommonJS uses dynamic import. Locally
@@ -161,8 +168,13 @@ opaque intents and signed envelopes remain private.
       [exact-head Node/Rust CI](https://github.com/webnxt-2030/pinkraft/actions/runs/38673864273)
       before [merge](https://github.com/webnxt-2030/pinkraft/pull/981), followed by
       [successful post-merge CI](https://github.com/webnxt-2030/pinkraft/actions/runs/38675573507).
-      The later #982 evidence change requires its own review and exact-head CI;
-      the historical runs do not validate that new candidate.
+- [x] The #982 real-Swap evidence received independent review and
+      [exact-head Node/Rust CI](https://github.com/webnxt-2030/pinkraft/actions/runs/38679818665)
+      before [PR #986 merged](https://github.com/webnxt-2030/pinkraft/pull/986), then
+      [post-merge CI](https://github.com/webnxt-2030/pinkraft/actions/runs/38680674862)
+      passed at `71e9326b62d18bf9366ffbf0564fdd62847c3af6`. Testing automatically
+      deployed that commit and returned health `ok`, version `71e9326`.
+      The metadata/docs release candidate requires its own review and exact-head CI.
 
 The testing environment has no configured unattended Subscription scheduler.
 An authorized manual cron call establishes bounded handler/charge behavior only.
@@ -176,15 +188,24 @@ versions follows from these isolated testnet workflows.
 Follow [the release policy](../releasing.md). Preparing these steps does not
 approve creating the scope, tagging, publishing, deploying or promoting.
 
-- [ ] Complete live evidence above and resolve any release-blocking findings.
+- [x] Complete the bounded authorized testnet evidence, including real Swap
+      execution. Positive hosted demo mint, unattended scheduling, general
+      production support and inexpensive/universal Swap execution remain explicit
+      limitations; this candidate makes no positive support claim for them.
 - [ ] Record independent review and successful full Node/Rust CI for the exact
       candidate; retain artifact evidence and repeat checks if code changes.
-- [ ] With explicit authorization, establish/verify ownership of npm `@paiflow`
-      scope and intended publisher access. Package-name availability alone is
-      not proof of ownership; no registry install command is claimed to work yet.
-- [ ] Confirm first beta `0.1.0`, move chosen SDK `Unreleased` changes into a dated
-      SDK entry using the actual release date, and rebuild/validate the final tarball.
-      Keep API-major/runtime compatibility and migrations in the release notes.
+- [x] Verify the supplied publisher account `saltshin` and ownership of npm
+      `@paiflow` scope. No npm authentication or access settings were changed.
+      Registry installation remains prospective until publication is confirmed.
+- [x] Prepare first-beta `0.1.0` metadata and a dated 2026-10-15 SDK changelog
+      entry; this checklist records the candidate as unpublished pending approval.
+      Document API-major,
+      runtime compatibility and absence of migrations. Packed README/changelog
+      remain valid after publication; approval/status stays in this checklist.
+      Reconcile the date/status
+      with the actual publication day if approval occurs later.
+- [ ] Rebuild and validate the final tarball, recording its exact integrity after
+      metadata/docs changes; obtain independent final-candidate review and CI.
 - [ ] Prepare annotated tag `sdk-js-v0.1.0` on the final reviewed release commit;
       create it only after release approval. No app tag/version bump is implied.
 - [ ] Publish exactly the approved tarball using the authorized publisher workflow;

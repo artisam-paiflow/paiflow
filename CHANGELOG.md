@@ -7,6 +7,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Prepare the first `@paiflow/sdk@0.1.0` beta release metadata and documentation;
+  publication and the release tag remain pending separate approval.
+
 - Record the successful bounded testnet Swap rehearsal, exact USDC receipt and
   measured storage-rent fees, closing the deferred execution evidence gap (#982).
 

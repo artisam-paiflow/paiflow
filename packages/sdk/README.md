@@ -1,30 +1,36 @@
 # @paiflow/sdk
 
-Unreleased Node SDK with typed deployment reads, payments, funding, Schedule and
-Subscription controls, public allowance consent, public utilities and embed SSE.
-Includes keyed/unkeyed Webhook callbacks and early release. All 42 HTTP operations
-in the coverage matrix are implemented. Bounded testnet workflows have been
-verified; remaining live limitations are recorded in the
-[live evidence report](../../docs/testing/2026-10-14-sdk-live-verification.md).
-Publishing requires separate authorization and control of the `@paiflow` npm scope.
+Node SDK beta with typed deployment reads, payments, funding, Schedule
+and Subscription controls, public allowance consent, public utilities and embed
+SSE. Includes keyed/unkeyed Webhook callbacks and early release. All 42 HTTP
+operations in the coverage matrix are implemented. Bounded testnet workflows have
+been verified in the [live evidence report](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/testing/2026-10-14-sdk-live-verification.md)
+and [real Swap execution report](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/testing/2026-10-15-sdk-swap-execution-982.md).
 
-Positive Swap quotes are verified; real Swap execution remains unverified because
-unsigned testnet preparation quoted about 59 XLM in fees, exceeding the reviewed
-1 XLM fee ceiling. No Swap execution was signed or submitted. Testing demo-token
-minting is disabled, and unattended scheduling was not established.
+One authorized testnet Swap completed 0.1 XLM → 0.0106193 USDC to the controlled
+wallet, with independent finality and zero pipeline balances. Its net transaction
+fee was 51.6198331 testnet XLM, including 51.6169576 XLM rent. A later unsigned
+estimate was lower; it was not another execution or a guarantee of future fees.
+Testing demo-token minting is disabled, and unattended scheduling was not established.
 
 The SDK covers existing-deployment user APIs: API v1 and the explicitly
-listed unversioned routes in [the SDK contract](https://github.com/webnxt-2030/pinkraft/blob/testing/docs/sdk/contract.md).
+listed unversioned routes in [the SDK contract](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/sdk/contract.md).
 It does not create or deploy flows.
 
 Supported runtime: Node `>=22.22.2 <23`. Output is ESM with TypeScript declarations;
 CommonJS consumers can use dynamic import. There are no runtime dependencies.
 Package versions advance independently of the app and API versions.
 
-Start with the [quickstart and migration guide](https://github.com/webnxt-2030/pinkraft/blob/testing/docs/sdk/quickstart.md).
-The [beta validation/publication checklist](https://github.com/webnxt-2030/pinkraft/blob/testing/docs/sdk/release-checklist.md) records local coverage and outstanding live checks.
+Start with the [quickstart and migration guide](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/sdk/quickstart.md).
+The [beta validation/publication checklist](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/sdk/release-checklist.md) records local coverage and outstanding live checks.
 
-The package is **not published**. Build and pack locally, then install the tarball:
+For registry installation of the beta release:
+
+```sh
+npm install @paiflow/sdk@0.1.0
+```
+
+For a local source build, pack and install the tarball:
 
 ```sh
 pnpm sdk:build
@@ -44,7 +50,7 @@ pnpm sdk:test:package
 ```
 
 The package uses the repository's existing TypeScript compiler without inheriting
-its Next.js configuration. No pnpm workspace is introduced. Artifact validation also compiles and runs the [consumer examples](https://github.com/webnxt-2030/pinkraft/tree/testing/packages/sdk/examples)
+its Next.js configuration. No pnpm workspace is introduced. Artifact validation also compiles and runs the [consumer examples](https://github.com/webnxt-2030/pinkraft/tree/71e9326b62d18bf9366ffbf0564fdd62847c3af6/packages/sdk/examples)
 using the packed SDK. It packs into a temporary directory, installs that tarball into a clean consumer,
 checks ESM import and declarations, and rejects unexpected published files.
 Generated output and tarballs are ignored by Git. The package's `prepack` script
@@ -188,7 +194,7 @@ provided wallet metadata; it does **not** parse XDR, verify operations, or deter
 the signer from the envelope. Execute/public preparation contains no wallet field:
 pass the same address used in prepare; your wallet integration must check the source.
 Before submission, bind the returned signed envelope to your saved original
-preparation. The [payment example](https://github.com/webnxt-2030/pinkraft/blob/testing/packages/sdk/examples/payment-server.ts)
+preparation. The [payment example](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/packages/sdk/examples/payment-server.ts)
 compares transaction-body hashes using an optional application Stellar dependency.
 Existing execute envelope validation does not bind a payment to your application
 order price. Verify business receipt conditions before fulfilment.
@@ -283,8 +289,8 @@ stale envelope. There are no automatic retries, re-preparations, submissions or
 reconciliation calls. Retain receipts and explicitly query/reconcile after errors.
 Bounded testnet Schedule and Webhook funding/submission/reconciliation passed
 with separate balance/event evidence in the
-[live evidence report](../../docs/testing/2026-10-14-sdk-live-verification.md).
-See the [funding API documentation](https://github.com/webnxt-2030/pinkraft/blob/testing/docs/api/funding.md).
+[live evidence report](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/testing/2026-10-14-sdk-live-verification.md).
+See the [funding API documentation](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/api/funding.md).
 
 ### Schedule controls
 
@@ -306,9 +312,9 @@ through that action namespace and preserve `replacementAllowed` from the server.
 Local expiry, wallet denial, timeout, UNKNOWN or missing history never permits a
 replacement. No method automatically signs, submits, resends or prepares another
 intent. Bounded testnet funding, pause/resume/retrieve and original-intent
-reconciliation passed in the [live evidence report](../../docs/testing/2026-10-14-sdk-live-verification.md).
+reconciliation passed in the [live evidence report](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/testing/2026-10-14-sdk-live-verification.md).
 This does not establish unattended scheduler availability or natural scheduled
-release. See [Schedule API controls](../../docs/api/schedule-controls.md).
+release. See [Schedule API controls](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/api/schedule-controls.md).
 
 ## Subscription and public allowance consent
 
@@ -386,7 +392,7 @@ approval; server-proven expired-without-confirmation is returned as FAILED.
 Bounded testnet allowance, charge/payout, cancellation and reactivation passed
 using the current deployed contract code; the final controlled fixture is cancelled
 with zero allowance. The charge used an authorized manual cron call, so unattended
-scheduling is not established. See the [live evidence report](../../docs/testing/2026-10-14-sdk-live-verification.md)
+scheduling is not established. See the [live evidence report](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/testing/2026-10-14-sdk-live-verification.md)
 for exact revisions, receipts and historical fixture limitations.
 
 ## Webhook callbacks and early release
@@ -439,7 +445,7 @@ Native consent retained both the recorded source-account authorization and the
 wallet's bounded signed authorization. The original rejected attempt remains
 preserved; its definitive pre-submission failure was established before a fresh
 nonce/event was authorized. See the
-[live evidence report](../../docs/testing/2026-10-14-sdk-live-verification.md) for
+[live evidence report](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/testing/2026-10-14-sdk-live-verification.md) for
 receipts, scope and remaining verification gates.
 
 JSON response bodies are limited to 4 MiB by default, including errors and payment/control receipts. Invalid or oversized successful responses produce a typed malformed response error; unreadable error responses retain HTTP status with a generic HTTP error. POST requests are never automatically repeated. Low-level `transport.request` callers may supply an explicit positive integer `maxResponseBytes`.
