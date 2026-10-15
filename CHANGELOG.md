@@ -21,6 +21,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Optional host-scoped PostHog event/account aggregates in analytics snapshots,
+  retaining separate compatible baselines and publishing history atomically.
+
 - Save compatible cumulative analytics snapshots with exact integer deltas between
   runs using `pnpm analytics:snapshot` (#995).
 

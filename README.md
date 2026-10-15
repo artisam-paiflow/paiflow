@@ -285,9 +285,48 @@ It reads `DATABASE_URL` from the shell, `.env.local`, or `.env` (in that order),
 
 The start defaults to the usage-v2 tracking activation time, and the end defaults to now. Set `--start` to an ISO timestamp to begin a different series; keep that start fixed on later runs. `--end` accepts a fixed timestamp to revisit an earlier window. Comparisons require the same network, audience, tracking version, activation time, and start, with a nondecreasing end. Separate filters automatically get separate baselines. Use a separate `--dir` for each database/environment so their histories are never mixed.
 
-Deltas are net changes to cumulative totals. An unresolved count can decrease as older transactions confirm; unique-account deltas count newly observed accounts within the cumulative window, not all accounts active since the last run. Wallets and accounts are not participant counts. Only data captured since tracking activation is included. API request health and PostHog interaction funnels are not part of this command.
+Deltas are net changes to cumulative totals. An unresolved count can decrease as older transactions confirm; unique-account deltas count newly observed accounts within the cumulative window, not all accounts active since the last run. Wallets and accounts are not participant counts. Only data captured since tracking activation is included. API request health and ordered PostHog interaction funnels are not part of this command.
 
 History files are retained without overwriting. Invalid history stops the run instead of silently dropping a baseline. A directory lock prevents concurrent runs; after a process crash, remove `reports/analytics/.snapshot.lock` only after checking that no snapshot process is running. Run `pnpm analytics:snapshot --help` for options.
+
+To include PostHog aggregates, configure `POSTHOG_PERSONAL_API_KEY` locally with
+`query:read` permission and project access. The existing script-only settings
+`POSTHOG_PROJECT_ID` (default `610680`) and `POSTHOG_API_HOST` (default
+`https://us.posthog.com`; EU Cloud also supported) select the source. This is a
+personal read key, not the browser's public capture key. Do not put it in command
+arguments or commit it. You do not need to set it on the Railway service.
+
+```bash
+pnpm analytics:snapshot --network testnet --audience EXTERNAL \
+  --dir reports/analytics-staging --posthog \
+  --app-env beta --app-host beta.app.paiflow.xyz
+```
+
+PostHog uses the same time window, audience, network, and tracking version as the
+database report, plus the explicit app environment and host. Both Railway testing
+and staging currently use analytics environment `beta`; use host `pinkraft.xyz`
+for testing, or `beta.app.paiflow.xyz` for staging. The host is an exact match:
+other domains served by the same database are intentionally excluded from PostHog
+counts. PostHog results include event counts for page views, builder activity,
+validation errors, deployment/payment steps and failures, plus distinct
+authenticated account IDs across the selected events. These are activity counts,
+not ordered funnel conversions, people, or authoritative transaction totals.
+
+Old DB-only snapshots remain compatible. The first PostHog run creates a separate
+PostHog baseline; later runs compare against the latest snapshot with matching
+project, API host, app environment, app host, query version, and database window
+scope. The JSON records both baseline filenames. Requests use fresh aggregate
+queries without downloading identities or event payloads. A failed, incomplete,
+or invalid PostHog response stops the run before saving a snapshot; it is never
+reported as zero activity. Events blocked in browsers or delayed in delivery are
+not reconstructed, and later ingestion can change retrospective counts.
+
+API request history is separate: it has 30-day raw retention and asynchronous
+delivery through Redis. PostHog is fed from that same API telemetry pipeline, so
+it cannot repair requests waiting in the queue. Long-term endpoint reporting
+requires durable daily aggregates before raw retention removes records, plus
+delivery-health checks. Distinct users and latency percentiles cannot be summed
+across days; they require distinct-set or histogram/sketch data respectively.
 
 #### Tests
 

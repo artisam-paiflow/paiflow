@@ -5,18 +5,44 @@
  * across runs to compare cumulative totals. History defaults to reports/analytics.
  */
 import { parseArgs } from "node:util";
-import { mkdir, open, readFile, readdir, unlink, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { resolve, join } from "node:path";
 import { config } from "dotenv";
+import { ZodError } from "zod";
 import {
   compareSnapshots,
+  comparePosthogSnapshots,
   latestCompatibleSnapshot,
   SavedSnapshotSchema,
   SnapshotReportSchema,
 } from "@/lib/analytics/snapshot";
 import { UsageReportSchema } from "@/lib/analytics/report-schema";
 import { TRACKING_VERSION } from "@/lib/analytics/policy";
+import { PosthogReportError, PosthogScopeSchema } from "@/lib/analytics/posthog-report-schema";
+import { posthogReportConfig } from "@/lib/env";
+import { saveSnapshot } from "@/lib/analytics/snapshot-store";
+
+function print(line: string) {
+  process.stdout.write(line + "\n");
+}
+function printCounts(
+  totals: Record<string, string | undefined>,
+  comparison: Record<string, { previous: string; current: string; delta: string }> | null,
+) {
+  const rows = comparison
+    ? [
+        "Metric\tPrevious\tCurrent\tDelta",
+        ...Object.entries(comparison).map(
+          ([metric, values]) => `${metric}\t${values.previous}\t${values.current}\t${values.delta}`,
+        ),
+      ]
+    : [
+        "Metric\tCurrent",
+        ...Object.entries(totals).map(([metric, value]) => `${metric}\t${value}`),
+      ];
+  process.stdout.write(rows.join("\n") + "\n");
+}
 
 async function main() {
   const { values } = parseArgs({
@@ -27,20 +53,32 @@ async function main() {
       start: { type: "string" },
       end: { type: "string" },
       dir: { type: "string" },
+      posthog: { type: "boolean" },
+      "app-env": { type: "string" },
+      "app-host": { type: "string" },
     },
   });
   if (values.help) {
-    process.stdout.write(
-      "pnpm analytics:snapshot --network testnet|mainnet --audience INTERNAL|EXTERNAL|SANDBOX|UNCLASSIFIED [--start ISO] [--end ISO] [--dir reports/analytics]\n",
+    print(
+      "pnpm analytics:snapshot --network testnet|mainnet --audience INTERNAL|EXTERNAL|SANDBOX|UNCLASSIFIED [--start ISO] [--end ISO] [--dir reports/analytics] [--posthog --app-env beta --app-host beta.app.paiflow.xyz]",
     );
     process.stdout.write(
-      "Keep start fixed across runs. Use a separate --dir for each database. The first run saves a baseline; subsequent runs show net changes.\n",
+      "PostHog requires a personal API key with query:read access. Set POSTHOG_PERSONAL_API_KEY locally. Old DB-only snapshots remain usable; the first PostHog run establishes its own baseline.\n",
+    );
+    print(
+      "Keep start fixed across runs. Use a separate --dir for each database. The first run saves a baseline; subsequent runs show net changes.",
     );
     return;
   }
   // Shell settings take precedence over local files.
   config({ path: ".env.local" });
   config({ path: ".env" });
+  const posthogScope = values.posthog
+    ? PosthogScopeSchema.parse({ app_env: values["app-env"], app_host: values["app-host"] })
+    : undefined;
+  if (!values.posthog && (values["app-env"] || values["app-host"]))
+    throw new Error("Use --posthog with --app-env and --app-host");
+  if (posthogScope) posthogReportConfig();
   const { db } = await import("@/lib/db");
   let lock;
   let lockPath: string | undefined;
@@ -60,7 +98,11 @@ async function main() {
     lockPath = join(directory, ".snapshot.lock");
     lock = await open(lockPath, "wx", 0o600);
     const { usageReport } = await import("@/lib/analytics/report");
-    const report = SnapshotReportSchema.parse(await usageReport(input));
+    const usage = await usageReport(input);
+    const posthog = posthogScope
+      ? await (await import("@/lib/analytics/posthog-report")).posthogSummary(input, posthogScope)
+      : undefined;
+    const report = SnapshotReportSchema.parse({ ...usage, ...(posthog ? { posthog } : {}) });
     const history = [];
     for (const name of await readdir(directory)) {
       if (!/^snapshot-.*\.json$/.test(name)) continue;
@@ -75,50 +117,68 @@ async function main() {
     );
     const comparison = previous ? compareSnapshots(report, previous) : null;
     const baseline = previous ? history.find((entry) => entry.report === previous)!.name : null;
+    const posthogPrevious = history
+      .filter((entry) => comparePosthogSnapshots(report, entry.report) !== null)
+      .sort((a, b) => Date.parse(b.report.generated_at) - Date.parse(a.report.generated_at))[0];
+    const posthogComparison = posthogPrevious
+      ? comparePosthogSnapshots(report, posthogPrevious.report)
+      : null;
     const filename = `snapshot-${report.generated_at.replace(/[:.]/g, "-")}-${randomUUID()}.json`;
     const snapshot = {
       snapshot_version: 1,
       report,
       baseline,
       comparison,
+      ...(posthog
+        ? {
+            posthog_baseline: posthogPrevious?.name ?? null,
+            posthog_comparison: posthogComparison,
+            posthog_note:
+              "Aggregate event counts and distinct authenticated account IDs for the selected usage-v2 events. Event counts are not ordered funnels or confirmed transaction totals. Newly observed accounts are not all accounts active since the last run. Missing/blocked events and delivery delays can undercount activity; historical data may arrive late. API request events are excluded. Host-scoped PostHog metrics can differ from database totals, which have no host filter.",
+          }
+        : {}),
       comparison_note:
         "Net changes to cumulative totals, including outcome updates to older attempts. Unique accounts and addresses are not people. Outcomes are as of generation time; missing historical tracking is not reconstructed.",
     };
-    await writeFile(join(directory, filename), JSON.stringify(snapshot, null, 2) + "\n", {
-      flag: "wx",
-      mode: 0o600,
-    });
-    process.stdout.write(`Saved: ${join(directory, filename)}\n`);
-    process.stdout.write(
-      `${report.network} / ${report.audience}: ${report.start} → ${report.end}\n`,
-    );
-    process.stdout.write(
-      `${baseline ? `Compared with: ${baseline}` : "First compatible snapshot: baseline saved."}\n`,
-    );
-    const rows = comparison
-      ? [
-          "Metric\tPrevious\tCurrent\tDelta",
-          ...Object.entries(comparison).map(
-            ([metric, values]) =>
-              `${metric}\t${values.previous}\t${values.current}\t${values.delta}`,
-          ),
-        ]
-      : [
-          "Metric\tCurrent",
-          ...Object.entries(report.totals).map(([metric, value]) => `${metric}\t${value}`),
-        ];
-    process.stdout.write(`${rows.join("\n")}\n`);
-    process.stdout.write(`${snapshot.comparison_note}\n`);
-  } finally {
-    if (lock) {
-      await lock.close();
-      await unlink(lockPath!);
+    await saveSnapshot(directory, filename, snapshot);
+    print(`Saved: ${join(directory, filename)}`);
+    print(`${report.network} / ${report.audience}: ${report.start} → ${report.end}`);
+    print(baseline ? `Compared with: ${baseline}` : "First compatible snapshot: baseline saved.");
+    printCounts(report.totals, comparison);
+    print(snapshot.comparison_note);
+    if (posthog) {
+      process.stdout.write(`PostHog: ${posthog.app_env} / ${posthog.app_host}\n`);
+      process.stdout.write(
+        posthogPrevious
+          ? `Compared with: ${posthogPrevious.name}\n`
+          : "First compatible PostHog snapshot: baseline saved.\n",
+      );
+      printCounts(posthog.totals, posthogComparison);
+      process.stdout.write(snapshot.posthog_note + "\n");
     }
-    await db.$disconnect();
+  } finally {
+    try {
+      if (lock) {
+        try {
+          await lock.close();
+        } finally {
+          await unlink(lockPath!);
+        }
+      }
+    } finally {
+      await db.$disconnect();
+    }
   }
 }
 
-void main().catch(() => {
+void main().catch((error: unknown) => {
+  if (error instanceof PosthogReportError) {
+    process.stderr.write(error.message + "\n");
+  } else if (error instanceof ZodError) {
+    process.stderr.write(
+      "Invalid snapshot arguments; --posthog requires --app-env and --app-host. See --help.\n",
+    );
+  }
   process.stderr.write(
     "Snapshot failed. Check arguments, database access, and history files. If .snapshot.lock exists, ensure no snapshot process is running before removing it.\n",
   );

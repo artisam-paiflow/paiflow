@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   compareSnapshots,
+  comparePosthogSnapshots,
   latestCompatibleSnapshot,
   SnapshotReportSchema,
 } from "@/lib/analytics/snapshot";
+import { POSTHOG_METRICS, PosthogSummarySchema } from "@/lib/analytics/posthog-report-schema";
 
 const previous = SnapshotReportSchema.parse({
   report_version: "usage-v2",
@@ -40,6 +42,37 @@ const current = {
 };
 
 describe("analytics snapshot comparisons", () => {
+  it("keeps old baselines usable without inventing historical PostHog data", () => {
+    const posthog = PosthogSummarySchema.parse({
+      query_version: 1,
+      api_host: "https://us.posthog.com",
+      project_id: "610680",
+      app_env: "beta",
+      app_host: "beta.app.paiflow.xyz",
+      generated_at: current.generated_at,
+      totals: Object.fromEntries(POSTHOG_METRICS.map((name) => [name, "3"])),
+    });
+    const withPosthog = { ...current, posthog };
+    expect(compareSnapshots(withPosthog, previous)).not.toBeNull();
+    expect(comparePosthogSnapshots(withPosthog, previous)).toBeNull();
+    const before = {
+      ...previous,
+      posthog: { ...posthog, totals: { ...posthog.totals, builder_opened: "1" } },
+    };
+    expect(comparePosthogSnapshots(withPosthog, before)?.builder_opened?.delta).toBe("2");
+    for (const change of [
+      { app_host: "pinkraft.xyz" },
+      { app_env: "staging" as const },
+      { project_id: "42" },
+      { api_host: "https://eu.posthog.com" as const },
+    ])
+      expect(
+        comparePosthogSnapshots(withPosthog, {
+          ...before,
+          posthog: { ...before.posthog, ...change },
+        }),
+      ).toBeNull();
+  });
   it("keeps precise counts and reports negative outcome deltas", () => {
     const delta = compareSnapshots(current, previous)!;
     expect(delta.connections?.delta).toBe("1");

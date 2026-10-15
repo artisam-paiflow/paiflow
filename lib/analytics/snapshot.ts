@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PosthogSummarySchema } from "./posthog-report-schema";
 
 const count = z.string().regex(/^\d+$/);
 export const SnapshotReportSchema = z
@@ -10,6 +11,7 @@ export const SnapshotReportSchema = z
     end: z.string().datetime({ offset: true }),
     network: z.enum(["testnet", "mainnet"]),
     audience: z.enum(["INTERNAL", "EXTERNAL", "SANDBOX", "UNCLASSIFIED"]),
+    posthog: PosthogSummarySchema.optional(),
     totals: z.object({
       connections: count,
       connected_addresses: count,
@@ -59,4 +61,30 @@ export function latestCompatibleSnapshot(current: SnapshotReport, history: Snaps
   return history
     .filter((previous) => compareSnapshots(current, previous) !== null)
     .sort((a, b) => Date.parse(b.generated_at) - Date.parse(a.generated_at))[0];
+}
+
+export function comparePosthogSnapshots(current: SnapshotReport, previous: SnapshotReport) {
+  const a = current.posthog,
+    b = previous.posthog;
+  if (
+    !a ||
+    !b ||
+    !compareSnapshots(current, previous) ||
+    a.query_version !== b.query_version ||
+    a.api_host !== b.api_host ||
+    a.project_id !== b.project_id ||
+    a.app_env !== b.app_env ||
+    a.app_host !== b.app_host
+  )
+    return null;
+  return Object.fromEntries(
+    Object.entries(a.totals).map(([metric, value]) => [
+      metric,
+      {
+        previous: b.totals[metric as keyof typeof b.totals]!,
+        current: value!,
+        delta: (BigInt(value!) - BigInt(b.totals[metric as keyof typeof b.totals]!)).toString(),
+      },
+    ]),
+  );
 }
