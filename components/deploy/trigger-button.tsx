@@ -13,6 +13,11 @@ import {
   readAllowancePendingHash,
 } from "@/lib/subscription/allowance-pending";
 import {
+  assertNoPendingPayroll,
+  readPendingPayroll,
+  payrollPendingKey,
+} from "@/lib/payroll-pending";
+import {
   CONTRACT_CALL_PENDING_EVENT,
   clearPendingContractCall,
   contractCallPendingKey,
@@ -206,12 +211,17 @@ export function TriggerButton({
       setPendingHash(generic?.txHash ?? null);
       setPendingAllowance(allowance);
       const otherAllowance = !isPublicAllowance && readAllowancePendingHash(deploymentId, network);
-      setStorageBlocked(Boolean(otherAllowance));
-      if (otherAllowance)
+      const payroll = readPendingPayroll(payrollPendingKey(deploymentId, network));
+      setStorageBlocked(Boolean(otherAllowance) || Boolean(payroll));
+      if (payroll)
+        setStatusMessage(
+          "A payroll request is unresolved. Check payroll status before another action.",
+        );
+      if (otherAllowance && !payroll)
         setStatusMessage(
           `Approval ${otherAllowance} is unresolved. Check its status on the allowance page before starting another action.`,
         );
-      if (!generic && !allowance && !otherAllowance) setStatusMessage(null);
+      if (!generic && !allowance && !otherAllowance && !payroll) setStatusMessage(null);
       return { generic, allowance };
     } catch {
       setStorageBlocked(true);
@@ -359,6 +369,7 @@ export function TriggerButton({
       });
       const execute = async () => {
         check(attempt);
+        assertNoPendingPayroll(deploymentId, network);
         if (readPendingContractCall(pendingKey) || readAllowancePendingHash(deploymentId, network))
           throw new Error("Resolve the pending transaction before starting another action.");
         await action();
@@ -430,6 +441,7 @@ export function TriggerButton({
     );
     attempt.txHash = txHash;
     attempt.stage = "submit";
+    assertNoPendingPayroll(deploymentId, network);
     if (readPendingContractCall(pendingKey) || readAllowancePendingHash(deploymentId, network))
       throw new Error("Resolve the pending transaction before starting another action.");
     if (isPublicAllowance) {
@@ -666,6 +678,7 @@ export function TriggerButton({
       return;
     }
     try {
+      assertNoPendingPayroll(deploymentId, network);
       if (readPendingContractCall(pendingKey) || readAllowancePendingHash(deploymentId, network))
         return;
     } catch {
@@ -760,6 +773,7 @@ export function TriggerButton({
     selectedWalletRef.current = connectedWallet.walletId;
     let reconnect = false;
     try {
+      assertNoPendingPayroll(deploymentId, network);
       if (readPendingContractCall(pendingKey) || readAllowancePendingHash(deploymentId, network))
         throw new Error("Resolve the pending transaction before starting another action.");
       const cached = getCachedWalletKit(network)?.client;
@@ -821,6 +835,7 @@ export function TriggerButton({
       return;
     }
     try {
+      assertNoPendingPayroll(deploymentId, network);
       if (readPendingContractCall(pendingKey) || readAllowancePendingHash(deploymentId, network))
         return;
     } catch {

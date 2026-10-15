@@ -226,7 +226,10 @@ describe("EmployeeManager shared picker", () => {
         if (url.endsWith("/payroll-update-recipients"))
           return response({
             unsignedXdr: "payroll-unsigned",
-            networkPassphrase: "payroll-server-passphrase",
+            networkPassphrase:
+              network === "testnet"
+                ? "Test SDF Network ; September 2015"
+                : "Public Global Stellar Network ; September 2015",
           });
         return response({});
       });
@@ -246,7 +249,10 @@ describe("EmployeeManager shared picker", () => {
       });
       expect(mocks.signTransaction).toHaveBeenCalledWith("payroll-unsigned", {
         address: ADDRESS,
-        networkPassphrase: "payroll-server-passphrase",
+        networkPassphrase:
+          network === "testnet"
+            ? "Test SDF Network ; September 2015"
+            : "Public Global Stellar Network ; September 2015",
       });
       expect(fetcher.mock.calls.filter(([url]) => url.endsWith("/submit-invoke"))).toHaveLength(1);
     },
