@@ -43,6 +43,11 @@ transaction yourself, in your own wallet, and Paiflow never holds your keys.
 
 ### 1.1 Install Freighter and switch it to testnet
 
+Lantern is being prepared as another desktop wallet, but its Paiflow picker entry
+is **not yet supported**. Use Freighter for this round. Installing the current
+Lantern extension does not enable Paiflow signing; provider validation and real
+extension testing are still pending ([integration status](lantern-wallet-provider.md)).
+
 1. Install the [Freighter wallet extension](https://www.freighter.app/) and pin it to your toolbar.
 2. Open Freighter → **Create new wallet**. Write down the recovery phrase somewhere safe — even
    for a test wallet, you'll want it if the extension gets reset.

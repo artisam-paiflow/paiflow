@@ -214,6 +214,7 @@ const CODES = new Set([
   "CONTROL_EXPIRED",
 ]);
 const WALLETS = new Set([
+  "lantern",
   "freighter",
   "lobstr",
   "albedo",
