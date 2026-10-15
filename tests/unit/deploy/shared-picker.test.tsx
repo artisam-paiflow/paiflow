@@ -69,9 +69,9 @@ describe("DeployReview shared picker", () => {
       .fn()
       .mockResolvedValueOnce(
         response({
-          deploymentId: "d",
+          deploymentId: "22222222-2222-2222-2222-222222222222",
           xdr: "unsigned",
-          networkPassphrase: "server-pinned-passphrase",
+          networkPassphrase: "Test SDF Network ; September 2015",
         }),
       )
       // Refuse after the submit so jsdom doesn't attempt navigation.
@@ -94,10 +94,13 @@ describe("DeployReview shared picker", () => {
       walletId: "lantern-test-double",
       surface: "deploy_review",
     });
-    expect(mocks.signTransaction).toHaveBeenCalledWith("unsigned", {
-      address: ADDRESS,
-      networkPassphrase: "server-pinned-passphrase",
-    });
+    await waitFor(() =>
+      expect(mocks.signTransaction).toHaveBeenCalledWith("unsigned", {
+        address: ADDRESS,
+        networkPassphrase: "Test SDF Network ; September 2015",
+      }),
+    );
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(JSON.parse(fetcher.mock.calls[1]![1].body)).toEqual({ signedXdr: "signed" });
   });
@@ -140,11 +143,13 @@ describe("DeployReview shared picker", () => {
 
   it("wallet signing rejection never submits", async () => {
     mocks.signTransaction.mockRejectedValue(new Error("User rejected"));
-    const fetcher = vi
-      .fn()
-      .mockResolvedValue(
-        response({ deploymentId: "d", xdr: "unsigned", networkPassphrase: "server-passphrase" }),
-      );
+    const fetcher = vi.fn().mockResolvedValue(
+      response({
+        deploymentId: "22222222-2222-2222-2222-222222222222",
+        xdr: "unsigned",
+        networkPassphrase: "Test SDF Network ; September 2015",
+      }),
+    );
     vi.stubGlobal("fetch", fetcher);
     render(<DeployReview flowId="f" network="testnet" />);
     fireEvent.click(screen.getByRole("button", { name: /deploy to testnet/i }));
@@ -172,7 +177,11 @@ describe("DeployReview shared picker", () => {
   });
 
   it("refuses to sign when prepare omits the server network passphrase", async () => {
-    const fetcher = vi.fn().mockResolvedValue(response({ deploymentId: "d", xdr: "unsigned" }));
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(
+        response({ deploymentId: "22222222-2222-2222-2222-222222222222", xdr: "unsigned" }),
+      );
     vi.stubGlobal("fetch", fetcher);
     render(<DeployReview flowId="f" network="testnet" />);
     fireEvent.click(screen.getByRole("button", { name: /deploy to testnet/i }));
@@ -286,7 +295,11 @@ describe("shared picker attempt lifecycle", () => {
     view.rerender(<DeployReview flowId="new-flow" network="testnet" />);
     await act(async () => {
       finish(
-        response({ deploymentId: "d", xdr: "old-xdr", networkPassphrase: "server-passphrase" }),
+        response({
+          deploymentId: "22222222-2222-2222-2222-222222222222",
+          xdr: "old-xdr",
+          networkPassphrase: "Test SDF Network ; September 2015",
+        }),
       );
     });
     expect(mocks.signTransaction).not.toHaveBeenCalled();
@@ -301,11 +314,13 @@ describe("shared picker attempt lifecycle", () => {
           finish = resolve;
         }),
     );
-    const fetcher = vi
-      .fn()
-      .mockResolvedValue(
-        response({ deploymentId: "d", xdr: "unsigned", networkPassphrase: "server-passphrase" }),
-      );
+    const fetcher = vi.fn().mockResolvedValue(
+      response({
+        deploymentId: "22222222-2222-2222-2222-222222222222",
+        xdr: "unsigned",
+        networkPassphrase: "Test SDF Network ; September 2015",
+      }),
+    );
     vi.stubGlobal("fetch", fetcher);
     const view = render(<DeployReview flowId="f" network="testnet" />);
     fireEvent.click(screen.getByRole("button", { name: /deploy to testnet/i }));

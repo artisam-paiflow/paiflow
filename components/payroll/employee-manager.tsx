@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { toastError } from "@/lib/friendly-toast";
 import { trackWalletConnection } from "@/lib/wallet-tracking";
-import { StrKey } from "@stellar/stellar-sdk";
+import { isAccountId } from "@/lib/stellar/strkey";
 import { formatStroops, formatAmount } from "@/lib/utils";
 import type { Asset } from "@/lib/flows/schema";
 import { assetLabel } from "@/lib/flows/schema";
@@ -277,7 +277,7 @@ export default function EmployeeManager({
 
   const validate = (): boolean => {
     for (const e of employees) {
-      if (!StrKey.isValidEd25519PublicKey(e.address)) {
+      if (!isAccountId(e.address)) {
         toast.error(`Invalid address: ${e.address || "empty"}`);
         return false;
       }

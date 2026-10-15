@@ -11,6 +11,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
   across navigation and reloads. Block replacement actions, cancel stale roster
   approvals and validate all wallet responses before dispatch.
 
+- Validate every deployment wallet response and persist its public deployment ID
+  and transaction hash before submission. Preserve unresolved submissions across
+  navigation and reloads, with status-only recovery and browser admission locks.
+
 - Bind payment-trigger and allowance signatures to the exact approved wallet
   session and unchanged transaction. Cancel stale approvals before dispatch;
   preserve submitted hashes across view changes and reloads, and share transaction
