@@ -195,6 +195,7 @@ export default function PayrollPanel({
             <ContractCallButton
               deploymentId={deploymentId}
               network={network}
+              actionKey={`payroll-allowance:${allowanceAmount}`}
               label="GRANT ALLOWANCE"
               busyLabel="GRANTING…"
               icon="lock_open"
@@ -351,6 +352,7 @@ export default function PayrollPanel({
         <ContractCallButton
           deploymentId={deploymentId}
           network={network}
+          actionKey="payroll-charge"
           label="RUN PAYROLL"
           busyLabel="RUNNING…"
           icon="payments"
@@ -420,6 +422,7 @@ export default function PayrollPanel({
           <ContractCallButton
             deploymentId={deploymentId}
             network={network}
+            actionKey="payroll-subscribe"
             label="SUBSCRIBE"
             busyLabel="SUBSCRIBING…"
             icon="check_circle"
@@ -463,6 +466,7 @@ export default function PayrollPanel({
           <ContractCallButton
             deploymentId={deploymentId}
             network={network}
+            actionKey="payroll-unsubscribe"
             label="UNSUBSCRIBE"
             busyLabel="UNSUBSCRIBING…"
             icon="cancel"
