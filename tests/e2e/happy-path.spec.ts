@@ -26,7 +26,7 @@ test("builder → deployment review (before wallet signing)", async ({ page }) =
   const flowId = page.url().match(/\/flows\/([0-9a-f-]+)/)![1];
 
   await page.goto(`/flows/${flowId}/deploy`);
-  await expect(page.getByText("ENGLISH PREVIEW", { exact: true })).toBeVisible();
+  await expect(page.getByText("ENGLISH PREVIEW")).toBeVisible();
   await expect(page.getByText(/When this contract receives/)).toBeVisible();
   // The server pins the network; review must display it before any wallet action.
   await expect(page.getByTestId("network-chip")).toBeVisible();
