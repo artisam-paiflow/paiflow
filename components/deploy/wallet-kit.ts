@@ -2,6 +2,7 @@
 
 import { WalletConnectModal } from "@walletconnect/modal";
 import { SignClient } from "@walletconnect/sign-client";
+import { FREIGHTER_NATIVE_LINK } from "./mobile-wallet-links";
 import { WALLET_CONNECT_UNCONFIGURED, walletConnectProjectId } from "./wallet-connect-config";
 
 function isMobile() {
@@ -100,7 +101,7 @@ export async function getWalletKit(network: "testnet" | "mainnet"): Promise<Wall
           id: "freighter",
           name: "Freighter",
           links: {
-            native: "freighterwallet://wc-redirect",
+            native: FREIGHTER_NATIVE_LINK,
             universal: "",
           },
         },

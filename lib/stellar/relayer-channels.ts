@@ -392,8 +392,19 @@ async function buildRelayerTxAttempt(
   const server = sorobanRpc();
   const passphrase = stellarPassphrase();
   const timeout = opts.timeoutSeconds ?? 180;
+  const maxFee = env().STELLAR_RELAYER_MAX_FEE_STROOPS;
+  const assertFee = (transaction: Transaction) => {
+    if (maxFee !== undefined && BigInt(transaction.fee) > BigInt(maxFee)) {
+      throw opts.onSimulationError("Relayer transaction exceeds the configured total fee limit");
+    }
+  };
 
   const restoreAndRebuild = async (sim: rpc.Api.SimulateTransactionRestoreResponse) => {
+    if (maxFee !== undefined) {
+      throw opts.onSimulationError(
+        "Automatic restoration is disabled while a relayer total fee limit is configured",
+      );
+    }
     if (!mayRestore) {
       throw opts.onSimulationError("Archived state still requires restoration after one restore");
     }
@@ -432,6 +443,7 @@ async function buildRelayerTxAttempt(
     if (rpc.Api.isSimulationError(sim)) throw opts.onSimulationError(sim.error);
     if (rpc.Api.isSimulationRestore(sim)) return restoreAndRebuild(sim);
     const assembled = rpc.assembleTransaction(tx, sim).build();
+    assertFee(assembled);
     assembled.sign(channel.keypair);
     return assembled;
   }
@@ -474,6 +486,7 @@ async function buildRelayerTxAttempt(
   if (rpc.Api.isSimulationError(sim2)) throw opts.onSimulationError(sim2.error);
   if (rpc.Api.isSimulationRestore(sim2)) return restoreAndRebuild(sim2);
   const assembled = rpc.assembleTransaction(authorized, sim2).build();
+  assertFee(assembled);
   assembled.sign(channel.keypair);
   return assembled;
 }

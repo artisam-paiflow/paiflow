@@ -2,20 +2,23 @@
 
 Updated Oct 12, 2026
 
+For the unpublished TypeScript Node SDK and local tarball examples, see the
+[SDK quickstart](../sdk/quickstart.md). The HTTP API remains available.
+
 Connect your own app to a deployed Paiflow flow without using the hackathon starter. This example shows the complete payment path: your server prepares a payment, the customer signs in Freighter, your server submits it, and your app checks the outcome and payout events.
 
 ### Choose the right resource
 
 | Resource                                                                                                                      | Use it when you want to…                                                                                           |
 | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| [Paiflow Guide](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing)                  | Set up wallets, build and deploy a flow, then configure and customise the ready-wired starter.                     |
-| [API quickstart](https://drive.google.com/file/d/1mTFaoICZwW2Ha3OttgJkp2q50o2H5siJ/view?usp=sharing)          | Integrate your own app without the starter, using a complete frontend/backend example.                             |
+| [Paiflow Guide](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing)                           | Set up wallets, build and deploy a flow, then configure and customise the ready-wired starter.                     |
+| [API quickstart](https://drive.google.com/file/d/1mTFaoICZwW2Ha3OttgJkp2q50o2H5siJ/view?usp=sharing)                          | Integrate your own app without the starter, using a complete frontend/backend example.                             |
 | [Full API reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md)                              | Look up endpoint schemas, errors, limits, pagination and advanced workflows.                                       |
 | [OpenAPI JSON](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json)                                 | Import the machine-readable API contract into development tools.                                                   |
 | [Postman collection](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) | Try API requests with your deployment UUID and token.                                                              |
 | [AI developer context (`llms.md`)](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/llms.md)            | Give your AI assistant product rules, API details and worked examples.                                             |
 | [Starter repository](https://github.com/artisam-paiflow/paiflow-hackathon-starter)                                            | Get working payment preparation, Freighter signing, submission and event reads without implementing them yourself. |
-| [Freighter Testnet setup (video)](https://youtu.be/OBFtQsRe4b0)                         | Create a wallet, select Testnet and obtain testnet XLM.                                                            |
+| [Freighter Testnet setup (video)](https://youtu.be/OBFtQsRe4b0)                                                               | Create a wallet, select Testnet and obtain testnet XLM.                                                            |
 | [Stellar Expert Testnet](https://stellar.expert/explorer/testnet)                                                             | Inspect transaction evidence and verify actual payouts.                                                            |
 
 Follow your participant brief for event rules, preparation permissions, deadlines and submissions.
