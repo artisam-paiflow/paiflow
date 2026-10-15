@@ -168,6 +168,10 @@ About 25 more minutes: install a test wallet, deploy your Shop flow, and pay it 
 
 ### 1. Install Freighter and get free testnet XLM
 
+Lantern support is being prepared and is **not yet supported** in Paiflow. Use
+Freighter for this optional test; installing Lantern does not enable signing yet.
+See [integration status](lantern-wallet-provider.md).
+
 1. Install the [Freighter wallet extension](https://www.freighter.app/) in Chrome or Brave and pin
    it to your toolbar.
 2. Open Freighter → **Create new wallet**. Write down the recovery phrase somewhere safe.

@@ -15,6 +15,15 @@ const context = {
 };
 const control = { tag_name: "button", "attr__data-analytics-control": "new-flow" };
 describe("future capture policy", () => {
+  it("preserves the known Lantern wallet ID while keeping arbitrary identifiers redacted", () => {
+    expect(eventProperties("wallet_connect_succeeded", { wallet_id: "lantern" })).toEqual({
+      wallet_id: "lantern",
+    });
+    expect(
+      eventProperties("wallet_connect_succeeded", { wallet_id: "PRIVATE-WALLET-LABEL" }),
+    ).toEqual({ wallet_id: "other" });
+  });
+
   it.each(["$autocapture", "$dead_click", "$rageclick"])(
     "allows only the approved control for %s",
     (name) => {
