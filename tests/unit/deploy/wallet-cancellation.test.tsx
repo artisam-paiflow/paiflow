@@ -53,6 +53,16 @@ describe("wallet signing cancellation analytics", () => {
     vi.stubEnv("NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID", "");
     vi.stubGlobal("matchMedia", () => ({ matches: false }));
     sessionStorage.clear();
+    localStorage.clear();
+    vi.stubGlobal("navigator", {
+      locks: {
+        request: async (
+          _key: string,
+          _options: unknown,
+          callback: (lock: object) => Promise<void>,
+        ) => callback({}),
+      },
+    });
   });
 
   afterEach(() => {

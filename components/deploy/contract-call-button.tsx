@@ -14,6 +14,8 @@ import {
   withContractCallLock,
   type PendingContractCall,
 } from "@/lib/contract-call-pending";
+import { assertNoPendingPayroll } from "@/lib/payroll-pending";
+import { readAllowancePendingHash } from "@/lib/subscription/allowance-pending";
 import { getWalletKit } from "./wallet-kit";
 import { assertWalletAttemptActive, connectSelectedWallet } from "./selected-wallet-connection";
 
@@ -53,6 +55,7 @@ export default function ContractCallButton({
   const abortRef = useRef<AbortController | null>(null);
   const pendingKey = contractCallPendingKey(deploymentId, network);
   const [pending, setPending] = useState<PendingContractCall | null>(null);
+  const [allowancePending, setAllowancePending] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
   const [storageBlocked, setStorageBlocked] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -69,14 +72,24 @@ export default function ContractCallButton({
 
   function loadPending() {
     try {
+      assertNoPendingPayroll(deploymentId, network);
       const saved = readPendingContractCall(pendingKey);
+      const allowanceHash = readAllowancePendingHash(deploymentId, network);
+      setAllowancePending(Boolean(allowanceHash));
+      if (allowanceHash) {
+        setStatusMessage(
+          "An approval is awaiting confirmation. Check its status on the allowance page before starting another action.",
+        );
+      } else if (!saved) {
+        setStatusMessage(null);
+      }
       setPending(saved);
       setStorageBlocked(false);
       return saved;
     } catch {
       setStorageBlocked(true);
       setStatusMessage(
-        "Transaction status storage is unavailable or invalid. Resolve it before starting another action.",
+        "A payroll request or transaction may be unresolved, or recovery storage is unavailable or invalid. Check payroll and transaction status before another action.",
       );
       throw new Error("Transaction status storage is unavailable or invalid.");
     } finally {
@@ -184,6 +197,7 @@ export default function ContractCallButton({
       !storageReady ||
       storageBlocked ||
       pending ||
+      allowancePending ||
       (abortRef.current && !abortRef.current.signal.aborted)
     )
       return;
@@ -214,6 +228,12 @@ export default function ContractCallButton({
             await reconcile(existing, isCurrent);
             return;
           }
+          assertNoPendingPayroll(deploymentId, network);
+          if (readAllowancePendingHash(deploymentId, network)) {
+            throw new Error(
+              "An approval is awaiting confirmation. Check its status on the allowance page before starting another action.",
+            );
+          }
           const shared = await getWalletKit(network);
           check();
           const connection = await connectSelectedWallet(shared, network, signal);
@@ -231,10 +251,12 @@ export default function ContractCallButton({
           const { xdr, networkPassphrase } = await prepare(address);
           check();
 
+          const { assertWalletNetwork, signedWalletTransactionHash } =
+            await import("@/lib/stellar/wallet-signature");
+          check();
+          assertWalletNetwork(network, networkPassphrase);
           toast.info("Awaiting signature...");
           const signed = await connection.signTransaction(xdr, { address, networkPassphrase });
-          check();
-          const { signedWalletTransactionHash } = await import("@/lib/stellar/wallet-signature");
           check();
           const txHash = signedWalletTransactionHash(
             network,
@@ -243,6 +265,14 @@ export default function ContractCallButton({
             address,
             networkPassphrase,
           );
+          // The allowance protocol owns its opaque intent and clearing proof.
+          // Only read its public pending status, under the same admission lock.
+          assertNoPendingPayroll(deploymentId, network);
+          if (readAllowancePendingHash(deploymentId, network)) {
+            throw new Error(
+              "An approval is awaiting confirmation. Check its status on the allowance page before starting another action.",
+            );
+          }
           const saved = { txHash };
           admitted = true;
           try {
@@ -293,7 +323,14 @@ export default function ContractCallButton({
     <>
       <button
         onClick={handleClick}
-        disabled={busy || disabled || !storageReady || storageBlocked || Boolean(pending)}
+        disabled={
+          busy ||
+          disabled ||
+          !storageReady ||
+          storageBlocked ||
+          allowancePending ||
+          Boolean(pending)
+        }
         className={`${variantClass} ${sizeClass} ${className} inline-flex items-center justify-center rounded-lg font-mono font-bold transition-all duration-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none`}
       >
         {busy ? (
@@ -310,7 +347,7 @@ export default function ContractCallButton({
           </>
         )}
       </button>
-      {(pending || storageBlocked) && (
+      {(pending || allowancePending || storageBlocked) && (
         <div className="text-on-surface-variant space-y-2 text-xs" role="status">
           <p>
             {statusMessage ??

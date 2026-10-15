@@ -485,13 +485,13 @@ pre.template {
             <li>The page says how many contracts it will create, and shows the swap quote again.</li>
           </ul>
           <ul class="shots"><li><code>T1-1-review-deploy</code> — the review page, with the TESTNET chip in shot.</li></ul></li>
-        <li>Click <span class="ui">DEPLOY TO TESTNET</span>. Freighter pops up — check it says testnet, then <strong>sign</strong>.
+        <li>Click <span class="ui">DEPLOY TO TESTNET</span>, then choose <strong>Freighter</strong> in the wallet picker. Freighter pops up — check it says testnet and shows your <strong>Main</strong> account, then <strong>sign</strong>.
           <ul class="checks">
             <li>A “Contract deployed” message appears and you're taken to the deployment page.</li>
             <li>Within about a minute the status becomes <strong>ACTIVE</strong> and a QR code appears.</li>
           </ul></li>
         <li><strong>Bookmark this page</strong> — T6 comes back to it. Click <span class="ui">OPEN TRIGGER PAGE</span>.</li>
-        <li>Enter <strong>20</strong> as the amount, click <span class="ui">CONFIRM AMOUNT</span>, then <span class="ui">CONNECT WALLET &amp; TRIGGER</span>. Sign in Freighter (with your <strong>Main</strong> account).
+        <li>Enter <strong>20</strong> as the amount, click <span class="ui">CONFIRM AMOUNT</span>, then <span class="ui">CONNECT WALLET &amp; TRIGGER</span>. Choose <strong>Freighter</strong> in the wallet picker and sign with your <strong>Main</strong> account.
           <ul class="checks"><li>You see progress messages ending in a success message.</li></ul></li>
         <li>Go back to the deployment page and watch the live event feed.
           <ul class="checks">
@@ -682,7 +682,7 @@ pre.template {
   <ul class="issues">
     <li><p><strong>The trigger page can report a failure even though the payment went through.</strong> Check the live feed and stellar.expert first; only report it if the money really didn't move.</p></li>
     <li><p><strong>The trigger page doesn't keep a record of a successful trigger</strong> after the message disappears. Use the deployment page's live feed instead.</p></li>
-    <li><p><strong>The review page lists several wallets</strong> (Freighter, Albedo, xBull, LOBSTR, Hana), but only <strong>Freighter</strong> works for deploying right now.</p></li>
+    <li><p><strong>Use Freighter in the wallet picker for this round.</strong> Other available options are outside this test plan. <strong>Lantern (not yet supported)</strong> is unavailable.</p></li>
     <li><p><strong>The live feed can lag</strong> a few seconds to a minute behind the chain.</p></li>
   </ul>
 </section>

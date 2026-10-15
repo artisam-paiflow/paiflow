@@ -43,6 +43,11 @@ transaction yourself, in your own wallet, and Paiflow never holds your keys.
 
 ### 1.1 Install Freighter and switch it to testnet
 
+Lantern is being prepared as another desktop wallet, but its Paiflow picker entry
+is **not yet supported**. Use Freighter for this round. Installing the current
+Lantern extension does not enable Paiflow signing; provider validation and real
+extension testing are still pending ([integration status](lantern-wallet-provider.md)).
+
 1. Install the [Freighter wallet extension](https://www.freighter.app/) and pin it to your toolbar.
 2. Open Freighter → **Create new wallet**. Write down the recovery phrase somewhere safe — even
    for a test wallet, you'll want it if the extension gets reset.
@@ -209,12 +214,13 @@ pay it out to an account you control.
    - [ ] A **TESTNET** chip is shown.
    - [ ] The page says how many contracts it will create, and shows the swap quote again.
    - **Screenshot** `T1-1-review-deploy` — the review page, with the TESTNET chip in shot.
-4. Click **DEPLOY TO TESTNET**. Freighter pops up — check it says testnet, then **sign**.
+4. Click **DEPLOY TO TESTNET**, then choose **Freighter** in the wallet picker.
+   Freighter pops up — check it says testnet and shows your **Main** account, then **sign**.
    - [ ] A "Contract deployed" message appears and you're taken to the deployment page.
    - [ ] Within about a minute the status becomes **ACTIVE** and a QR code appears.
 5. **Bookmark this page** — T6 comes back to it. Click **OPEN TRIGGER PAGE**.
-6. Enter **20** as the amount, click **CONFIRM AMOUNT**, then **CONNECT WALLET & TRIGGER**. Sign
-   in Freighter (with your **Main** account).
+6. Enter **20** as the amount, click **CONFIRM AMOUNT**, then **CONNECT WALLET & TRIGGER**.
+   Choose **Freighter** in the wallet picker and sign with your **Main** account.
    - [ ] You see progress messages ending in a success message.
 7. Go back to the deployment page and watch the live event feed.
    - [ ] A **RECEIVE** row for 20 XLM appears.
@@ -442,8 +448,8 @@ Already on our list — no need to report these.
   feed and stellar.expert first; only report it if the money really didn't move.
 - **The trigger page doesn't keep a record of a successful trigger** after the message
   disappears. Use the deployment page's live feed instead.
-- **The review page lists several wallets** (Freighter, Albedo, xBull, LOBSTR, Hana), but only
-  **Freighter** works for deploying right now.
+- **Use Freighter in the wallet picker for this round.** Other available options
+  are outside this test plan. **Lantern (not yet supported)** is unavailable.
 - **The live feed can lag** a few seconds to a minute behind the chain.
 
 ---

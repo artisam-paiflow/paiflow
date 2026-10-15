@@ -68,9 +68,27 @@ describe("shared wallet initialization", () => {
     const { getWalletKit } = await import("@/components/deploy/wallet-kit");
     await getWalletKit("testnet");
     expect(staleModal.isConnected).toBe(false);
+    const options = mocks.kit.mock.calls[0]?.[0] as {
+      modules: Array<{
+        productId?: string;
+        productName?: string;
+        productUrl?: string;
+        isAvailable?: () => Promise<boolean>;
+      }>;
+    };
+    const lantern = options.modules.find((module) => module.productId === "lantern");
+    if (mobile) expect(lantern).toBeUndefined();
+    else {
+      expect(lantern?.productName).toBe("Lantern (not yet supported)");
+      expect(lantern?.productUrl).toBe("https://golantern.xyz");
+      expect(await lantern?.isAvailable?.()).toBe(false);
+    }
+
     expect(mocks.kit).toHaveBeenCalledWith({
       network: "testnet-passphrase",
-      modules: mobile ? [expect.anything()] : [expect.anything(), expect.anything()],
+      modules: mobile
+        ? [expect.anything()]
+        : [expect.anything(), expect.anything(), expect.anything()],
     });
     expect(mocks.modal).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -129,7 +147,7 @@ describe("shared wallet initialization", () => {
     expect(mocks.modal).not.toHaveBeenCalled();
     expect(mocks.kit).toHaveBeenCalledWith({
       network: "testnet-passphrase",
-      modules: [expect.anything()],
+      modules: [expect.anything(), expect.anything()],
     });
   });
 
