@@ -7,6 +7,12 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Bind payment-trigger and allowance signatures to the exact approved wallet
+  session and unchanged transaction. Cancel stale approvals before dispatch;
+  preserve submitted hashes across view changes and reloads, and share transaction
+  admission with contract controls while retaining allowance-specific reconciliation
+  (#1003). Legacy unbound mobile wallet returns require reconnecting.
+
 - Centralize mobile wallet names, icons and handoff links while preserving existing
   Freighter, LOBSTR and xBull behavior; keep Lantern gated on official metadata.
 

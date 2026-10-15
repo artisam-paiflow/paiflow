@@ -1,7 +1,6 @@
 import type { WalletKit } from "./wallet-kit";
 import { selectWallet } from "./select-wallet";
-import { hasApprovedWalletConnectSession } from "./mobile-wallet-session";
-import { stellarChainId } from "./wallet-connect-config";
+import { walletConnectConnection } from "./wallet-connect-connection";
 
 export function assertWalletAttemptActive(signal: AbortSignal): void {
   signal.throwIfAborted();
@@ -29,45 +28,7 @@ export async function connectSelectedWallet(
     )?.publicKey;
     if (!address) throw new Error("Wallet connection does not authorize this network.");
     const approved = { topic: session.id, address };
-    const check = () => {
-      assertWalletAttemptActive(signal);
-      if (!hasApprovedWalletConnectSession(approved, client.session.values, network)) {
-        throw new Error("Wallet connection ended or changed. Connect again to continue.");
-      }
-    };
-    check();
-    return {
-      address,
-      walletId: wallet.id,
-      signTransaction: async (
-        xdr: string,
-        options: { address: string; networkPassphrase: string },
-      ) => {
-        check();
-        if (options.address !== address) throw new Error("Wallet account changed.");
-        const { assertWalletNetwork, assertSignedWalletTransaction } =
-          await import("@/lib/stellar/wallet-signature");
-        check();
-        assertWalletNetwork(network, options.networkPassphrase);
-        const result: unknown = await client.request({
-          topic: approved.topic,
-          chainId: stellarChainId(network),
-          request: { method: "stellar_signXDR", params: { xdr } },
-        });
-        check();
-        if (
-          !result ||
-          typeof result !== "object" ||
-          !("signedXDR" in result) ||
-          typeof result.signedXDR !== "string" ||
-          !result.signedXDR
-        ) {
-          throw new Error("Wallet returned no signed transaction.");
-        }
-        assertSignedWalletTransaction(xdr, result.signedXDR, address, options.networkPassphrase);
-        return { signedTxXdr: result.signedXDR };
-      },
-    };
+    return walletConnectConnection(client, network, approved, signal);
   }
   const { address } = await shared.kit.getAddress();
   assertWalletAttemptActive(signal);
