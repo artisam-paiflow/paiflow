@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { TemplateKind } from "@prisma/client";
 import type { Asset } from "@/lib/flows/schema";
@@ -14,42 +14,11 @@ import { track } from "@/lib/analytics/client";
 import { classifyError } from "@/lib/analytics/classify-error";
 import SwapQuotePreview from "@/components/builder/swap-quote-preview";
 import TrustlineWarnings from "@/components/deploy/trustline-warnings";
-
-type WalletKit = {
-  getAddress: () => Promise<{ address: string }>;
-  signTransaction: (
-    xdr: string,
-    opts: { address?: string; networkPassphrase: string },
-  ) => Promise<{ signedTxXdr: string }>;
-};
+import { connectSelectedWallet, assertWalletAttemptActive } from "./selected-wallet-connection";
 
 type StellarNetwork = "testnet" | "mainnet";
 
 const CHECK_WAIT_CAP_MS = 15_000;
-
-const PASSPHRASE_BY_NETWORK: Record<StellarNetwork, string> = {
-  testnet: "Test SDF Network ; September 2015",
-  mainnet: "Public Global Stellar Network ; September 2015",
-};
-
-async function connectWallet(network: StellarNetwork): Promise<WalletKit> {
-  const mod = await import("@creit.tech/stellar-wallets-kit");
-  const { StellarWalletsKit, WalletNetwork, allowAllModules, FREIGHTER_ID } = mod as unknown as {
-    StellarWalletsKit: new (opts: {
-      network: string;
-      selectedWalletId: string;
-      modules: unknown[];
-    }) => WalletKit;
-    WalletNetwork: { TESTNET: string; PUBLIC: string };
-    allowAllModules: () => unknown[];
-    FREIGHTER_ID: string;
-  };
-  return new StellarWalletsKit({
-    network: network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET,
-    selectedWalletId: FREIGHTER_ID,
-    modules: allowAllModules(),
-  });
-}
 
 export default function DeployReview({
   flowId,
@@ -65,6 +34,13 @@ export default function DeployReview({
   trustlineCheck?: Promise<TrustlineCheck[]>;
 }) {
   const [busy, setBusy] = useState(false);
+  const attemptRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    setBusy(false);
+    return () => {
+      attemptRef.current?.abort();
+    };
+  }, [flowId, network]);
   const [pipeline, setPipeline] = useState<
     Array<{
       nodeId: string;
@@ -103,18 +79,28 @@ export default function DeployReview({
   }, [trustlineCheck]);
 
   async function onDeploy() {
-    if (!checkSettled) return;
+    if (!checkSettled || (attemptRef.current && !attemptRef.current.signal.aborted)) return;
+    const controller = new AbortController();
+    attemptRef.current = controller;
+    const { signal } = controller;
+    const check = () => assertWalletAttemptActive(signal);
     setBusy(true);
     track("deploy_started", { flow_id: flowId });
     let stage: "wallet" | "prepare" | "sign" | "submit" = "wallet";
     let deploymentId: string | undefined;
     try {
-      const kit = await connectWallet(network);
-      const { address } = await kit.getAddress();
+      const { getWalletKit } = await import("@/components/deploy/wallet-kit");
+      check();
+      const shared = await getWalletKit(network);
+      check();
+      const connection = await connectSelectedWallet(shared, network, signal);
+      check();
+      if (!connection) return;
+      const { address, walletId } = connection;
       void trackWalletConnection({
         address,
         network,
-        walletId: "freighter",
+        walletId,
         surface: "deploy_review",
       });
       stage = "prepare";
@@ -123,17 +109,23 @@ export default function DeployReview({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ flowId, sourceAccount: address }),
       });
+      check();
       const prepData = await prep.json();
+      check();
       if (!prep.ok) throw apiError(prepData, "Prepare failed");
       setPipeline(prepData.data.pipeline ?? []);
       deploymentId = prepData.data.deploymentId;
 
+      if (typeof prepData.data.networkPassphrase !== "string" || !prepData.data.networkPassphrase) {
+        throw new Error("Missing transaction network passphrase");
+      }
       stage = "sign";
-      const signed = await kit.signTransaction(prepData.data.xdr, {
+      const signed = await connection.signTransaction(prepData.data.xdr, {
         address,
-        networkPassphrase: PASSPHRASE_BY_NETWORK[network],
+        networkPassphrase: prepData.data.networkPassphrase,
       });
 
+      check();
       stage = "submit";
       const submit = await fetch(`/api/deployments/${prepData.data.deploymentId}/submit`, {
         method: "POST",
@@ -141,6 +133,7 @@ export default function DeployReview({
         body: JSON.stringify({ signedXdr: signed.signedTxXdr }),
       });
       const subData = await submit.json();
+      check();
       if (!submit.ok) throw apiError(subData, "Submit failed");
       toast.success(
         subData.data.status === "CONFIRMED"
@@ -149,6 +142,7 @@ export default function DeployReview({
       );
       window.location.href = `/deployments/${prepData.data.deploymentId}`;
     } catch (err) {
+      if (signal.aborted) return;
       // deploy_confirmed and the chain-side failure are captured server-side;
       // this is the part only the browser sees: wallet, signing, refusals.
       const c = classifyError(err);
@@ -161,7 +155,10 @@ export default function DeployReview({
       });
       toastError(err, "Deploy failed");
     } finally {
-      setBusy(false);
+      if (attemptRef.current === controller) {
+        attemptRef.current = null;
+        if (!signal.aborted) setBusy(false);
+      }
     }
   }
 
@@ -261,8 +258,7 @@ export default function DeployReview({
         <span className="material-symbols-outlined text-secondary mt-0.5 text-[14px]">
           shield_lock
         </span>
-        YOU’LL SIGN IN YOUR WALLET (FREIGHTER, ALBEDO, XBULL, LOBSTR, HANA). PAIFLOW NEVER SEES YOUR
-        SECRET KEY.
+        YOU’LL CHOOSE YOUR WALLET AND SIGN THERE. PAIFLOW NEVER SEES YOUR SECRET KEY.
       </p>
     </section>
   );

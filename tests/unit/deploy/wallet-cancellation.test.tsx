@@ -1,9 +1,13 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
+import { Account, Asset, Networks, Operation, TransactionBuilder } from "@stellar/stellar-sdk";
 import { track } from "@/lib/analytics/client";
 import DeployReview from "@/components/deploy/deploy-review";
 import { TriggerButton } from "@/components/deploy/trigger-button";
+
+const ADDRESS = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+const RECIPIENT = "GAUF2ILE2UGAAFJZBUSICBTRMOL5TDGBZRXHYO4O5P5RMAPJ24YCV2XQ";
 
 const { signTransaction, pollTxStatus } = vi.hoisted(() => ({
   signTransaction: vi.fn(),
@@ -24,19 +28,23 @@ vi.mock("@creit.tech/stellar-wallets-kit/modules/walletconnect.module", () => ({
 }));
 vi.mock("@creit.tech/stellar-wallets-kit", () => ({
   StellarWalletsKit: class {
-    getAddress = async () => ({ address: `G${"A".repeat(55)}` });
+    getAddress = async () => ({ address: ADDRESS });
     signTransaction = signTransaction;
     setWallet() {}
     async openModal(opts: {
       onWalletSelected: (wallet: { id: string; name: string }) => Promise<void>;
     }) {
-      await opts.onWalletSelected({ id: "freighter", name: "Freighter" });
+      // Installed SWK resolves when the modal renders; selection arrives later.
+      queueMicrotask(() => {
+        void opts.onWalletSelected({ id: "freighter", name: "Freighter" });
+      });
     }
   },
   FreighterModule: class {},
-  WalletNetwork: { TESTNET: "testnet", PUBLIC: "mainnet" },
-  FREIGHTER_ID: "freighter",
-  allowAllModules: () => [],
+  WalletNetwork: {
+    TESTNET: "Test SDF Network ; September 2015",
+    PUBLIC: "Public Global Stellar Network ; September 2015",
+  },
 }));
 
 describe("wallet signing cancellation analytics", () => {
@@ -61,13 +69,23 @@ describe("wallet signing cancellation analytics", () => {
         message: "User declined access",
         ext: { private: "wallet payload must not reach analytics" },
       });
+      const unsignedXdr = new TransactionBuilder(new Account(ADDRESS, "1"), {
+        fee: "100",
+        networkPassphrase: Networks.TESTNET,
+      })
+        .addOperation(
+          Operation.payment({ destination: RECIPIENT, amount: "1", asset: Asset.native() }),
+        )
+        .setTimeout(180)
+        .build()
+        .toXDR();
       const fetchMock = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
           data: {
             deploymentId: "deployment-id",
-            xdr: "unsigned-test-transaction",
-            networkPassphrase: "Test SDF Network ; September 2015",
+            xdr: unsignedXdr,
+            networkPassphrase: Networks.TESTNET,
           },
         }),
       });
@@ -90,7 +108,14 @@ describe("wallet signing cancellation analytics", () => {
         );
       });
 
-      expect(signTransaction).toHaveBeenCalledOnce();
+      await waitFor(() => expect(signTransaction).toHaveBeenCalledOnce());
+      expect(signTransaction).toHaveBeenCalledWith(unsignedXdr, {
+        address: ADDRESS,
+        networkPassphrase: Networks.TESTNET,
+      });
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith("Transaction cancelled in your wallet."),
+      );
       expect(fetchMock).toHaveBeenCalledOnce();
       expect(fetchMock.mock.calls[0]?.[0]).toBe(
         surface === "deploy"
