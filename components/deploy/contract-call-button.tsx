@@ -251,10 +251,12 @@ export default function ContractCallButton({
           const { xdr, networkPassphrase } = await prepare(address);
           check();
 
+          const { assertWalletNetwork, signedWalletTransactionHash } =
+            await import("@/lib/stellar/wallet-signature");
+          check();
+          assertWalletNetwork(network, networkPassphrase);
           toast.info("Awaiting signature...");
           const signed = await connection.signTransaction(xdr, { address, networkPassphrase });
-          check();
-          const { signedWalletTransactionHash } = await import("@/lib/stellar/wallet-signature");
           check();
           const txHash = signedWalletTransactionHash(
             network,
