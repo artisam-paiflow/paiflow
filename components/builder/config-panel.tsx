@@ -23,6 +23,8 @@ import { computeAssetFlow, type ValidationIssue } from "@/lib/flows/validate";
 import { fieldErrorUnder, nodeIssues } from "@/lib/flows/issue-paths";
 import type { FeatureFlags } from "@/lib/feature-flags";
 import { AssetField, Field } from "./panels/asset-fields";
+import { IntervalField } from "./panels/interval-field";
+import { AllocationBar } from "./panels/allocation-bar";
 import { defaultShares } from "./panels/split-shares.utils";
 import {
   fiatPayoutAvailable as fiatAvailable,
@@ -338,45 +340,24 @@ export default function ConfigPanel({
           const tz = cfg.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
           return (
             <>
-              <Field label="Interval" error={fieldError("intervalAmount")}>
-                <div className="flex gap-2">
-                  <input
-                    className="input w-20 text-right"
-                    type="number"
-                    min={1}
-                    value={amount}
-                    onChange={(e) => {
-                      const v = Math.max(1, Math.floor(Number(e.target.value) || 1));
-                      onChange({
-                        ...node,
-                        config: { ...cfg, intervalAmount: v, intervalUnit: unit, timeZone: tz },
-                      } as FlowNode);
-                    }}
-                  />
-                  <select
-                    className="input flex-1"
-                    value={unit}
-                    onChange={(e) => {
-                      const newUnit = e.target.value as typeof unit;
-                      onChange({
-                        ...node,
-                        config: {
-                          ...cfg,
-                          intervalAmount: amount,
-                          intervalUnit: newUnit,
-                          timeZone: tz,
-                        },
-                      } as FlowNode);
-                    }}
-                  >
-                    <option value="minute">Minute(s)</option>
-                    <option value="hour">Hour(s)</option>
-                    <option value="day">Day(s)</option>
-                    <option value="week">Week(s)</option>
-                    <option value="month">Month(s)</option>
-                  </select>
-                </div>
-              </Field>
+              <IntervalField
+                amount={amount}
+                unit={unit}
+                amountError={fieldError("intervalAmount")}
+                unitError={fieldError("intervalUnit")}
+                onAmountChange={(intervalAmount) =>
+                  onChange({
+                    ...node,
+                    config: { ...cfg, intervalAmount, intervalUnit: unit, timeZone: tz },
+                  } as FlowNode)
+                }
+                onUnitChange={(intervalUnit) =>
+                  onChange({
+                    ...node,
+                    config: { ...cfg, intervalAmount: amount, intervalUnit, timeZone: tz },
+                  } as FlowNode)
+                }
+              />
               <Field label="Timezone">
                 <select
                   className="input"
@@ -1076,40 +1057,24 @@ export default function ConfigPanel({
             const unit = cfg.intervalUnit ?? "day";
             return (
               <>
-                <Field label="Interval" error={fieldError("intervalAmount")}>
-                  <div className="flex gap-2">
-                    <input
-                      className="input w-20 text-right"
-                      type="number"
-                      min={1}
-                      value={amount}
-                      onChange={(e) => {
-                        const v = Math.max(1, Math.floor(Number(e.target.value) || 1));
-                        onChange({
-                          ...node,
-                          config: { ...cfg, intervalAmount: v, intervalUnit: unit },
-                        } as FlowNode);
-                      }}
-                    />
-                    <select
-                      className="input flex-1"
-                      value={unit}
-                      onChange={(e) => {
-                        const newUnit = e.target.value as typeof unit;
-                        onChange({
-                          ...node,
-                          config: { ...cfg, intervalAmount: amount, intervalUnit: newUnit },
-                        } as FlowNode);
-                      }}
-                    >
-                      <option value="minute">Minute(s)</option>
-                      <option value="hour">Hour(s)</option>
-                      <option value="day">Day(s)</option>
-                      <option value="week">Week(s)</option>
-                      <option value="month">Month(s)</option>
-                    </select>
-                  </div>
-                </Field>
+                <IntervalField
+                  amount={amount}
+                  unit={unit}
+                  amountError={fieldError("intervalAmount")}
+                  unitError={fieldError("intervalUnit")}
+                  onAmountChange={(intervalAmount) =>
+                    onChange({
+                      ...node,
+                      config: { ...cfg, intervalAmount, intervalUnit: unit },
+                    } as FlowNode)
+                  }
+                  onUnitChange={(intervalUnit) =>
+                    onChange({
+                      ...node,
+                      config: { ...cfg, intervalAmount: amount, intervalUnit },
+                    } as FlowNode)
+                  }
+                />
                 <Field label="Ends at — optional" error={fieldError("endsAt")}>
                   <div className="flex gap-1">
                     <input
@@ -1254,40 +1219,24 @@ export default function ConfigPanel({
                   </div>
                 ) : (
                   <>
-                    <Field label="Interval" error={fieldError("intervalAmount")}>
-                      <div className="flex gap-2">
-                        <input
-                          className="input w-20 text-right"
-                          type="number"
-                          min={1}
-                          value={amount}
-                          onChange={(e) => {
-                            const v = Math.max(1, Math.floor(Number(e.target.value) || 1));
-                            onChange({
-                              ...node,
-                              config: { ...cfg, intervalAmount: v, intervalUnit: unit },
-                            } as FlowNode);
-                          }}
-                        />
-                        <select
-                          className="input flex-1"
-                          value={unit}
-                          onChange={(e) => {
-                            const newUnit = e.target.value as typeof unit;
-                            onChange({
-                              ...node,
-                              config: { ...cfg, intervalAmount: amount, intervalUnit: newUnit },
-                            } as FlowNode);
-                          }}
-                        >
-                          <option value="minute">Minute(s)</option>
-                          <option value="hour">Hour(s)</option>
-                          <option value="day">Day(s)</option>
-                          <option value="week">Week(s)</option>
-                          <option value="month">Month(s)</option>
-                        </select>
-                      </div>
-                    </Field>
+                    <IntervalField
+                      amount={amount}
+                      unit={unit}
+                      amountError={fieldError("intervalAmount")}
+                      unitError={fieldError("intervalUnit")}
+                      onAmountChange={(intervalAmount) =>
+                        onChange({
+                          ...node,
+                          config: { ...cfg, intervalAmount, intervalUnit: unit },
+                        } as FlowNode)
+                      }
+                      onUnitChange={(intervalUnit) =>
+                        onChange({
+                          ...node,
+                          config: { ...cfg, intervalAmount: amount, intervalUnit },
+                        } as FlowNode)
+                      }
+                    />
                     <Field label="Ends at — optional" error={fieldError("endsAt")}>
                       <div className="flex gap-1">
                         <input
@@ -2091,17 +2040,13 @@ function SplitRecipientsEditor({
                             } as SplitRecipient)
                           }
                           pending={isPendingAddress(r.address)}
-                          error={!!recipientError(i, "address")}
+                          label={`Wallet address for recipient ${i + 1}`}
+                          error={recipientError(i, "address")}
                           addressBook={addressBook}
                           onAddressBookChange={onAddressBookChange}
                           addressBookLoading={addressBookLoading}
                           addressBookError={addressBookError}
                         />
-                        {recipientError(i, "address") && (
-                          <span className="text-error text-[10px] leading-snug">
-                            {recipientError(i, "address")}
-                          </span>
-                        )}
                       </div>
                       <button
                         onClick={() => deleteRecipient(i)}
@@ -2305,7 +2250,7 @@ function SplitRecipientsEditor({
       {mode === "percentage" &&
         node.config.recipients.reduce((s, r2) => s + (r2.mode === "percentage" ? r2.bps : 0), 0) >
           TOTAL_BPS && (
-          <div className="text-xs text-red-400">
+          <div className="text-error text-xs">
             Total exceeds 100% by{" "}
             {(
               (node.config.recipients.reduce(
@@ -2438,47 +2383,4 @@ function ApiFillHint({ show, children }: { show: boolean; children: React.ReactN
 function remainingPct(recipients: SplitRecipient[]): number {
   const used = recipients.reduce((s, r) => (r.mode === "percentage" ? s + r.bps : s), 0);
   return Math.max(0, (TOTAL_BPS - used) / 100);
-}
-
-function AllocationBar({ recipients }: { recipients: SplitRecipient[] }) {
-  const percentageRecipients = recipients.filter(
-    (r): r is Extract<SplitRecipient, { mode: "percentage" }> => r.mode === "percentage",
-  );
-  const total = percentageRecipients.reduce((s, r) => s + r.bps, 0);
-  const colors = [
-    "#a78bfa",
-    "#34d399",
-    "#60a5fa",
-    "#fbbf24",
-    "#f472b6",
-    "#fb923c",
-    "#22d3ee",
-    "#e879f9",
-  ];
-
-  return (
-    <div className="flex h-2 overflow-hidden rounded-full bg-zinc-800">
-      {percentageRecipients.map((r, i) => {
-        const w = total > 0 ? (r.bps / total) * 100 : 0;
-        if (w <= 0) return null;
-        return (
-          <div
-            key={i}
-            className="allocation-bar-segment h-full transition-all duration-200"
-            style={{
-              width: `${w}%`,
-              backgroundColor: colors[i % colors.length]!,
-            }}
-            title={`${r.label ?? `Recipient ${i + 1}`}: ${bpsToPct(r.bps)}%`}
-          />
-        );
-      })}
-      {total < TOTAL_BPS && (
-        <div
-          className="allocation-bar-segment h-full bg-zinc-700 transition-all duration-200"
-          style={{ width: `${((TOTAL_BPS - total) / TOTAL_BPS) * 100}%` }}
-        />
-      )}
-    </div>
-  );
 }
