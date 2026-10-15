@@ -266,6 +266,7 @@ export default function SubscriptionRelayerPanel({
           <ContractCallButton
             deploymentId={deploymentId}
             network={network}
+            actionKey={`${kind}-relayer:${pendingXdr}:${pendingPassphrase}`}
             label="CONFIRM ON-CHAIN RELAYER"
             busyLabel="CONFIRMING…"
             icon="verified"

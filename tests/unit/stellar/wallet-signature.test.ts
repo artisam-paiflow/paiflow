@@ -8,7 +8,11 @@ import {
   TransactionBuilder,
 } from "@stellar/stellar-sdk";
 import { describe, expect, it } from "vitest";
-import { assertSignedWalletTransaction, assertWalletNetwork } from "@/lib/stellar/wallet-signature";
+import {
+  assertSignedWalletTransaction,
+  assertWalletNetwork,
+  signedWalletTransactionHash,
+} from "@/lib/stellar/wallet-signature";
 
 const wallet = Keypair.random();
 const other = Keypair.random();
@@ -70,5 +74,59 @@ describe("wallet returned envelope binding", () => {
     expect(() => assertWalletNetwork("mainnet", Networks.PUBLIC)).not.toThrow();
     expect(() => assertWalletNetwork("testnet", Networks.PUBLIC)).toThrow(/networks/);
     expect(() => assertWalletNetwork("mainnet", Networks.TESTNET)).toThrow(/networks/);
+  });
+  it("computes a recovery hash only after validating a wallet's envelope and pinned network", () => {
+    const tx = build();
+    const original = tx.toXDR();
+    tx.sign(wallet);
+    expect(
+      signedWalletTransactionHash(
+        "testnet",
+        original,
+        tx.toXDR(),
+        wallet.publicKey(),
+        Networks.TESTNET,
+      ),
+    ).toBe(tx.hash().toString("hex"));
+    expect(() =>
+      signedWalletTransactionHash(
+        "mainnet",
+        original,
+        tx.toXDR(),
+        wallet.publicKey(),
+        Networks.TESTNET,
+      ),
+    ).toThrow(/networks/);
+    expect(() =>
+      signedWalletTransactionHash(
+        "testnet",
+        original,
+        tx.toXDR(),
+        other.publicKey(),
+        Networks.TESTNET,
+      ),
+    ).toThrow(/changed/);
+    const altered = build("0.2");
+    altered.sign(wallet);
+    expect(() =>
+      signedWalletTransactionHash(
+        "testnet",
+        original,
+        altered.toXDR(),
+        wallet.publicKey(),
+        Networks.TESTNET,
+      ),
+    ).toThrow(/changed/);
+    const wrongSigner = TransactionBuilder.fromXDR(original, Networks.TESTNET);
+    wrongSigner.sign(other);
+    expect(() =>
+      signedWalletTransactionHash(
+        "testnet",
+        original,
+        wrongSigner.toXDR(),
+        wallet.publicKey(),
+        Networks.TESTNET,
+      ),
+    ).toThrow(/did not sign/);
   });
 });
