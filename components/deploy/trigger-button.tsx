@@ -3,15 +3,19 @@
 import { useRef, useState, useEffect } from "react";
 import { toast } from "sonner";
 import { toastError } from "@/lib/friendly-toast";
-import { WalletConnectModal } from "@walletconnect/modal";
-import { SignClient } from "@walletconnect/sign-client";
 import { usePollTxStatus } from "@/lib/hooks/use-poll-tx-status";
 import { apiError } from "@/lib/friendly-error";
 import { trackWalletConnection } from "@/lib/wallet-tracking";
 import { track } from "@/lib/analytics/client";
 import { classifyError } from "@/lib/analytics/classify-error";
-import { FREIGHTER_NATIVE_LINK, mobileWalletLink } from "./mobile-wallet-links";
+import { mobileWalletLink } from "./mobile-wallet-links";
 import { approvedMobileSession, type MobileWalletSession } from "./mobile-wallet-session";
+import {
+  getCachedWalletKit,
+  getWalletKit,
+  type WalletConnectClient,
+  type WalletKit,
+} from "./wallet-kit";
 import {
   isExpiredSession,
   isLiveSession,
@@ -22,7 +26,6 @@ import {
   sessionMatchesWallet,
   stellarChainId,
   WALLET_CONNECT_UNCONFIGURED,
-  walletConnectProjectId,
 } from "./wallet-connect-config";
 
 type TriggerButtonProps = {
@@ -63,10 +66,10 @@ function isMobile() {
  * is not usable is not necessarily safe to destroy. Only the expiry margin and
  * a chain mismatch cause a skip; only a passed expiry causes a delete.
  */
-type StoredSession = InstanceType<typeof SignClient>["session"]["values"][number];
+type StoredSession = WalletConnectClient["session"]["values"][number];
 
 function usableSessionTopics(
-  client: InstanceType<typeof SignClient> | null,
+  client: WalletConnectClient | null,
   { chain, preferWalletId }: { chain: string; preferWalletId?: string | null },
 ): string[] {
   if (!client) return [];
@@ -180,7 +183,7 @@ export function TriggerButton({
   const [connectedWallet, setConnectedWallet] = useState<MobileWalletSession | null>(null);
   const mobileSessionKey = `paiflow_mobile_wallet:${network}`;
 
-  function storedMobileSession(client: InstanceType<typeof SignClient> | null) {
+  function storedMobileSession(client: WalletConnectClient | null) {
     if (!client) return null;
     try {
       return approvedMobileSession(
@@ -253,7 +256,7 @@ export function TriggerButton({
   // when tapping a wallet in the mobile picker.
   useEffect(() => {
     if (isMobile()) {
-      void ensureWalletConnect()
+      void getWalletKit(network)
         .then(({ client }) => {
           const session = storedMobileSession(client);
           if (session) setConnectedWallet(session);
@@ -267,161 +270,9 @@ export function TriggerButton({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const initLockRef = useRef<Promise<any> | null>(null);
-  const wcRef = useRef<{
-    client: InstanceType<typeof SignClient> | null;
-    modal: WalletConnectModal | null;
-    module: any;
-    kit: any;
-    method: string;
-  } | null>(null);
-
-  async function ensureWalletConnect() {
-    if (wcRef.current) {
-      return wcRef.current;
-    }
-
-    if (!initLockRef.current) {
-      initLockRef.current = (async () => {
-        const [
-          { StellarWalletsKit, WalletNetwork, FreighterModule },
-          { WalletConnectModule, WalletConnectAllowedMethods },
-        ] = await Promise.all([
-          import("@creit.tech/stellar-wallets-kit"),
-          import("@creit.tech/stellar-wallets-kit/modules/walletconnect.module"),
-        ]);
-
-        const walletNetwork = network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET;
-        const projectId = walletConnectProjectId();
-
-        if (!projectId) {
-          // Same guard as wallet-kit.ts: the SDK accepts an undefined project id
-          // and fails later on the relay. Mobile has no other wallet path.
-          if (isMobile()) throw new Error(WALLET_CONNECT_UNCONFIGURED);
-          const kit = new StellarWalletsKit({
-            network: walletNetwork,
-            modules: [new FreighterModule()],
-          });
-          wcRef.current = {
-            client: null,
-            modal: null,
-            module: null,
-            kit,
-            method: WalletConnectAllowedMethods.SIGN,
-          };
-          return wcRef.current;
-        }
-
-        const chain = network === "mainnet" ? "stellar:pubnet" : "stellar:testnet";
-
-        // WalletConnect v2 emits harmless "No matching key. expirer" noise when
-        // restoring from localStorage with orphaned topics. Patch it out for init.
-        const originalConsoleError = console.error;
-        console.error = (...args: any[]) => {
-          const msg = args.map(String).join(" ");
-          if (msg.includes("No matching key. expirer")) return;
-          originalConsoleError.apply(console, args);
-        };
-
-        let walletConnectClient;
-        try {
-          walletConnectClient = await SignClient.init({
-            projectId,
-            metadata: {
-              name: "Paiflow",
-              description: "Trigger contract deployments",
-              url: typeof window !== "undefined" ? window.location.origin : "",
-              icons: ["/logo.png"],
-            },
-          });
-        } finally {
-          console.error = originalConsoleError;
-        }
-
-        // Remove stale modal elements so we don't accumulate DOM nodes
-        document.querySelectorAll("wcm-modal").forEach((el) => el.remove());
-
-        const walletConnectModal = new WalletConnectModal({
-          projectId,
-          chains: [chain],
-          mobileWallets: [
-            {
-              id: "lobstr",
-              name: "LOBSTR",
-              links: {
-                native: "lobstr",
-                universal: "https://lobstr.co/uni/wc",
-              },
-            },
-            {
-              id: "xbull",
-              name: "xBull",
-              links: {
-                native: "xbull",
-                universal: "https://xbull.app",
-              },
-            },
-            {
-              id: "freighter",
-              name: "Freighter",
-              links: {
-                native: FREIGHTER_NATIVE_LINK,
-                universal: "",
-              },
-            },
-          ],
-          walletImages: {
-            lobstr: "https://stellar.creit.tech/wallet-icons/lobstr.png",
-            xbull: "https://stellar.creit.tech/wallet-icons/xbull.png",
-            freighter: "https://stellar.creit.tech/wallet-icons/freighter.png",
-          },
-          enableExplorer: true,
-        });
-
-        const walletConnectModule = new WalletConnectModule({
-          projectId,
-          name: "Paiflow",
-          description: "Trigger contract deployments",
-          url: typeof window !== "undefined" ? window.location.origin : "",
-          icons: ["/logo.png"],
-          method: WalletConnectAllowedMethods.SIGN,
-          network: walletNetwork,
-          client:
-            walletConnectClient as unknown as typeof import("@walletconnect/sign-client").SignClient,
-          modal: walletConnectModal,
-        });
-
-        const modules = isMobile()
-          ? [walletConnectModule]
-          : [new FreighterModule(), walletConnectModule];
-
-        const kit = new StellarWalletsKit({
-          network: walletNetwork,
-          modules,
-        });
-
-        wcRef.current = {
-          client: walletConnectClient,
-          modal: walletConnectModal,
-          module: walletConnectModule,
-          kit,
-          method: WalletConnectAllowedMethods.SIGN,
-        };
-
-        return wcRef.current;
-      })();
-
-      initLockRef.current.catch(() => {
-        initLockRef.current = null;
-      });
-    }
-
-    return initLockRef.current;
-  }
-
   async function prepareWalletConnectSession(
-    walletConnectModule: any,
-    client: InstanceType<typeof SignClient> | null,
+    walletConnectModule: NonNullable<WalletKit["module"]>,
+    client: WalletConnectClient | null,
   ) {
     const [liveTopic] = usableSessionTopics(client, { chain: stellarChainId(network) });
     if (!liveTopic) {
@@ -435,7 +286,7 @@ export function TriggerButton({
   }
 
   async function runDesktopFlow() {
-    const { kit, module: walletConnectModule, client } = await ensureWalletConnect();
+    const { kit, module: walletConnectModule, client } = await getWalletKit(network);
 
     signingStartedRef.current = false;
     await kit.openModal({
@@ -448,6 +299,7 @@ export function TriggerButton({
           const isWalletConnect = wallet.id === "wallet_connect";
 
           if (isWalletConnect) {
+            if (!walletConnectModule) throw new Error(WALLET_CONNECT_UNCONFIGURED);
             await prepareWalletConnectSession(walletConnectModule, client);
           } else {
             toast.info("Connecting to Freighter extension...");
@@ -625,7 +477,7 @@ export function TriggerButton({
 
       attemptRef.current = { stage: "wallet", startedAt: data.timestamp };
       setBusy(true);
-      ensureWalletConnect()
+      getWalletKit(network)
         .then(async ({ kit, module: walletConnectModule, client }) => {
           if (!walletConnectModule) throw new Error(WALLET_CONNECT_UNCONFIGURED);
           kit.setWallet("wallet_connect");
@@ -698,7 +550,7 @@ export function TriggerButton({
       readyRef.current = null;
       setPairingState("preparing");
       try {
-        const { client, module: walletConnectModule, method } = await ensureWalletConnect();
+        const { client, module: walletConnectModule, method } = await getWalletKit(network);
         if (!client || !walletConnectModule) throw new Error(WALLET_CONNECT_UNCONFIGURED);
 
         // A pairing is always prepared, even when a reusable session exists:
@@ -784,7 +636,7 @@ export function TriggerButton({
     pairing: { approval: () => Promise<{ topic: string }> };
   }) {
     try {
-      const { kit, module: walletConnectModule, client } = await ensureWalletConnect();
+      const { kit, module: walletConnectModule, client } = await getWalletKit(network);
       if (!client || !walletConnectModule) throw new Error(WALLET_CONNECT_UNCONFIGURED);
       kit.setWallet("wallet_connect");
 
@@ -837,13 +689,13 @@ export function TriggerButton({
       // Android Chrome requires the native handoff within the user's tap.
       // Validate the pre-warmed connection before leaving the browser; the
       // signing adapter checks it again once transaction preparation finishes.
-      const cachedClient = wcRef.current?.client;
+      const cachedClient = getCachedWalletKit(network)?.client;
       const cachedSession =
         cachedClient &&
         approvedMobileSession(connectedWallet, cachedClient.session.values, network);
       const link = cachedSession && mobileWalletLink(cachedSession.walletId);
       if (link) window.open(link, "_self");
-      const { client } = await ensureWalletConnect();
+      const { client } = await getWalletKit(network);
       const session =
         client && approvedMobileSession(connectedWallet, client.session.values, network);
       if (!client || !session) {
@@ -913,7 +765,7 @@ export function TriggerButton({
       // Pairing normally happened on load; re-pair only if it has gone stale,
       // expired, or never succeeded.
       if (connectedWallet) {
-        const { client } = await ensureWalletConnect();
+        const { client } = await getWalletKit(network);
         const session = approvedMobileSession(
           connectedWallet,
           client?.session.values ?? [],

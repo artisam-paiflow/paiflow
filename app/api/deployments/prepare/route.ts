@@ -18,7 +18,7 @@ import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
 import { preparePipelineDeployTx, checkAccountFunding } from "@/lib/stellar/deploy";
 import { getWasmHashes } from "@/lib/stellar/config";
-import { stellarRelayerAddress, offRampTreasuryAddress } from "@/lib/env";
+import { stellarRelayerAddress, offRampTreasuryAddress, stellarPassphrase } from "@/lib/env";
 import { Role } from "@prisma/client";
 import { SANDBOX_TEMPLATE_KINDS } from "@/lib/sandbox";
 import { assertNoHiddenSurfaces, serverFeatures } from "@/lib/features";
@@ -183,6 +183,7 @@ export async function POST(req: NextRequest) {
         data: {
           deploymentId: deployment.id,
           xdr: prepared.xdr,
+          networkPassphrase: stellarPassphrase(network),
           expectedContractAddress: triggerNode?.contractAddress ?? null,
           pipeline: prepared.pipeline,
         },
