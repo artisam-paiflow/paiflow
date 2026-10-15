@@ -54,6 +54,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Improve builder interval labels and field errors, and show asset restrictions and
+  recipient allocations without requiring hover (#988).
+
 - Allow anonymous Schedule state reads through middleware while retaining sandbox,
   deployment lifecycle and mutation authentication guards (#977).
 
