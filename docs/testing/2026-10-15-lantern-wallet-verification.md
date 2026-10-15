@@ -38,7 +38,8 @@ checked before one Freighter approval and one submit request.
 - Transaction:
   `2994ae4fce8176ee373d1baf7524504e069c68b259018ec3ab6cf40d3b1e8420`.
 - Independent RPC: `SUCCESS`, ledger `5211160`.
-- Actual fee: `981994` stroops (`0.0981994` test XLM).
+- Maximum fee: `981994` stroops (`0.0981994` test XLM); Horizon's actual
+  `fee_charged`: `851202` stroops (`0.0851202` test XLM).
 - Owner deployment record: `CONFIRMED`, with the expected two-child snapshot.
 
 Navigation interrupted capture of the submit response body. The captured public
