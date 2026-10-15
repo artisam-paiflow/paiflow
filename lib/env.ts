@@ -307,6 +307,14 @@ const EnvSchema = z.object({
   // the relayer as its own source behind one lock. Capped so a typo cannot
   // ask for thousands of accounts to fund.
   STELLAR_RELAYER_CHANNELS: z.coerce.number().int().min(0).max(50).default(0),
+  // Optional total envelope fee ceiling. Stellar transaction fees are uint32
+  // stroops; preserve the exact integer string and reject ambiguous values.
+  STELLAR_RELAYER_MAX_FEE_STROOPS: z
+    .string()
+    .refine((v) => /^[1-9]\d{0,9}$/.test(v) && BigInt(v) <= 4_294_967_295n, {
+      message: "must be a positive canonical uint32 stroop string",
+    })
+    .optional(),
 
   // Paid TTL maintenance is opt-in; otherwise the cron only inventories.
   STELLAR_TTL_MAINTENANCE_ENABLED: z

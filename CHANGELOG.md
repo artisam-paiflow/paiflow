@@ -7,6 +7,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Add an optional total relayer transaction fee ceiling before envelope signing;
+  configuring it also refuses automatic restoration in the invocation builder.
+
 - Prepare the first `@paiflow/sdk@0.1.0` beta release metadata and documentation;
   publication and the release tag remain pending separate approval.
 
@@ -17,6 +20,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
   scheduler and release-readiness limits, with links to the live evidence (#964).
 
 ### Added
+
+- Save compatible cumulative analytics snapshots with exact integer deltas between
+  runs using `pnpm analytics:snapshot` (#995).
 
 - SDK quickstart, API migration/coverage guide and packed-package examples for
   browser-wallet payments, controls, funding, allowance, Webhooks and event recovery (#963).
@@ -54,6 +60,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 - Reconcile the staging-only Railway configuration with the distinct live/archive
   database volumes and guard its target; infrastructure applies remain separately
   controlled (#529).
+
+- Improve builder interval labels and field errors, and show asset restrictions and
+  recipient allocations without requiring hover (#988).
 
 - Allow anonymous Schedule state reads through middleware while retaining sandbox,
   deployment lifecycle and mutation authentication guards (#977).

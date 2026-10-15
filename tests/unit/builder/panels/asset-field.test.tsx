@@ -153,7 +153,23 @@ describe("AssetField shows the node's asset error (#407)", () => {
     const readout = container.querySelector("output");
     expect(readout?.getAttribute("aria-invalid")).toBe("true");
     const id = readout?.getAttribute("aria-describedby") ?? "";
-    expect(document.getElementById(id)?.textContent).toBe("Bad asset");
+    const descriptions = id
+      .split(" ")
+      .map((part) => document.getElementById(part)?.textContent)
+      .join(" ");
+    expect(descriptions).toContain("Bad asset");
+    expect(descriptions).toContain("Only EURC can be picked here");
     await expectNoAxeViolations(container);
   });
+});
+
+it("shows the upstream asset restriction and describes the select without hover", async () => {
+  const { container } = render(<AssetField asset={XLM} onChange={() => {}} expectedAsset={XLM} />);
+  const select = screen.getByRole("combobox", { name: "Asset" });
+  const hint = screen.getByText(/Only XLM can be picked here/);
+  expect(select.getAttribute("aria-describedby")?.split(" ")).toContain(hint.id);
+  expect(hint.className).not.toContain("sr-only");
+  expect(hint.closest('[aria-hidden="true"]')).toBeNull();
+  expect(container.querySelector("[title]")).toBeNull();
+  await expectNoAxeViolations(container);
 });
