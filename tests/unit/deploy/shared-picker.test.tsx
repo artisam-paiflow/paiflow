@@ -11,6 +11,12 @@ const mocks = vi.hoisted(() => ({
   signTransaction: vi.fn(),
   getAddress: vi.fn(),
   setWallet: vi.fn(),
+  poll: vi.fn(),
+}));
+vi.mock("@/lib/hooks/use-poll-tx-status", () => ({ usePollTxStatus: () => mocks.poll }));
+vi.mock("@/lib/stellar/wallet-signature", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stellar/wallet-signature")>()),
+  signedWalletTransactionHash: vi.fn(() => "a".repeat(64)),
 }));
 vi.mock("@/components/deploy/wallet-kit", () => ({ getWalletKit: mocks.getWalletKit }));
 vi.mock("@/lib/wallet-tracking", () => ({ trackWalletConnection: mocks.trackWalletConnection }));
@@ -29,6 +35,13 @@ const response = (data: unknown, ok = true) => ({ ok, json: async () => ({ data 
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
+  vi.stubGlobal("navigator", {
+    locks: {
+      request: async (_key: string, _opts: unknown, fn: (lock: object) => Promise<void>) => fn({}),
+    },
+  });
+  mocks.poll.mockRejectedValue(new Error("Finality unknown"));
   mocks.getAddress.mockResolvedValue({ address: ADDRESS });
   mocks.signTransaction.mockResolvedValue({ signedTxXdr: "signed" });
   mocks.getWalletKit.mockResolvedValue({
@@ -56,9 +69,9 @@ describe("DeployReview shared picker", () => {
       .fn()
       .mockResolvedValueOnce(
         response({
-          deploymentId: "d",
+          deploymentId: "22222222-2222-2222-2222-222222222222",
           xdr: "unsigned",
-          networkPassphrase: "server-pinned-passphrase",
+          networkPassphrase: "Test SDF Network ; September 2015",
         }),
       )
       // Refuse after the submit so jsdom doesn't attempt navigation.
@@ -81,10 +94,13 @@ describe("DeployReview shared picker", () => {
       walletId: "lantern-test-double",
       surface: "deploy_review",
     });
-    expect(mocks.signTransaction).toHaveBeenCalledWith("unsigned", {
-      address: ADDRESS,
-      networkPassphrase: "server-pinned-passphrase",
-    });
+    await waitFor(() =>
+      expect(mocks.signTransaction).toHaveBeenCalledWith("unsigned", {
+        address: ADDRESS,
+        networkPassphrase: "Test SDF Network ; September 2015",
+      }),
+    );
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(JSON.parse(fetcher.mock.calls[1]![1].body)).toEqual({ signedXdr: "signed" });
   });
@@ -127,11 +143,13 @@ describe("DeployReview shared picker", () => {
 
   it("wallet signing rejection never submits", async () => {
     mocks.signTransaction.mockRejectedValue(new Error("User rejected"));
-    const fetcher = vi
-      .fn()
-      .mockResolvedValue(
-        response({ deploymentId: "d", xdr: "unsigned", networkPassphrase: "server-passphrase" }),
-      );
+    const fetcher = vi.fn().mockResolvedValue(
+      response({
+        deploymentId: "22222222-2222-2222-2222-222222222222",
+        xdr: "unsigned",
+        networkPassphrase: "Test SDF Network ; September 2015",
+      }),
+    );
     vi.stubGlobal("fetch", fetcher);
     render(<DeployReview flowId="f" network="testnet" />);
     fireEvent.click(screen.getByRole("button", { name: /deploy to testnet/i }));
@@ -159,7 +177,11 @@ describe("DeployReview shared picker", () => {
   });
 
   it("refuses to sign when prepare omits the server network passphrase", async () => {
-    const fetcher = vi.fn().mockResolvedValue(response({ deploymentId: "d", xdr: "unsigned" }));
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(
+        response({ deploymentId: "22222222-2222-2222-2222-222222222222", xdr: "unsigned" }),
+      );
     vi.stubGlobal("fetch", fetcher);
     render(<DeployReview flowId="f" network="testnet" />);
     fireEvent.click(screen.getByRole("button", { name: /deploy to testnet/i }));
@@ -267,7 +289,11 @@ describe("shared picker attempt lifecycle", () => {
     view.rerender(<DeployReview flowId="new-flow" network="testnet" />);
     await act(async () => {
       finish(
-        response({ deploymentId: "d", xdr: "old-xdr", networkPassphrase: "server-passphrase" }),
+        response({
+          deploymentId: "22222222-2222-2222-2222-222222222222",
+          xdr: "old-xdr",
+          networkPassphrase: "Test SDF Network ; September 2015",
+        }),
       );
     });
     expect(mocks.signTransaction).not.toHaveBeenCalled();
@@ -282,16 +308,19 @@ describe("shared picker attempt lifecycle", () => {
           finish = resolve;
         }),
     );
-    const fetcher = vi
-      .fn()
-      .mockResolvedValue(
-        response({ deploymentId: "d", xdr: "unsigned", networkPassphrase: "server-passphrase" }),
-      );
+    const fetcher = vi.fn().mockResolvedValue(
+      response({
+        deploymentId: "22222222-2222-2222-2222-222222222222",
+        xdr: "unsigned",
+        networkPassphrase: "Test SDF Network ; September 2015",
+      }),
+    );
     vi.stubGlobal("fetch", fetcher);
     const view = render(<DeployReview flowId="f" network="testnet" />);
     fireEvent.click(screen.getByRole("button", { name: /deploy to testnet/i }));
     await waitFor(() => expect(mocks.getWalletKit).toHaveBeenCalled());
     await choose();
+    await waitFor(() => expect(finish).toBeTypeOf("function"));
     view.unmount();
     await act(async () => {
       finish({ signedTxXdr: "signed" });
@@ -306,7 +335,10 @@ describe("payroll picker attempt lifecycle", () => {
       if (url.endsWith("/payroll-recipients"))
         return response({ recipients: [{ address: ADDRESS, amount: "1000000" }] });
       if (url.endsWith("/employees/bank")) return response([]);
-      return response({ unsignedXdr: "old-payroll", networkPassphrase: "server-passphrase" });
+      return response({
+        unsignedXdr: "old-payroll",
+        networkPassphrase: "Test SDF Network ; September 2015",
+      });
     });
     vi.stubGlobal("fetch", fetcher);
     const view = render(
@@ -337,7 +369,10 @@ describe("payroll picker attempt lifecycle", () => {
       if (url.endsWith("/payroll-recipients"))
         return response({ recipients: [{ address: ADDRESS, amount: "1000000" }] });
       if (url.endsWith("/employees/bank")) return response([]);
-      return response({ unsignedXdr: "old-payroll", networkPassphrase: "server-passphrase" });
+      return response({
+        unsignedXdr: "old-payroll",
+        networkPassphrase: "Test SDF Network ; September 2015",
+      });
     });
     vi.stubGlobal("fetch", fetcher);
     const view = render(
@@ -346,6 +381,7 @@ describe("payroll picker attempt lifecycle", () => {
     fireEvent.click(await screen.findByRole("button", { name: "SAVE EMPLOYEES" }));
     await waitFor(() => expect(mocks.getWalletKit).toHaveBeenCalled());
     await choose();
+    await waitFor(() => expect(finish).toBeTypeOf("function"));
     view.unmount();
     await act(async () => {
       finish({ signedTxXdr: "signed" });

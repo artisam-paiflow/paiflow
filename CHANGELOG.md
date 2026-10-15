@@ -7,6 +7,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Validate every deployment wallet response and persist its public deployment ID
+  and transaction hash before submission. Preserve unresolved submissions across
+  navigation and reloads, with status-only recovery and browser admission locks.
+
 - Centralize mobile wallet names, icons and handoff links while preserving existing
   Freighter, LOBSTR and xBull behavior; keep Lantern gated on official metadata.
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { TemplateKind } from "@prisma/client";
 import type { Asset } from "@/lib/flows/schema";
@@ -12,6 +12,16 @@ import { apiError } from "@/lib/friendly-error";
 import { trackWalletConnection } from "@/lib/wallet-tracking";
 import { track } from "@/lib/analytics/client";
 import { classifyError } from "@/lib/analytics/classify-error";
+import { usePollTxStatus } from "@/lib/hooks/use-poll-tx-status";
+import {
+  DEPLOY_PENDING_EVENT,
+  clearPendingDeploy,
+  deployPendingKey,
+  readPendingDeploy,
+  savePendingDeploy,
+  withDeployLock,
+  type PendingDeploy,
+} from "@/lib/deploy-pending";
 import SwapQuotePreview from "@/components/builder/swap-quote-preview";
 import TrustlineWarnings from "@/components/deploy/trustline-warnings";
 import { connectSelectedWallet, assertWalletAttemptActive } from "./selected-wallet-connection";
@@ -35,12 +45,18 @@ export default function DeployReview({
 }) {
   const [busy, setBusy] = useState(false);
   const attemptRef = useRef<AbortController | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     setBusy(false);
     return () => {
       attemptRef.current?.abort();
     };
   }, [flowId, network]);
+  const pendingKey = deployPendingKey(flowId, network);
+  const [pending, setPending] = useState<PendingDeploy | null>(null);
+  const [storageReady, setStorageReady] = useState(false);
+  const [storageBlocked, setStorageBlocked] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const pollTxStatus = usePollTxStatus();
   const [pipeline, setPipeline] = useState<
     Array<{
       nodeId: string;
@@ -78,73 +94,212 @@ export default function DeployReview({
     };
   }, [trustlineCheck]);
 
+  function loadPending() {
+    try {
+      const saved = readPendingDeploy(pendingKey);
+      setPending(saved);
+      setStorageBlocked(false);
+      return saved;
+    } catch {
+      setStorageBlocked(true);
+      setStatusMessage(
+        "Deployment status storage is unavailable or invalid. Resolve it before deploying again.",
+      );
+      throw new Error("Deployment status storage is unavailable or invalid.");
+    } finally {
+      setStorageReady(true);
+    }
+  }
+  async function reconcile(saved: PendingDeploy, current: () => boolean, navigate = false) {
+    try {
+      const outcome = await pollTxStatus(saved.deploymentId, saved.txHash);
+      if (outcome.status !== "SUCCESS" && outcome.status !== "FAILED")
+        throw new Error("Deployment finality is unknown.");
+      clearPendingDeploy(pendingKey, saved);
+      if (!current()) return;
+      if (outcome.status === "SUCCESS") {
+        setStatusMessage(`Deployment confirmed: ${saved.deploymentId}`);
+        toast.success("Contract deployed.");
+        if (navigate) window.location.href = `/deployments/${saved.deploymentId}`;
+      } else {
+        setStatusMessage(`Deployment failed on the network: ${saved.txHash}. You can try again.`);
+        toastError(
+          new Error(outcome.errorMessage ?? "Deployment failed on the network"),
+          "Deploy failed",
+        );
+      }
+    } catch {
+      if (current())
+        setStatusMessage(
+          `Confirmation is still unknown for ${saved.txHash}. Check this deployment before deploying again.`,
+        );
+    }
+  }
+  async function checkPendingStatus(saved: PendingDeploy) {
+    if (attemptRef.current && !attemptRef.current.signal.aborted) return;
+    const controller = new AbortController();
+    attemptRef.current = controller;
+    const current = () => attemptRef.current === controller && !controller.signal.aborted;
+    setBusy(true);
+    try {
+      await withDeployLock(pendingKey, async () => {
+        const actual = readPendingDeploy(pendingKey);
+        if (actual?.deploymentId === saved.deploymentId && actual.txHash === saved.txHash)
+          await reconcile(actual, current);
+      });
+    } catch {
+      if (current())
+        setStatusMessage(
+          "Another tab may be checking this deployment. Its status remains unresolved.",
+        );
+    } finally {
+      if (attemptRef.current === controller) {
+        attemptRef.current = null;
+        if (!controller.signal.aborted) setBusy(false);
+      }
+    }
+  }
+  useEffect(() => {
+    setStorageReady(false);
+    setStatusMessage(null);
+    const refresh = () => {
+      try {
+        loadPending();
+      } catch {
+        /* Fail closed. */
+      }
+    };
+    window.addEventListener("storage", refresh);
+    window.addEventListener(DEPLOY_PENDING_EVENT, refresh);
+    try {
+      const saved = loadPending();
+      if (saved) void checkPendingStatus(saved);
+    } catch {
+      /* No new write without recovery state. */
+    }
+    return () => {
+      window.removeEventListener("storage", refresh);
+      window.removeEventListener(DEPLOY_PENDING_EVENT, refresh);
+    };
+    // Recovery reads the captured deployment/hash and never repeats prepare or submit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingKey]);
+
   async function onDeploy() {
-    if (!checkSettled || (attemptRef.current && !attemptRef.current.signal.aborted)) return;
+    if (
+      !checkSettled ||
+      !storageReady ||
+      storageBlocked ||
+      pending ||
+      (attemptRef.current && !attemptRef.current.signal.aborted)
+    )
+      return;
     const controller = new AbortController();
     attemptRef.current = controller;
     const { signal } = controller;
     const check = () => assertWalletAttemptActive(signal);
+    const current = () => attemptRef.current === controller && !signal.aborted;
     setBusy(true);
     track("deploy_started", { flow_id: flowId });
     let stage: "wallet" | "prepare" | "sign" | "submit" = "wallet";
     let deploymentId: string | undefined;
     try {
-      const { getWalletKit } = await import("@/components/deploy/wallet-kit");
-      check();
-      const shared = await getWalletKit(network);
-      check();
-      const connection = await connectSelectedWallet(shared, network, signal);
-      check();
-      if (!connection) return;
-      const { address, walletId } = connection;
-      void trackWalletConnection({
-        address,
-        network,
-        walletId,
-        surface: "deploy_review",
+      await withDeployLock(pendingKey, async () => {
+        let dispatched = false;
+        let onAbort!: () => void;
+        const cancelled = new Promise<never>((_resolve, reject) => {
+          onAbort = () => {
+            if (!dispatched) reject(new Error("Deployment cancelled before submission."));
+          };
+          signal.addEventListener("abort", onAbort, { once: true });
+          if (signal.aborted) onAbort();
+        });
+        const execute = async () => {
+          check();
+          const existing = loadPending();
+          if (existing) {
+            dispatched = true;
+            await reconcile(existing, current);
+            return;
+          }
+          const { getWalletKit } = await import("@/components/deploy/wallet-kit");
+          check();
+          const shared = await getWalletKit(network);
+          check();
+          const connection = await connectSelectedWallet(shared, network, signal);
+          check();
+          if (!connection) return;
+          const { address, walletId } = connection;
+          void trackWalletConnection({ address, network, walletId, surface: "deploy_review" });
+          stage = "prepare";
+          const prep = await fetch("/api/deployments/prepare", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ flowId, sourceAccount: address }),
+          });
+          check();
+          const prepData = await prep.json();
+          check();
+          if (!prep.ok) throw apiError(prepData, "Prepare failed");
+          setPipeline(prepData.data.pipeline ?? []);
+          deploymentId = prepData.data.deploymentId;
+          if (
+            typeof deploymentId !== "string" ||
+            typeof prepData.data.xdr !== "string" ||
+            typeof prepData.data.networkPassphrase !== "string" ||
+            !prepData.data.networkPassphrase
+          )
+            throw new Error("Missing deployment transaction payload");
+          const { assertWalletNetwork, signedWalletTransactionHash } =
+            await import("@/lib/stellar/wallet-signature");
+          check();
+          assertWalletNetwork(network, prepData.data.networkPassphrase);
+          stage = "sign";
+          const signed = await connection.signTransaction(prepData.data.xdr, {
+            address,
+            networkPassphrase: prepData.data.networkPassphrase,
+          });
+          check();
+          const txHash = signedWalletTransactionHash(
+            network,
+            prepData.data.xdr,
+            signed.signedTxXdr,
+            address,
+            prepData.data.networkPassphrase,
+          );
+          const saved = { deploymentId, txHash };
+          try {
+            savePendingDeploy(pendingKey, saved);
+          } catch (error) {
+            if (current()) {
+              setStorageBlocked(true);
+              setStatusMessage(
+                "Deployment status could not be saved. No transaction was submitted.",
+              );
+            }
+            throw error;
+          }
+          dispatched = true;
+          stage = "submit";
+          try {
+            void fetch(`/api/deployments/${deploymentId}/submit`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ signedXdr: signed.signedTxXdr }),
+            }).catch(() => {});
+          } catch {
+            /* Preserve the recorded hash even if the response is lost. */
+          }
+          await reconcile(saved, current, true);
+        };
+        try {
+          await Promise.race([execute(), cancelled]);
+        } finally {
+          signal.removeEventListener("abort", onAbort);
+        }
       });
-      stage = "prepare";
-      const prep = await fetch("/api/deployments/prepare", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ flowId, sourceAccount: address }),
-      });
-      check();
-      const prepData = await prep.json();
-      check();
-      if (!prep.ok) throw apiError(prepData, "Prepare failed");
-      setPipeline(prepData.data.pipeline ?? []);
-      deploymentId = prepData.data.deploymentId;
-
-      if (typeof prepData.data.networkPassphrase !== "string" || !prepData.data.networkPassphrase) {
-        throw new Error("Missing transaction network passphrase");
-      }
-      stage = "sign";
-      const signed = await connection.signTransaction(prepData.data.xdr, {
-        address,
-        networkPassphrase: prepData.data.networkPassphrase,
-      });
-
-      check();
-      stage = "submit";
-      const submit = await fetch(`/api/deployments/${prepData.data.deploymentId}/submit`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ signedXdr: signed.signedTxXdr }),
-      });
-      const subData = await submit.json();
-      check();
-      if (!submit.ok) throw apiError(subData, "Submit failed");
-      toast.success(
-        subData.data.status === "CONFIRMED"
-          ? "Contract deployed."
-          : "Transaction submitted; waiting for confirmation.",
-      );
-      window.location.href = `/deployments/${prepData.data.deploymentId}`;
     } catch (err) {
       if (signal.aborted) return;
-      // deploy_confirmed and the chain-side failure are captured server-side;
-      // this is the part only the browser sees: wallet, signing, refusals.
       const c = classifyError(err);
       track("deploy_failed", {
         stage,
@@ -230,7 +385,7 @@ export default function DeployReview({
       )}
       <button
         onClick={onDeploy}
-        disabled={busy || !checkSettled}
+        disabled={busy || !checkSettled || !storageReady || storageBlocked || Boolean(pending)}
         className="bg-primary px-md text-label-md text-on-primary inline-flex w-full items-center justify-center gap-2 rounded-lg py-3 font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_24px_rgba(255,177,196,0.55)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
       >
         {busy ? (
@@ -254,6 +409,29 @@ export default function DeployReview({
           </>
         )}
       </button>
+      {(pending || statusMessage) && (
+        <div role="status" className="text-on-surface-variant space-y-2 text-xs">
+          <p>
+            {statusMessage ??
+              `Deployment ${pending?.deploymentId} is awaiting confirmation. Check it before deploying again.`}
+          </p>
+          {pending && (
+            <>
+              <a className="text-secondary underline" href={`/deployments/${pending.deploymentId}`}>
+                VIEW DEPLOYMENT
+              </a>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void checkPendingStatus(pending)}
+                className="text-secondary ml-3 underline disabled:opacity-50"
+              >
+                CHECK DEPLOYMENT STATUS
+              </button>
+            </>
+          )}
+        </div>
+      )}
       <p className="text-label-sm text-on-surface-variant flex items-start gap-1.5 font-mono">
         <span className="material-symbols-outlined text-secondary mt-0.5 text-[14px]">
           shield_lock
