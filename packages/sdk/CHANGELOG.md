@@ -5,6 +5,11 @@ policy in `docs/releasing.md`; this metadata does not claim a published release.
 
 ## [Unreleased]
 
+### Changed
+
+- Document bounded SDK testnet verification and explicit Swap fee, demo-token,
+  scheduler and release-readiness limits, with links to the live evidence (#964).
+
 ### Fixed
 
 - Harden SDK cancellation cleanup and JSON bounds, retain contract-address validation

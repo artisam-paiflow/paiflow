@@ -1,11 +1,12 @@
 # SDK beta validation and release checklist
 
-Local validation for [#964](https://github.com/webnxt-2030/pinkraft/issues/964),
-2026-10-13. This candidate is **unreleased**. Local preparation is complete;
-independent exact-commit review, full CI and live verification are separate gates.
-No hosted requests, transactions, deployment, release tags or publication were
-performed by this validation. The existing hackathon manual evidence does not
-establish live support for this SDK candidate.
+Local validation for [#964](https://github.com/webnxt-2030/pinkraft/issues/964)
+began on 2026-10-13; the live checkpoint below is dated 2026-10-15. This candidate
+is **unreleased**. Bounded, separately authorized testnet workflows now have
+[SDK live evidence](../testing/2026-10-14-sdk-live-verification.md); remaining
+limitations, independent final-candidate review and exact-head CI remain separate
+gates. Historical hackathon evidence does not establish this SDK's live support.
+No release tag or npm publication is authorized by this checklist.
 
 ## Candidate identity and compatibility
 
@@ -100,40 +101,68 @@ cron, dev mutation/payroll/payout helpers, owner SSE/polling and owner QR routes
 are absent from deployment SDK namespaces. Hosted URL helpers only construct
 payment, allowance and embed URLs; eligibility remains the server's responsibility.
 
-## Live verification gate — outstanding
+## Live verification checkpoint — 2026-10-15
 
-There is no authorized wallet/testnet deployment, deployment token/Webhook secret,
-or known hosted app commit supplied for this candidate. Do not extract credentials
-from local files or reuse historical evidence to fill these gaps. Source schemas,
-fixtures, a read-only health response and HTTP 200 cannot complete this gate.
-[#964](https://github.com/webnxt-2030/pinkraft/issues/964) remains outstanding for
-live evidence; use the [manual verification queue](../hackathon/manual-verifications.md)
-and individual API funding/Schedule/Subscription guides for exact expectations.
+The [live evidence report](../testing/2026-10-14-sdk-live-verification.md) records
+packed SDK integrity, the testing host and actual app revisions, server-pinned
+testnet/passphrase, controlled fixtures, Freighter consent, transaction hashes,
+independent finality, state and indexed payout evidence. Its later sections
+supersede historical stopped checkpoints. Source fixtures, HTTP 200 and a quote
+alone are not financial-finality evidence. Credentials, signed authorization,
+opaque intents and signed envelopes remain private.
 
-For each applicable workflow, record the package commit and tarball integrity,
-hosted app commit/environment, server-returned testnet/passphrase, deployment/node
-IDs, publicly shareable wallet address, consent outcome, request/history IDs,
-transaction hash, final ledger/status, before/after contract state and matching
-indexed events. Never include secrets, opaque signed intents/auth or signed XDR.
+- [x] Existing deployment reads: capabilities, balances/freshness, positive
+      deployment-bound Swap quote, transaction lookup, filtered/paginated events,
+      public snapshots and two deliberate event-stream close/reopen connections.
+      Automatic network-fault recovery and heartbeat behavior were not induced.
+- [x] Payments: v1 and legacy public preparation, normal wallet consent, exact
+      original envelope verification, submission and matching finality/payout.
+      Wallet rejection sent no transaction; signing later used the same preparation.
+- [x] Funding: Schedule and Webhook discovery, exact native amount/asset consent,
+      submit and original-intent reconciliation, with separate balance/event effects.
+- [x] Schedule: state, pause/resume/retrieve and original-intent reconciliation;
+      transient SUBMITTING correctly blocked a subsequent replacement preparation.
+      The fixture was drained before its first scheduled release.
+- [x] Subscription: native allowance, manual charge/payout, cancel/reactivate/final
+      cancel on verified current WASMs, stable zero-approval authorization and final
+      zero allowance. Reactivation granted no allowance and performed no charge.
+- [x] Webhook escrow and early release: funded-pool payout, same-key original
+      attempt/transaction/event replay, changed-payload conflict, before-side early
+      release, independent finality and a separate drained-release refusal.
+- [x] Native Webhook execution: normal Freighter authorization retained both the
+      source-account entry and bounded wallet entry. Exact native 0.1 XLM receive/
+      payout reached SUCCESS at ledger 5201798; same-key replay and token cleanup
+      passed. The original REJECTED/PREPARATION_FAILED attempt was preserved and
+      definitively shown to have no submitted hash/acceptance before a fresh
+      nonce/event. This was an explicit subsequent operation, not an automatic retry.
+- [x] Public OpenAPI and payment/allowance/embed surfaces were exercised with
+      their source-defined authentication.
+- [ ] Positive demo-token mint: testing returned 403 FORBIDDEN because its demo
+      feature is disabled. The refusal and local contract tests are recorded;
+      positive hosted minting remains unavailable. Do not enable shared features
+      or reuse a shared financial fixture solely to remove this limitation.
+- [ ] Real Swap execution remains unverified. A normal wallet-signed trustline
+      for the exact testnet Circle USDC asset succeeded at ledger 5201761, with a
+      1 USDC receiving limit and 0.5 XLM reserve. It remains open with zero USDC.
+      Two independent unsigned simulations quoted 590692710 and 590802880 fee
+      stroops (about 59 XLM), exceeding the reviewed 1 XLM ceiling. The guard
+      remained intact; no Swap execution was signed/submitted and no fee increase
+      was authorized. A positive quote proves an estimate, not execution; Swap
+      quoting adds no separate execution HTTP row to the 42-operation matrix.
+- [x] Reconcile fixture balances and revoke dedicated testing API tokens after
+      their final tests. Final owner-scoped inventory confirmed zero active tokens.
+      The original retired lost-wallet fixture retains its 1 XLM on-chain
+      allowance; retirement does not revoke it. The controlled old-WASM fixture
+      has zero allowance and retired service.
+- [ ] Complete final independent evidence/candidate review and exact-head CI before
+      claiming the verification candidate ready to merge.
 
-- [ ] Existing deployment reads: capabilities, balances/freshness, quote, tx lookup,
-      filtered paginated event recovery and public snapshots/stream reconnection.
-- [ ] Payments: v1 and legacy public prepare → wallet consent → exact original
-      envelope verification → submit → appropriate finality/business receipt;
-      rejection/cancellation sends no transaction and uncertainty causes no rebuild.
-- [ ] Funding: Schedule and Webhook discovery, exact asset/amount consent, submit
-      and reconcile; record actual balance/event effects separately from funding
-      receipt. Do not trigger a payout or callback merely by assuming funding succeeded.
-- [ ] Schedule: state and pause/resume/retrieve, controller consent, confirmed state
-      change and ledger-proven replacement/expiry handling where applicable.
-- [ ] Subscription: state, cancel/reactivate and public additive allowance, including
-      actual allowance revocation/grant and charge behavior under the manual queue.
-      Reactivation alone grants no allowance and performs no immediate charge.
-- [ ] Webhook: native authorization or funded pool as appropriate, caller-persisted
-      keyed duplicate/conflict behavior, uncertain recovery and release-early
-      eligibility; preserve financial state rather than equating 202 with success.
-- [ ] Public utilities/hosted URLs: OpenAPI, explicitly authorized demo token mint,
-      payment/allowance/embed availability and source-defined authentication.
+The testing environment has no configured unattended Subscription scheduler.
+An authorized manual cron call establishes bounded handler/charge behavior only.
+Observed display balances can retain a pre-mutation value for ten seconds;
+financial verification used original receipts and refreshed/direct chain reads.
+No production/mainnet support or universal success across deployed contract
+versions follows from these isolated testnet workflows.
 
 ## Publication gate — separately authorized
 
