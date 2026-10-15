@@ -1,13 +1,22 @@
 # Changelog
 
 SDK versions are independent of the app and API. Follow the repository release
-policy in `docs/releasing.md`; this metadata does not claim a published release.
+[release policy](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/releasing.md).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-15
+
+First beta: targets API v1 and the explicitly documented public/Webhook routes
+on Node `>=22.22.2 <23`; ESM with TypeScript declarations, no runtime dependencies
+or migration requirement.
+
 ### Changed
 
-- Document bounded SDK testnet verification and explicit Swap fee, demo-token,
+- Record the independently verified real testnet Swap, exact USDC receipt and
+  measured storage-rent fee; retain demo-token and unattended-scheduler limits (#982).
+
+- Document bounded SDK testnet verification and explicit transaction-fee, demo-token,
   scheduler and release-readiness limits, with links to the live evidence (#964).
 
 ### Fixed

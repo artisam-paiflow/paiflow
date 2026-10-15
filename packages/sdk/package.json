@@ -1,7 +1,7 @@
 {
   "name": "@paiflow/sdk",
   "version": "0.1.0",
-  "description": "Node SDK for existing Paiflow deployments (unreleased)",
+  "description": "Node SDK for existing Paiflow deployments",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -23,7 +23,8 @@
   ],
   "sideEffects": false,
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "tag": "beta"
   },
   "repository": {
     "type": "git",
