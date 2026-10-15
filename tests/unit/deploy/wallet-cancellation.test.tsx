@@ -56,8 +56,11 @@ describe("wallet signing cancellation analytics", () => {
     localStorage.clear();
     vi.stubGlobal("navigator", {
       locks: {
-        request: async (_key: string, _opts: unknown, fn: (lock: object) => Promise<void>) =>
-          fn({}),
+        request: async (
+          _key: string,
+          _options: unknown,
+          callback: (lock: object) => Promise<void>,
+        ) => callback({}),
       },
     });
   });
