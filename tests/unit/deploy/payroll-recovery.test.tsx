@@ -1,5 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TriggerButton } from "@/components/deploy/trigger-button";
+import { allowancePendingKey } from "@/lib/subscription/allowance-pending";
 import EmployeeManager from "@/components/payroll/employee-manager";
 import ContractCallButton from "@/components/deploy/contract-call-button";
 import { payrollPendingKey, savePendingPayroll } from "@/lib/payroll-pending";
@@ -14,7 +16,10 @@ const mocks = vi.hoisted(() => ({
   hash: vi.fn(),
   network: vi.fn(),
 }));
-vi.mock("@/components/deploy/wallet-kit", () => ({ getWalletKit: mocks.kit }));
+vi.mock("@/components/deploy/wallet-kit", () => ({
+  getWalletKit: mocks.kit,
+  getCachedWalletKit: vi.fn(),
+}));
 vi.mock("@/components/deploy/selected-wallet-connection", () => ({
   connectSelectedWallet: mocks.connect,
   assertWalletAttemptActive: (signal: AbortSignal) => signal.throwIfAborted(),
@@ -78,6 +83,7 @@ beforeEach(() => {
       request: async (_key: string, _opts: unknown, fn: (lock: object) => Promise<void>) => fn({}),
     },
   });
+  vi.stubGlobal("matchMedia", () => ({ matches: false }));
   vi.stubGlobal("fetch", mocks.fetch);
   prepared = { unsignedXdr: unsigned, networkPassphrase: Networks.TESTNET };
   mocks.fetch.mockImplementation(async (url: string, opts?: { method?: string }) => {
@@ -307,5 +313,54 @@ describe("payroll conservative request recovery", () => {
     fireEvent.click(screen.getByRole("button", { name: /RUN/ }));
     expect(prepare).not.toHaveBeenCalled();
     expect(mocks.connect).not.toHaveBeenCalled();
+  });
+  it.each(["corrupt", JSON.stringify({ txHash: HASH, intent: "opaque-test-intent" })])(
+    "payroll rechecks unresolved legacy allowance under admission without an event: %s",
+    async (raw) => {
+      await load();
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "SAVE EMPLOYEES" })).toBeDefined(),
+      );
+      localStorage.setItem(allowancePendingKey(ID, "testnet"), raw);
+      await save();
+      await waitFor(() => expect(mocks.error).toHaveBeenCalledOnce());
+      expect(mocks.fetch.mock.calls.some(([, opts]) => opts?.method === "POST")).toBe(false);
+      expect(localStorage.getItem(allowancePendingKey(ID, "testnet"))).toBe(raw);
+    },
+  );
+  it("payroll disables updating for a restored allowance marker", async () => {
+    localStorage.setItem(
+      allowancePendingKey(ID, "testnet"),
+      JSON.stringify({ txHash: HASH, intent: "opaque-test-intent" }),
+    );
+    await load();
+    const button = await screen.findByRole("button", { name: "SAVE EMPLOYEES" });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect(mocks.fetch.mock.calls.some(([, opts]) => opts?.method === "POST")).toBe(false);
+  });
+  it.each([
+    "corrupt",
+    JSON.stringify({ requestId: ID, phase: "prepare" }),
+    JSON.stringify({ requestId: ID, phase: "transactions", txHashes: [HASH, OTHER_HASH] }),
+  ])("Trigger rechecks payroll marker under admission without an event: %s", async (raw) => {
+    render(<TriggerButton deploymentId={ID} network="testnet" amount="1000000" />);
+    localStorage.setItem(KEY, raw);
+    await act(async () =>
+      fireEvent.click(screen.getByRole("button", { name: /connect wallet & trigger/i })),
+    );
+    await waitFor(() => expect(mocks.error).toHaveBeenCalledOnce());
+    expect(mocks.kit).not.toHaveBeenCalled();
+    expect(mocks.fetch.mock.calls.some(([, opts]) => opts?.method === "POST")).toBe(false);
+    expect(localStorage.getItem(KEY)).toBe(raw);
+  });
+  it("Trigger observes same-tab payroll notification and disables new actions", async () => {
+    render(<TriggerButton deploymentId={ID} network="testnet" amount="1000000" />);
+    await act(async () => savePendingPayroll(KEY, { requestId: ID, phase: "prepare" }));
+    expect(
+      (screen.getByRole("button", { name: /connect wallet & trigger/i }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(screen.getByRole("status").textContent).toContain("payroll request");
+    expect(mocks.kit).not.toHaveBeenCalled();
   });
 });

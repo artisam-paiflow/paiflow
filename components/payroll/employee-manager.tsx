@@ -21,6 +21,7 @@ import {
   readPendingContractCall,
   withContractCallLock,
 } from "@/lib/contract-call-pending";
+import { readAllowancePendingHash } from "@/lib/subscription/allowance-pending";
 import {
   clearPendingPayroll,
   payrollPendingKey,
@@ -78,7 +79,17 @@ export default function EmployeeManager({
     try {
       const saved = readPendingPayroll(pendingKey);
       setPending(saved);
-      setRecoveryBlocked(Boolean(readPendingContractCall(admissionKey)));
+      const contractPending = readPendingContractCall(admissionKey);
+      const allowanceHash = readAllowancePendingHash(deploymentId, network);
+      setRecoveryBlocked(Boolean(contractPending) || Boolean(allowanceHash));
+      if (allowanceHash)
+        setStatusMessage(
+          "An allowance approval is unresolved. Check its status on the allowance page before updating payroll.",
+        );
+      else if (contractPending)
+        setStatusMessage(
+          "A contract action is unresolved. Check its status before updating payroll.",
+        );
       return saved;
     } catch {
       setRecoveryBlocked(true);
@@ -318,7 +329,10 @@ export default function EmployeeManager({
         });
         const execute = async () => {
           check();
-          if (readPendingContractCall(admissionKey))
+          if (
+            readPendingContractCall(admissionKey) ||
+            readAllowancePendingHash(deploymentId, network)
+          )
             throw new Error("Resolve the pending transaction before updating payroll.");
           const existing = loadPending();
           if (existing) {
@@ -406,6 +420,13 @@ export default function EmployeeManager({
             phase: "transactions",
             txHashes: [txHash],
           };
+          if (
+            readPendingContractCall(admissionKey) ||
+            readAllowancePendingHash(deploymentId, network)
+          )
+            throw new Error(
+              "Resolve the pending transaction or allowance approval before updating payroll.",
+            );
           savePendingPayroll(pendingKey, saved);
           mayHaveWritten = true;
           try {

@@ -46,3 +46,10 @@ or an old request age is not proof of finality. Do not clear site storage or rep
 the request to test whether it succeeded. Adding a durable server request receipt
 is separate work. Automated tests prove browser admission and recovery behavior;
 they do not claim an actual wallet/phone rehearsal or a delivered Lantern build.
+
+This change hardens wallet and chain-update admission only. The separate SAVE
+BANK DETAILS loop remains outside scope: it can continue later bank-only POSTs
+after navigation, and needs its own captured-input/lifecycle follow-up. It is not
+covered by claims about chain-update cancellation or by the no-fiat acceptance
+fixture. Local follow-up reference: `payroll-bank-details-lifecycle` in this
+document; no claim of complete EmployeeManager mutation hardening is made.

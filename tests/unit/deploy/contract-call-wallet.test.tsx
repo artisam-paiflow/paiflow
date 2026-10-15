@@ -542,3 +542,72 @@ describe("WalletConnect contract actions", () => {
     expect(mocks.verifySigned).not.toHaveBeenCalled();
   });
 });
+
+describe("allowance protocol cross-surface admission", () => {
+  const key = "paiflow_allowance_pending:deployment-one:testnet";
+  function saveApproval() {
+    localStorage.setItem(key, JSON.stringify({ txHash: HASH, intent: "private-approval-intent" }));
+  }
+  it("blocks a generic action without copying, polling, or clearing the allowance intent", async () => {
+    saveApproval();
+    const original = localStorage.getItem(key);
+    render(<ContractCallButton {...props} />);
+    await waitFor(() =>
+      expect(screen.getByText(/check its status on the allowance page/i)).toBeDefined(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /charge now/i }));
+    expect(mocks.getWalletKit).not.toHaveBeenCalled();
+    expect(mocks.poll).not.toHaveBeenCalled();
+    expect(submit).not.toHaveBeenCalled();
+    expect(localStorage.getItem(key)).toBe(original);
+    expect(localStorage.getItem(PENDING_KEY)).toBeNull();
+  });
+  it("checks the allowance marker again inside the shared lock before wallet access", async () => {
+    const locking = vi
+      .spyOn(navigator.locks, "request")
+      .mockImplementation(async (_key, _options, callback) => {
+        saveApproval();
+        return callback({} as Lock);
+      });
+    render(<ContractCallButton {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: /charge now/i }));
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalled());
+    expect(mocks.getWalletKit).not.toHaveBeenCalled();
+    expect(submit).not.toHaveBeenCalled();
+    locking.mockRestore();
+  });
+  it("rejects an allowance marker that appears during wallet approval before generic admission", async () => {
+    mocks.sign.mockImplementation(async () => {
+      saveApproval();
+      return { signedTxXdr: "signed" };
+    });
+    await open();
+    await choose();
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalled());
+    expect(submit).not.toHaveBeenCalled();
+    expect(localStorage.getItem(PENDING_KEY)).toBeNull();
+    expect(localStorage.getItem(key)).toContain("private-approval-intent");
+  });
+  it("fails closed on corrupt allowance state", async () => {
+    localStorage.setItem(key, "{}");
+    render(<ContractCallButton {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: /charge now/i }));
+    expect(mocks.getWalletKit).not.toHaveBeenCalled();
+    expect(submit).not.toHaveBeenCalled();
+    expect(localStorage.getItem(key)).toBe("{}");
+  });
+  it("refreshes availability when allowance-specific reconciliation clears its marker", async () => {
+    saveApproval();
+    render(<ContractCallButton {...props} />);
+    expect(
+      (screen.getByRole("button", { name: /charge now/i }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    await act(async () => {
+      localStorage.removeItem(key);
+      window.dispatchEvent(new Event("paiflow-contract-call-pending"));
+    });
+    expect(
+      (screen.getByRole("button", { name: /charge now/i }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+  });
+});
