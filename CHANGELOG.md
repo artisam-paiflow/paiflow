@@ -7,6 +7,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Add an optional total relayer transaction fee ceiling before envelope signing;
+  configuring it also refuses automatic restoration in the invocation builder.
+
 - Prepare the first `@paiflow/sdk@0.1.0` beta release metadata and documentation;
   publication and the release tag remain pending separate approval.
 
