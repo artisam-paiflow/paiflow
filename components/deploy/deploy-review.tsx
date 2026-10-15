@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { TemplateKind } from "@prisma/client";
 import type { Asset } from "@/lib/flows/schema";
@@ -14,7 +14,7 @@ import { track } from "@/lib/analytics/client";
 import { classifyError } from "@/lib/analytics/classify-error";
 import SwapQuotePreview from "@/components/builder/swap-quote-preview";
 import TrustlineWarnings from "@/components/deploy/trustline-warnings";
-import { selectWallet } from "./select-wallet";
+import { connectSelectedWallet, assertWalletAttemptActive } from "./selected-wallet-connection";
 
 type StellarNetwork = "testnet" | "mainnet";
 
@@ -34,6 +34,13 @@ export default function DeployReview({
   trustlineCheck?: Promise<TrustlineCheck[]>;
 }) {
   const [busy, setBusy] = useState(false);
+  const attemptRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    setBusy(false);
+    return () => {
+      attemptRef.current?.abort();
+    };
+  }, [flowId, network]);
   const [pipeline, setPipeline] = useState<
     Array<{
       nodeId: string;
@@ -72,26 +79,28 @@ export default function DeployReview({
   }, [trustlineCheck]);
 
   async function onDeploy() {
-    if (!checkSettled) return;
+    if (!checkSettled || (attemptRef.current && !attemptRef.current.signal.aborted)) return;
+    const controller = new AbortController();
+    attemptRef.current = controller;
+    const { signal } = controller;
+    const check = () => assertWalletAttemptActive(signal);
     setBusy(true);
     track("deploy_started", { flow_id: flowId });
     let stage: "wallet" | "prepare" | "sign" | "submit" = "wallet";
     let deploymentId: string | undefined;
     try {
       const { getWalletKit } = await import("@/components/deploy/wallet-kit");
-      const { kit, module } = await getWalletKit(network);
-      const wallet = await selectWallet(kit);
-      if (!wallet) return;
-      kit.setWallet(wallet.id);
-      if (wallet.id === "wallet_connect" && module) {
-        const session = await module.connectWalletConnect();
-        module.setSession(session.id);
-      }
-      const { address } = await kit.getAddress();
+      check();
+      const shared = await getWalletKit(network);
+      check();
+      const connection = await connectSelectedWallet(shared, network, signal);
+      check();
+      if (!connection) return;
+      const { address, walletId } = connection;
       void trackWalletConnection({
         address,
         network,
-        walletId: wallet.id,
+        walletId,
         surface: "deploy_review",
       });
       stage = "prepare";
@@ -100,7 +109,9 @@ export default function DeployReview({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ flowId, sourceAccount: address }),
       });
+      check();
       const prepData = await prep.json();
+      check();
       if (!prep.ok) throw apiError(prepData, "Prepare failed");
       setPipeline(prepData.data.pipeline ?? []);
       deploymentId = prepData.data.deploymentId;
@@ -109,11 +120,12 @@ export default function DeployReview({
         throw new Error("Missing transaction network passphrase");
       }
       stage = "sign";
-      const signed = await kit.signTransaction(prepData.data.xdr, {
+      const signed = await connection.signTransaction(prepData.data.xdr, {
         address,
         networkPassphrase: prepData.data.networkPassphrase,
       });
 
+      check();
       stage = "submit";
       const submit = await fetch(`/api/deployments/${prepData.data.deploymentId}/submit`, {
         method: "POST",
@@ -121,6 +133,7 @@ export default function DeployReview({
         body: JSON.stringify({ signedXdr: signed.signedTxXdr }),
       });
       const subData = await submit.json();
+      check();
       if (!submit.ok) throw apiError(subData, "Submit failed");
       toast.success(
         subData.data.status === "CONFIRMED"
@@ -129,6 +142,7 @@ export default function DeployReview({
       );
       window.location.href = `/deployments/${prepData.data.deploymentId}`;
     } catch (err) {
+      if (signal.aborted) return;
       // deploy_confirmed and the chain-side failure are captured server-side;
       // this is the part only the browser sees: wallet, signing, refusals.
       const c = classifyError(err);
@@ -141,7 +155,10 @@ export default function DeployReview({
       });
       toastError(err, "Deploy failed");
     } finally {
-      setBusy(false);
+      if (attemptRef.current === controller) {
+        attemptRef.current = null;
+        if (!signal.aborted) setBusy(false);
+      }
     }
   }
 

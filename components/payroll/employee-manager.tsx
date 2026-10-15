@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { toastError } from "@/lib/friendly-toast";
 import { trackWalletConnection } from "@/lib/wallet-tracking";
@@ -10,7 +10,10 @@ import type { Asset } from "@/lib/flows/schema";
 import { assetLabel } from "@/lib/flows/schema";
 import { usePollTxStatus } from "@/lib/hooks/use-poll-tx-status";
 import { apiError } from "@/lib/friendly-error";
-import { selectWallet } from "@/components/deploy/select-wallet";
+import {
+  connectSelectedWallet,
+  assertWalletAttemptActive,
+} from "@/components/deploy/selected-wallet-connection";
 
 type Employee = {
   address: string;
@@ -38,6 +41,13 @@ export default function EmployeeManager({
   const [bankDetails, setBankDetails] = useState<Record<string, BankDetail | null>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const attemptRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    setSaving(false);
+    return () => {
+      attemptRef.current?.abort();
+    };
+  }, [deploymentId, network]);
   const [savingBanks, setSavingBanks] = useState(false);
   const pollTxStatus = usePollTxStatus();
 
@@ -138,7 +148,11 @@ export default function EmployeeManager({
   };
 
   const save = async () => {
-    if (!validate()) return;
+    if (!validate() || (attemptRef.current && !attemptRef.current.signal.aborted)) return;
+    const controller = new AbortController();
+    attemptRef.current = controller;
+    const { signal } = controller;
+    const check = () => assertWalletAttemptActive(signal);
     setSaving(true);
     try {
       const res = await fetch(`/api/deployments/${deploymentId}/payroll-update-recipients`, {
@@ -163,6 +177,7 @@ export default function EmployeeManager({
         };
         error?: { message?: string };
       };
+      check();
       if (!res.ok) throw apiError(json, "Failed to prepare update");
       const data = json.data;
       if (!data) throw new Error("Prepare failed");
@@ -170,8 +185,9 @@ export default function EmployeeManager({
       if (data.txHashes) {
         toast.info("Transactions submitted. Waiting for confirmation...");
         const results = await Promise.all(
-          data.txHashes.map((txHash) => pollTxStatus(deploymentId, txHash)),
+          data.txHashes.map((txHash) => pollTxStatus(deploymentId, txHash, signal)),
         );
+        check();
         const failed = results.find((r) => r.status === "FAILED");
         if (failed) {
           throw new Error(failed.errorMessage ?? "Transaction failed on the network");
@@ -191,34 +207,38 @@ export default function EmployeeManager({
 
       const { unsignedXdr, networkPassphrase } = data;
       const { getWalletKit } = await import("@/components/deploy/wallet-kit");
-      const { kit, module } = await getWalletKit(network);
-      const wallet = await selectWallet(kit);
-      if (!wallet) {
+      check();
+      const shared = await getWalletKit(network);
+      check();
+      const connection = await connectSelectedWallet(shared, network, signal);
+      check();
+      if (!connection) {
         toast.warning("Update cancelled");
         return;
       }
-      kit.setWallet(wallet.id);
-      if (wallet.id === "wallet_connect" && module) {
-        const session = await module.connectWalletConnect();
-        module.setSession(session.id);
-      }
-      const { address } = await kit.getAddress();
-      void trackWalletConnection({ address, network, walletId: wallet.id, surface: "payroll" });
-      const { signedTxXdr } = await kit.signTransaction(unsignedXdr, {
+      const { address, walletId } = connection;
+      void trackWalletConnection({ address, network, walletId, surface: "payroll" });
+      const { signedTxXdr } = await connection.signTransaction(unsignedXdr, {
         address,
         networkPassphrase,
       });
+      check();
       const submitRes = await fetch(`/api/deployments/${deploymentId}/submit-invoke`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ signedXdr: signedTxXdr }),
       });
+      check();
       if (!submitRes.ok) throw apiError(await submitRes.json(), "Submit failed");
       toast.success("Employees updated on-chain");
     } catch (err) {
+      if (signal.aborted) return;
       toastError(err, "Update failed");
     } finally {
-      setSaving(false);
+      if (attemptRef.current === controller) {
+        attemptRef.current = null;
+        if (!signal.aborted) setSaving(false);
+      }
     }
   };
 

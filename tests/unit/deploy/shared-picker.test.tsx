@@ -91,11 +91,27 @@ describe("DeployReview shared picker", () => {
 
   it("pairs WalletConnect before resolving the address and preparing", async () => {
     const shared = await mocks.getWalletKit();
-    const connectWalletConnect = vi.fn(async () => ({ id: "new-topic" }));
+    const connectWalletConnect = vi.fn(async () => ({
+      id: "new-topic",
+      accounts: [{ network: "testnet", publicKey: ADDRESS }],
+    }));
     const setSession = vi.fn();
     mocks.getWalletKit.mockResolvedValue({
       ...shared,
       module: { connectWalletConnect, setSession },
+      client: {
+        session: {
+          values: [
+            {
+              topic: "new-topic",
+              expiry: Date.now() / 1000 + 600,
+              namespaces: {
+                stellar: { accounts: [`stellar:testnet:${ADDRESS}`], methods: ["stellar_signXDR"] },
+              },
+            },
+          ],
+        },
+      },
     });
     const fetcher = vi.fn().mockResolvedValue(response({}, false));
     vi.stubGlobal("fetch", fetcher);
@@ -104,10 +120,8 @@ describe("DeployReview shared picker", () => {
     await waitFor(() => expect(mocks.getWalletKit).toHaveBeenCalledWith("testnet"));
     await choose("wallet_connect");
     expect(connectWalletConnect).toHaveBeenCalledTimes(1);
-    expect(setSession).toHaveBeenCalledWith("new-topic");
-    expect(connectWalletConnect.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.getAddress.mock.invocationCallOrder[0]!,
-    );
+    expect(setSession).not.toHaveBeenCalled();
+    expect(mocks.getAddress).not.toHaveBeenCalled();
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
@@ -215,4 +229,127 @@ describe("EmployeeManager shared picker", () => {
       expect(fetcher.mock.calls.filter(([url]) => url.endsWith("/submit-invoke"))).toHaveLength(1);
     },
   );
+});
+
+describe("shared picker attempt lifecycle", () => {
+  it.each(["unmount", "flow change"])(
+    "cannot prepare from a stale picker after %s",
+    async (action) => {
+      const fetcher = vi.fn();
+      vi.stubGlobal("fetch", fetcher);
+      const view = render(<DeployReview flowId="old-flow" network="testnet" />);
+      fireEvent.click(screen.getByRole("button", { name: /deploy to testnet/i }));
+      await waitFor(() => expect(mocks.getWalletKit).toHaveBeenCalled());
+      const oldPicker = picker;
+      if (action === "unmount") view.unmount();
+      else view.rerender(<DeployReview flowId="new-flow" network="testnet" />);
+      await act(async () => {
+        oldPicker.onWalletSelected({ id: "freighter", name: "Freighter" });
+      });
+      expect(fetcher).not.toHaveBeenCalled();
+      expect(mocks.signTransaction).not.toHaveBeenCalled();
+    },
+  );
+
+  it("cannot sign after preparation finishes on a changed flow", async () => {
+    let finish!: (value: unknown) => void;
+    const fetcher = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetcher);
+    const view = render(<DeployReview flowId="old-flow" network="testnet" />);
+    fireEvent.click(screen.getByRole("button", { name: /deploy to testnet/i }));
+    await waitFor(() => expect(mocks.getWalletKit).toHaveBeenCalled());
+    await choose();
+    view.rerender(<DeployReview flowId="new-flow" network="testnet" />);
+    await act(async () => {
+      finish(
+        response({ deploymentId: "d", xdr: "old-xdr", networkPassphrase: "server-passphrase" }),
+      );
+    });
+    expect(mocks.signTransaction).not.toHaveBeenCalled();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("cannot submit after signing completes on an unmounted view", async () => {
+    let finish!: (value: unknown) => void;
+    mocks.signTransaction.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(
+        response({ deploymentId: "d", xdr: "unsigned", networkPassphrase: "server-passphrase" }),
+      );
+    vi.stubGlobal("fetch", fetcher);
+    const view = render(<DeployReview flowId="f" network="testnet" />);
+    fireEvent.click(screen.getByRole("button", { name: /deploy to testnet/i }));
+    await waitFor(() => expect(mocks.getWalletKit).toHaveBeenCalled());
+    await choose();
+    view.unmount();
+    await act(async () => {
+      finish({ signedTxXdr: "signed" });
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("payroll picker attempt lifecycle", () => {
+  it("cannot sign from a picker after the deployment changes", async () => {
+    const fetcher = vi.fn().mockImplementation(async (url: string) => {
+      if (url.endsWith("/payroll-recipients"))
+        return response({ recipients: [{ address: ADDRESS, amount: "1000000" }] });
+      if (url.endsWith("/employees/bank")) return response([]);
+      return response({ unsignedXdr: "old-payroll", networkPassphrase: "server-passphrase" });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    const view = render(
+      <EmployeeManager deploymentId="old" asset={{ kind: "native" }} network="testnet" />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "SAVE EMPLOYEES" }));
+    await waitFor(() => expect(mocks.getWalletKit).toHaveBeenCalled());
+    const oldPicker = picker;
+    view.rerender(
+      <EmployeeManager deploymentId="new" asset={{ kind: "native" }} network="testnet" />,
+    );
+    await act(async () => {
+      oldPicker.onWalletSelected({ id: "freighter", name: "Freighter" });
+    });
+    expect(mocks.signTransaction).not.toHaveBeenCalled();
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith("/submit-invoke"))).toHaveLength(0);
+  });
+
+  it("cannot submit after signing returns to an unmounted payroll view", async () => {
+    let finish!: (value: unknown) => void;
+    mocks.signTransaction.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const fetcher = vi.fn().mockImplementation(async (url: string) => {
+      if (url.endsWith("/payroll-recipients"))
+        return response({ recipients: [{ address: ADDRESS, amount: "1000000" }] });
+      if (url.endsWith("/employees/bank")) return response([]);
+      return response({ unsignedXdr: "old-payroll", networkPassphrase: "server-passphrase" });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    const view = render(
+      <EmployeeManager deploymentId="old" asset={{ kind: "native" }} network="testnet" />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "SAVE EMPLOYEES" }));
+    await waitFor(() => expect(mocks.getWalletKit).toHaveBeenCalled());
+    await choose();
+    view.unmount();
+    await act(async () => {
+      finish({ signedTxXdr: "signed" });
+    });
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith("/submit-invoke"))).toHaveLength(0);
+  });
 });
