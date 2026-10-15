@@ -7,6 +7,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Isolate shared wallet signing from deprecated payroll recovery names while retaining
+  legacy deployment-request reservations; exclude payroll/off-ramp from Lantern acceptance
+  and document the existing flags that block new use without stopping settlement.
+
 - Align alpha testing guides and PDFs with the shared wallet picker, keeping
   Freighter as the wallet for this test plan and Lantern explicitly unavailable.
 

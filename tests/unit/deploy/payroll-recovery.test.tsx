@@ -360,7 +360,7 @@ describe("payroll conservative request recovery", () => {
       (screen.getByRole("button", { name: /connect wallet & trigger/i }) as HTMLButtonElement)
         .disabled,
     ).toBe(true);
-    expect(screen.getByRole("status").textContent).toContain("payroll request");
+    expect(screen.getByRole("status").textContent).toContain("deployment request");
     expect(mocks.kit).not.toHaveBeenCalled();
   });
 });

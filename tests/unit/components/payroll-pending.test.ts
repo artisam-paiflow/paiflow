@@ -7,6 +7,13 @@ import {
   savePendingPayroll,
   type PendingPayroll,
 } from "@/lib/payroll-pending";
+import {
+  assertNoPendingDeploymentRequest,
+  clearPendingDeploymentRequest,
+  deploymentRequestPendingKey,
+  readPendingDeploymentRequest,
+  savePendingDeploymentRequest,
+} from "@/lib/deployment-request-pending";
 const ID = "11111111-1111-1111-1111-111111111111";
 const OTHER = "22222222-2222-2222-2222-222222222222";
 const HASH = "a".repeat(64);
@@ -28,6 +35,19 @@ beforeEach(() => {
   vi.stubGlobal("window", new EventTarget());
 });
 describe("payroll request recovery", () => {
+  it("shares legacy reservations with generic signing without migrating or deleting them", () => {
+    expect(deploymentRequestPendingKey("deployment", "testnet")).toBe(KEY);
+    savePendingPayroll(KEY, request);
+    expect(readPendingDeploymentRequest(KEY)).toEqual(request);
+    expect(() => assertNoPendingDeploymentRequest("deployment", "testnet")).toThrow(/unresolved/);
+    expect(() => assertNoPendingDeploymentRequest("another", "testnet")).not.toThrow();
+    savePendingDeploymentRequest(KEY, hashes, request);
+    expect(readPendingPayroll(KEY)).toEqual(hashes);
+    clearPendingDeploymentRequest(KEY, request);
+    expect(readPendingPayroll(KEY)).toEqual(hashes);
+    clearPendingPayroll(KEY, hashes);
+    expect(readPendingDeploymentRequest(KEY)).toBeNull();
+  });
   it("allowlists public state, scopes networks, and blocks competing admissions", () => {
     savePendingPayroll(KEY, { ...request, roster: "private" } as PendingPayroll);
     expect(storage.get(KEY)).toBe(JSON.stringify(request));
