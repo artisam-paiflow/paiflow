@@ -7,6 +7,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Use the shared wallet picker for deployment and payroll employee updates, record
+  the chosen wallet, and sign with the server-provided transaction network.
+
 - Save analytics snapshots beside an explicitly selected environment file by
   default; retain `--dir` overrides and the existing fallback without `--env-file`.
 

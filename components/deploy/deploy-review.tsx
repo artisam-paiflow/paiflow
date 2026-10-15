@@ -14,42 +14,11 @@ import { track } from "@/lib/analytics/client";
 import { classifyError } from "@/lib/analytics/classify-error";
 import SwapQuotePreview from "@/components/builder/swap-quote-preview";
 import TrustlineWarnings from "@/components/deploy/trustline-warnings";
-
-type WalletKit = {
-  getAddress: () => Promise<{ address: string }>;
-  signTransaction: (
-    xdr: string,
-    opts: { address?: string; networkPassphrase: string },
-  ) => Promise<{ signedTxXdr: string }>;
-};
+import { selectWallet } from "./select-wallet";
 
 type StellarNetwork = "testnet" | "mainnet";
 
 const CHECK_WAIT_CAP_MS = 15_000;
-
-const PASSPHRASE_BY_NETWORK: Record<StellarNetwork, string> = {
-  testnet: "Test SDF Network ; September 2015",
-  mainnet: "Public Global Stellar Network ; September 2015",
-};
-
-async function connectWallet(network: StellarNetwork): Promise<WalletKit> {
-  const mod = await import("@creit.tech/stellar-wallets-kit");
-  const { StellarWalletsKit, WalletNetwork, allowAllModules, FREIGHTER_ID } = mod as unknown as {
-    StellarWalletsKit: new (opts: {
-      network: string;
-      selectedWalletId: string;
-      modules: unknown[];
-    }) => WalletKit;
-    WalletNetwork: { TESTNET: string; PUBLIC: string };
-    allowAllModules: () => unknown[];
-    FREIGHTER_ID: string;
-  };
-  return new StellarWalletsKit({
-    network: network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET,
-    selectedWalletId: FREIGHTER_ID,
-    modules: allowAllModules(),
-  });
-}
 
 export default function DeployReview({
   flowId,
@@ -109,12 +78,20 @@ export default function DeployReview({
     let stage: "wallet" | "prepare" | "sign" | "submit" = "wallet";
     let deploymentId: string | undefined;
     try {
-      const kit = await connectWallet(network);
+      const { getWalletKit } = await import("@/components/deploy/wallet-kit");
+      const { kit, module } = await getWalletKit(network);
+      const wallet = await selectWallet(kit);
+      if (!wallet) return;
+      kit.setWallet(wallet.id);
+      if (wallet.id === "wallet_connect" && module) {
+        const session = await module.connectWalletConnect();
+        module.setSession(session.id);
+      }
       const { address } = await kit.getAddress();
       void trackWalletConnection({
         address,
         network,
-        walletId: "freighter",
+        walletId: wallet.id,
         surface: "deploy_review",
       });
       stage = "prepare";
@@ -128,10 +105,13 @@ export default function DeployReview({
       setPipeline(prepData.data.pipeline ?? []);
       deploymentId = prepData.data.deploymentId;
 
+      if (typeof prepData.data.networkPassphrase !== "string" || !prepData.data.networkPassphrase) {
+        throw new Error("Missing transaction network passphrase");
+      }
       stage = "sign";
       const signed = await kit.signTransaction(prepData.data.xdr, {
         address,
-        networkPassphrase: PASSPHRASE_BY_NETWORK[network],
+        networkPassphrase: prepData.data.networkPassphrase,
       });
 
       stage = "submit";
@@ -261,8 +241,7 @@ export default function DeployReview({
         <span className="material-symbols-outlined text-secondary mt-0.5 text-[14px]">
           shield_lock
         </span>
-        YOU’LL SIGN IN YOUR WALLET (FREIGHTER, ALBEDO, XBULL, LOBSTR, HANA). PAIFLOW NEVER SEES YOUR
-        SECRET KEY.
+        YOU’LL CHOOSE YOUR WALLET AND SIGN THERE. PAIFLOW NEVER SEES YOUR SECRET KEY.
       </p>
     </section>
   );

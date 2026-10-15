@@ -10,6 +10,7 @@ import type { Asset } from "@/lib/flows/schema";
 import { assetLabel } from "@/lib/flows/schema";
 import { usePollTxStatus } from "@/lib/hooks/use-poll-tx-status";
 import { apiError } from "@/lib/friendly-error";
+import { selectWallet } from "@/components/deploy/select-wallet";
 
 type Employee = {
   address: string;
@@ -27,9 +28,11 @@ type BankDetail = {
 export default function EmployeeManager({
   deploymentId,
   asset,
+  network,
 }: {
   deploymentId: string;
   asset: Asset;
+  network: "testnet" | "mainnet";
 }) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [bankDetails, setBankDetails] = useState<Record<string, BankDetail | null>>({});
@@ -186,35 +189,32 @@ export default function EmployeeManager({
         throw new Error("Missing transaction payload");
       }
 
-      const { kit } = await import("@/components/deploy/wallet-kit").then((m) =>
-        m.getWalletKit("testnet"),
-      );
-      await kit.openModal({
-        onWalletSelected: async (wallet: { id: string; name: string }) => {
-          kit.setWallet(wallet.id);
-          const { address } = await kit.getAddress();
-          void trackWalletConnection({
-            address,
-            network: "testnet",
-            walletId: wallet.id,
-            surface: "payroll",
-          });
-          const { signedTxXdr } = await kit.signTransaction(data.unsignedXdr, {
-            address,
-            networkPassphrase: data.networkPassphrase,
-          });
-          const submitRes = await fetch(`/api/deployments/${deploymentId}/submit-invoke`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ signedXdr: signedTxXdr }),
-          });
-          if (!submitRes.ok) throw new Error("Submit failed");
-          toast.success("Employees updated on-chain");
-        },
-        onClosed: () => {
-          toast.warning("Update cancelled");
-        },
+      const { unsignedXdr, networkPassphrase } = data;
+      const { getWalletKit } = await import("@/components/deploy/wallet-kit");
+      const { kit, module } = await getWalletKit(network);
+      const wallet = await selectWallet(kit);
+      if (!wallet) {
+        toast.warning("Update cancelled");
+        return;
+      }
+      kit.setWallet(wallet.id);
+      if (wallet.id === "wallet_connect" && module) {
+        const session = await module.connectWalletConnect();
+        module.setSession(session.id);
+      }
+      const { address } = await kit.getAddress();
+      void trackWalletConnection({ address, network, walletId: wallet.id, surface: "payroll" });
+      const { signedTxXdr } = await kit.signTransaction(unsignedXdr, {
+        address,
+        networkPassphrase,
       });
+      const submitRes = await fetch(`/api/deployments/${deploymentId}/submit-invoke`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ signedXdr: signedTxXdr }),
+      });
+      if (!submitRes.ok) throw apiError(await submitRes.json(), "Submit failed");
+      toast.success("Employees updated on-chain");
     } catch (err) {
       toastError(err, "Update failed");
     } finally {
