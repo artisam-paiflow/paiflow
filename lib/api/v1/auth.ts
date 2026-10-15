@@ -2,7 +2,7 @@ import "server-only";
 import type { NextRequest } from "next/server";
 import { Role, type Deployment, type DeploymentApiToken } from "@prisma/client";
 import { db } from "@/lib/db";
-import { hashApiToken } from "@/lib/auth/api-token";
+import { hashApiToken, tokenUsageStamp } from "@/lib/auth/api-token";
 import { audienceFor, type Audience } from "@/lib/analytics/policy";
 import { AppError } from "@/lib/errors";
 
@@ -73,10 +73,20 @@ export async function requireDeploymentToken(
     throw new AppError("FORBIDDEN", "Not available in the sandbox");
   }
 
-  // Best-effort last-used stamp; never block the request on it.
-  db.deploymentApiToken
-    .update({ where: { id: row.id }, data: { lastUsedAt: new Date() } })
-    .catch(() => {});
+  // Best-effort activity stamp, at most once per five minutes. The database
+  // predicate also prevents overlapping requests from writing the same interval.
+  const stamp = tokenUsageStamp(row.lastUsedAt);
+  if (stamp) {
+    db.deploymentApiToken
+      .update({
+        where: {
+          id: row.id,
+          OR: [{ lastUsedAt: null }, { lastUsedAt: { lte: stamp.cutoff } }],
+        },
+        data: { lastUsedAt: stamp.now },
+      })
+      .catch(() => {});
+  }
 
   const { tokenHash: _tokenHash, deployment, ...token } = row;
   const { owner: _owner, ...deploymentRow } = deployment;
