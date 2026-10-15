@@ -30,11 +30,11 @@ async function main() {
     },
   });
   if (values.help) {
-    console.log(
-      "pnpm analytics:snapshot --network testnet|mainnet --audience INTERNAL|EXTERNAL|SANDBOX|UNCLASSIFIED [--start ISO] [--end ISO] [--dir reports/analytics]",
+    process.stdout.write(
+      "pnpm analytics:snapshot --network testnet|mainnet --audience INTERNAL|EXTERNAL|SANDBOX|UNCLASSIFIED [--start ISO] [--end ISO] [--dir reports/analytics]\n",
     );
-    console.log(
-      "Keep start fixed across runs. Use a separate --dir for each database. The first run saves a baseline; subsequent runs show net changes.",
+    process.stdout.write(
+      "Keep start fixed across runs. Use a separate --dir for each database. The first run saves a baseline; subsequent runs show net changes.\n",
     );
     return;
   }
@@ -88,18 +88,27 @@ async function main() {
       flag: "wx",
       mode: 0o600,
     });
-    console.log(`Saved: ${join(directory, filename)}`);
-    console.log(`${report.network} / ${report.audience}: ${report.start} → ${report.end}`);
-    console.log(
-      baseline ? `Compared with: ${baseline}` : "First compatible snapshot: baseline saved.",
+    process.stdout.write(`Saved: ${join(directory, filename)}\n`);
+    process.stdout.write(
+      `${report.network} / ${report.audience}: ${report.start} → ${report.end}\n`,
     );
-    console.table(
-      comparison ??
-        Object.fromEntries(
-          Object.entries(report.totals).map(([key, value]) => [key, { current: value }]),
-        ),
+    process.stdout.write(
+      `${baseline ? `Compared with: ${baseline}` : "First compatible snapshot: baseline saved."}\n`,
     );
-    console.log(snapshot.comparison_note);
+    const rows = comparison
+      ? [
+          "Metric\tPrevious\tCurrent\tDelta",
+          ...Object.entries(comparison).map(
+            ([metric, values]) =>
+              `${metric}\t${values.previous}\t${values.current}\t${values.delta}`,
+          ),
+        ]
+      : [
+          "Metric\tCurrent",
+          ...Object.entries(report.totals).map(([metric, value]) => `${metric}\t${value}`),
+        ];
+    process.stdout.write(`${rows.join("\n")}\n`);
+    process.stdout.write(`${snapshot.comparison_note}\n`);
   } finally {
     if (lock) {
       await lock.close();
@@ -110,8 +119,8 @@ async function main() {
 }
 
 void main().catch(() => {
-  console.error(
-    "Snapshot failed. Check arguments, database access, and history files. If .snapshot.lock exists, ensure no snapshot process is running before removing it.",
+  process.stderr.write(
+    "Snapshot failed. Check arguments, database access, and history files. If .snapshot.lock exists, ensure no snapshot process is running before removing it.\n",
   );
   process.exitCode = 1;
 });
