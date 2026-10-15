@@ -926,6 +926,40 @@ model ApiRequestLog {
   @@index([preparationRequestId, apiTokenId])
 }
 
+/// Identity-free daily totals survive the 30-day raw request retention policy.
+model ApiRequestDailyAggregate {
+  day                    DateTime          @db.Date
+  network                String
+  environment            String
+  audience               AnalyticsAudience
+  trackingVersion        String
+  endpoint               String
+  method                 String
+  requests               BigInt            @default(0)
+  errors                 BigInt            @default(0)
+  authenticationFailures BigInt            @default(0)
+  rateLimited            BigInt            @default(0)
+  totalDurationMs        BigInt            @default(0)
+  minDurationMs          Int
+  maxDurationMs          Int
+  lastOccurredAt         DateTime
+
+  @@id([day, network, environment, audience, trackingVersion, endpoint, method])
+  @@index([network, environment, audience, trackingVersion, day], map: "ApiRequestDailyAggregate_scope_day_idx")
+}
+
+/// Minimal durable deduplication receipts prevent recounting after raw rows expire.
+/// No account, token, deployment, wallet, timestamp or payload is retained here.
+model ApiRequestAggregateReceipt {
+  id String @id @db.Uuid
+}
+
+model ApiRequestDailyCoverage {
+  version      String   @id
+  coverageFrom DateTime
+  backfilledAt DateTime @default(now())
+}
+
 /// Only validated provider identity is retained; no OAuth tokens are stored.
 model GoogleIdentity {
   id                String   @id @default(uuid()) @db.Uuid

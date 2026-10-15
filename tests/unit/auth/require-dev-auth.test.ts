@@ -29,6 +29,7 @@ function req(headers: Record<string, string> = {}): NextRequest {
 function tokenRow(
   overrides: {
     revokedAt?: Date | null;
+    lastUsedAt?: Date | null;
     user?: { id: string; username: string; role: string; isActive: boolean };
   } = {},
 ) {
@@ -36,6 +37,7 @@ function tokenRow(
     id: "22222222-2222-2222-2222-222222222222",
     tokenHash: hashApiToken(TOKEN),
     revokedAt: null,
+    lastUsedAt: null,
     user: { id: OWNER_ID, username: "owner", role: "USER", isActive: true },
     ...overrides,
   };
@@ -61,6 +63,44 @@ beforeEach(() => {
 });
 
 describe("requireDevAuth", () => {
+  it.each([
+    [null, true],
+    [299_999, false],
+    [300_000, true],
+    [300_001, true],
+  ])("throttles activity stamps for age %s ms", async (age, shouldWrite) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-15T00:00:00Z"));
+    try {
+      const lastUsedAt = age === null ? null : new Date(Date.now() - age);
+      mockDb.devApiToken.findUnique.mockResolvedValue(tokenRow({ lastUsedAt }));
+      await requireDevAuth(req({ "x-dev-api-secret": TOKEN }));
+      expect(mockDb.devApiToken.findUnique).toHaveBeenCalledTimes(1);
+      expect(mockDb.devApiToken.update).toHaveBeenCalledTimes(shouldWrite ? 1 : 0);
+      if (shouldWrite) {
+        expect(mockDb.devApiToken.update).toHaveBeenCalledWith({
+          where: {
+            id: expect.any(String),
+            OR: [{ lastUsedAt: null }, { lastUsedAt: { lte: new Date(Date.now() - 300_000) } }],
+          },
+          data: { lastUsedAt: new Date() },
+        });
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("checks revocation even for a recently used token", async () => {
+    mockDb.devApiToken.findUnique.mockResolvedValue(
+      tokenRow({ lastUsedAt: new Date(), revokedAt: new Date() }),
+    );
+    await expect(requireDevAuth(req({ "x-dev-api-secret": TOKEN }))).rejects.toBeInstanceOf(
+      AppError,
+    );
+    expect(mockDb.devApiToken.update).not.toHaveBeenCalled();
+  });
+
   it("resolves a live DevApiToken to its owner", async () => {
     mockDb.devApiToken.findUnique.mockResolvedValue(tokenRow());
     await expect(requireDevAuth(req({ "x-dev-api-secret": TOKEN }))).resolves.toEqual({
