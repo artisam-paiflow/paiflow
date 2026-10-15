@@ -15,7 +15,7 @@ const ResponseSchema = z.object({
   results: z
     .array(z.tuple([z.enum(POSTHOG_METRICS), z.string().regex(/^\d+$/)]))
     .max(POSTHOG_METRICS.length),
-  hasMore: z.boolean().optional(),
+  hasMore: z.boolean().nullish(),
   query_status: z.object({ complete: z.boolean(), error: z.boolean().optional() }).nullish(),
 });
 

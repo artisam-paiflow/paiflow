@@ -76,6 +76,20 @@ describe("PostHog snapshot aggregates", () => {
     expect(JSON.stringify(result)).not.toContain("sensitive-response-property");
   });
 
+  it("accepts nullable pagination metadata from a completed PostHog query", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          results: [["active_accounts", "2"]],
+          hasMore: null,
+          query_status: null,
+          error: null,
+        }),
+      ),
+    );
+    expect((await posthogSummary(input, scope)).totals.active_accounts).toBe("2");
+  });
+
   it("accepts an explicitly empty period only with the aggregate summary row", async () => {
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ results: [["active_accounts", "0"]] })),
