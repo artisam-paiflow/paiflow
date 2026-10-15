@@ -7,7 +7,7 @@ import type {
   WalletConnectAllowedMethods,
   WalletConnectModule,
 } from "@creit.tech/stellar-wallets-kit/modules/walletconnect.module";
-import { FREIGHTER_NATIVE_LINK } from "./mobile-wallet-links";
+import { walletConnectMobileWallets, mobileWalletImages } from "./mobile-wallet-registry";
 import { WALLET_CONNECT_UNCONFIGURED, walletConnectProjectId } from "./wallet-connect-config";
 
 function isMobile() {
@@ -100,37 +100,8 @@ export async function getWalletKit(network: "testnet" | "mainnet"): Promise<Wall
     const walletConnectModal = new WalletConnectModal({
       projectId,
       chains: [chain],
-      mobileWallets: [
-        {
-          id: "lobstr",
-          name: "LOBSTR",
-          links: {
-            native: "lobstr",
-            universal: "https://lobstr.co/uni/wc",
-          },
-        },
-        {
-          id: "xbull",
-          name: "xBull",
-          links: {
-            native: "xbull",
-            universal: "https://xbull.app",
-          },
-        },
-        {
-          id: "freighter",
-          name: "Freighter",
-          links: {
-            native: FREIGHTER_NATIVE_LINK,
-            universal: "",
-          },
-        },
-      ],
-      walletImages: {
-        lobstr: "https://stellar.creit.tech/wallet-icons/lobstr.png",
-        xbull: "https://stellar.creit.tech/wallet-icons/xbull.png",
-        freighter: "https://stellar.creit.tech/wallet-icons/freighter.png",
-      },
+      mobileWallets: walletConnectMobileWallets(),
+      walletImages: mobileWalletImages(),
       enableExplorer: true,
     });
 

@@ -93,11 +93,28 @@ describe("shared wallet initialization", () => {
     expect(mocks.modal).toHaveBeenCalledWith(
       expect.objectContaining({
         chains: ["stellar:testnet"],
-        mobileWallets: expect.arrayContaining([
-          expect.objectContaining({ id: "freighter" }),
-          expect.objectContaining({ id: "lobstr" }),
-          expect.objectContaining({ id: "xbull" }),
-        ]),
+        mobileWallets: [
+          {
+            id: "lobstr",
+            name: "LOBSTR",
+            links: { native: "lobstr", universal: "https://lobstr.co/uni/wc" },
+          },
+          {
+            id: "xbull",
+            name: "xBull",
+            links: { native: "xbull", universal: "https://xbull.app" },
+          },
+          {
+            id: "freighter",
+            name: "Freighter",
+            links: { native: "freighterwallet://wc-redirect", universal: "" },
+          },
+        ],
+        walletImages: {
+          lobstr: "https://stellar.creit.tech/wallet-icons/lobstr.png",
+          xbull: "https://stellar.creit.tech/wallet-icons/xbull.png",
+          freighter: "https://stellar.creit.tech/wallet-icons/freighter.png",
+        },
       }),
     );
   });

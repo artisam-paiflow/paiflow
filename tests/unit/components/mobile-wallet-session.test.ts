@@ -11,6 +11,19 @@ const live = {
 };
 
 describe("approvedMobileSession", () => {
+  it.each(["freighter", "lobstr", "xbull"])(
+    "restores the exact approved session for registered wallet %s",
+    (walletId) => {
+      const selection = { ...approved, walletId };
+      expect(approvedMobileSession(selection, [live], "testnet")).toEqual(selection);
+      expect(approvedMobileSession(selection, [{ ...live, topic: "other" }], "testnet")).toBeNull();
+    },
+  );
+  it("does not restore a guessed Lantern entry before official metadata is registered", () => {
+    expect(
+      approvedMobileSession({ ...approved, walletId: "lantern" }, [live], "testnet"),
+    ).toBeNull();
+  });
   it("restores the exact previously approved topic and account", () => {
     expect(approvedMobileSession(approved, [live], "testnet")).toEqual(approved);
   });
