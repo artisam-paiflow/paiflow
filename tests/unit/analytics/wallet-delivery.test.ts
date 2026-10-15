@@ -40,6 +40,23 @@ async function flush() {
   for (let i = 0; i < 10; i++) await Promise.resolve();
 }
 describe("non-blocking wallet delivery", () => {
+  it("preserves Lantern's provider identity through the existing audit delivery queue", async () => {
+    fetchMock.mockImplementation(async (_url, options) => {
+      const body = JSON.parse(options.body);
+      return new Response(JSON.stringify({ data: { ok: true, connectionId: body.connectionId } }));
+    });
+    await client.trackWalletConnection({ ...input, walletId: "lantern" });
+    await flush();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/audit/wallet-connection");
+    expect(JSON.parse(fetchMock.mock.calls[0]?.[1].body)).toMatchObject({
+      walletId: "lantern",
+      network: "testnet",
+      surface: "trigger",
+    });
+    expect(JSON.parse([...store.values()][0]!)).toEqual([]);
+  });
+
   it.each(["existing-user", null])(
     "defers delivery until initial session resolves to %s, including after reload",
     async (userId) => {

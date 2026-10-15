@@ -15,8 +15,13 @@ const input = {
   sessionUserId: null,
 };
 describe("analytics boundaries", () => {
-  it("parses acknowledged anonymous wallet connections", () =>
-    expect(WalletConnectionSchema.parse(input)).toEqual(input));
+  it.each(["freighter", "lantern"])(
+    "parses acknowledged anonymous %s wallet connections",
+    (walletId) => {
+      const connection = { ...input, walletId };
+      expect(WalletConnectionSchema.parse(connection)).toEqual(connection);
+    },
+  );
   it.each([
     { connectionId: "bad" },
     { address: Keypair.random().secret() },

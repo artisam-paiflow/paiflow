@@ -14,6 +14,7 @@ vi.mock("@/lib/hooks/use-poll-tx-status", () => ({ usePollTxStatus: () => mocks.
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), info: vi.fn(), success: vi.fn(), warning: vi.fn() },
 }));
+vi.mock("@/components/deploy/lantern-module", () => ({ LanternModule: class {} }));
 vi.mock("@walletconnect/modal", () => ({ WalletConnectModal: class {} }));
 vi.mock("@walletconnect/sign-client", () => ({ SignClient: class {} }));
 vi.mock("@creit.tech/stellar-wallets-kit/modules/walletconnect.module", () => ({
