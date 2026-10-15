@@ -8,7 +8,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 ### Changed
 
 - Keep contract-action signing bound to the selected wallet connection, cancelling
-  stale approvals when the deployment, network or action arguments change (#1003).
+  stale approvals when the deployment, network or action arguments change. Preserve
+  submitted hashes across view changes and reloads until finality is known; require
+  browser transaction locks and recovery storage before sending (#1003).
 
 - Use the shared wallet picker for deployment and payroll employee updates, record
   the chosen wallet, and sign with the server-provided transaction network. Bind

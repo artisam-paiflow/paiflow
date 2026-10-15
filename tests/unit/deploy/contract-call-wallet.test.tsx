@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ContractCallButton from "@/components/deploy/contract-call-button";
+import { contractCallPendingKey } from "@/lib/contract-call-pending";
 
 const mocks = vi.hoisted(() => ({
   getWalletKit: vi.fn(),
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   success: vi.fn(),
   warning: vi.fn(),
   verifySigned: vi.fn(),
+  signedHash: vi.fn(),
 }));
 vi.mock("@/components/deploy/wallet-kit", () => ({ getWalletKit: mocks.getWalletKit }));
 vi.mock("@/lib/hooks/use-poll-tx-status", () => ({ usePollTxStatus: () => mocks.poll }));
@@ -28,10 +30,13 @@ vi.mock("sonner", () => ({
 vi.mock("@/lib/stellar/wallet-signature", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/stellar/wallet-signature")>()),
   assertSignedWalletTransaction: mocks.verifySigned,
+  signedWalletTransactionHash: mocks.signedHash,
 }));
 
 const ADDRESS = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const TESTNET = "Test SDF Network ; September 2015";
+const HASH = "a".repeat(64);
+const PENDING_KEY = contractCallPendingKey("deployment-one", "testnet");
 type Props = ComponentProps<typeof ContractCallButton>;
 type Choice = {
   onWalletSelected: (wallet: { id: string; name: string }) => void;
@@ -53,12 +58,20 @@ function deferred<T>() {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  localStorage.clear();
+  vi.stubGlobal("navigator", {
+    locks: {
+      request: async (_key: string, _options: unknown, callback: (lock: object) => Promise<void>) =>
+        callback({}),
+    },
+  });
   picker = undefined;
   mocks.getAddress.mockResolvedValue({ address: ADDRESS });
   mocks.sign.mockResolvedValue({ signedTxXdr: "signed" });
   mocks.poll.mockResolvedValue({ status: "SUCCESS" });
+  mocks.signedHash.mockReturnValue(HASH);
   prepare.mockResolvedValue({ xdr: "unsigned", networkPassphrase: TESTNET });
-  submit.mockResolvedValue({ txHash: "confirmed-hash" });
+  submit.mockResolvedValue({ txHash: HASH });
   props = {
     deploymentId: "deployment-one",
     network: "testnet",
@@ -83,6 +96,7 @@ beforeEach(() => {
     client: null,
   });
 });
+afterEach(() => vi.unstubAllGlobals());
 
 async function open() {
   const view = render(<ContractCallButton {...props} />);
@@ -102,6 +116,7 @@ describe("contract actions using the shared selected connection", () => {
     expect(prepare).not.toHaveBeenCalled();
     expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(true);
     await choose("selected-wallet");
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce());
     expect(mocks.setWallet).toHaveBeenCalledWith("selected-wallet");
     expect(prepare).toHaveBeenCalledWith(ADDRESS);
     expect(mocks.sign).toHaveBeenCalledWith("unsigned", {
@@ -109,11 +124,14 @@ describe("contract actions using the shared selected connection", () => {
       networkPassphrase: TESTNET,
     });
     expect(submit).toHaveBeenCalledExactlyOnceWith("signed");
-    expect(mocks.poll).toHaveBeenCalledWith(
-      "deployment-one",
-      "confirmed-hash",
-      expect.any(AbortSignal),
+    expect(mocks.signedHash).toHaveBeenCalledWith(
+      "testnet",
+      "unsigned",
+      "signed",
+      ADDRESS,
+      TESTNET,
     );
+    expect(mocks.poll).toHaveBeenCalledWith("deployment-one", HASH);
     expect(mocks.trackConnection).toHaveBeenCalledWith({
       address: ADDRESS,
       network: "testnet",
@@ -122,7 +140,9 @@ describe("contract actions using the shared selected connection", () => {
     });
     expect(onSuccess).toHaveBeenCalledOnce();
     expect(mocks.success).toHaveBeenCalledWith("Transaction confirmed!");
-    expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(false);
+    expect(
+      (screen.getByRole("button", { name: /charge now/i }) as HTMLButtonElement).disabled,
+    ).toBe(false);
   });
 
   it("ignores duplicate clicks, repeated choices and the post-selection close event", async () => {
@@ -145,6 +165,7 @@ describe("contract actions using the shared selected connection", () => {
     expect(mocks.sign).toHaveBeenCalledOnce();
     expect(mocks.warning).not.toHaveBeenCalled();
     await act(async () => signed.resolve({ signedTxXdr: "signed" }));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce());
     expect(submit).toHaveBeenCalledOnce();
   });
 
@@ -157,6 +178,7 @@ describe("contract actions using the shared selected connection", () => {
     fireEvent.click(screen.getByRole("button", { name: /charge now/i }));
     await waitFor(() => expect(mocks.getWalletKit).toHaveBeenCalledTimes(2));
     await choose();
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce());
     expect(submit).toHaveBeenCalledOnce();
   });
 
@@ -175,6 +197,7 @@ describe("contract actions using the shared selected connection", () => {
     mocks.poll.mockResolvedValue({ status: "FAILED", errorMessage: "Contract refused" });
     await open();
     await choose();
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledOnce());
     expect(onSuccess).not.toHaveBeenCalled();
     expect(mocks.toastError).toHaveBeenCalledWith(
       expect.objectContaining({ message: "Contract refused" }),
@@ -231,25 +254,31 @@ describe("contract action attempt ownership", () => {
     expect(mocks.poll).not.toHaveBeenCalled();
   });
 
-  it("does not poll or show stale success when submission finishes after navigation", async () => {
+  it("reconciles a dispatched hash after navigation without waiting for its HTTP response", async () => {
     const submitted = deferred<{ txHash: string }>();
+    const finality = deferred<{ status: "SUCCESS" }>();
     submit.mockReturnValue(submitted.promise);
+    mocks.poll.mockReturnValue(finality.promise);
     const view = await open();
     await choose();
+    await waitFor(() => expect(mocks.poll).toHaveBeenCalledOnce());
     view.unmount();
-    await act(async () => submitted.resolve({ txHash: "already-submitted" }));
-    expect(mocks.poll).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem(PENDING_KEY)!)).toEqual({ txHash: HASH });
+    await act(async () => finality.resolve({ status: "SUCCESS" }));
+    await waitFor(() => expect(localStorage.getItem(PENDING_KEY)).toBeNull());
+    await act(async () => submitted.resolve({ txHash: HASH }));
+    expect(mocks.poll).toHaveBeenCalledWith("deployment-one", HASH);
     expect(onSuccess).not.toHaveBeenCalled();
   });
 
-  it("aborts status polling on unmount without showing success", async () => {
+  it("preserves status polling on unmount without showing stale success", async () => {
     const finality = deferred<{ status: "SUCCESS" }>();
     mocks.poll.mockReturnValue(finality.promise);
     const view = await open();
     await choose();
-    const signal = mocks.poll.mock.calls[0]![2] as AbortSignal;
+    await waitFor(() => expect(mocks.poll).toHaveBeenCalledOnce());
     view.unmount();
-    expect(signal.aborted).toBe(true);
+    expect(mocks.poll).toHaveBeenCalledExactlyOnceWith("deployment-one", HASH);
     await act(async () => finality.resolve({ status: "SUCCESS" }));
     expect(onSuccess).not.toHaveBeenCalled();
   });
@@ -267,6 +296,7 @@ describe("contract action attempt ownership", () => {
       />,
     );
     await choose();
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce());
     expect(prepare).toHaveBeenCalledOnce();
     expect(submit).toHaveBeenCalledOnce();
     expect(onSuccess).toHaveBeenCalledOnce();
@@ -280,7 +310,9 @@ describe("contract action attempt ownership", () => {
     mocks.sign.mockReturnValueOnce(oldSignature.promise).mockReturnValueOnce(newSignature.promise);
     const view = await open();
     await choose();
-    view.rerender(<ContractCallButton {...props} actionKey="new-arguments" />);
+    await act(async () => {
+      view.rerender(<ContractCallButton {...props} actionKey="new-arguments" />);
+    });
     fireEvent.click(screen.getByRole("button", { name: /charge now/i }));
     await waitFor(() => expect(mocks.getWalletKit).toHaveBeenCalledTimes(2));
     await choose();
@@ -288,8 +320,151 @@ describe("contract action attempt ownership", () => {
     expect(submit).not.toHaveBeenCalled();
     expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(true);
     await act(async () => newSignature.resolve({ signedTxXdr: "current-signature" }));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce());
     expect(submit).toHaveBeenCalledExactlyOnceWith("current-signature");
     expect(onSuccess).toHaveBeenCalledOnce();
+  });
+});
+
+describe("contract action dispatch recovery", () => {
+  it("saves only the computed hash before dispatch and never polls a substituted response hash", async () => {
+    submit.mockImplementation(async () => {
+      expect(JSON.parse(localStorage.getItem(PENDING_KEY)!)).toEqual({ txHash: HASH });
+      return { txHash: "b".repeat(64) };
+    });
+    await open();
+    await choose();
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce());
+    expect(mocks.poll).toHaveBeenCalledExactlyOnceWith("deployment-one", HASH);
+    expect(localStorage.getItem(PENDING_KEY)).toBeNull();
+  });
+
+  it("blocks replacement after a post-dispatch argument change until authoritative finality", async () => {
+    const response = deferred<{ txHash: string }>();
+    const finality = deferred<{ status: "SUCCESS" }>();
+    submit.mockReturnValue(response.promise);
+    mocks.poll.mockReturnValue(finality.promise);
+    const view = await open();
+    await choose();
+    await waitFor(() => expect(mocks.poll).toHaveBeenCalledOnce());
+    view.rerender(<ContractCallButton {...props} actionKey="edited-allowance-amount" />);
+    const action = screen.getByRole("button", { name: /charge now/i }) as HTMLButtonElement;
+    expect(action.disabled).toBe(true);
+    fireEvent.click(action);
+    expect(prepare).toHaveBeenCalledOnce();
+    expect(submit).toHaveBeenCalledOnce();
+    expect(JSON.parse(localStorage.getItem(PENDING_KEY)!)).toEqual({ txHash: HASH });
+    await act(async () => finality.resolve({ status: "SUCCESS" }));
+    await waitFor(() => expect(localStorage.getItem(PENDING_KEY)).toBeNull());
+    expect(action.disabled).toBe(false);
+    expect(onSuccess).not.toHaveBeenCalled();
+    await act(async () => response.resolve({ txHash: HASH }));
+    expect(submit).toHaveBeenCalledOnce();
+  });
+
+  it("retains an unknown hash through unmount/remount and permits only read-only recovery", async () => {
+    const response = deferred<{ txHash: string }>();
+    const unknown = deferred<{ status: "PENDING" }>();
+    submit.mockReturnValue(response.promise);
+    mocks.poll.mockReturnValueOnce(unknown.promise).mockRejectedValue(new Error("RPC unavailable"));
+    const view = await open();
+    await choose();
+    await waitFor(() => expect(mocks.poll).toHaveBeenCalledOnce());
+    view.unmount();
+    const recovered = render(
+      <ContractCallButton {...props} actionKey="new-arguments-after-reload" />,
+    );
+    await waitFor(() => expect(screen.getByRole("status")).toBeDefined());
+    expect(
+      (screen.getByRole("button", { name: /charge now/i }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    await act(async () => unknown.resolve({ status: "PENDING" }));
+    expect(JSON.parse(localStorage.getItem(PENDING_KEY)!)).toEqual({ txHash: HASH });
+    fireEvent.click(screen.getByRole("button", { name: /check transaction status/i }));
+    await waitFor(() => expect(mocks.poll).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("still unknown"));
+    expect(prepare).toHaveBeenCalledOnce();
+    expect(mocks.sign).toHaveBeenCalledOnce();
+    expect(submit).toHaveBeenCalledOnce();
+    expect(localStorage.getItem(PENDING_KEY)).not.toBeNull();
+    mocks.poll.mockResolvedValue({ status: "SUCCESS" });
+    fireEvent.click(screen.getByRole("button", { name: /check transaction status/i }));
+    await waitFor(() => expect(localStorage.getItem(PENDING_KEY)).toBeNull());
+    expect(onSuccess).not.toHaveBeenCalled();
+    recovered.unmount();
+    await act(async () => response.resolve({ txHash: HASH }));
+  });
+
+  it("does not repeat a lost submission after polling fails; status retry clears only terminal FAILED", async () => {
+    submit.mockRejectedValue(new Error("Connection lost after sending"));
+    mocks.poll.mockRejectedValue(new Error("Timed out waiting for finality"));
+    await open();
+    await choose();
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("still unknown"));
+    expect(JSON.parse(localStorage.getItem(PENDING_KEY)!)).toEqual({ txHash: HASH });
+    fireEvent.click(screen.getByRole("button", { name: /charge now/i }));
+    expect(submit).toHaveBeenCalledOnce();
+    mocks.poll.mockResolvedValue({ status: "FAILED", errorMessage: "Failed on-chain" });
+    fireEvent.click(screen.getByRole("button", { name: /check transaction status/i }));
+    await waitFor(() => expect(localStorage.getItem(PENDING_KEY)).toBeNull());
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(mocks.sign).toHaveBeenCalledOnce();
+    expect(submit).toHaveBeenCalledOnce();
+  });
+
+  it("loads a persisted marker after reload without preparing, signing or submitting", async () => {
+    localStorage.setItem(PENDING_KEY, JSON.stringify({ txHash: HASH }));
+    mocks.poll.mockRejectedValue(new Error("RPC temporarily missing the hash"));
+    render(<ContractCallButton {...props} />);
+    await waitFor(() => expect(mocks.poll).toHaveBeenCalledWith("deployment-one", HASH));
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("still unknown"));
+    expect(mocks.getWalletKit).not.toHaveBeenCalled();
+    expect(prepare).not.toHaveBeenCalled();
+    expect(submit).not.toHaveBeenCalled();
+    expect(localStorage.getItem(PENDING_KEY)).not.toBeNull();
+  });
+
+  it("refuses corrupt recovery storage without deleting it or opening a wallet", async () => {
+    localStorage.setItem(PENDING_KEY, "corrupt-marker");
+    render(<ContractCallButton {...props} />);
+    expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("status").textContent).toContain("unavailable or invalid");
+    expect(mocks.getWalletKit).not.toHaveBeenCalled();
+    expect(localStorage.getItem(PENDING_KEY)).toBe("corrupt-marker");
+  });
+
+  it("never dispatches when its hash cannot be durably saved", async () => {
+    const view = await open();
+    const storage = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("Storage is unavailable");
+    });
+    await choose();
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledOnce());
+    expect(submit).not.toHaveBeenCalled();
+    expect(mocks.poll).not.toHaveBeenCalled();
+    expect(screen.getByRole("status").textContent).toContain("No transaction was submitted");
+    view.unmount();
+    storage.mockRestore();
+  });
+
+  it("rejects a desktop wallet's invalid envelope before saving or dispatching", async () => {
+    mocks.signedHash.mockImplementation(() => {
+      throw new Error("Wallet changed the prepared transaction.");
+    });
+    await open();
+    await choose();
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledOnce());
+    expect(submit).not.toHaveBeenCalled();
+    expect(localStorage.getItem(PENDING_KEY)).toBeNull();
+  });
+
+  it("fails closed before wallet selection when Web Locks are unavailable", async () => {
+    vi.stubGlobal("navigator", {});
+    render(<ContractCallButton {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: /charge now/i }));
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledOnce());
+    expect(mocks.getWalletKit).not.toHaveBeenCalled();
+    expect(submit).not.toHaveBeenCalled();
   });
 });
 
