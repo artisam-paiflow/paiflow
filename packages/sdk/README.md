@@ -3,9 +3,15 @@
 Unreleased Node SDK with typed deployment reads, payments, funding, Schedule and
 Subscription controls, public allowance consent, public utilities and embed SSE.
 Includes keyed/unkeyed Webhook callbacks and early release. All 42 HTTP operations
-in the coverage matrix are implemented; fresh hosted workflow verification is
-pending.
+in the coverage matrix are implemented. Bounded testnet workflows have been
+verified; remaining live limitations are recorded in the
+[live evidence report](../../docs/testing/2026-10-14-sdk-live-verification.md).
 Publishing requires separate authorization and control of the `@paiflow` npm scope.
+
+Positive Swap quotes are verified; real Swap execution remains unverified because
+unsigned testnet preparation quoted about 59 XLM in fees, exceeding the reviewed
+1 XLM fee ceiling. No Swap execution was signed or submitted. Testing demo-token
+minting is disabled, and unattended scheduling was not established.
 
 The SDK covers existing-deployment user APIs: API v1 and the explicitly
 listed unversioned routes in [the SDK contract](https://github.com/webnxt-2030/pinkraft/blob/testing/docs/sdk/contract.md).
@@ -275,8 +281,10 @@ ledger-proven expiry releases the reservation. UNKNOWN, REJECTED, missing histor
 permit a replacement deposit. The helper's expiry guard only prevents signing a
 stale envelope. There are no automatic retries, re-preparations, submissions or
 reconciliation calls. Retain receipts and explicitly query/reconcile after errors.
-These workflows have local source-contract fixtures; hosted verification remains
-pending. See the [funding API documentation](https://github.com/webnxt-2030/pinkraft/blob/testing/docs/api/funding.md).
+Bounded testnet Schedule and Webhook funding/submission/reconciliation passed
+with separate balance/event evidence in the
+[live evidence report](../../docs/testing/2026-10-14-sdk-live-verification.md).
+See the [funding API documentation](https://github.com/webnxt-2030/pinkraft/blob/testing/docs/api/funding.md).
 
 ### Schedule controls
 
@@ -297,8 +305,10 @@ Preserve the original action, intent and transaction hash when interrupted. Reco
 through that action namespace and preserve `replacementAllowed` from the server.
 Local expiry, wallet denial, timeout, UNKNOWN or missing history never permits a
 replacement. No method automatically signs, submits, resends or prepares another
-intent. Hosted verification remains pending; local SDK tests do not establish
-live Schedule readiness. See [Schedule API controls](../../docs/api/schedule-controls.md).
+intent. Bounded testnet funding, pause/resume/retrieve and original-intent
+reconciliation passed in the [live evidence report](../../docs/testing/2026-10-14-sdk-live-verification.md).
+This does not establish unattended scheduler availability or natural scheduled
+release. See [Schedule API controls](../../docs/api/schedule-controls.md).
 
 ## Subscription and public allowance consent
 
@@ -373,8 +383,11 @@ finality; do not replace approval just because wall-clock time passed. This SDK
 never retries, re-prepares, submits from a signing helper or initiates a charge.
 A positive final allowance status permits a separate deliberate subsequent
 approval; server-proven expired-without-confirmation is returned as FAILED.
-Hosted/on-chain Subscription verification remains separately authorized and
-pending in the repository's manual verification queue.
+Bounded testnet allowance, charge/payout, cancellation and reactivation passed
+using the current deployed contract code; the final controlled fixture is cancelled
+with zero allowance. The charge used an authorized manual cron call, so unattended
+scheduling is not established. See the [live evidence report](../../docs/testing/2026-10-14-sdk-live-verification.md)
+for exact revisions, receipts and historical fixture limitations.
 
 ## Webhook callbacks and early release
 
@@ -420,6 +433,13 @@ active deployment, correct node, live deadline, held funds and relayer support.
 The SDK never redirects to the after side or retries. A successful response retains
 `nodeId`, `txHash` and optional `ledger`; it contains no invented network field.
 Authorize your own application's requester before using either server-held credential.
-These interfaces are source-tested; hosted/on-chain verification remains pending.
+Bounded testnet pool funding, keyed escrow payout/replay/conflict, native Webhook
+execution and early release passed with independent finality and matching payouts.
+Native consent retained both the recorded source-account authorization and the
+wallet's bounded signed authorization. The original rejected attempt remains
+preserved; its definitive pre-submission failure was established before a fresh
+nonce/event was authorized. See the
+[live evidence report](../../docs/testing/2026-10-14-sdk-live-verification.md) for
+receipts, scope and remaining verification gates.
 
 JSON response bodies are limited to 4 MiB by default, including errors and payment/control receipts. Invalid or oversized successful responses produce a typed malformed response error; unreadable error responses retain HTTP status with a generic HTTP error. POST requests are never automatically repeated. Low-level `transport.request` callers may supply an explicit positive integer `maxResponseBytes`.

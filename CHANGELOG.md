@@ -5,6 +5,11 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+### Changed
+
+- Document bounded SDK testnet verification and explicit Swap fee, demo-token,
+  scheduler and release-readiness limits, with links to the live evidence (#964).
+
 ### Added
 
 - SDK quickstart, API migration/coverage guide and packed-package examples for
