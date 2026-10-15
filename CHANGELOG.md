@@ -27,6 +27,12 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 - Default snapshots to staging/testnet, EXTERNAL and PostHog enabled; add
   `--env-file` for an explicit private credential source and `--no-posthog` opt-out.
 
+- A daily API report batch command and separate Railway cron configuration, saving
+  dated report revisions with bounded refresh for late-arriving telemetry.
+
+- Durable daily API request aggregates and a `--daily` report mode, preserving
+  endpoint counts and mergeable latency statistics beyond 30-day raw retention.
+
 - Save compatible cumulative analytics snapshots with exact integer deltas between
   runs using `pnpm analytics:snapshot` (#995).
 

@@ -352,6 +352,26 @@ requires durable daily aggregates before raw retention removes records, plus
 delivery-health checks. Distinct users and latency percentiles cannot be summed
 across days; they require distinct-set or histogram/sketch data respectively.
 
+#### API request reports
+
+`pnpm analytics:api-report` runs the existing detailed request-history report.
+Add `--daily` to query durable endpoint totals beyond raw-history retention:
+
+```bash
+pnpm analytics:api-report --daily --start 2026-10-13 --end 2026-10-15 \
+  --network testnet --environment beta --audience EXTERNAL \
+  --output reports/api-daily.json
+```
+
+Daily mode uses whole UTC dates with an exclusive end. It reports counts, HTTP
+errors, authentication failures, rate limits, and weighted mean/min/max handler
+latency by day and endpoint/method. The migration must be deployed first. Without
+`--daily`, the existing detailed report keeps its ISO timestamp windows, 30-day
+raw retention, account/token analysis, percentiles and transaction linkage.
+Both modes honor shell > `.env.local` > `.env` for `DATABASE_URL` and refuse to
+overwrite output files. Daily mode only needs database access, not Redis access.
+See [daily aggregate storage and coverage](docs/analytics/api-request-history-v1.md#durable-daily-aggregates).
+
 #### Tests
 
 | Script                    | Purpose                                          |
