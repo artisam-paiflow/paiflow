@@ -1,6 +1,6 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadSnapshotEnvironment, posthogReportConfig } from "@/lib/env";
 import { snapshotOptions } from "@/lib/analytics/snapshot-options";
@@ -20,6 +20,7 @@ describe("snapshot command defaults", () => {
   it("accepts an explicit environment file and overrides without changing the defaults", () => {
     expect(snapshotOptions(["--env-file", ".env.analytics.local"])).toMatchObject({
       "env-file": ".env.analytics.local",
+      dir: process.cwd(),
       posthog: true,
     });
     expect(
@@ -46,6 +47,17 @@ describe("snapshot command defaults", () => {
       posthog: false,
       api: false,
     });
+  });
+  it.each(["../../.env.paiflow", "/tmp/analytics credentials/staging.env", "configs/staging.env"])(
+    "saves directly beside the selected env file %s",
+    (filename) => {
+      expect(snapshotOptions(["--env-file", filename]).dir).toBe(dirname(resolve(filename)));
+    },
+  );
+  it("keeps an explicit output/history directory when an env file is supplied", () => {
+    expect(
+      snapshotOptions(["--env-file", "../../.env.paiflow", "--dir", "reports/existing"]).dir,
+    ).toBe("reports/existing");
   });
   it.each([
     ["--network", "other"],

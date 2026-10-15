@@ -3,7 +3,8 @@
  * Optional: --start <ISO timestamp> --end <ISO timestamp> --dir <history directory>
  * Start defaults to the usage-v2 cutover; end defaults to now. Keep start fixed
  * across runs to compare cumulative totals. Defaults target staging/testnet,
- * EXTERNAL, reports/analytics-staging, with host-scoped PostHog enabled.
+ * EXTERNAL, with API analytics and host-scoped PostHog enabled. Output defaults
+ * beside --env-file, or reports/analytics-staging without an explicit env file.
  */
 import { mkdir, open, readFile, readdir, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -53,7 +54,7 @@ async function main() {
       "pnpm analytics:snapshot [--env-file PATH] [--network testnet|mainnet] [--audience INTERNAL|EXTERNAL|SANDBOX|UNCLASSIFIED] [--start ISO] [--end ISO] [--dir PATH] [--no-posthog] [--no-api] [--app-env beta|staging|local] [--app-host HOST]",
     );
     process.stdout.write(
-      "Defaults: testnet, EXTERNAL, reports/analytics-staging, PostHog enabled, app-env beta, app-host beta.app.paiflow.xyz. PostHog requires a personal API key with query:read access. Old DB-only snapshots remain usable; the first PostHog run establishes its own baseline.\n",
+      "Defaults: testnet, EXTERNAL, output beside --env-file (otherwise reports/analytics-staging), PostHog enabled, app-env beta, app-host beta.app.paiflow.xyz. --dir overrides the output/history directory. PostHog requires a personal API key with query:read access. Old DB-only snapshots remain usable; the first PostHog run establishes its own baseline.\n",
     );
     print(
       "API analytics enabled by default: --app-env filters API environment. Completed UTC days use durable aggregates; the final partial day uses raw history. API starts at the first fully covered UTC day on/after --start. Requires the daily aggregate migration and SELECT grants; --no-api skips it. First API run establishes its own baseline.",

@@ -281,11 +281,14 @@ Run this command whenever you want a fresh snapshot and changes since the previo
 pnpm analytics:snapshot --env-file .env.analytics.local
 ```
 
-Defaults are **testnet**, **EXTERNAL**, `reports/analytics-staging/`, API analytics and PostHog
-enabled for app environment `beta` / host `beta.app.paiflow.xyz`. Start defaults to
+Defaults are **testnet**, **EXTERNAL**, API analytics and PostHog
+enabled for app environment `beta` / host `beta.app.paiflow.xyz`. Results and history
+default to the same directory as the explicit `--env-file`; without that argument,
+the output directory remains `reports/analytics-staging/`. `--dir` overrides either
+default. Start defaults to
 tracking activation and end to now. All filters remain overridable. The terminal
 shows previous totals, current totals, and signed deltas; the first run establishes
-a baseline. Snapshots are timestamped JSON files in the gitignored report folder.
+a baseline. Snapshots are timestamped JSON files in the selected output directory.
 
 Create the private, gitignored `.env.analytics.local` file with these two values:
 
@@ -306,14 +309,16 @@ precedence applies.
 
 Use `--no-posthog` to skip PostHog, `--no-api` to skip API analytics, or both for only
 the original database usage section. To continue history previously saved in
-`reports/analytics/`, pass `--dir reports/analytics`; the new default is the staging
-folder used by the current reporting workflow.
+`reports/analytics-staging/`, pass `--dir reports/analytics-staging` (or the relevant
+previous folder). History is read from the selected output directory; existing
+snapshots are not moved automatically. For example, `--env-file ../../.env.paiflow`
+saves JSON results directly in `../../`, beside that file.
 
 The start defaults to the usage-v2 tracking activation time, and the end defaults to now. Set `--start` to an ISO timestamp to begin a different series; keep that start fixed on later runs. `--end` accepts a fixed timestamp to revisit an earlier window. Comparisons require the same network, audience, tracking version, activation time, and start, with a nondecreasing end. Separate filters automatically get separate baselines. Use a separate `--dir` for each database/environment so their histories are never mixed.
 
 Deltas are net changes to cumulative totals. An unresolved count can decrease as older transactions confirm; unique-account deltas count newly observed accounts within the cumulative window, not all accounts active since the last run. Wallets and accounts are not participant counts. Only data captured since tracking activation is included. API queue health and ordered PostHog interaction funnels are not part of this command.
 
-History files are retained without overwriting. Invalid history stops the run instead of silently dropping a baseline. A directory lock prevents concurrent runs; after a process crash, remove `reports/analytics-staging/.snapshot.lock` only after checking that no snapshot process is running. Run `pnpm analytics:snapshot --help` for options.
+History files are retained without overwriting. Invalid history stops the run instead of silently dropping a baseline. A directory lock prevents concurrent runs; after a process crash, remove `.snapshot.lock` from the selected output directory only after checking that no snapshot process is running. Run `pnpm analytics:snapshot --help` for options.
 
 PostHog aggregates are included by default. Configure `POSTHOG_PERSONAL_API_KEY` locally with
 `query:read` permission and project access. The existing script-only settings

@@ -7,6 +7,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Save analytics snapshots beside an explicitly selected environment file by
+  default; retain `--dir` overrides and the existing fallback without `--env-file`.
+
 - Add an optional total relayer transaction fee ceiling before envelope signing;
   configuring it also refuses automatic restoration in the invocation builder.
 
