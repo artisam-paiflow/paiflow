@@ -7,6 +7,12 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Bind payment-trigger and allowance signatures to the exact approved wallet
+  session and unchanged transaction. Cancel stale approvals before dispatch;
+  preserve submitted hashes across view changes and reloads, and share transaction
+  admission with contract controls while retaining allowance-specific reconciliation
+  (#1003). Legacy unbound mobile wallet returns require reconnecting.
+
 - Keep contract-action signing bound to the selected wallet connection, cancelling
   stale approvals when the deployment, network or action arguments change. Preserve
   submitted hashes across view changes and reloads until finality is known; require

@@ -37,7 +37,14 @@ vi.mock("@creit.tech/stellar-wallets-kit/modules/walletconnect.module", () => ({
   },
   WalletConnectAllowedMethods: { SIGN: "stellar_signXDR" },
 }));
-const address = `G${"A".repeat(55)}`;
+// Component tests focus on gesture/session routing. The node wallet-signature
+// and wallet-connect-connection suites verify real envelopes cryptographically.
+vi.mock("@/lib/stellar/wallet-signature", () => ({
+  assertWalletNetwork: vi.fn(),
+  assertSignedWalletTransaction: vi.fn(),
+  signedWalletTransactionHash: () => "a".repeat(64),
+}));
+const address = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const hash = "a".repeat(64);
 function session(topic = "approved-topic", pairingTopic = "approved-pairing") {
   return {
@@ -61,6 +68,12 @@ beforeEach(() => {
   sessionStorage.clear();
   sessions = [];
   vi.stubEnv("NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID", "test-project");
+  vi.stubGlobal("navigator", {
+    locks: {
+      request: async (_key: string, _options: unknown, callback: (lock: object) => Promise<void>) =>
+        callback({}),
+    },
+  });
   vi.stubGlobal("matchMedia", () => ({ matches: true }));
   vi.stubGlobal("fetch", mocks.fetch);
   open = vi.spyOn(window, "open").mockImplementation(() => null);
@@ -96,11 +109,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
 });
-async function mount() {
+async function mount(props: { amount?: string; disabled?: boolean } = {}) {
   const { TriggerButton } = await import("@/components/deploy/trigger-button");
+  let view!: ReturnType<typeof render>;
   await act(async () => {
-    render(<TriggerButton deploymentId="deployment-id" network="testnet" amount="1000000" />);
+    view = render(
+      <TriggerButton deploymentId="deployment-id" network="testnet" amount="1000000" {...props} />,
+    );
   });
+  return view;
 }
 async function picker() {
   await act(async () => {
@@ -156,7 +173,7 @@ describe("mobile trigger using the shared wallet kit", () => {
       request: { method: "stellar_signXDR", params: { xdr: "unsigned" } },
     });
     expect(mocks.sign).not.toHaveBeenCalled();
-    expect(mocks.poll).toHaveBeenCalledWith("deployment-id", hash, expect.any(AbortSignal));
+    expect(mocks.poll).toHaveBeenCalledWith("deployment-id", hash);
     expect(mocks.init).toHaveBeenCalledOnce();
   });
 
@@ -180,6 +197,14 @@ describe("mobile trigger using the shared wallet kit", () => {
     sessionStorage.setItem(
       "paiflow_pending_wc",
       JSON.stringify({
+        boundAction: JSON.stringify([
+          "deployment-id",
+          "testnet",
+          "1000000",
+          "trigger",
+          null,
+          false,
+        ]),
         network: "testnet",
         timestamp: Date.now(),
         walletId: "freighter",
@@ -188,10 +213,14 @@ describe("mobile trigger using the shared wallet kit", () => {
     );
     await mount();
     expect(mocks.init).toHaveBeenCalledOnce();
-    expect(mocks.setSession).toHaveBeenCalledWith("approved-topic");
-    expect(mocks.setSession).not.toHaveBeenCalledWith("older-topic");
-    expect(mocks.sign).toHaveBeenCalledOnce();
-    expect(mocks.poll).toHaveBeenCalledWith("deployment-id", hash, expect.any(AbortSignal));
+    expect(mocks.request).toHaveBeenCalledWith({
+      topic: "approved-topic",
+      chainId: "stellar:testnet",
+      request: { method: "stellar_signXDR", params: { xdr: "unsigned" } },
+    });
+    expect(mocks.setSession).not.toHaveBeenCalled();
+    expect(mocks.sign).not.toHaveBeenCalled();
+    expect(mocks.poll).toHaveBeenCalledWith("deployment-id", hash);
     expect(sessionStorage.getItem("paiflow_pending_wc")).toBeNull();
     expect(JSON.parse(localStorage.getItem("paiflow_mobile_wallet:testnet")!)).toMatchObject({
       topic: "approved-topic",
@@ -210,5 +239,117 @@ describe("mobile trigger using the shared wallet kit", () => {
       false,
     );
     expect(mocks.connect).toHaveBeenCalledOnce();
+  });
+
+  it("routes a fresh approval to its exact topic despite older same-account sessions", async () => {
+    let approve!: (value: { topic: string }) => void;
+    const approval = new Promise<{ topic: string }>((resolve) => {
+      approve = resolve;
+    });
+    mocks.connect.mockResolvedValue({
+      uri: `wc:new-pairing@2?expiryTimestamp=${Math.floor(Date.now() / 1000) + 300}`,
+      approval: () => approval,
+    });
+    sessions.push(session("older-topic", "older-pairing"));
+    await mount();
+    await picker();
+    await act(async () => {
+      const freighter = screen.getByRole("button", { name: "Freighter" });
+      fireEvent.click(freighter);
+      fireEvent.click(freighter);
+    });
+    expect(open).toHaveBeenCalledOnce();
+    expect(mocks.request).not.toHaveBeenCalled();
+    await act(async () => {
+      sessions.push(session("fresh-topic", "new-pairing"));
+      approve({ topic: "fresh-topic" });
+    });
+    expect(mocks.request).toHaveBeenCalledExactlyOnceWith({
+      topic: "fresh-topic",
+      chainId: "stellar:testnet",
+      request: { method: "stellar_signXDR", params: { xdr: "unsigned" } },
+    });
+    expect(mocks.sign).not.toHaveBeenCalled();
+    expect(mocks.poll).toHaveBeenCalledWith("deployment-id", hash);
+  });
+
+  it("does not prepare or sign after a fresh approval returns to an unmounted action", async () => {
+    let approve!: (value: { topic: string }) => void;
+    const approval = new Promise<{ topic: string }>((resolve) => {
+      approve = resolve;
+    });
+    mocks.connect.mockResolvedValue({
+      uri: `wc:new-pairing@2?expiryTimestamp=${Math.floor(Date.now() / 1000) + 300}`,
+      approval: () => approval,
+    });
+    const view = await mount();
+    await picker();
+    fireEvent.click(screen.getByRole("button", { name: "Freighter" }));
+    await act(async () => {});
+    view.unmount();
+    await act(async () => {
+      sessions.push(session("fresh-topic", "new-pairing"));
+      approve({ topic: "fresh-topic" });
+    });
+    expect(mocks.fetch).not.toHaveBeenCalled();
+    expect(mocks.request).not.toHaveBeenCalled();
+    expect(localStorage.getItem("paiflow_contract_call_pending:deployment-id:testnet")).toBeNull();
+  });
+
+  it.each(["legacy", "different-amount", "disabled"])(
+    "never resumes a %s wallet-return marker into signing",
+    async (kind) => {
+      sessions.push(session());
+      sessionStorage.setItem(
+        "paiflow_pending_wc",
+        JSON.stringify({
+          ...(kind === "legacy"
+            ? {}
+            : {
+                boundAction: JSON.stringify([
+                  "deployment-id",
+                  "testnet",
+                  kind === "different-amount" ? "2" : "1000000",
+                  "trigger",
+                  null,
+                  false,
+                ]),
+              }),
+          network: "testnet",
+          timestamp: Date.now(),
+          walletId: "freighter",
+          pairingTopic: "approved-pairing",
+        }),
+      );
+      await mount({ disabled: kind === "disabled" });
+      expect(mocks.fetch).not.toHaveBeenCalled();
+      expect(mocks.request).not.toHaveBeenCalled();
+      expect(mocks.sign).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not resume an ambiguous pairing into any approved session", async () => {
+    sessions.push(session(), session("second-topic", "approved-pairing"));
+    sessionStorage.setItem(
+      "paiflow_pending_wc",
+      JSON.stringify({
+        boundAction: JSON.stringify([
+          "deployment-id",
+          "testnet",
+          "1000000",
+          "trigger",
+          null,
+          false,
+        ]),
+        network: "testnet",
+        timestamp: Date.now(),
+        walletId: "freighter",
+        pairingTopic: "approved-pairing",
+      }),
+    );
+    await mount();
+    expect(mocks.fetch).not.toHaveBeenCalled();
+    expect(mocks.request).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem("paiflow_pending_wc")).toBeNull();
   });
 });
