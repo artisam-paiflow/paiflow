@@ -111,6 +111,42 @@ async function choose(id = "freighter") {
 }
 
 describe("contract actions using the shared selected connection", () => {
+  it.each(["prepare", "transactions", "invalid"])(
+    "preserves a same-deployment legacy %s reservation before opening a wallet",
+    async (phase) => {
+      const key = "paiflow_payroll_pending:deployment-one:testnet";
+      const raw =
+        phase === "invalid"
+          ? "{invalid"
+          : JSON.stringify({
+              requestId: "11111111-1111-1111-1111-111111111111",
+              phase,
+              ...(phase === "transactions" ? { txHashes: [HASH] } : {}),
+            });
+      localStorage.setItem(key, raw);
+      render(<ContractCallButton {...props} />);
+      const button = screen.getByRole("button", { name: /charge now/i });
+      await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(true));
+      fireEvent.click(button);
+      expect(mocks.getWalletKit).not.toHaveBeenCalled();
+      expect(prepare).not.toHaveBeenCalled();
+      expect(submit).not.toHaveBeenCalled();
+      expect(localStorage.getItem(key)).toBe(raw);
+    },
+  );
+  it("ignores unrelated legacy reservations and permits a normal subscription action", async () => {
+    localStorage.setItem("paiflow_payroll_pending:other-deployment:testnet", "invalid");
+    localStorage.setItem("paiflow_payroll_pending:deployment-one:mainnet", "invalid");
+    await open();
+    await choose();
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce());
+    expect(prepare).toHaveBeenCalledOnce();
+    expect(submit).toHaveBeenCalledExactlyOnceWith("signed");
+    expect(localStorage.getItem("paiflow_payroll_pending:other-deployment:testnet")).toBe(
+      "invalid",
+    );
+  });
+
   it.each([
     ["testnet", "Public Global Stellar Network ; September 2015"],
     ["mainnet", TESTNET],

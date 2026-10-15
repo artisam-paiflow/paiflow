@@ -257,6 +257,32 @@ describe("POST /api/deployments/prepare", () => {
     return POST(jsonRequest({ flowId: ID, sourceAccount: SOURCE }) as never);
   }
 
+  it("keeps a standard subscription/splitter deploy available with payroll and off-ramp off", async () => {
+    setSwitch("FEATURE_PAYROLL_ENABLED", "false");
+    setSwitch("FEATURE_OFFRAMP_ENABLED", "false");
+    const graph = {
+      ...PAYROLL_GRAPH,
+      nodes: [
+        {
+          id: "t",
+          type: "subscription",
+          config: {
+            asset: USDC,
+            subscriber: SOURCE,
+            amountPerPeriodStroops: "100000000",
+            intervalAmount: 1,
+            intervalUnit: "week",
+          },
+        },
+        PAYROLL_GRAPH.nodes[1],
+      ],
+    };
+    const res = await prepare(graph);
+    expect(res.status).toBe(200);
+    expect(mockDeploy.preparePipelineDeployTx).toHaveBeenCalledOnce();
+    expect(mockDb.deployment.create).toHaveBeenCalledOnce();
+  });
+
   it("refuses a Dev graph before simulation and still prepares a standard flow", async () => {
     setSwitch("FEATURE_DEV_MODE_ENABLED", "false");
     const res = await prepare({ ...ORACLE_GRAPH, devMode: true });
