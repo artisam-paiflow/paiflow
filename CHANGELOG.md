@@ -21,6 +21,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Save compatible cumulative analytics snapshots with exact integer deltas between
+  runs using `pnpm analytics:snapshot` (#995).
+
 - SDK quickstart, API migration/coverage guide and packed-package examples for
   browser-wallet payments, controls, funding, allowance, Webhooks and event recovery (#963).
 
