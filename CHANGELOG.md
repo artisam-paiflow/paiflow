@@ -24,6 +24,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Deterministic unsigned TESTNET envelope samples for Lantern scan-fixture
+  preparation, with synthetic-state limits and builder/decoder verification (#1003).
+
 - Include API request totals, endpoint/method counts and deltas in analytics
   snapshots by default, with compatible API baselines and `--no-api` opt-out.
 
