@@ -1,15 +1,15 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "purpose": "Expired real unsigned scanner-input samples only; not Lantern scan acceptance or wallet-support evidence",
   "network": {
     "name": "testnet",
     "passphrase": "Test SDF Network ; September 2015",
-    "provenance": "Pinned Railway testing environment and known successful Testnet transaction hashes. Raw server prepare passphrase was not retained; XDR has no network field."
+    "provenance": "The first two samples use pinned Railway testing and known successful Testnet hashes; their raw server passphrase was not retained. The third explicitly verifies Testnet via public RPC getNetwork. XDR has no network field."
   },
   "coverage": {
-    "realSamples": 2,
+    "realSamples": 3,
     "requestedSamples": 5,
-    "missingRealSamples": ["splitter-distribute", "streamer-top-up", "token-approve"]
+    "missingRealSamples": ["streamer-top-up", "token-approve"]
   },
   "samples": [
     {
@@ -23,7 +23,9 @@
         "receiptObservedAt": "2026-10-15T15:52:49.387987Z",
         "rawSimulationResponseRetained": false,
         "rawServerPassphraseRetained": false,
-        "simulationEvidence": "The captured revision preparation builder requires successful simulation and assembly before returning XDR; the raw simulation response was not retained. Successful chain execution is separate evidence below."
+        "simulationEvidence": "The captured revision preparation builder requires successful simulation and assembly before returning XDR; the raw simulation response was not retained. Successful chain execution is separate evidence below.",
+        "kind": "application UI capture",
+        "publicRpcEvidenceFile": null
       },
       "transactionHashTestnet": "2994ae4fce8176ee373d1baf7524504e069c68b259018ec3ab6cf40d3b1e8420",
       "source": "GCDF6TFSMWXBK7DGO4AQ4WYBSTS5OHM6S4OJRG7MZ7V34AT2LYSOJNWZ",
@@ -116,7 +118,9 @@
         "receiptObservedAt": "2026-10-15T16:10:22.284398Z",
         "rawSimulationResponseRetained": false,
         "rawServerPassphraseRetained": false,
-        "simulationEvidence": "The captured revision preparation builder requires successful simulation and assembly before returning XDR; the raw simulation response was not retained. Successful chain execution is separate evidence below."
+        "simulationEvidence": "The captured revision preparation builder requires successful simulation and assembly before returning XDR; the raw simulation response was not retained. Successful chain execution is separate evidence below.",
+        "kind": "application UI capture",
+        "publicRpcEvidenceFile": null
       },
       "transactionHashTestnet": "2f68d076c7521c27506186a1e4a4b1b6036acd8a7d84a93d8d5f884a0cbb29b6",
       "source": "GCDF6TFSMWXBK7DGO4AQ4WYBSTS5OHM6S4OJRG7MZ7V34AT2LYSOJNWZ",
@@ -152,6 +156,51 @@
         "ledger": 5211379,
         "horizonTransactionUrl": "https://horizon-testnet.stellar.org/transactions/2f68d076c7521c27506186a1e4a4b1b6036acd8a7d84a93d8d5f884a0cbb29b6"
       }
+    },
+    {
+      "id": "splitter-distribute",
+      "file": "splitter-distribute.unsigned.xdr",
+      "capture": {
+        "revision": "437beafef0c7e444bbef225e190e4e2ad48e4dd3",
+        "preparedAt": "2026-10-15T16:50:12.502Z",
+        "environment": "Read-only public Testnet RPC",
+        "provenance": "Actual repository prepareDistributeInvocation with temporary public getAccount/simulateTransaction adapters; no application POST, signing or submission",
+        "receiptObservedAt": null,
+        "rawSimulationResponseRetained": true,
+        "rawServerPassphraseRetained": false,
+        "simulationEvidence": "Actual successful RPC simulation at ledger 5211885; allowlisted raw latestLedger/minResourceFee/transactionData/results retained. Diagnostic events and unneeded fields omitted. Not an application/server UI capture or chain execution.",
+        "kind": "read-only actual-builder RPC sample",
+        "publicRpcEvidenceFile": "splitter-distribute.simulation-public.json"
+      },
+      "transactionHashTestnet": "0217cd1936cc6cc0b8b8b5b186895f3c3f98ab0cc3bac91bbab877cdf1fd190e",
+      "source": "GCDF6TFSMWXBK7DGO4AQ4WYBSTS5OHM6S4OJRG7MZ7V34AT2LYSOJNWZ",
+      "sequence": "22379515506327555",
+      "maximumFeeStroops": "14784",
+      "actualFeeChargedStroops": null,
+      "timeBounds": {
+        "minTime": "0",
+        "maxTime": "1792083192"
+      },
+      "expiresAt": "2026-10-15T16:53:12.000Z",
+      "transactionSignatures": 0,
+      "addressAuthorizationEntries": 0,
+      "amountStroops": "1000000",
+      "operations": [
+        {
+          "type": "invokeHostFunction",
+          "hostFunctionType": "hostFunctionTypeInvokeContract",
+          "contract": "CDC5R564G4IHBX6NZMG66YJ5EZGXXJZA373SORYOG7Y7EMBNVRVX2DME",
+          "method": "distribute",
+          "arguments": ["GCDF6TFSMWXBK7DGO4AQ4WYBSTS5OHM6S4OJRG7MZ7V34AT2LYSOJNWZ", "1000000"],
+          "auth": [
+            {
+              "credential": "sorobanCredentialsSourceAccount",
+              "root": "sorobanAuthorizedFunctionTypeContractFn"
+            }
+          ]
+        }
+      ],
+      "chainExecution": null
     }
   ]
 }

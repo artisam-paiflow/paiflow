@@ -4,6 +4,7 @@ import {
   Address,
   Keypair,
   Networks,
+  rpc,
   scValToNative,
   Transaction,
   TransactionBuilder,
@@ -36,6 +37,17 @@ const known = [
     ledger: 5211379,
     expires: "1792080630",
     revision: "67402e0ba2f9e822c15b8a9b768b4fecdc2fc226",
+  },
+  {
+    id: "splitter-distribute",
+    hash: "0217cd1936cc6cc0b8b8b5b186895f3c3f98ab0cc3bac91bbab877cdf1fd190e",
+    method: "distribute",
+    contract: "CDC5R564G4IHBX6NZMG66YJ5EZGXXJZA373SORYOG7Y7EMBNVRVX2DME",
+    maximumFee: "14784",
+    actualFee: null,
+    ledger: null,
+    expires: "1792083192",
+    revision: "437beafef0c7e444bbef225e190e4e2ad48e4dd3",
   },
 ];
 function jsonValue(value: unknown): unknown {
@@ -73,7 +85,7 @@ function scanInput(envelope: string): Transaction {
 }
 
 describe("sanitized real unsigned Testnet scan samples", () => {
-  it("contains exactly two real samples and explicitly retains all acceptance/provenance gaps", () => {
+  it("contains exactly three real samples and explicitly retains all acceptance/provenance gaps", () => {
     expect(Object.keys(manifest).sort()).toEqual([
       "coverage",
       "network",
@@ -81,12 +93,12 @@ describe("sanitized real unsigned Testnet scan samples", () => {
       "samples",
       "schemaVersion",
     ]);
-    expect(manifest.schemaVersion).toBe(1);
+    expect(manifest.schemaVersion).toBe(2);
     expect(manifest.samples.map((sample) => sample.id)).toEqual(known.map((sample) => sample.id));
     expect(manifest.coverage).toEqual({
-      realSamples: 2,
+      realSamples: 3,
       requestedSamples: 5,
-      missingRealSamples: ["splitter-distribute", "streamer-top-up", "token-approve"],
+      missingRealSamples: ["streamer-top-up", "token-approve"],
     });
     expect(manifest.network.name).toBe("testnet");
     expect(manifest.network.passphrase).toBe(Networks.TESTNET);
@@ -121,11 +133,17 @@ describe("sanitized real unsigned Testnet scan samples", () => {
           "rawSimulationResponseRetained",
           "rawServerPassphraseRetained",
           "simulationEvidence",
+          "kind",
+          "publicRpcEvidenceFile",
         ].sort(),
       );
-      expect(sample.capture.rawSimulationResponseRetained).toBe(false);
+      expect(sample.capture.rawSimulationResponseRetained).toBe(
+        sample.id === "splitter-distribute",
+      );
       expect(sample.capture.rawServerPassphraseRetained).toBe(false);
-      expect(sample.capture.environment).toBe("Railway testing");
+      expect(sample.capture.environment).toBe(
+        sample.id === "splitter-distribute" ? "Read-only public Testnet RPC" : "Railway testing",
+      );
     }
   });
   it.each(known)(
@@ -143,17 +161,22 @@ describe("sanitized real unsigned Testnet scan samples", () => {
       expect(tx.fee).toBe(expected.maximumFee);
       expect(sample.maximumFeeStroops).toBe(expected.maximumFee);
       expect(sample.actualFeeChargedStroops).toBe(expected.actualFee);
-      expect(BigInt(sample.actualFeeChargedStroops)).toBeLessThan(BigInt(tx.fee));
+      if (sample.actualFeeChargedStroops !== null)
+        expect(BigInt(sample.actualFeeChargedStroops)).toBeLessThan(BigInt(tx.fee));
       expect(tx.timeBounds).toEqual(sample.timeBounds);
       expect(tx.timeBounds!.maxTime).toBe(expected.expires);
       expect(new Date(Number(tx.timeBounds!.maxTime) * 1000).toISOString()).toBe(sample.expiresAt);
       expect(sample.capture.revision).toBe(expected.revision);
-      expect(sample.chainExecution).toEqual({
-        network: "testnet",
-        status: "SUCCESS",
-        ledger: expected.ledger,
-        horizonTransactionUrl: `https://horizon-testnet.stellar.org/transactions/${expected.hash}`,
-      });
+      expect(sample.chainExecution).toEqual(
+        expected.ledger === null
+          ? null
+          : {
+              network: "testnet",
+              status: "SUCCESS",
+              ledger: expected.ledger,
+              horizonTransactionUrl: `https://horizon-testnet.stellar.org/transactions/${expected.hash}`,
+            },
+      );
       const operation = tx.operations[0]!;
       if (operation.type !== "invokeHostFunction") throw new Error("Unexpected operation");
       const invocation = operation.func.invokeContract();
@@ -184,6 +207,73 @@ describe("sanitized real unsigned Testnet scan samples", () => {
     const sample = manifest.samples.find((candidate) => candidate.id === "deposit")!;
     expect(sample.operations[0]!.arguments).toEqual([source, "1000000"]);
     expect(sample.amountStroops).toBe("1000000");
+  });
+  it("preserves genuine whitelisted public simulation evidence without claiming submission", () => {
+    const sample = manifest.samples.find((candidate) => candidate.id === "splitter-distribute")!;
+    expect(sample.capture.kind).toBe("read-only actual-builder RPC sample");
+    expect(sample.chainExecution).toBeNull();
+    expect(sample.actualFeeChargedStroops).toBeNull();
+    expect(sample.operations[0]!.arguments).toEqual([source, "1000000"]);
+    const evidence = JSON.parse(
+      readFileSync(resolve(directory, sample.capture.publicRpcEvidenceFile!), "utf8"),
+    ) as {
+      rpcUrl: string;
+      networkPassphrase: string;
+      requestMethod: string;
+      capturedAt: string;
+      verifiedBeforeSimulation: {
+        ledger: number;
+        source: string;
+        admin: string;
+        contract: string;
+        recipients: unknown[];
+        nextSteps: unknown[];
+        paused: boolean;
+      };
+      result: rpc.Api.RawSimulateTransactionResponse;
+    };
+    expect(Object.keys(evidence).sort()).toEqual(
+      [
+        "rpcUrl",
+        "networkPassphrase",
+        "requestMethod",
+        "capturedAt",
+        "verifiedBeforeSimulation",
+        "result",
+      ].sort(),
+    );
+    expect(evidence.rpcUrl).toBe("https://soroban-testnet.stellar.org");
+    expect(evidence.networkPassphrase).toBe(Networks.TESTNET);
+    expect(evidence.requestMethod).toBe("simulateTransaction");
+    expect(evidence.verifiedBeforeSimulation).toEqual({
+      ledger: 5211884,
+      source,
+      admin: source,
+      contract: "CDC5R564G4IHBX6NZMG66YJ5EZGXXJZA373SORYOG7Y7EMBNVRVX2DME",
+      recipients: [{ address: source, amount: "1000000", bps: 0, is_cash_out: false }],
+      nextSteps: [],
+      paused: false,
+    });
+    expect(Object.keys(evidence.result).sort()).toEqual(
+      ["latestLedger", "minResourceFee", "transactionData", "results"].sort(),
+    );
+    const simulation = rpc.parseRawSimulation(evidence.result);
+    if (!rpc.Api.isSimulationSuccess(simulation))
+      throw new Error("Expected actual successful simulation");
+    expect(simulation.latestLedger).toBe(5211885);
+    expect(simulation.minResourceFee).toBe("14684");
+    expect(simulation.result?.auth).toHaveLength(1);
+    for (const auth of simulation.result?.auth ?? [])
+      expect(auth.credentials().switch().name).toBe("sorobanCredentialsSourceAccount");
+    const tx = scanInput(unsigned(sample.file));
+    expect(BigInt(tx.fee)).toBe(BigInt(simulation.minResourceFee) + 100n);
+    expect(tx.toEnvelope().v1().tx().ext().sorobanData().toXDR("base64")).toBe(
+      simulation.transactionData.build().toXDR("base64"),
+    );
+    expect(
+      tx.operations[0]?.type === "invokeHostFunction" &&
+        tx.operations[0].auth?.map((auth) => auth.toXDR("base64")),
+    ).toEqual(simulation.result!.auth.map((auth) => auth.toXDR("base64")));
   });
   it("rejects an envelope with any transaction signature", () => {
     const tx = scanInput(unsigned(manifest.samples[0]!.file));
