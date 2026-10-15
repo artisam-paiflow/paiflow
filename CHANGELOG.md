@@ -7,6 +7,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Reject a contract action's mismatched server network before asking a desktop
+  wallet to sign, while retaining signed-envelope validation before submission.
+
 - Keep new-flow controls natively disabled until hydration can handle a click,
   preventing an enabled server-rendered button from silently losing the first tap
   on a slow connection (#1003).
