@@ -25,41 +25,6 @@ export function Field({
   );
 }
 
-export function AssetOptionInfoIcon({ expectedAsset }: { expectedAsset: Asset }) {
-  return (
-    // Hidden from AT: the ligature text "info" would otherwise join the
-    // select's accessible name ("Asset info").
-    <span
-      aria-hidden="true"
-      className="material-symbols-outlined cursor-help text-[14px] text-zinc-500"
-      title={`Only ${assetLabel(expectedAsset)} can be picked here — that's the asset flowing into this step. Add or change a swap node upstream to use a different asset.`}
-    >
-      info
-    </span>
-  );
-}
-
-export type SimpleAsset =
-  | { kind: "native" }
-  | { kind: "known"; symbol: "USDC" }
-  | { kind: "custom"; code: string; issuer: string };
-
-export function AssetFieldLabel({
-  label,
-  expectedAsset,
-}: {
-  label: React.ReactNode;
-  expectedAsset?: Asset | null;
-}) {
-  if (!expectedAsset) return <>{label}</>;
-  return (
-    <span className="inline-flex items-center gap-1">
-      {label}
-      <AssetOptionInfoIcon expectedAsset={expectedAsset} />
-    </span>
-  );
-}
-
 /**
  * The dropdown below only offers native/USDC. When the upstream trigger
  * carries a custom asset, neither option is valid — rather than disabling
@@ -75,8 +40,8 @@ export function AssetSelectOrReadout({
   error,
 }: {
   label: React.ReactNode;
-  asset: SimpleAsset;
-  onChange: (a: SimpleAsset) => void;
+  asset: Asset;
+  onChange: (a: Asset) => void;
   expectedAsset?: Asset | null;
   error?: string | null;
 }) {
@@ -90,13 +55,21 @@ export function AssetSelectOrReadout({
   // it is not read as part of the control's name, and describes the control
   // instead. Always mounted and polite, so it is announced once when an
   // autosave's validation puts it there.
-  const { controlId, errorId, controlProps } = useField({ error });
+  const hint = expectedAsset
+    ? `Only ${assetLabel(expectedAsset)} can be picked here — that's the asset flowing into this step. Add or change a swap node upstream to use a different asset.`
+    : undefined;
+  const { controlId, hintId, errorId, controlProps } = useField({ hint, error });
   const shell = (control: React.ReactNode) => (
     <div className="grid gap-1">
       <label htmlFor={controlId} className={cn("text-xs", error ? "text-error" : "text-zinc-400")}>
-        <AssetFieldLabel label={label} expectedAsset={expectedAsset} />
+        {label}
       </label>
       <div className={cn("grid gap-1", error && "[&_.input]:!border-error/70")}>{control}</div>
+      {hint && (
+        <p id={hintId} className="text-label-sm text-on-surface-muted leading-snug">
+          {hint}
+        </p>
+      )}
       <p
         id={errorId}
         aria-live="polite"
@@ -145,8 +118,8 @@ export function AssetField({
   expectedAsset,
   error,
 }: {
-  asset: SimpleAsset;
-  onChange: (a: SimpleAsset) => void;
+  asset: Asset;
+  onChange: (a: Asset) => void;
   expectedAsset?: Asset | null;
   /** The node's `config.asset` issue: `fieldErrorUnder(nodeIssues(…).field, "asset")`. */
   error?: string | null;

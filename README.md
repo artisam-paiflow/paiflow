@@ -379,6 +379,11 @@ homepage/        Static marketing site (index, about, privacy, terms); its own R
 
 ### Branching & CI
 
+Release versioning and compatibility rules live in [docs/releasing.md](docs/releasing.md).
+Record noteworthy changes in [CHANGELOG.md](CHANGELOG.md) under `Unreleased`; bump the
+app version when preparing a release, rather than on every commit. Coding agents
+should start with [AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md).
+
 | Branch                  | Role                                                                   |
 | ----------------------- | ---------------------------------------------------------------------- |
 | `main`                  | Production-ready; protected. Not a PR target.                          |

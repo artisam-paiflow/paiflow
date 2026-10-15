@@ -125,17 +125,33 @@ describe("public subscription approval intent", () => {
       /not the intended/,
     );
   });
-  it("refuses unsigned, wrong wallet and wrong network signatures", () => {
+  it.each([0, 1000])("refuses invalid signatures after a %i ms clock advance", (clockAdvance) => {
     const tx = build();
-    const prepared = createAllowanceIntent(tx.toXDR(), state, "200");
-    expect(() => verifyAllowanceIntent(prepared.intent, tx.toXDR(), id)).toThrow(/signed/);
+    const unsignedXdr = tx.toXDR();
+    const prepared = createAllowanceIntent(unsignedXdr, state, "200");
+    const signatureError = expect.objectContaining({
+      code: "FORBIDDEN",
+      message: "Allowance must be signed by the configured subscriber on the deployment network",
+    });
+    expect(() => verifyAllowanceIntent(prepared.intent, unsignedXdr, id)).toThrow(signatureError);
     tx.sign(other);
-    expect(() => verifyAllowanceIntent(prepared.intent, tx.toXDR(), id)).toThrow(/signed/);
-    const wrongNetwork = build({ network: Networks.PUBLIC });
+    expect(() => verifyAllowanceIntent(prepared.intent, tx.toXDR(), id)).toThrow(signatureError);
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + clockAdvance);
+    // Reuse the prepared body: rebuilding would change its timeout across a clock tick.
+    const wrongNetwork = TransactionBuilder.fromXDR(unsignedXdr, Networks.PUBLIC);
+    expect(wrongNetwork.signatures).toHaveLength(0);
     wrongNetwork.sign(wallet);
+    expect(
+      TransactionBuilder.fromXDR(wrongNetwork.toXDR(), Networks.TESTNET).hash().toString("hex"),
+    ).toBe(prepared.txHash);
     expect(() => verifyAllowanceIntent(prepared.intent, wrongNetwork.toXDR(), id)).toThrow(
-      /signed/,
+      signatureError,
     );
+    const correctNetwork = TransactionBuilder.fromXDR(unsignedXdr, Networks.TESTNET);
+    correctNetwork.sign(wallet);
+    expect(
+      verifyAllowanceIntent(prepared.intent, correctNetwork.toXDR(), id).signer.signedBySource,
+    ).toBe(true);
   });
   it("refuses cross-deployment, expired and tampered intents and malformed envelopes", () => {
     const tx = build();
