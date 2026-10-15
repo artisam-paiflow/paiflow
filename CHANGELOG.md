@@ -7,6 +7,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Align alpha testing guides and PDFs with the shared wallet picker, keeping
+  Freighter as the wallet for this test plan and Lantern explicitly unavailable.
+
 - Reject a contract action's mismatched server network before asking a desktop
   wallet to sign, while retaining signed-envelope validation before submission.
 

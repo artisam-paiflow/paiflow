@@ -184,7 +184,8 @@ See [integration status](lantern-wallet-provider.md).
 ### 2. Deploy the Shop flow
 
 1. Open your **Shop** flow and click **DEPLOY**, then **DEPLOY TO TESTNET** on the review page.
-2. Freighter pops up — check it says testnet, then **sign**.
+2. Choose **Freighter** in the wallet picker. Freighter pops up — check it says testnet
+   and shows your intended account, then **sign**.
 
 - [ ] A "Contract deployed" message appears and you're taken to the deployment page.
 - [ ] Within about a minute the status becomes **ACTIVE** and a QR code appears.
@@ -193,7 +194,7 @@ See [integration status](lantern-wallet-provider.md).
 
 1. On the deployment page, click **OPEN TRIGGER PAGE**.
 2. Enter **10** as the amount, click **CONFIRM AMOUNT**, then **CONNECT WALLET & TRIGGER**, and
-   sign in Freighter.
+   choose **Freighter** in the wallet picker and sign.
 3. Go back to the deployment page and watch the live feed.
    - [ ] The live feed shows one RECEIVE row and two PAYOUT rows: 6 XLM and 4 XLM.
    - **Screenshot** `bonus-live-feed` — the feed showing all three rows. Add it to the same folder.
@@ -201,5 +202,6 @@ See [integration status](lantern-wallet-provider.md).
    plus `bonus-live-feed` in your folder, makes you eligible for the extra **₱75**.
 
 **Already on our list:** the trigger page can report a failure even though the payment went through —
-check the live feed first. Only Freighter works for deploying, and the live feed can lag up to a
-minute.
+check the live feed first. Use Freighter in the wallet picker for this round; other available
+options are outside this test plan. **Lantern (not yet supported)** is unavailable. The live feed
+can lag up to a minute.
