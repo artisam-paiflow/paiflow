@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [develop, staging, main, hackathon, hackathon-staging]
+    branches: [develop, staging, main, hackathon, hackathon-staging, testing]
   pull_request:
-    branches: [develop, staging, main, hackathon, hackathon-staging]
+    branches: [develop, staging, main, hackathon, hackathon-staging, testing]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -50,6 +50,9 @@ jobs:
       - run: pnpm db:generate
       - run: pnpm db:migrate:deploy
       - run: pnpm typecheck
+      - run: pnpm sdk:typecheck
+      - run: pnpm sdk:test
+      - run: pnpm sdk:test:package
       - run: pnpm test:ci
       - run: pnpm test:sse-shutdown
       - name: Upload test report

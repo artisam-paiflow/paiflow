@@ -11,6 +11,7 @@ import {
   Keypair,
   Operation,
   SorobanDataBuilder,
+  Transaction,
   nativeToScVal,
   xdr,
 } from "@stellar/stellar-sdk";
@@ -83,6 +84,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   delete process.env.STELLAR_RELAYER_SECRET_KEY;
   delete process.env.STELLAR_RELAYER_CHANNELS;
+  delete process.env.STELLAR_RELAYER_MAX_FEE_STROOPS;
   delete process.env.STELLAR_TTL_MAX_FEE_STROOPS;
   delete process.env.STELLAR_TTL_FEE_BUDGET_NAME;
   delete process.env.STELLAR_TTL_FEE_BUDGET_STROOPS;
@@ -435,6 +437,131 @@ describe("buildRelayerTx", () => {
       restorePreamble: { minResourceFee: "1000", transactionData: new SorobanDataBuilder() },
     };
   }
+
+  it.each([0, 1])(
+    "accepts the exact total fee ceiling without inflation, channels=%i",
+    async (channels) => {
+      process.env.STELLAR_RELAYER_MAX_FEE_STROOPS = "10000000";
+      const { buildRelayerTx, withRelayerChannel } = await load(channels);
+      const sim = {
+        ...simSuccess([relayerAuthEntry(RELAYER.publicKey())]),
+        minResourceFee: "9999900",
+        transactionData: new SorobanDataBuilder().setResourceFee("9999900"),
+      };
+      mockRpc.simulateTransaction.mockResolvedValue(sim);
+      const transaction = await withRelayerChannel((channel) =>
+        buildRelayerTx({
+          channel,
+          operation: operation(),
+          onSimulationError: (message) => new Error(message),
+        }),
+      );
+      expect(transaction.fee).toBe("10000000");
+      expect(transaction.signatures).toHaveLength(1);
+      expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([0, 1])(
+    "rejects total fees above the cap before envelope signing, channels=%i",
+    async (channels) => {
+      process.env.STELLAR_RELAYER_MAX_FEE_STROOPS = "10000000";
+      const { buildRelayerTx, withRelayerChannel } = await load(channels);
+      const sign = vi.spyOn(Transaction.prototype, "sign");
+      // Resource fee fits the ceiling alone; the inclusion fee must also count.
+      mockRpc.simulateTransaction.mockResolvedValue({
+        ...simSuccess([relayerAuthEntry(RELAYER.publicKey())]),
+        minResourceFee: "10000000",
+        transactionData: new SorobanDataBuilder().setResourceFee("10000000"),
+      });
+      await expect(
+        withRelayerChannel((channel) =>
+          buildRelayerTx({
+            channel,
+            operation: operation(),
+            onSimulationError: (message) => new Error(`bounded: ${message}`),
+          }),
+        ),
+      ).rejects.toThrow("bounded: Relayer transaction exceeds the configured total fee limit");
+      expect(sign).not.toHaveBeenCalled();
+      expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+    },
+  );
+
+  it("checks the channel's final authorized simulation rather than its cheaper recording", async () => {
+    process.env.STELLAR_RELAYER_MAX_FEE_STROOPS = "1100";
+    const { buildRelayerTx, withRelayerChannel } = await load(1);
+    const sign = vi.spyOn(Transaction.prototype, "sign");
+    mockRpc.simulateTransaction
+      .mockReset()
+      .mockResolvedValueOnce(simSuccess([relayerAuthEntry(RELAYER.publicKey())]))
+      .mockResolvedValueOnce({
+        ...simSuccess([]),
+        minResourceFee: "1001",
+        transactionData: new SorobanDataBuilder().setResourceFee("1001"),
+      });
+    await expect(
+      withRelayerChannel((channel) =>
+        buildRelayerTx({
+          channel,
+          operation: operation(),
+          onSimulationError: (message) => new Error(message),
+        }),
+      ),
+    ).rejects.toThrow("total fee limit");
+    expect(mockRpc.simulateTransaction).toHaveBeenCalledTimes(2);
+    expect(sign).not.toHaveBeenCalled();
+    expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+  });
+
+  it.each([0, 1])(
+    "retains existing unbounded invocation behavior when unset, channels=%i",
+    async (channels) => {
+      const { buildRelayerTx, withRelayerChannel } = await load(channels);
+      mockRpc.simulateTransaction.mockResolvedValue({
+        ...simSuccess([relayerAuthEntry(RELAYER.publicKey())]),
+        minResourceFee: "10000001",
+        transactionData: new SorobanDataBuilder().setResourceFee("10000001"),
+      });
+      const transaction = await withRelayerChannel((channel) =>
+        buildRelayerTx({
+          channel,
+          operation: operation(),
+          onSimulationError: (message) => new Error(message),
+        }),
+      );
+      expect(transaction.fee).toBe("10000101");
+      expect(transaction.signatures).toHaveLength(1);
+    },
+  );
+
+  it.each([0, 1, 2])(
+    "refuses automatic restoration with a fee cap before restore signing/sending, stage=%i",
+    async (stage) => {
+      process.env.STELLAR_RELAYER_MAX_FEE_STROOPS = "10000000";
+      const { buildRelayerTx, withRelayerChannel } = await load(stage === 0 ? 0 : 1);
+      const sign = vi.spyOn(Transaction.prototype, "sign");
+      mockRpc.simulateTransaction.mockReset();
+      if (stage === 2)
+        mockRpc.simulateTransaction.mockResolvedValueOnce(
+          simSuccess([relayerAuthEntry(RELAYER.publicKey())]),
+        );
+      mockRpc.simulateTransaction.mockResolvedValue(restoreRequired());
+      await expect(
+        withRelayerChannel((channel) =>
+          buildRelayerTx({
+            channel,
+            operation: operation(),
+            onSimulationError: (message) => new Error(message),
+          }),
+        ),
+      ).rejects.toThrow("Automatic restoration is disabled");
+      expect(sign).not.toHaveBeenCalled();
+      expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+      expect(reserveFee).not.toHaveBeenCalled();
+      expect(mockRpc.simulateTransaction).toHaveBeenCalledTimes(stage === 2 ? 2 : 1);
+    },
+  );
 
   it("allows a restorable release probe through to the locked restore path", async () => {
     await load(0);
