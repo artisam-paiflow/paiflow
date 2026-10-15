@@ -63,6 +63,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Reconcile the staging-only Railway configuration with the distinct live/archive
+  database volumes and guard its target; infrastructure applies remain separately
+  controlled (#529).
+
 - Improve builder interval labels and field errors, and show asset restrictions and
   recipient allocations without requiring hover (#988).
 
