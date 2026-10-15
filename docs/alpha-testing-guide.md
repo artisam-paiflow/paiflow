@@ -214,12 +214,13 @@ pay it out to an account you control.
    - [ ] A **TESTNET** chip is shown.
    - [ ] The page says how many contracts it will create, and shows the swap quote again.
    - **Screenshot** `T1-1-review-deploy` — the review page, with the TESTNET chip in shot.
-4. Click **DEPLOY TO TESTNET**. Freighter pops up — check it says testnet, then **sign**.
+4. Click **DEPLOY TO TESTNET**, then choose **Freighter** in the wallet picker.
+   Freighter pops up — check it says testnet and shows your **Main** account, then **sign**.
    - [ ] A "Contract deployed" message appears and you're taken to the deployment page.
    - [ ] Within about a minute the status becomes **ACTIVE** and a QR code appears.
 5. **Bookmark this page** — T6 comes back to it. Click **OPEN TRIGGER PAGE**.
-6. Enter **20** as the amount, click **CONFIRM AMOUNT**, then **CONNECT WALLET & TRIGGER**. Sign
-   in Freighter (with your **Main** account).
+6. Enter **20** as the amount, click **CONFIRM AMOUNT**, then **CONNECT WALLET & TRIGGER**.
+   Choose **Freighter** in the wallet picker and sign with your **Main** account.
    - [ ] You see progress messages ending in a success message.
 7. Go back to the deployment page and watch the live event feed.
    - [ ] A **RECEIVE** row for 20 XLM appears.
@@ -447,8 +448,8 @@ Already on our list — no need to report these.
   feed and stellar.expert first; only report it if the money really didn't move.
 - **The trigger page doesn't keep a record of a successful trigger** after the message
   disappears. Use the deployment page's live feed instead.
-- **The review page lists several wallets** (Freighter, Albedo, xBull, LOBSTR, Hana), but only
-  **Freighter** works for deploying right now.
+- **Use Freighter in the wallet picker for this round.** Other available options
+  are outside this test plan. **Lantern (not yet supported)** is unavailable.
 - **The live feed can lag** a few seconds to a minute behind the chain.
 
 ---

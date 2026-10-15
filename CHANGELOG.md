@@ -7,6 +7,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Align alpha testing guides and PDFs with the shared wallet picker, keeping
+  Freighter as the wallet for this test plan and Lantern explicitly unavailable.
+
 - Preserve unresolved payroll update requests and every returned transaction hash
   across navigation and reloads. Block replacement actions, cancel stale roster
   approvals and validate all wallet responses before dispatch.
