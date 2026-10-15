@@ -278,18 +278,43 @@ Downloads need an internet connection. With nvm, run `nvm use 22` in each new te
 Run this command whenever you want a fresh snapshot and changes since the previous compatible run:
 
 ```bash
-pnpm analytics:snapshot --network testnet --audience EXTERNAL
+pnpm analytics:snapshot --env-file .env.analytics.local
 ```
 
-It reads `DATABASE_URL` from the shell, `.env.local`, or `.env` (in that order), and saves timestamped JSON files in `reports/analytics/` (gitignored). The terminal shows previous totals, current totals, and signed deltas for wallet connections, distinct addresses, transaction attempts, confirmed deployments, executions, active accounts, and unresolved/rejected/failed transactions. The first run establishes a baseline.
+Defaults are **testnet**, **EXTERNAL**, `reports/analytics-staging/`, and PostHog
+enabled for app environment `beta` / host `beta.app.paiflow.xyz`. Start defaults to
+tracking activation and end to now. All filters remain overridable. The terminal
+shows previous totals, current totals, and signed deltas; the first run establishes
+a baseline. Snapshots are timestamped JSON files in the gitignored report folder.
+
+Create the private, gitignored `.env.analytics.local` file with these two values:
+
+```dotenv
+DATABASE_URL=postgresql://analytics_reader:YOUR_PASSWORD@127.0.0.1:15432/railway
+POSTHOG_PERSONAL_API_KEY=YOUR_POSTHOG_READ_KEY
+```
+
+The database example uses the local SSH tunnel; keep it open while reporting.
+`--env-file PATH` reads these credentials exclusively from that file, overriding
+inherited shell values. It also reads optional `POSTHOG_PROJECT_ID` and
+`POSTHOG_API_HOST` from the same file, using the documented defaults if omitted.
+Missing credentials or unreadable files stop the run; no other file or shell
+credentials are used as fallback. Other variables in the file are ignored. No
+application `AUTH_SECRET` is needed. Protect the file with `chmod 600` and keep it
+out of Git. Without `--env-file`, the existing shell > `.env.local` > `.env`
+precedence applies.
+
+Use `--no-posthog` for a database-only run. To continue history previously saved in
+`reports/analytics/`, pass `--dir reports/analytics`; the new default is the staging
+folder used by the current reporting workflow.
 
 The start defaults to the usage-v2 tracking activation time, and the end defaults to now. Set `--start` to an ISO timestamp to begin a different series; keep that start fixed on later runs. `--end` accepts a fixed timestamp to revisit an earlier window. Comparisons require the same network, audience, tracking version, activation time, and start, with a nondecreasing end. Separate filters automatically get separate baselines. Use a separate `--dir` for each database/environment so their histories are never mixed.
 
 Deltas are net changes to cumulative totals. An unresolved count can decrease as older transactions confirm; unique-account deltas count newly observed accounts within the cumulative window, not all accounts active since the last run. Wallets and accounts are not participant counts. Only data captured since tracking activation is included. API request health and ordered PostHog interaction funnels are not part of this command.
 
-History files are retained without overwriting. Invalid history stops the run instead of silently dropping a baseline. A directory lock prevents concurrent runs; after a process crash, remove `reports/analytics/.snapshot.lock` only after checking that no snapshot process is running. Run `pnpm analytics:snapshot --help` for options.
+History files are retained without overwriting. Invalid history stops the run instead of silently dropping a baseline. A directory lock prevents concurrent runs; after a process crash, remove `reports/analytics-staging/.snapshot.lock` only after checking that no snapshot process is running. Run `pnpm analytics:snapshot --help` for options.
 
-To include PostHog aggregates, configure `POSTHOG_PERSONAL_API_KEY` locally with
+PostHog aggregates are included by default. Configure `POSTHOG_PERSONAL_API_KEY` locally with
 `query:read` permission and project access. The existing script-only settings
 `POSTHOG_PROJECT_ID` (default `610680`) and `POSTHOG_API_HOST` (default
 `https://us.posthog.com`; EU Cloud also supported) select the source. This is a
@@ -297,9 +322,8 @@ personal read key, not the browser's public capture key. Do not put it in comman
 arguments or commit it. You do not need to set it on the Railway service.
 
 ```bash
-pnpm analytics:snapshot --network testnet --audience EXTERNAL \
-  --dir reports/analytics-staging --posthog \
-  --app-env beta --app-host beta.app.paiflow.xyz
+pnpm analytics:snapshot --env-file .env.testing-analytics.local \
+  --dir reports/analytics-testing --app-host pinkraft.xyz
 ```
 
 PostHog uses the same time window, audience, network, and tracking version as the

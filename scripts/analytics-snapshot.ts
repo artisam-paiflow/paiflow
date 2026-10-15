@@ -1,14 +1,13 @@
 /**
- * pnpm analytics:snapshot --network testnet --audience EXTERNAL
+ * pnpm analytics:snapshot --env-file .env.analytics.local
  * Optional: --start <ISO timestamp> --end <ISO timestamp> --dir <history directory>
  * Start defaults to the usage-v2 cutover; end defaults to now. Keep start fixed
- * across runs to compare cumulative totals. History defaults to reports/analytics.
+ * across runs to compare cumulative totals. Defaults target staging/testnet,
+ * EXTERNAL, reports/analytics-staging, with host-scoped PostHog enabled.
  */
-import { parseArgs } from "node:util";
 import { mkdir, open, readFile, readdir, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { resolve, join } from "node:path";
-import { config } from "dotenv";
 import { ZodError } from "zod";
 import {
   compareSnapshots,
@@ -17,11 +16,12 @@ import {
   SavedSnapshotSchema,
   SnapshotReportSchema,
 } from "@/lib/analytics/snapshot";
-import { UsageReportSchema } from "@/lib/analytics/report-schema";
+import { UsageReportError, UsageReportSchema } from "@/lib/analytics/report-schema";
 import { TRACKING_VERSION } from "@/lib/analytics/policy";
 import { PosthogReportError, PosthogScopeSchema } from "@/lib/analytics/posthog-report-schema";
-import { posthogReportConfig } from "@/lib/env";
+import { loadSnapshotEnvironment } from "@/lib/env";
 import { saveSnapshot } from "@/lib/analytics/snapshot-store";
+import { snapshotOptions } from "@/lib/analytics/snapshot-options";
 
 function print(line: string) {
   process.stdout.write(line + "\n");
@@ -45,40 +45,26 @@ function printCounts(
 }
 
 async function main() {
-  const { values } = parseArgs({
-    options: {
-      help: { type: "boolean" },
-      network: { type: "string" },
-      audience: { type: "string" },
-      start: { type: "string" },
-      end: { type: "string" },
-      dir: { type: "string" },
-      posthog: { type: "boolean" },
-      "app-env": { type: "string" },
-      "app-host": { type: "string" },
-    },
-  });
+  const values = snapshotOptions(process.argv.slice(2));
   if (values.help) {
     print(
-      "pnpm analytics:snapshot --network testnet|mainnet --audience INTERNAL|EXTERNAL|SANDBOX|UNCLASSIFIED [--start ISO] [--end ISO] [--dir reports/analytics] [--posthog --app-env beta --app-host beta.app.paiflow.xyz]",
+      "pnpm analytics:snapshot [--env-file PATH] [--network testnet|mainnet] [--audience INTERNAL|EXTERNAL|SANDBOX|UNCLASSIFIED] [--start ISO] [--end ISO] [--dir PATH] [--no-posthog] [--app-env beta|staging|local] [--app-host HOST]",
     );
     process.stdout.write(
-      "PostHog requires a personal API key with query:read access. Set POSTHOG_PERSONAL_API_KEY locally. Old DB-only snapshots remain usable; the first PostHog run establishes its own baseline.\n",
+      "Defaults: testnet, EXTERNAL, reports/analytics-staging, PostHog enabled, app-env beta, app-host beta.app.paiflow.xyz. PostHog requires a personal API key with query:read access. Old DB-only snapshots remain usable; the first PostHog run establishes its own baseline.\n",
     );
     print(
       "Keep start fixed across runs. Use a separate --dir for each database. The first run saves a baseline; subsequent runs show net changes.",
     );
+    print(
+      "--env-file reads DATABASE_URL, POSTHOG_PERSONAL_API_KEY and optional POSTHOG_PROJECT_ID/POSTHOG_API_HOST from that file exclusively. Without it: shell > .env.local > .env. No application AUTH_SECRET is needed.",
+    );
     return;
   }
-  // Shell settings take precedence over local files.
-  config({ path: ".env.local" });
-  config({ path: ".env" });
+  loadSnapshotEnvironment(values["env-file"], values.posthog);
   const posthogScope = values.posthog
     ? PosthogScopeSchema.parse({ app_env: values["app-env"], app_host: values["app-host"] })
     : undefined;
-  if (!values.posthog && (values["app-env"] || values["app-host"]))
-    throw new Error("Use --posthog with --app-env and --app-host");
-  if (posthogScope) posthogReportConfig();
   const { db } = await import("@/lib/db");
   let lock;
   let lockPath: string | undefined;
@@ -93,7 +79,7 @@ async function main() {
       end: values.end ?? new Date().toISOString(),
     });
     if (Date.parse(input.end) > Date.now()) throw new Error("End must not be in the future");
-    const directory = resolve(values.dir ?? "reports/analytics");
+    const directory = resolve(values.dir);
     await mkdir(directory, { recursive: true, mode: 0o700 });
     lockPath = join(directory, ".snapshot.lock");
     lock = await open(lockPath, "wx", 0o600);
@@ -172,11 +158,11 @@ async function main() {
 }
 
 void main().catch((error: unknown) => {
-  if (error instanceof PosthogReportError) {
+  if (error instanceof PosthogReportError || error instanceof UsageReportError) {
     process.stderr.write(error.message + "\n");
   } else if (error instanceof ZodError) {
     process.stderr.write(
-      "Invalid snapshot arguments; --posthog requires --app-env and --app-host. See --help.\n",
+      "Invalid snapshot arguments; check dates, network, audience, paths and PostHog scope. See --help.\n",
     );
   }
   process.stderr.write(

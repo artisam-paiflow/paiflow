@@ -24,6 +24,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 - Optional host-scoped PostHog event/account aggregates in analytics snapshots,
   retaining separate compatible baselines and publishing history atomically.
 
+- Default snapshots to staging/testnet, EXTERNAL and PostHog enabled; add
+  `--env-file` for an explicit private credential source and `--no-posthog` opt-out.
+
 - Save compatible cumulative analytics snapshots with exact integer deltas between
   runs using `pnpm analytics:snapshot` (#995).
 

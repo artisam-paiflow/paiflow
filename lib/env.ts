@@ -1,4 +1,6 @@
 import "server-only";
+import { readFileSync } from "node:fs";
+import { config as dotenvConfig, parse as parseDotenv } from "dotenv";
 import { StrKey } from "@stellar/stellar-sdk";
 import { z } from "zod";
 import { PosthogApiHostSchema, PosthogReportError } from "@/lib/analytics/posthog-report-schema";
@@ -427,6 +429,54 @@ type EnvShape = z.infer<typeof EnvSchema>;
 
 /** Every variable name EnvSchema knows about; tests/unit/setup.ts scrubs these. */
 export const ENV_VAR_NAMES = EnvSchema.keyof().options;
+
+/** Explicit report files are authoritative and never fall back to another database/key. */
+export function loadSnapshotEnvironment(filename: string | undefined, requirePosthog: boolean) {
+  if (filename === undefined) {
+    dotenvConfig({ path: ".env.local" });
+    dotenvConfig({ path: ".env" });
+  } else {
+    let selected: Record<string, string>;
+    try {
+      selected = parseDotenv(readFileSync(filename));
+    } catch {
+      throw new PosthogReportError("Cannot read --env-file; check the file path and permissions");
+    }
+    if (
+      !selected.DATABASE_URL?.trim() ||
+      (requirePosthog && !selected.POSTHOG_PERSONAL_API_KEY?.trim())
+    )
+      throw new PosthogReportError(
+        "The selected --env-file must define DATABASE_URL and, unless --no-posthog is used, POSTHOG_PERSONAL_API_KEY; shell/local-file credentials are not used as fallback",
+      );
+    for (const key of [
+      "DATABASE_URL",
+      "POSTHOG_PERSONAL_API_KEY",
+      "POSTHOG_PROJECT_ID",
+      "POSTHOG_API_HOST",
+    ] as const) {
+      if (selected[key] === undefined) delete process.env[key];
+      else process.env[key] = selected[key];
+    }
+  }
+  const database = z
+    .string()
+    .url()
+    .refine((value) => {
+      try {
+        const protocol = new URL(value).protocol;
+        return protocol === "postgresql:" || protocol === "postgres:";
+      } catch {
+        return false;
+      }
+    })
+    .safeParse(process.env.DATABASE_URL);
+  if (!database.success)
+    throw new PosthogReportError(
+      "Reporting requires a nonempty PostgreSQL DATABASE_URL in the selected environment",
+    );
+  if (requirePosthog) posthogReportConfig();
+}
 
 /** Local reporting credentials. Parse only these fields, without requiring app auth settings. */
 export function posthogReportConfig() {
