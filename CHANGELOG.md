@@ -7,6 +7,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Keep contract-action signing bound to the selected wallet connection, cancelling
+  stale approvals when the deployment, network or action arguments change (#1003).
+
 - Save analytics snapshots beside an explicitly selected environment file by
   default; retain `--dir` overrides and the existing fallback without `--env-file`.
 
