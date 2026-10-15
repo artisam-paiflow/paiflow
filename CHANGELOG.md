@@ -46,6 +46,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 - Deterministic unsigned TESTNET envelope samples for Lantern scan-fixture
   preparation, with synthetic-state limits and builder/decoder verification (#1003).
 
+- Prepare an experimental Lantern desktop adapter with fake-provider tests and
+  an explicitly unavailable picker entry pending upstream provider verification
+  and real-extension acceptance (#1001).
+
 - Include API request totals, endpoint/method counts and deltas in analytics
   snapshots by default, with compatible API baselines and `--no-api` opt-out.
 
