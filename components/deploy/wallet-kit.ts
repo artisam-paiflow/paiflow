@@ -2,6 +2,11 @@
 
 import { WalletConnectModal } from "@walletconnect/modal";
 import { SignClient } from "@walletconnect/sign-client";
+import type { StellarWalletsKit } from "@creit.tech/stellar-wallets-kit";
+import type {
+  WalletConnectAllowedMethods,
+  WalletConnectModule,
+} from "@creit.tech/stellar-wallets-kit/modules/walletconnect.module";
 import { FREIGHTER_NATIVE_LINK } from "./mobile-wallet-links";
 import { WALLET_CONNECT_UNCONFIGURED, walletConnectProjectId } from "./wallet-connect-config";
 
@@ -13,20 +18,29 @@ function isMobile() {
   );
 }
 
+export type WalletConnectClient = InstanceType<typeof SignClient>;
+
 export type WalletKit = {
-  kit: any;
+  kit: StellarWalletsKit;
   /** null when WalletConnect is not configured; the kit then carries Freighter only. */
-  module: any;
-  client: InstanceType<typeof SignClient> | null;
+  module: WalletConnectModule | null;
+  client: WalletConnectClient | null;
+  method: WalletConnectAllowedMethods.SIGN;
 };
 
 const cache = new Map<string, Promise<WalletKit>>();
+const initialized = new Map<string, WalletKit>();
+
+/** Read pre-warmed state without yielding Android tap activation to a promise. */
+export function getCachedWalletKit(network: "testnet" | "mainnet"): WalletKit | undefined {
+  return initialized.get(network);
+}
 
 export async function getWalletKit(network: "testnet" | "mainnet"): Promise<WalletKit> {
   const key = network;
   if (cache.has(key)) return cache.get(key)!;
 
-  const promise = (async () => {
+  const promise = (async (): Promise<WalletKit> => {
     const [
       { StellarWalletsKit, WalletNetwork, FreighterModule },
       { WalletConnectModule, WalletConnectAllowedMethods },
@@ -48,13 +62,13 @@ export async function getWalletKit(network: "testnet" | "mainnet"): Promise<Wall
         network: walletNetwork,
         modules: [new FreighterModule()],
       });
-      return { kit, module: null, client: null };
+      return { kit, module: null, client: null, method: WalletConnectAllowedMethods.SIGN };
     }
 
     const chain = network === "mainnet" ? "stellar:pubnet" : "stellar:testnet";
 
     const originalConsoleError = console.error;
-    console.error = (...args: any[]) => {
+    console.error = (...args: unknown[]) => {
       const msg = args.map(String).join(" ");
       if (msg.includes("No matching key. expirer")) return;
       originalConsoleError.apply(console, args);
@@ -136,8 +150,16 @@ export async function getWalletKit(network: "testnet" | "mainnet"): Promise<Wall
       modules,
     });
 
-    return { kit, module: walletConnectModule, client: walletConnectClient };
-  })();
+    return {
+      kit,
+      module: walletConnectModule,
+      client: walletConnectClient,
+      method: WalletConnectAllowedMethods.SIGN,
+    };
+  })().then((value) => {
+    initialized.set(key, value);
+    return value;
+  });
 
   cache.set(key, promise);
   promise.catch(() => cache.delete(key));
