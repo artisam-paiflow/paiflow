@@ -7,6 +7,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Share wallet initialization between payment triggers and contract calls, preserving
+  mobile pairing, wallet return and pending-transaction recovery (#397).
+
 - Use the shared wallet picker for deployment and payroll employee updates, record
   the chosen wallet, and sign with the server-provided transaction network. Bind
   WalletConnect signing to the approved session and cancel stale view attempts.
