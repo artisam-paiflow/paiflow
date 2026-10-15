@@ -1,3 +1,4 @@
+import { findMobileWallet } from "./mobile-wallet-registry";
 import { isLiveSession, stellarChainId } from "./wallet-connect-config";
 
 export type MobileWalletSession = { topic: string; walletId: string; address: string };
@@ -19,7 +20,8 @@ export function approvedMobileSession(
   if (
     typeof value.topic !== "string" ||
     typeof value.address !== "string" ||
-    !["freighter", "lobstr", "xbull"].includes(value.walletId ?? "")
+    typeof value.walletId !== "string" ||
+    !findMobileWallet(value.walletId)
   )
     return null;
   if (
