@@ -7,6 +7,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Record the successful bounded testnet Swap rehearsal, exact USDC receipt and
+  measured storage-rent fees, closing the deferred execution evidence gap (#982).
+
 - Document bounded SDK testnet verification and explicit Swap fee, demo-token,
   scheduler and release-readiness limits, with links to the live evidence (#964).
 

@@ -141,21 +141,28 @@ opaque intents and signed envelopes remain private.
       feature is disabled. The refusal and local contract tests are recorded;
       positive hosted minting remains unavailable. Do not enable shared features
       or reuse a shared financial fixture solely to remove this limitation.
-- [ ] Real Swap execution remains unverified. A normal wallet-signed trustline
-      for the exact testnet Circle USDC asset succeeded at ledger 5201761, with a
-      1 USDC receiving limit and 0.5 XLM reserve. It remains open with zero USDC.
-      Two independent unsigned simulations quoted 590692710 and 590802880 fee
-      stroops (about 59 XLM), exceeding the reviewed 1 XLM ceiling. The guard
-      remained intact; no Swap execution was signed/submitted and no fee increase
-      was authorized. A positive quote proves an estimate, not execution; Swap
-      quoting adds no separate execution HTTP row to the 42-operation matrix.
+- [x] Real Swap execution: separately authorized one-attempt rehearsal with a
+      75 testnet XLM total declared fee ceiling completed native 0.1 XLM →
+      0.0106193 USDC to the controlled wallet, SUCCESS at ledger 5202637.
+      Actual declared fee was 59.3617843 XLM; net charged fee was 51.6198331 XLM
+      (including 51.6169576 XLM rent). The one-attempt fee exception is consumed.
+      Original-hash RPC/indexed events, exact wallet credit and six zero pipeline
+      balances were verified; the new scoped token was revoked. The existing
+      1-USDC trustline retains that output. Earlier unsigned refusals remain
+      historical evidence; no retry or second actual Swap was used. See the
+      [#982 execution evidence](../testing/2026-10-15-sdk-swap-execution-982.md).
+      This one route does not establish inexpensive or universal Swap execution.
 - [x] Reconcile fixture balances and revoke dedicated testing API tokens after
       their final tests. Final owner-scoped inventory confirmed zero active tokens.
       The original retired lost-wallet fixture retains its 1 XLM on-chain
       allowance; retirement does not revoke it. The controlled old-WASM fixture
       has zero allowance and retired service.
-- [ ] Complete final independent evidence/candidate review and exact-head CI before
-      claiming the verification candidate ready to merge.
+- [x] The historical #981 evidence candidate received independent review and
+      [exact-head Node/Rust CI](https://github.com/webnxt-2030/pinkraft/actions/runs/38673864273)
+      before [merge](https://github.com/webnxt-2030/pinkraft/pull/981), followed by
+      [successful post-merge CI](https://github.com/webnxt-2030/pinkraft/actions/runs/38675573507).
+      The later #982 evidence change requires its own review and exact-head CI;
+      the historical runs do not validate that new candidate.
 
 The testing environment has no configured unattended Subscription scheduler.
 An authorized manual cron call establishes bounded handler/charge behavior only.
