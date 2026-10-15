@@ -22,10 +22,16 @@ export default function NewFlowButton({
   ariaLabel?: string;
 }) {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("Untitled flow");
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Server-rendered controls must not invite a click before React can handle it.
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -80,7 +86,8 @@ export default function NewFlowButton({
         type="button"
         data-analytics-control="new-flow"
         aria-label={ariaLabel}
-        className={className}
+        className={`${className ?? ""} disabled:cursor-wait disabled:opacity-60`}
+        disabled={!mounted}
         onClick={() => setOpen(true)}
       >
         {children}
