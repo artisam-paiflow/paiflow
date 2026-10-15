@@ -59,7 +59,8 @@ signTransaction(transactionXdr, {
 Each method result is received as `unknown` and parsed. Account values must be
 valid Stellar `G…` addresses. Both response passphrases must match TESTNET. Before
 signing, the adapter requires the explicit server-supplied transaction passphrase,
-rechecks the selected provider/account, and verifies the transaction source matches
+rechecks the selected provider/account before and after approval, fences connection
+changes and disconnects with a local generation, and verifies the transaction source matches
 the connected account. It never substitutes a client network for a missing or
 mismatched server passphrase.
 

@@ -59,6 +59,22 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((done, fail) => {
+    resolve = done;
+    reject = fail;
+  });
+  return { promise, resolve, reject };
+}
+function signedResult() {
+  const tx = TransactionBuilder.fromXDR(unsignedXdr, Networks.TESTNET);
+  tx.sign(signer);
+  return { signedTxXdr: tx.toXDR(), signerAddress: address, networkPassphrase: Networks.TESTNET };
+}
+
 async function sign() {
   await module.getAddress();
   return module.signTransaction(unsignedXdr, { address, networkPassphrase: Networks.TESTNET });
@@ -120,7 +136,7 @@ describe("provisional connect and sign-only semantics", () => {
   it("connects with an explicit expected testnet and signs the original envelope once", async () => {
     const result = await sign();
     expect(getAddress).toHaveBeenCalledWith({ networkPassphrase: Networks.TESTNET });
-    expect(getAddress).toHaveBeenCalledTimes(2);
+    expect(getAddress).toHaveBeenCalledTimes(3);
     expect(signTransaction).toHaveBeenCalledOnce();
     expect(signTransaction).toHaveBeenCalledWith(unsignedXdr, {
       address,
@@ -325,5 +341,87 @@ describe("controlled provisional provider failures", () => {
   ])("does not infer semantics from arbitrary provider text %s", async (error) => {
     getAddress.mockRejectedValue(error);
     await expect(module.getAddress()).rejects.toMatchObject({ code: "LANTERN_REQUEST_FAILED" });
+  });
+});
+
+describe("provisional connection lifecycle generations", () => {
+  it.each(["account", "network"])("rejects %s drift during signing approval", async (drift) => {
+    const response = deferred<ReturnType<typeof signedResult>>();
+    signTransaction.mockReturnValue(response.promise);
+    await module.getAddress();
+    const pending = module.signTransaction(unsignedXdr, {
+      address,
+      networkPassphrase: Networks.TESTNET,
+    });
+    await vi.waitFor(() => expect(signTransaction).toHaveBeenCalledOnce());
+    getAddress.mockResolvedValue({
+      address: drift === "account" ? other.publicKey() : address,
+      networkPassphrase: drift === "network" ? Networks.PUBLIC : Networks.TESTNET,
+    });
+    response.resolve(signedResult());
+    await expect(pending).rejects.toMatchObject({
+      code: drift === "account" ? "LANTERN_WRONG_ACCOUNT" : "LANTERN_WRONG_NETWORK",
+    });
+  });
+  it("does not return a signature after disconnect during approval", async () => {
+    const response = deferred<ReturnType<typeof signedResult>>();
+    signTransaction.mockReturnValue(response.promise);
+    await module.getAddress();
+    const pending = module.signTransaction(unsignedXdr, {
+      address,
+      networkPassphrase: Networks.TESTNET,
+    });
+    await vi.waitFor(() => expect(signTransaction).toHaveBeenCalledOnce());
+    await module.disconnect();
+    response.resolve(signedResult());
+    await expect(pending).rejects.toMatchObject({ code: "LANTERN_WRONG_ACCOUNT" });
+  });
+  it("cannot resurrect a connection after disconnect during getAddress", async () => {
+    const response = deferred<{ address: string; networkPassphrase: string }>();
+    getAddress.mockReturnValueOnce(response.promise);
+    const pending = module.getAddress();
+    await module.disconnect();
+    response.resolve({ address, networkPassphrase: Networks.TESTNET });
+    await expect(pending).rejects.toMatchObject({ code: "LANTERN_WRONG_ACCOUNT" });
+    await expect(
+      module.signTransaction(unsignedXdr, { address, networkPassphrase: Networks.TESTNET }),
+    ).rejects.toMatchObject({ code: "LANTERN_WRONG_ACCOUNT" });
+    expect(signTransaction).not.toHaveBeenCalled();
+  });
+  it.each(["resolve", "reject"])(
+    "an older connect that later %ss cannot clear a newer connection",
+    async (outcome) => {
+      const response = deferred<{ address: string; networkPassphrase: string }>();
+      getAddress.mockReturnValueOnce(response.promise);
+      const older = module.getAddress();
+      const olderOutcome = older.catch((error) => error);
+      await module.getAddress();
+      if (outcome === "resolve")
+        response.resolve({ address: other.publicKey(), networkPassphrase: Networks.TESTNET });
+      else response.reject({ code: "LOCKED" });
+      expect(await olderOutcome).toBeInstanceOf(LanternWalletError);
+      const signed = await module.signTransaction(unsignedXdr, {
+        address,
+        networkPassphrase: Networks.TESTNET,
+      });
+      expect(signed.signerAddress).toBe(address);
+    },
+  );
+  it("a stale signing rejection cannot clear a reconnected generation", async () => {
+    const response = deferred<ReturnType<typeof signedResult>>();
+    signTransaction.mockReturnValueOnce(response.promise);
+    await module.getAddress();
+    const pending = module.signTransaction(unsignedXdr, {
+      address,
+      networkPassphrase: Networks.TESTNET,
+    });
+    const outcome = pending.catch((error) => error);
+    await vi.waitFor(() => expect(signTransaction).toHaveBeenCalledOnce());
+    await module.getAddress();
+    response.reject({ code: "USER_REJECTED" });
+    expect(await outcome).toBeInstanceOf(LanternWalletError);
+    await expect(
+      module.signTransaction(unsignedXdr, { address, networkPassphrase: Networks.TESTNET }),
+    ).resolves.toMatchObject({ signerAddress: address });
   });
 });

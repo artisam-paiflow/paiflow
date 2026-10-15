@@ -28,6 +28,7 @@ export class LanternModule implements ModuleInterface {
   // Official product information, NOT a claim that browser connect has shipped.
   productUrl = "https://golantern.xyz";
   productIcon = "/wallets/lantern.jpg";
+  private generation = 0;
   private connection: { provider: ProvisionalLanternProvider; address: string } | null = null;
 
   constructor(
@@ -62,6 +63,8 @@ export class LanternModule implements ModuleInterface {
   async getAddress(
     options?: Parameters<ModuleInterface["getAddress"]>[0],
   ): Promise<{ address: string }> {
+    const generation = ++this.generation;
+    this.connection = null;
     try {
       const provider = this.provider();
       if (options?.path !== undefined) throw new LanternWalletError("LANTERN_UNSUPPORTED");
@@ -69,11 +72,12 @@ export class LanternModule implements ModuleInterface {
         await provider.getAddress({ networkPassphrase: WalletNetwork.TESTNET }),
         WalletNetwork.TESTNET,
       );
-      if (this.provider() !== provider) throw new LanternWalletError("LANTERN_WRONG_ACCOUNT");
+      if (generation !== this.generation || this.provider() !== provider)
+        throw new LanternWalletError("LANTERN_WRONG_ACCOUNT");
       this.connection = { provider, address: identity.address };
       return { address: identity.address };
     } catch (error) {
-      this.connection = null;
+      if (generation === this.generation) this.connection = null;
       throw lanternProviderFailure(error);
     }
   }
@@ -82,6 +86,17 @@ export class LanternModule implements ModuleInterface {
     transactionXdr: string,
     options?: Parameters<ModuleInterface["signTransaction"]>[1],
   ): Promise<{ signedTxXdr: string; signerAddress: string }> {
+    const generation = this.generation;
+    const connection = this.connection;
+    const checkConnection = () => {
+      if (
+        generation !== this.generation ||
+        !connection ||
+        this.connection !== connection ||
+        this.provider() !== connection.provider
+      )
+        throw new LanternWalletError("LANTERN_WRONG_ACCOUNT");
+    };
     try {
       const provider = this.provider();
       if (options?.submit || options?.submitUrl !== undefined || options?.path !== undefined)
@@ -96,8 +111,8 @@ export class LanternModule implements ModuleInterface {
         await provider.getAddress({ networkPassphrase: passphrase }),
         passphrase,
       );
-      if (current.address !== address || this.provider() !== provider)
-        throw new LanternWalletError("LANTERN_WRONG_ACCOUNT");
+      checkConnection();
+      if (current.address !== address) throw new LanternWalletError("LANTERN_WRONG_ACCOUNT");
       assertLanternTransactionSource(transactionXdr, address, passphrase);
       const result = lanternSignedResponse(
         await provider.signTransaction(transactionXdr, {
@@ -108,7 +123,13 @@ export class LanternModule implements ModuleInterface {
         address,
         passphrase,
       );
-      if (this.provider() !== provider) throw new LanternWalletError("LANTERN_WRONG_ACCOUNT");
+      checkConnection();
+      const afterApproval = lanternIdentity(
+        await provider.getAddress({ networkPassphrase: passphrase }),
+        passphrase,
+      );
+      checkConnection();
+      if (afterApproval.address !== address) throw new LanternWalletError("LANTERN_WRONG_ACCOUNT");
       try {
         assertSignedWalletTransaction(transactionXdr, result.signedTxXdr, address, passphrase);
       } catch {
@@ -116,7 +137,10 @@ export class LanternModule implements ModuleInterface {
       }
       return result;
     } catch (error) {
-      this.connection = null;
+      if (generation === this.generation && this.connection === connection) {
+        this.generation++;
+        this.connection = null;
+      }
       throw lanternProviderFailure(error);
     }
   }
@@ -126,6 +150,7 @@ export class LanternModule implements ModuleInterface {
     return { network: "TESTNET", networkPassphrase: WalletNetwork.TESTNET };
   }
   async disconnect(): Promise<void> {
+    this.generation++;
     this.connection = null;
   }
   async signAuthEntry(): Promise<never> {
