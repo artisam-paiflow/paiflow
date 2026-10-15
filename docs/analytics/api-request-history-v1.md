@@ -283,6 +283,9 @@ with the analytics login.
 
 ### Local integration verification
 
+For automatic daily exports on a dedicated Railway service, see
+[daily report cron setup](daily-report-cron.md).
+
 `tests/unit/api/request-daily-integration.test.ts` is opt-in and resets the public
 schema **only** on the dedicated local database `api_daily_test` at
 `127.0.0.1:55489`. It requires PostgreSQL and `psql`; set

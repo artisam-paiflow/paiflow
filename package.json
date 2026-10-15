@@ -48,6 +48,7 @@
     "analytics:metrics": "tsx --conditions=react-server scripts/usage-metrics-v2.ts",
     "analytics:snapshot": "node --conditions=react-server --import tsx scripts/analytics-snapshot.ts",
     "analytics:api-report": "node --conditions=react-server --import tsx scripts/api-request-report.ts",
+    "analytics:api-daily-cron": "node --conditions=react-server --import tsx scripts/api-daily-cron.ts",
     "instawards:metrics": "tsx scripts/instawards-metrics.ts",
     "instawards:transactions": "tsx scripts/instawards-transactions.ts",
     "instawards:alpha-metrics": "tsx scripts/alpha-metrics.ts",

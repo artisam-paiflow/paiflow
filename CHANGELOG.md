@@ -21,6 +21,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- A daily API report batch command and separate Railway cron configuration, saving
+  dated report revisions with bounded refresh for late-arriving telemetry.
+
 - Durable daily API request aggregates and a `--daily` report mode, preserving
   endpoint counts and mergeable latency statistics beyond 30-day raw retention.
 
