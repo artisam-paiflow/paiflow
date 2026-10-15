@@ -273,6 +273,22 @@ Downloads need an internet connection. With nvm, run `nvm use 22` in each new te
 | `pnpm lint`      | `next lint`                                  |
 | `pnpm format`    | Prettier across the repo                     |
 
+#### Analytics snapshots
+
+Run this command whenever you want a fresh snapshot and changes since the previous compatible run:
+
+```bash
+pnpm analytics:snapshot --network testnet --audience EXTERNAL
+```
+
+It reads `DATABASE_URL` from the shell, `.env.local`, or `.env` (in that order), and saves timestamped JSON files in `reports/analytics/` (gitignored). The terminal shows previous totals, current totals, and signed deltas for wallet connections, distinct addresses, transaction attempts, confirmed deployments, executions, active accounts, and unresolved/rejected/failed transactions. The first run establishes a baseline.
+
+The start defaults to the usage-v2 tracking activation time, and the end defaults to now. Set `--start` to an ISO timestamp to begin a different series; keep that start fixed on later runs. `--end` accepts a fixed timestamp to revisit an earlier window. Comparisons require the same network, audience, tracking version, activation time, and start, with a nondecreasing end. Separate filters automatically get separate baselines. Use a separate `--dir` for each database/environment so their histories are never mixed.
+
+Deltas are net changes to cumulative totals. An unresolved count can decrease as older transactions confirm; unique-account deltas count newly observed accounts within the cumulative window, not all accounts active since the last run. Wallets and accounts are not participant counts. Only data captured since tracking activation is included. API request health and PostHog interaction funnels are not part of this command.
+
+History files are retained without overwriting. Invalid history stops the run instead of silently dropping a baseline. A directory lock prevents concurrent runs; after a process crash, remove `reports/analytics/.snapshot.lock` only after checking that no snapshot process is running. Run `pnpm analytics:snapshot --help` for options.
+
 #### Tests
 
 | Script                    | Purpose                                          |
