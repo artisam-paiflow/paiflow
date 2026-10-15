@@ -21,6 +21,7 @@ import {
   withContractCallLock,
 } from "@/lib/contract-call-pending";
 import { mobileWalletLink } from "./mobile-wallet-links";
+import { mobilePickerWallets } from "./mobile-wallet-registry";
 import { approvedMobileSession, type MobileWalletSession } from "./mobile-wallet-session";
 import { connectSelectedWallet } from "./selected-wallet-connection";
 import { walletConnectConnection, walletConnectIdentity } from "./wallet-connect-connection";
@@ -946,42 +947,19 @@ export function TriggerButton({
               </div>
             ) : (
               <div className="space-y-3">
-                <button
-                  onClick={() => openMobileWallet("freighter")}
-                  disabled={busy || pairingState !== "ready"}
-                  className="bg-background-2 hover:bg-background-3 disabled:hover:bg-background-2 flex w-full items-center gap-3 rounded-xl p-3 transition-colors disabled:opacity-50"
-                >
-                  <img
-                    src="https://stellar.creit.tech/wallet-icons/freighter.png"
-                    alt=""
-                    className="h-10 w-10 rounded-lg"
-                  />
-                  <span className="text-label-sm text-on-background font-medium">Freighter</span>
-                </button>
-                <button
-                  onClick={() => openMobileWallet("lobstr")}
-                  disabled={busy || pairingState !== "ready"}
-                  className="bg-background-2 hover:bg-background-3 disabled:hover:bg-background-2 flex w-full items-center gap-3 rounded-xl p-3 transition-colors disabled:opacity-50"
-                >
-                  <img
-                    src="https://stellar.creit.tech/wallet-icons/lobstr.png"
-                    alt=""
-                    className="h-10 w-10 rounded-lg"
-                  />
-                  <span className="text-label-sm text-on-background font-medium">LOBSTR</span>
-                </button>
-                <button
-                  onClick={() => openMobileWallet("xbull")}
-                  disabled={busy || pairingState !== "ready"}
-                  className="bg-background-2 hover:bg-background-3 disabled:hover:bg-background-2 flex w-full items-center gap-3 rounded-xl p-3 transition-colors disabled:opacity-50"
-                >
-                  <img
-                    src="https://stellar.creit.tech/wallet-icons/xbull.png"
-                    alt=""
-                    className="h-10 w-10 rounded-lg"
-                  />
-                  <span className="text-label-sm text-on-background font-medium">xBull</span>
-                </button>
+                {mobilePickerWallets().map((wallet) => (
+                  <button
+                    key={wallet.id}
+                    onClick={() => openMobileWallet(wallet.id)}
+                    disabled={busy || pairingState !== "ready"}
+                    className="bg-background-2 hover:bg-background-3 disabled:hover:bg-background-2 flex w-full items-center gap-3 rounded-xl p-3 transition-colors disabled:opacity-50"
+                  >
+                    <img src={wallet.icon} alt="" className="h-10 w-10 rounded-lg" />
+                    <span className="text-label-sm text-on-background font-medium">
+                      {wallet.name}
+                    </span>
+                  </button>
+                ))}
               </div>
             )}
             {!connectedWallet && pairingState !== "ready" && !busy && (

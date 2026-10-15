@@ -13,6 +13,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
   admission with contract controls while retaining allowance-specific reconciliation
   (#1003). Legacy unbound mobile wallet returns require reconnecting.
 
+- Centralize mobile wallet names, icons and handoff links while preserving existing
+  Freighter, LOBSTR and xBull behavior; keep Lantern gated on official metadata.
+
 - Keep contract-action signing bound to the selected wallet connection, cancelling
   stale approvals when the deployment, network or action arguments change. Preserve
   submitted hashes across view changes and reloads until finality is known; require
