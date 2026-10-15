@@ -265,7 +265,18 @@ transaction with a five-second statement timeout and no Redis dependency.
 The existing report without `--daily` is unchanged in scope. It still reads raw
 rows for account/token breakdowns, p50/p95, transaction linkage, activation,
 preparation/recovery analysis and scheduled jobs. The daily report is a complement,
-not a superset. The snapshot command does not automatically include this report.
+not a superset. `analytics:snapshot` now includes an aggregate API section by
+default, with overall and endpoint/method count deltas, cumulative latency and
+latest request timestamps. It does not embed detailed raw reports or individual
+request records. `--no-api` disables that section; `--app-env` selects its analytics
+environment independently of PostHog being enabled.
+
+The snapshot API window starts at the first fully covered UTC midnight on/after
+the requested usage start and coverage boundary. Completed days read durable
+aggregates; the last partial day reads raw rows through the exact snapshot end.
+Its actual start/end are saved and printed, and its baseline is selected separately
+from database usage and PostHog. Historical non-midnight ends require the final
+day to remain within raw retention. Late arrivals can change prior totals.
 
 After deploying the migration, grant an existing reporting login SELECT only on
 the new report tables (the receipt ledger is not needed for reporting):
@@ -275,6 +286,12 @@ GRANT SELECT ON TABLE
   public."ApiRequestDailyAggregate",
   public."ApiRequestDailyCoverage"
 TO analytics_reader;
+```
+
+For the snapshot's final partial UTC day, also grant:
+
+```sql
+GRANT SELECT ON TABLE public."ApiRequestLog" TO analytics_reader;
 ```
 
 The login also needs CONNECT to the intended database and USAGE on `public`, as

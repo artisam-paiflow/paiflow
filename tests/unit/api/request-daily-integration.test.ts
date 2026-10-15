@@ -13,6 +13,7 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@/lib/redis", () => ({ redis: () => null }));
 import { apiDailyReport } from "@/lib/api/request-history/daily-report";
+import { apiSummary } from "@/lib/analytics/api-summary";
 import { drainApiRequests } from "@/lib/api/request-history/delivery";
 import type { ApiRequestRecord } from "@/lib/api/request-history/schema";
 
@@ -262,6 +263,126 @@ describe.skipIf(!url)("daily API aggregates on PostgreSQL", () => {
         audience: "UNCLASSIFIED",
       }),
     ).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
+  it("combines durable completed days with exact partial-day raw counts without double counting", async () => {
+    const now = new Date();
+    const today = day(now),
+      yesterday = day(new Date(now.getTime() - 86400000));
+    const environment = "snapshot-api";
+    const endpoint = "/api/v1/deployments/:id/events";
+    await insert(
+      fixture({ environment, occurredAt: yesterday + "T12:00:00Z", status: 401, durationMs: 10 }),
+    );
+    await insert(fixture({ environment, occurredAt: today + "T00:00:00Z", durationMs: 100 }));
+    await insert(
+      fixture({ environment, occurredAt: today + "T00:00:00Z", status: 429, durationMs: 200 }),
+    );
+    await insert(fixture({ environment, occurredAt: today + "T23:59:59Z", durationMs: 999 }));
+    await insert(
+      fixture({
+        environment,
+        audience: "INTERNAL",
+        occurredAt: today + "T00:00:00Z",
+        durationMs: 999,
+      }),
+    );
+    await insert(
+      fixture({ environment: "other-snapshot", occurredAt: today + "T00:00:00Z", durationMs: 999 }),
+    );
+    // Completed-day raw records can expire without losing their durable contribution.
+    await h.db!.apiRequestLog.deleteMany({
+      where: { environment, occurredAt: { lt: new Date(today) } },
+    });
+    const report = await apiSummary({
+      start: yesterday + "T00:00:00Z",
+      end: today + "T12:00:00Z",
+      network: "testnet",
+      environment,
+      audience: "UNCLASSIFIED",
+    });
+    expect(report.totals).toMatchObject({
+      requests: "3",
+      errors: "2",
+      authentication_failures: "1",
+      rate_limited: "1",
+      total_duration_ms: "310",
+      mean_duration_ms: 310 / 3,
+      min_duration_ms: 10,
+      max_duration_ms: 200,
+      newest_request: today + "T00:00:00.000Z",
+    });
+    expect(report.endpoints).toHaveLength(1);
+    expect(report.endpoints[0]).toMatchObject({ endpoint, method: "GET", requests: "3" });
+    const midnight = await apiSummary({
+      start: yesterday + "T00:00:00Z",
+      end: today + "T00:00:00Z",
+      network: "testnet",
+      environment,
+      audience: "UNCLASSIFIED",
+    });
+    expect(midnight.totals.requests).toBe("1");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 60 * 86400000);
+    try {
+      const historical = await apiSummary({
+        start: yesterday + "T00:00:00Z",
+        end: today + "T00:00:00Z",
+        network: "testnet",
+        environment,
+        audience: "UNCLASSIFIED",
+      });
+      expect(historical.totals.requests).toBe("1");
+    } finally {
+      vi.useRealTimers();
+    }
+    const empty = await apiSummary({
+      start: yesterday + "T00:00:00Z",
+      end: today + "T12:00:00Z",
+      network: "testnet",
+      environment: "x' OR true --",
+      audience: "UNCLASSIFIED",
+    });
+    expect(empty.totals).toMatchObject({
+      requests: "0",
+      mean_duration_ms: null,
+      newest_request: null,
+    });
+    expect(empty.endpoints).toEqual([]);
+    expect(JSON.stringify(report)).not.toMatch(/accountId|apiTokenId|txHash|requestId/);
+  });
+
+  it("runs API summaries with only SELECT access and reports missing coverage safely", async () => {
+    const today = day(new Date()),
+      yesterday = day(new Date(Date.now() - 86400000));
+    const input = {
+      start: yesterday + "T00:00:00Z",
+      end: today + "T00:00:00Z",
+      network: "testnet" as const,
+      environment: "snapshot-api",
+      audience: "UNCLASSIFIED" as const,
+    };
+    const admin = h.db!;
+    await admin.$executeRaw`DROP ROLE IF EXISTS snapshot_api_reader`;
+    await admin.$executeRaw`CREATE ROLE snapshot_api_reader LOGIN PASSWORD 'local_reader_fixture'`;
+    await admin.$executeRaw`GRANT USAGE ON SCHEMA public TO snapshot_api_reader`;
+    await admin.$executeRaw`GRANT SELECT ON "ApiRequestLog", "ApiRequestDailyAggregate", "ApiRequestDailyCoverage" TO snapshot_api_reader`;
+    const readerUrl = new URL(url!);
+    readerUrl.username = "snapshot_api_reader";
+    readerUrl.password = "local_reader_fixture";
+    const reader = new PrismaClient({ datasourceUrl: readerUrl.toString() });
+    try {
+      h.db = reader;
+      expect((await apiSummary(input)).totals.requests).toBe("1");
+      await admin.$executeRaw`DELETE FROM "ApiRequestDailyCoverage"`;
+      await expect(apiSummary(input)).rejects.toThrow("coverage is missing");
+    } finally {
+      h.db = admin;
+      await reader.$disconnect();
+      await admin.$executeRaw`DROP OWNED BY snapshot_api_reader`;
+      await admin.$executeRaw`DROP ROLE snapshot_api_reader`;
+      await admin.$executeRaw`INSERT INTO "ApiRequestDailyCoverage" (version,"coverageFrom") VALUES ('api-requests-daily-v1', CURRENT_TIMESTAMP - INTERVAL '30 days')`;
+    }
   });
 
   it("returns empty totals without claiming latency or widening a supplied scope", async () => {

@@ -21,6 +21,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Include API request totals, endpoint/method counts and deltas in analytics
+  snapshots by default, with compatible API baselines and `--no-api` opt-out.
+
 - Optional host-scoped PostHog event/account aggregates in analytics snapshots,
   retaining separate compatible baselines and publishing history atomically.
 

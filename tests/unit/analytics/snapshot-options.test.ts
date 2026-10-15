@@ -12,6 +12,7 @@ describe("snapshot command defaults", () => {
       audience: "EXTERNAL",
       dir: "reports/analytics-staging",
       posthog: true,
+      api: true,
       "app-env": "beta",
       "app-host": "beta.app.paiflow.xyz",
     });
@@ -34,6 +35,7 @@ describe("snapshot command defaults", () => {
         "--app-host",
         "other.example",
         "--no-posthog",
+        "--no-api",
       ]),
     ).toMatchObject({
       network: "mainnet",
@@ -42,6 +44,7 @@ describe("snapshot command defaults", () => {
       "app-env": "staging",
       "app-host": "other.example",
       posthog: false,
+      api: false,
     });
   });
   it.each([

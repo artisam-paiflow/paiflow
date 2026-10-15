@@ -281,7 +281,7 @@ Run this command whenever you want a fresh snapshot and changes since the previo
 pnpm analytics:snapshot --env-file .env.analytics.local
 ```
 
-Defaults are **testnet**, **EXTERNAL**, `reports/analytics-staging/`, and PostHog
+Defaults are **testnet**, **EXTERNAL**, `reports/analytics-staging/`, API analytics and PostHog
 enabled for app environment `beta` / host `beta.app.paiflow.xyz`. Start defaults to
 tracking activation and end to now. All filters remain overridable. The terminal
 shows previous totals, current totals, and signed deltas; the first run establishes
@@ -304,13 +304,14 @@ application `AUTH_SECRET` is needed. Protect the file with `chmod 600` and keep 
 out of Git. Without `--env-file`, the existing shell > `.env.local` > `.env`
 precedence applies.
 
-Use `--no-posthog` for a database-only run. To continue history previously saved in
+Use `--no-posthog` to skip PostHog, `--no-api` to skip API analytics, or both for only
+the original database usage section. To continue history previously saved in
 `reports/analytics/`, pass `--dir reports/analytics`; the new default is the staging
 folder used by the current reporting workflow.
 
 The start defaults to the usage-v2 tracking activation time, and the end defaults to now. Set `--start` to an ISO timestamp to begin a different series; keep that start fixed on later runs. `--end` accepts a fixed timestamp to revisit an earlier window. Comparisons require the same network, audience, tracking version, activation time, and start, with a nondecreasing end. Separate filters automatically get separate baselines. Use a separate `--dir` for each database/environment so their histories are never mixed.
 
-Deltas are net changes to cumulative totals. An unresolved count can decrease as older transactions confirm; unique-account deltas count newly observed accounts within the cumulative window, not all accounts active since the last run. Wallets and accounts are not participant counts. Only data captured since tracking activation is included. API request health and ordered PostHog interaction funnels are not part of this command.
+Deltas are net changes to cumulative totals. An unresolved count can decrease as older transactions confirm; unique-account deltas count newly observed accounts within the cumulative window, not all accounts active since the last run. Wallets and accounts are not participant counts. Only data captured since tracking activation is included. API queue health and ordered PostHog interaction funnels are not part of this command.
 
 History files are retained without overwriting. Invalid history stops the run instead of silently dropping a baseline. A directory lock prevents concurrent runs; after a process crash, remove `reports/analytics-staging/.snapshot.lock` only after checking that no snapshot process is running. Run `pnpm analytics:snapshot --help` for options.
 
@@ -345,12 +346,34 @@ or invalid PostHog response stops the run before saving a snapshot; it is never
 reported as zero activity. Events blocked in browsers or delayed in delivery are
 not reconstructed, and later ingestion can change retrospective counts.
 
-API request history is separate: it has 30-day raw retention and asynchronous
-delivery through Redis. PostHog is fed from that same API telemetry pipeline, so
-it cannot repair requests waiting in the queue. Long-term endpoint reporting
-requires durable daily aggregates before raw retention removes records, plus
-delivery-health checks. Distinct users and latency percentiles cannot be summed
-across days; they require distinct-set or histogram/sketch data respectively.
+API analytics are included in the same JSON and terminal output by default, using
+`--app-env` (default `beta`), network and audience. They include total and
+endpoint/method requests, HTTP errors (status >=400), 401 and 429 counts, total
+handler duration, weighted mean/min/max latency, and newest request time.
+`api_comparison` stores exact count deltas and previous/current latency and latest
+timestamps, including endpoint groups that appear or disappear. Existing histories
+get a separate first API baseline; later runs select the latest compatible API
+section even if intervening runs used `--no-api`. No individual request records,
+account/token IDs, unique users, p50/p95, or transaction linkage are exported.
+
+API totals use durable daily aggregates for completed UTC days, plus raw records
+for the final partial day up to the exact snapshot end. Its start is the first
+UTC midnight on or after both the requested start and aggregate coverage, printed
+separately. For example, a usage start of October 9 at 09:15 UTC gives an API start
+of October 10 at 00:00 UTC if coverage permits. This deliberately excludes the
+initial partial day so the cumulative API window remains accurate after raw
+history expires. An empty window fails rather than inventing zeroes. A historical
+end outside 30-day raw retention must be UTC midnight. Late telemetry can update
+older totals; deltas are net changes, and latency is cumulative, not interval
+latency. API has no app-host filter. SDK requests count when their underlying API
+routes are instrumented; queued/dropped telemetry is excluded.
+
+Before the first API-enabled snapshot, deploy the daily aggregate migration and
+grant the reporting role SELECT on `ApiRequestLog`, `ApiRequestDailyAggregate`,
+and `ApiRequestDailyCoverage` (in addition to existing usage-report tables).
+See [read-only grants](docs/analytics/api-request-history-v1.md#daily-report).
+Missing migration/grants fail before saving; `--no-api` supports running the
+existing sections while setup is pending. No migration is run by the report.
 
 #### API request reports
 
