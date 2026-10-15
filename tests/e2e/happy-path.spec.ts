@@ -1,102 +1,55 @@
 /**
- * End-to-end happy path. Exercises the full prepare/sign/submit handoff at
- * the API level — without Freighter or an internet-reachable Soroban RPC —
- * by intercepting the upstream-touching endpoints.
- *
- * What's covered:
- *  1. Logged in as the seeded admin (via global-setup).
- *  2. /flows/new auto-creates a starter SPLITTER flow.
- *  3. /flows/<id>/deploy renders the English preview.
- *  4. The Deploy button POSTs to /api/deployments/prepare (mocked).
- *  5. The client then POSTs to /api/deployments/<id>/submit (mocked).
- *  6. On success, the page navigates to /deployments/<id> and renders
- *     the Send funds card + Live events shell.
+ * Active browser coverage stops at the deployment review, before wallet access.
+ * Wallet signing/submission and funded event acceptance remain tracked in #1003;
+ * the explicitly skipped test below must not be counted as passing that coverage.
  */
 import { test, expect } from "@playwright/test";
 
-test("deploy flow: builder → review → submit (mocked wallet)", async ({ page, context }) => {
-  // 1) Land on dashboard, then mint a fresh flow.
+test("builder → deployment review (before wallet signing)", async ({ page }) => {
+  // Login uses the normal local E2E setup. This test creates only a draft flow.
   await page.goto("/dashboard");
-  await page.click("text=New flow");
-  await page.waitForURL(/\/flows\/[0-9a-f-]+$/, { timeout: 15_000 });
+  // Dashboard can show a header action, an empty-state action and a mobile FAB.
+  const newFlow = page
+    .getByRole("button", { name: /new flow/i })
+    .filter({ visible: true })
+    .first();
+  await newFlow.click();
+  const createDialog = page.getByRole("dialog", { name: "Create a new flow", exact: true });
+  await expect(createDialog).toBeVisible();
+  await createDialog
+    .getByRole("textbox", { name: "Flow name", exact: true })
+    .fill("E2E builder review");
+  await Promise.all([
+    page.waitForURL(/\/flows\/[0-9a-f-]+$/, { timeout: 15_000 }),
+    createDialog.getByRole("button", { name: /CREATE FLOW/ }).click(),
+  ]);
   const flowId = page.url().match(/\/flows\/([0-9a-f-]+)/)![1];
 
-  // 2) Go to the review page.
   await page.goto(`/flows/${flowId}/deploy`);
-  await expect(page.getByText("English preview")).toBeVisible();
+  await expect(page.getByText("ENGLISH PREVIEW")).toBeVisible();
   await expect(page.getByText(/When this contract receives/)).toBeVisible();
-
-  // 3) Mock prepare + submit. The deployment id is synthetic; we don't go
-  //    through Prisma here — the deployment view route would 404, so we
-  //    intercept GET /deployments/<id> too.
-  const deploymentId = "00000000-0000-0000-0000-000000000123";
-
-  await context.route("**/api/deployments/prepare", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        data: {
-          deploymentId,
-          xdr: "AAAAFAKE_XDR",
-          expectedContractAddress: "CFAKECONTRACTADDRESS123456789",
-        },
-      }),
-    });
-  });
-  await context.route(`**/api/deployments/${deploymentId}/submit`, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        data: {
-          status: "CONFIRMED",
-          txHash: "abc123",
-          contractAddress: "CFAKECONTRACTADDRESS123456789",
-        },
-      }),
-    });
-  });
-
-  // 4) Inject a minimal Stellar Wallets Kit stub on window. The deploy
-  //    component imports @creit.tech/stellar-wallets-kit; we monkey-patch
-  //    its module export by intercepting the dynamic import.
-  await page.addInitScript(() => {
-    const stub = {
-      getAddress: async () => ({
-        address: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
-      }),
-      signTransaction: async (xdr: string) => ({ signedTxXdr: `SIGNED:${xdr}` }),
-    };
-    (window as unknown as { __paiflowWalletStub: typeof stub }).__paiflowWalletStub = stub;
-  });
-
-  // 5) Click Deploy and wait for navigation. If the wallet stub isn't
-  //    picked up (it loads the real module from node_modules), the
-  //    "Sign in your wallet" prompt blocks — bail out by checking for the
-  //    toast and treating that as expected for the local-without-Freighter
-  //    case. CI uses the mock; interactive runs may pop the wallet.
-  // The deploy button copy is derived from `env().STELLAR_NETWORK` (the deploy
-  // modal no longer renders a picker — the network is pinned per env). Also
-  // assert the read-only network chip renders.
+  // The server pins the network; review must display it before any wallet action.
   await expect(page.getByTestId("network-chip")).toBeVisible();
-  const deployBtn = page.locator('button:has-text("DEPLOY TO")');
-  await deployBtn.click();
-
-  try {
-    await page.waitForURL(new RegExp(`/deployments/${deploymentId}`), { timeout: 10_000 });
-  } catch {
-    // No wallet/extension — surface the toast and pass softly. The actual
-    // wire-up between the page and the prepare/submit endpoints has been
-    // verified by the network mocks running ≥1 time.
-    test.info().annotations.push({
-      type: "skip",
-      description: "Wallet stub not injected; verify prepare/submit calls via route logs instead.",
-    });
-    return;
-  }
-
-  // 6) Deployment view shells render.
-  await expect(page.getByText("Send funds")).toBeVisible();
-  await expect(page.getByText("Live events")).toBeVisible();
+  const deployButton = page.getByRole("button", { name: /DEPLOY TO (TESTNET|MAINNET)/ });
+  await expect(deployButton).toBeVisible({ timeout: 20_000 });
+  await expect(deployButton).toBeEnabled();
 });
+
+test.skip(
+  "wallet deployment → confirmed contract → funded events (acceptance pending #1003)",
+  {
+    annotation: [
+      { type: "issue", description: "https://github.com/webnxt-2030/pinkraft/issues/1003" },
+      {
+        type: "skip",
+        description:
+          "No working browser wallet harness. This skipped test is not automatic wallet/deployment acceptance.",
+      },
+    ],
+  },
+  async () => {
+    // A missing wallet must never become a successful timeout/early return.
+    // Replace this guard with the complete acceptance flow before unskipping.
+    throw new Error("Implement the tracked browser wallet acceptance flow before enabling it.");
+  },
+);

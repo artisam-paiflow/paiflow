@@ -13,6 +13,34 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
   acceptance and capture-provenance limits;
   retain the five synthetic examples (#1003).
 
+- Align alpha testing guides and PDFs with the shared wallet picker, keeping
+  Freighter as the wallet for this test plan and Lantern explicitly unavailable.
+
+- Reject a contract action's mismatched server network before asking a desktop
+  wallet to sign, while retaining signed-envelope validation before submission.
+
+- Keep new-flow controls natively disabled until hydration can handle a click,
+  preventing an enabled server-rendered button from silently losing the first tap
+  on a slow connection (#1003).
+
+- Preserve unresolved payroll update requests and every returned transaction hash
+  across navigation and reloads. Block replacement actions, cancel stale roster
+  approvals and validate all wallet responses before dispatch.
+
+- Report browser wallet-deployment acceptance as explicitly pending rather than
+  passing after a timeout; retain active draft-builder and deployment-review
+  assertions (#1003).
+
+- Validate every deployment wallet response and persist its public deployment ID
+  and transaction hash before submission. Preserve unresolved submissions across
+  navigation and reloads, with status-only recovery and browser admission locks.
+
+- Bind payment-trigger and allowance signatures to the exact approved wallet
+  session and unchanged transaction. Cancel stale approvals before dispatch;
+  preserve submitted hashes across view changes and reloads, and share transaction
+  admission with contract controls while retaining allowance-specific reconciliation
+  (#1003). Legacy unbound mobile wallet returns require reconnecting.
+
 - Centralize mobile wallet names, icons and handoff links while preserving existing
   Freighter, LOBSTR and xBull behavior; keep Lantern gated on official metadata.
 
@@ -47,6 +75,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 - Deterministic unsigned TESTNET envelope samples for Lantern scan-fixture
   preparation, with synthetic-state limits and builder/decoder verification (#1003).
+
+- Prepare an experimental Lantern desktop adapter with fake-provider tests and
+  an explicitly unavailable picker entry pending upstream provider verification
+  and real-extension acceptance (#1001).
 
 - Include API request totals, endpoint/method counts and deltas in analytics
   snapshots by default, with compatible API baselines and `--no-api` opt-out.

@@ -1,0 +1,216 @@
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import DeployReview from "@/components/deploy/deploy-review";
+import { deployPendingKey } from "@/lib/deploy-pending";
+
+const mocks = vi.hoisted(() => ({
+  kit: vi.fn(),
+  connect: vi.fn(),
+  sign: vi.fn(),
+  hash: vi.fn(),
+  network: vi.fn(),
+  poll: vi.fn(),
+  fetch: vi.fn(),
+  error: vi.fn(),
+  track: vi.fn(),
+}));
+vi.mock("@/components/deploy/wallet-kit", () => ({ getWalletKit: mocks.kit }));
+vi.mock("@/components/deploy/selected-wallet-connection", () => ({
+  connectSelectedWallet: mocks.connect,
+  assertWalletAttemptActive: (signal: AbortSignal) => signal.throwIfAborted(),
+}));
+vi.mock("@/lib/stellar/wallet-signature", () => ({
+  signedWalletTransactionHash: mocks.hash,
+  assertWalletNetwork: mocks.network,
+}));
+vi.mock("@/lib/hooks/use-poll-tx-status", () => ({ usePollTxStatus: () => mocks.poll }));
+vi.mock("@/lib/analytics/client", () => ({ track: mocks.track }));
+vi.mock("@/lib/wallet-tracking", () => ({ trackWalletConnection: vi.fn() }));
+vi.mock("@/lib/friendly-toast", () => ({ toastError: mocks.error }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), info: vi.fn(), warning: vi.fn() } }));
+const FLOW = "11111111-1111-1111-1111-111111111111";
+const DEPLOYMENT = "22222222-2222-2222-2222-222222222222";
+const HASH = "a".repeat(64);
+const KEY = deployPendingKey(FLOW, "testnet");
+const ADDRESS = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+const PASSPHRASE = "Test SDF Network ; September 2015";
+const props = { flowId: FLOW, network: "testnet" as const };
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+function prepared() {
+  return {
+    ok: true,
+    json: async () => ({
+      data: { deploymentId: DEPLOYMENT, xdr: "unsigned", networkPassphrase: PASSPHRASE },
+    }),
+  };
+}
+function deploy() {
+  return screen.getByRole("button", { name: /deploy to testnet/i }) as HTMLButtonElement;
+}
+async function click() {
+  await act(async () => {
+    fireEvent.click(deploy());
+  });
+}
+beforeEach(() => {
+  vi.resetAllMocks();
+  localStorage.clear();
+  vi.stubGlobal("navigator", {
+    locks: {
+      request: async (_key: string, _options: unknown, action: (lock: object) => Promise<void>) =>
+        action({}),
+    },
+  });
+  vi.stubGlobal("fetch", mocks.fetch);
+  mocks.kit.mockResolvedValue({});
+  mocks.connect.mockResolvedValue({
+    address: ADDRESS,
+    walletId: "freighter",
+    signTransaction: mocks.sign,
+  });
+  mocks.sign.mockResolvedValue({ signedTxXdr: "signed" });
+  mocks.hash.mockReturnValue(HASH);
+  mocks.poll.mockRejectedValue(new Error("Finality unknown"));
+  mocks.fetch.mockImplementation(async (url: string) =>
+    url.endsWith("/prepare") ? prepared() : Promise.reject(new Error("Response lost")),
+  );
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+describe("deployment submission recovery", () => {
+  it("validates every wallet before saving public coordinates and dispatching once", async () => {
+    const savedAtDispatch: (string | null)[] = [];
+    mocks.fetch.mockImplementation(async (url: string) => {
+      if (url.endsWith("/prepare")) return prepared();
+      savedAtDispatch.push(localStorage.getItem(KEY));
+      throw new Error("Response lost");
+    });
+    render(<DeployReview {...props} />);
+    await click();
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("still unknown"));
+    expect(mocks.network).toHaveBeenCalledWith("testnet", PASSPHRASE);
+    expect(mocks.hash).toHaveBeenCalledWith("testnet", "unsigned", "signed", ADDRESS, PASSPHRASE);
+    expect(savedAtDispatch).toEqual([JSON.stringify({ deploymentId: DEPLOYMENT, txHash: HASH })]);
+    expect(mocks.hash.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.fetch.mock.invocationCallOrder[1]!,
+    );
+    expect(mocks.poll).toHaveBeenCalledWith(DEPLOYMENT, HASH);
+    expect(deploy().disabled).toBe(true);
+    fireEvent.click(deploy());
+    expect(mocks.fetch).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("link", { name: "VIEW DEPLOYMENT" }).getAttribute("href")).toBe(
+      `/deployments/${DEPLOYMENT}`,
+    );
+  });
+  it("does not dispatch an invalid desktop envelope or wrong server network", async () => {
+    mocks.hash.mockImplementation(() => {
+      throw new Error("Wallet changed transaction");
+    });
+    render(<DeployReview {...props} />);
+    await click();
+    await waitFor(() => expect(mocks.error).toHaveBeenCalledOnce());
+    expect(mocks.fetch).toHaveBeenCalledOnce();
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+  it("does not sign when the server network mismatches the pinned network", async () => {
+    mocks.network.mockImplementation(() => {
+      throw new Error("Network mismatch");
+    });
+    render(<DeployReview {...props} />);
+    await click();
+    await waitFor(() => expect(mocks.error).toHaveBeenCalledOnce());
+    expect(mocks.sign).not.toHaveBeenCalled();
+    expect(mocks.fetch).toHaveBeenCalledOnce();
+  });
+  it("does not prepare or sign when recovery storage or browser locks are unavailable", async () => {
+    vi.stubGlobal("navigator", {});
+    render(<DeployReview {...props} />);
+    await click();
+    await waitFor(() => expect(mocks.error).toHaveBeenCalledOnce());
+    expect(mocks.kit).not.toHaveBeenCalled();
+    expect(mocks.fetch).not.toHaveBeenCalled();
+  });
+  it("cannot dispatch when durable marker persistence fails", async () => {
+    render(<DeployReview {...props} />);
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("Storage unavailable");
+    });
+    await click();
+    await waitFor(() => expect(mocks.error).toHaveBeenCalledOnce());
+    expect(mocks.fetch).toHaveBeenCalledOnce();
+    expect(mocks.poll).not.toHaveBeenCalled();
+    expect(deploy().disabled).toBe(true);
+  });
+  it("never repeats prepare or submit after remount and status-only recovery", async () => {
+    localStorage.setItem(KEY, JSON.stringify({ deploymentId: DEPLOYMENT, txHash: HASH }));
+    const view = render(<DeployReview {...props} />);
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("still unknown"));
+    expect(mocks.kit).not.toHaveBeenCalled();
+    expect(mocks.fetch).not.toHaveBeenCalled();
+    view.unmount();
+    render(<DeployReview {...props} />);
+    await waitFor(() => expect(mocks.poll).toHaveBeenCalledTimes(2));
+    mocks.poll.mockResolvedValue({ status: "FAILED" });
+    fireEvent.click(screen.getByRole("button", { name: "CHECK DEPLOYMENT STATUS" }));
+    await waitFor(() => expect(localStorage.getItem(KEY)).toBeNull());
+    expect(mocks.fetch).not.toHaveBeenCalled();
+    expect(mocks.sign).not.toHaveBeenCalled();
+  });
+  it("post-dispatch flow changes suppress old UI but retain and reconcile the captured deployment", async () => {
+    const outcome = deferred<{ status: string }>();
+    const response = deferred<ReturnType<typeof prepared>>();
+    mocks.poll.mockReturnValue(outcome.promise);
+    mocks.fetch.mockImplementation(async (url: string) =>
+      url.endsWith("/prepare") ? prepared() : response.promise,
+    );
+    const view = render(<DeployReview {...props} />);
+    await click();
+    await waitFor(() => expect(mocks.poll).toHaveBeenCalledOnce());
+    view.rerender(<DeployReview {...props} flowId="33333333-3333-3333-3333-333333333333" />);
+    expect(localStorage.getItem(KEY)).not.toBeNull();
+    await act(async () => outcome.resolve({ status: "FAILED" }));
+    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(mocks.error).not.toHaveBeenCalled();
+    expect(mocks.fetch).toHaveBeenCalledTimes(2);
+    response.resolve(prepared());
+  });
+  it("releases an empty lock after pre-dispatch cancellation while ignoring a late signature", async () => {
+    const signed = deferred<{ signedTxXdr: string }>();
+    mocks.sign.mockReturnValueOnce(signed.promise);
+    const view = render(<DeployReview {...props} />);
+    await click();
+    await waitFor(() => expect(mocks.sign).toHaveBeenCalledOnce());
+    await act(async () => view.unmount());
+    render(<DeployReview {...props} />);
+    await click();
+    await waitFor(() => expect(mocks.sign).toHaveBeenCalledTimes(2));
+    await act(async () => signed.resolve({ signedTxXdr: "old-signature" }));
+    expect(mocks.fetch).toHaveBeenCalledTimes(3);
+    expect(mocks.hash).toHaveBeenCalledOnce();
+  });
+  it("accepts authoritative success during recovery without repeating a write", async () => {
+    localStorage.setItem(KEY, JSON.stringify({ deploymentId: DEPLOYMENT, txHash: HASH }));
+    mocks.poll.mockResolvedValue({ status: "SUCCESS" });
+    render(<DeployReview {...props} />);
+    await waitFor(() => expect(localStorage.getItem(KEY)).toBeNull());
+    expect(screen.getByRole("status").textContent).toContain("Deployment confirmed");
+    expect(mocks.fetch).not.toHaveBeenCalled();
+    expect(mocks.sign).not.toHaveBeenCalled();
+  });
+  it("retains corrupt status instead of silently allowing a fresh deployment", () => {
+    localStorage.setItem(KEY, "corrupt");
+    render(<DeployReview {...props} />);
+    expect(deploy().disabled).toBe(true);
+    expect(mocks.fetch).not.toHaveBeenCalled();
+    expect(localStorage.getItem(KEY)).toBe("corrupt");
+  });
+});
