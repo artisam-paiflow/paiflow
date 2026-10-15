@@ -689,6 +689,11 @@ export function TriggerButton({
     } catch {
       /* Current-page pairing still works without reload recovery. */
     }
+    // A native handoff consumes this approval. Even if it resolves after
+    // cancellation, a later wallet choice must create its own fresh pairing.
+    readyRef.current = null;
+    setPairingState("idle");
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     attempt.handoffStarted = true;
     selectedWalletRef.current = walletId;
     setPendingWallet(walletId);

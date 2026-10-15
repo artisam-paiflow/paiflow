@@ -1,7 +1,13 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TriggerButton } from "@/components/deploy/trigger-button";
 const mocks = vi.hoisted(() => ({ sign: vi.fn(), poll: vi.fn(), fetch: vi.fn() }));
+// Routing/reconciliation fixtures use opaque envelope strings. Real cryptographic
+// envelope validation is covered by the node wallet-signature/connection suites.
+vi.mock("@/lib/stellar/wallet-signature", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stellar/wallet-signature")>()),
+  signedWalletTransactionHash: () => "a".repeat(64),
+}));
 vi.mock("@/lib/analytics/client", () => ({ track: vi.fn() }));
 vi.mock("@/lib/wallet-tracking", () => ({ trackWalletConnection: vi.fn() }));
 vi.mock("@/lib/hooks/use-poll-tx-status", () => ({ usePollTxStatus: () => mocks.poll }));
@@ -16,7 +22,9 @@ vi.mock("@creit.tech/stellar-wallets-kit/modules/walletconnect.module", () => ({
 }));
 vi.mock("@creit.tech/stellar-wallets-kit", () => ({
   StellarWalletsKit: class {
-    getAddress = async () => ({ address: `G${"A".repeat(55)}` });
+    getAddress = async () => ({
+      address: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+    });
     signTransaction = mocks.sign;
     setWallet() {}
     async openModal(opts: {
@@ -26,7 +34,10 @@ vi.mock("@creit.tech/stellar-wallets-kit", () => ({
     }
   },
   FreighterModule: class {},
-  WalletNetwork: { TESTNET: "testnet", PUBLIC: "mainnet" },
+  WalletNetwork: {
+    TESTNET: "Test SDF Network ; September 2015",
+    PUBLIC: "Public Global Stellar Network ; September 2015",
+  },
 }));
 const hash = "a".repeat(64);
 const key = "paiflow_allowance_pending:deployment-id:testnet";
@@ -45,12 +56,19 @@ async function approve() {
   await act(async () => {
     fireEvent.click(screen.getByRole("button", { name: /connect wallet & approve/i }));
   });
+  await waitFor(() => expect(screen.queryByRole("button", { name: /processing/i })).toBeNull());
 }
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   sessionStorage.clear();
   vi.stubEnv("NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID", "");
+  vi.stubGlobal("navigator", {
+    locks: {
+      request: async (_key: string, _options: unknown, callback: (lock: object) => Promise<void>) =>
+        callback({}),
+    },
+  });
   vi.stubGlobal("matchMedia", () => ({ matches: false }));
   vi.stubGlobal("fetch", mocks.fetch);
   mocks.sign.mockResolvedValue({ signedTxXdr: "signed" });
@@ -123,7 +141,7 @@ describe("wallet-only subscription browser flow", () => {
             xdr: "unsigned",
             intent: "server-intent",
             txHash: hash,
-            networkPassphrase: "testnet",
+            networkPassphrase: "Test SDF Network ; September 2015",
           },
         }),
       })
@@ -133,7 +151,7 @@ describe("wallet-only subscription browser flow", () => {
     expect(mocks.poll).toHaveBeenCalledWith(
       "deployment-id",
       hash,
-      expect.any(AbortSignal),
+      undefined,
       expect.stringContaining("subscription-allowance/status?intent="),
     );
     expect(screen.getByRole("status").textContent).toContain("Allowance confirmed");
@@ -187,7 +205,7 @@ describe("wallet-only subscription browser flow", () => {
             xdr: "unsigned",
             intent: "server-intent",
             txHash: hash,
-            networkPassphrase: "testnet",
+            networkPassphrase: "Test SDF Network ; September 2015",
           },
         }),
       })

@@ -368,4 +368,52 @@ describe("mobile trigger using the shared wallet kit", () => {
     expect(mocks.request).not.toHaveBeenCalled();
     expect(sessionStorage.getItem("paiflow_pending_wc")).toBeNull();
   });
+
+  it("consumes a handed-off pairing before a cancelled late approval can be reused for another wallet", async () => {
+    let approve!: (session: { topic: string }) => void;
+    const approval = new Promise<{ topic: string }>((resolve) => {
+      approve = resolve;
+    });
+    mocks.connect.mockResolvedValueOnce({
+      uri: `wc:consumed-pairing@2?expiryTimestamp=${Math.floor(Date.now() / 1000) + 300}`,
+      approval: () => approval,
+    });
+    const view = await mount();
+    await picker();
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Freighter" })));
+    const { TriggerButton } = await import("@/components/deploy/trigger-button");
+    await act(async () =>
+      view.rerender(
+        <TriggerButton deploymentId="deployment-id" network="testnet" amount="2000000" />,
+      ),
+    );
+    await act(async () => {
+      sessions.push(session("old-freighter-topic", "consumed-pairing"));
+      approve({ topic: "old-freighter-topic" });
+    });
+    expect(mocks.fetch).not.toHaveBeenCalled();
+    await picker();
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "LOBSTR" })));
+    expect(mocks.request.mock.calls.map((call) => call[0].topic)).not.toContain(
+      "old-freighter-topic",
+    );
+    expect(mocks.connect).toHaveBeenCalledTimes(2);
+    expect(open.mock.calls[1]?.[0]).toContain(encodeURIComponent("wc:new-pairing@2?"));
+    expect(JSON.parse(sessionStorage.getItem("paiflow_pending_wc")!).walletId).toBe("lobstr");
+  });
+
+  it("requires a fresh pairing after a handed-off approval times out", async () => {
+    await mount();
+    await picker();
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Freighter" })));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect(mocks.fetch).not.toHaveBeenCalled();
+    await picker();
+    expect(mocks.connect).toHaveBeenCalledTimes(2);
+    expect((screen.getByRole("button", { name: "LOBSTR" }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+  });
 });

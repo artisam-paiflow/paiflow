@@ -22,7 +22,10 @@ preserve the prepared transaction body and existing signatures and contain a val
 signature by its expected source account, on the server's captured passphrase.
 
 Mobile wallet taps retain synchronous native-app navigation using the prewarmed,
-fresh pairing URI or cached exact session. Pairing-return hints now bind the
+fresh pairing URI or cached exact session. A native handoff consumes its pairing
+synchronously: cancellation, a changed action, or timeout cannot reuse a later
+resolved approval for another wallet choice. Closing the picker before handoff
+retains its unused pairing. Pairing-return hints now bind the
 visible action and expire after two minutes. Legacy, mismatched, or ambiguous
 hints require reconnecting without automatically preparing/signing the old action.
 Removing a pairing hint never removes a financial pending record.
