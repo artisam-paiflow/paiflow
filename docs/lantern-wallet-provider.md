@@ -92,6 +92,43 @@ explicitly includes `lantern`; unknown labels still become `other`. No connectio
 schema or DB migration is required. Since the real module remains unavailable, the preparation
 does not generate a successful Lantern connection event in normal use.
 
+## Paiflow preparation and acceptance
+
+Status checked **2026-10-15 UTC**: all five integration issues remain open. The
+merged source snapshot is `6d8d7294`; the completed manual financial rehearsal
+used `b7b92a49`. Do not treat evidence from that earlier build as a new run on
+`6d8d7294`, or Paiflow preparation as working Lantern support.
+
+| Issue                                                        | Delivered preparation                                                                                                                                                                                                                                                                                                                    | Evidence revision                                                                                                                                                        | Remaining acceptance gate                                                                                                                                  |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [#397](https://github.com/webnxt-2030/pinkraft/issues/397)   | Shared wallet initialization ([#1006](https://github.com/webnxt-2030/pinkraft/pull/1006)); exact-session trigger signing and recovery ([#1012](https://github.com/webnxt-2030/pinkraft/pull/1012)).                                                                                                                                      | `6d8d7294` source/unit checks; `b7b92a49` desktop Freighter trigger.                                                                                                     | Actual-handset trigger, native handoff and pending-session return/restore checks.                                                                          |
+| [#1000](https://github.com/webnxt-2030/pinkraft/issues/1000) | Shared picker and picked-wallet tracking ([#1007](https://github.com/webnxt-2030/pinkraft/pull/1007)); deploy/payroll recovery ([#1014](https://github.com/webnxt-2030/pinkraft/pull/1014), [#1015](https://github.com/webnxt-2030/pinkraft/pull/1015)); network preflight ([#1018](https://github.com/webnxt-2030/pinkraft/pull/1018)). | `6d8d7294` source/unit checks; `b7b92a49` Freighter deploy, trigger, allowance and subscription actions.                                                                 | Actual desktop payroll coverage and WalletConnect/mobile checks across signing surfaces.                                                                   |
+| [#1001](https://github.com/webnxt-2030/pinkraft/issues/1001) | Inactive SWK 1.x module, fake-provider tests, local icon and telemetry ([#1011](https://github.com/webnxt-2030/pinkraft/pull/1011)).                                                                                                                                                                                                     | `6d8d7294` source/unit checks; unavailable row observed on `57bee6bb`.                                                                                                   | Verified provider detection, permissions, errors, sign-only contract and install target; real Lantern actions and same-build wallet regressions.           |
+| [#1002](https://github.com/webnxt-2030/pinkraft/issues/1002) | Shared mobile registry and generic platform-filter tests ([#1010](https://github.com/webnxt-2030/pinkraft/pull/1010)); no Lantern mobile entry.                                                                                                                                                                                          | `6d8d7294` source/unit checks with synthetic restricted-wallet fixtures only.                                                                                            | Official metadata/build, actual Lantern row/deep-link tests, Android pairing/rejection/return and existing mobile-wallet regressions.                      |
+| [#1003](https://github.com/webnxt-2030/pinkraft/issues/1003) | Foundations above and five synthetic offline scan fixtures ([#1008](https://github.com/webnxt-2030/pinkraft/pull/1008)).                                                                                                                                                                                                                 | Manual Freighter report on `b7b92a49` ([#1013](https://github.com/webnxt-2030/pinkraft/pull/1013)); `6d8d7294` builder-only desktop and Pixel 7 emulation checks passed. | Real Lantern desktop/Android actions, same-build wallet matrix, verified setup instructions, sample handoff/scanner results and mainnet scan confirmation. |
+
+The [manual Freighter report (PR #1013)](https://github.com/webnxt-2030/pinkraft/pull/1013)
+records eight successful own-fixture Testnet operations, including lost-response
+recovery, approval/revocation and exact fee reconciliation. It does not establish
+scheduler, relayer, payroll, other-wallet or real-handset acceptance. Payroll was
+disabled in that test environment; its UI/relayer branch was not exercised.
+
+A working wallet-enabled browser E2E harness remains missing; the correction in
+[#1016](https://github.com/webnxt-2030/pinkraft/pull/1016) reports that path as
+explicitly skipped. On healthy, pinned `6d8d7294`, the unmodified builder-only test
+passed in desktop and Pixel 7 emulation (two cases, no retries or hooks), and the
+two new own drafts were deleted through the owner API with the original three
+preserved. No deploy control or wallet was used, no prepare/sign/submit path was
+exercised, and CSP violations were unmeasured in the ephemeral contexts; emulation
+is not handset or wallet acceptance.
+
+Five additional real, expired unsigned inputs have been prepared and independently
+reviewed **locally only**: four application captures and one read-only actual-builder
+RPC simulation. They have not been published or delivered. Export still requires
+explicit user approval for the exact payload and destination; no payload is linked
+here. The committed five offline fixtures remain synthetic, and neither packet
+establishes Lantern scanner interpretation or acceptance.
+
 ## Required next steps
 
 1. Obtain the real provider API, permission/approval behavior, documented failure
