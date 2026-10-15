@@ -119,9 +119,10 @@ describe("trigger dispatch admission and read-only recovery", () => {
     expect(localStorage.getItem(key)).toBeNull();
   });
   it("validates every wallet response and persists only its computed hash before a single dispatch", async () => {
+    const pendingAtDispatch: Array<string | null> = [];
     mocks.fetch.mockImplementation(async (url: string) => {
       if (url.endsWith("submit-trigger")) {
-        expect(JSON.parse(localStorage.getItem(key)!)).toEqual({ txHash: hash });
+        pendingAtDispatch.push(localStorage.getItem(key));
         return { ok: true, json: async () => ({ data: { txHash: otherHash } }) };
       }
       return prepared();
@@ -129,6 +130,9 @@ describe("trigger dispatch admission and read-only recovery", () => {
     await mount();
     await click();
     await waitFor(() => expect(mocks.poll).toHaveBeenCalledOnce());
+    // Assert outside the submit mock: production deliberately catches transport
+    // rejections, which would otherwise swallow a failed assertion in that mock.
+    expect(pendingAtDispatch).toEqual([JSON.stringify({ txHash: hash })]);
     expect(mocks.hash).toHaveBeenCalledExactlyOnceWith(
       "testnet",
       "unsigned",
