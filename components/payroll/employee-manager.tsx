@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { toastError } from "@/lib/friendly-toast";
 import { trackWalletConnection } from "@/lib/wallet-tracking";
@@ -14,6 +14,20 @@ import {
   connectSelectedWallet,
   assertWalletAttemptActive,
 } from "@/components/deploy/selected-wallet-connection";
+
+import {
+  CONTRACT_CALL_PENDING_EVENT,
+  contractCallPendingKey,
+  readPendingContractCall,
+  withContractCallLock,
+} from "@/lib/contract-call-pending";
+import {
+  clearPendingPayroll,
+  payrollPendingKey,
+  readPendingPayroll,
+  savePendingPayroll,
+  type PendingPayroll,
+} from "@/lib/payroll-pending";
 
 type Employee = {
   address: string;
@@ -42,7 +56,7 @@ export default function EmployeeManager({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const attemptRef = useRef<AbortController | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     setSaving(false);
     return () => {
       attemptRef.current?.abort();
@@ -50,8 +64,116 @@ export default function EmployeeManager({
   }, [deploymentId, network]);
   const [savingBanks, setSavingBanks] = useState(false);
   const pollTxStatus = usePollTxStatus();
+  const pendingKey = payrollPendingKey(deploymentId, network);
+  const admissionKey = contractCallPendingKey(deploymentId, network);
+  const [pending, setPending] = useState<PendingPayroll | null>(null);
+  const [recoveryReady, setRecoveryReady] = useState(false);
+  const [recoveryBlocked, setRecoveryBlocked] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const cancelEditedAttempt = () => {
+    attemptRef.current?.abort();
+    setSaving(false);
+  };
+  function loadPending() {
+    try {
+      const saved = readPendingPayroll(pendingKey);
+      setPending(saved);
+      setRecoveryBlocked(Boolean(readPendingContractCall(admissionKey)));
+      return saved;
+    } catch {
+      setRecoveryBlocked(true);
+      setStatusMessage(
+        "Transaction recovery storage is unavailable or invalid. Resolve it before updating payroll.",
+      );
+      throw new Error("Transaction recovery storage is unavailable or invalid.");
+    } finally {
+      setRecoveryReady(true);
+    }
+  }
+  async function reconcile(saved: PendingPayroll, current: () => boolean) {
+    if (saved.phase === "prepare") {
+      if (current())
+        setStatusMessage(
+          "The payroll request outcome is unknown and no transaction hashes were received. Further actions are blocked. Ask an operator to reconcile this request; do not repeat it or clear site storage.",
+        );
+      return;
+    }
+    try {
+      const results = await Promise.all(
+        saved.txHashes.map((hash) => pollTxStatus(deploymentId, hash)),
+      );
+      if (results.some((result) => result.status !== "SUCCESS" && result.status !== "FAILED"))
+        throw new Error("Finality is unknown");
+      clearPendingPayroll(pendingKey, saved);
+      if (!current()) return;
+      const failed = results.find((result) => result.status === "FAILED");
+      if (failed) {
+        setStatusMessage(
+          "A payroll transaction failed on the network. The request may have partially completed; check the deployment before another update.",
+        );
+        toastError(new Error(failed.errorMessage ?? "Payroll transaction failed"), "Update failed");
+      } else {
+        setStatusMessage("Payroll transactions confirmed.");
+        toast.success("Employees updated on-chain");
+      }
+    } catch {
+      if (current())
+        setStatusMessage(
+          "Payroll transaction confirmation is still unknown. Check status before starting another action.",
+        );
+    }
+  }
+  async function checkStatus(saved: PendingPayroll) {
+    if (attemptRef.current && !attemptRef.current.signal.aborted) return;
+    const controller = new AbortController();
+    attemptRef.current = controller;
+    const current = () => attemptRef.current === controller && !controller.signal.aborted;
+    setSaving(true);
+    try {
+      await withContractCallLock(admissionKey, async () => {
+        const actual = readPendingPayroll(pendingKey);
+        if (actual && JSON.stringify(actual) === JSON.stringify(saved))
+          await reconcile(actual, current);
+      });
+    } catch {
+      if (current())
+        setStatusMessage("Another action is being processed. Payroll remains unresolved.");
+    } finally {
+      if (attemptRef.current === controller) {
+        attemptRef.current = null;
+        if (!controller.signal.aborted) setSaving(false);
+      }
+    }
+  }
+  useEffect(() => {
+    setRecoveryReady(false);
+    setStatusMessage(null);
+    const refresh = () => {
+      try {
+        loadPending();
+      } catch {
+        /* Fail closed. */
+      }
+    };
+    window.addEventListener("storage", refresh);
+    window.addEventListener(CONTRACT_CALL_PENDING_EVENT, refresh);
+    try {
+      const saved = loadPending();
+      if (saved) void checkStatus(saved);
+    } catch {
+      /* Fail closed. */
+    }
+    return () => {
+      window.removeEventListener("storage", refresh);
+      window.removeEventListener(CONTRACT_CALL_PENDING_EVENT, refresh);
+    };
+    // Status checks only; never repeat prepare or submit after reload.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingKey, admissionKey]);
 
   useEffect(() => {
+    let live = true;
+    setLoading(true);
     Promise.all([
       fetch(`/api/deployments/${deploymentId}/payroll-recipients`).then(async (res) => {
         if (!res.ok) throw new Error("Failed to load employees");
@@ -89,24 +211,35 @@ export default function EmployeeManager({
       }),
     ])
       .then(([emps, banks]) => {
+        if (!live) return;
         setEmployees(emps);
         setBankDetails(banks);
       })
-      .catch((err) => toastError(err))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (live) toastError(err);
+      })
+      .finally(() => {
+        if (live) setLoading(false);
+      });
+    return () => {
+      live = false;
+    };
   }, [deploymentId]);
 
   const total = employees.reduce((sum, e) => sum + BigInt(e.amount || "0"), 0n);
 
   const updateEmployee = (index: number, patch: Partial<Employee>) => {
+    cancelEditedAttempt();
     setEmployees((prev) => prev.map((e, i) => (i === index ? { ...e, ...patch } : e)));
   };
 
   const updatePayoutMode = (index: number, mode: "crypto" | "fiat") => {
+    cancelEditedAttempt();
     setEmployees((prev) => prev.map((e, i) => (i === index ? { ...e, payoutMode: mode } : e)));
   };
 
   const updateBankDetail = (address: string, patch: Partial<BankDetail>) => {
+    cancelEditedAttempt();
     setBankDetails((prev) => {
       const current = prev[address] ?? { accountName: "", accountNumber: "", bankCode: "" };
       return { ...prev, [address]: { ...current, ...patch } };
@@ -114,10 +247,12 @@ export default function EmployeeManager({
   };
 
   const addEmployee = () => {
+    cancelEditedAttempt();
     setEmployees((prev) => [...prev, { address: "", amount: "", label: "" }]);
   };
 
   const removeEmployee = (index: number) => {
+    cancelEditedAttempt();
     const address = employees[index]?.address;
     setEmployees((prev) => prev.filter((_, i) => i !== index));
     if (address) {
@@ -148,92 +283,164 @@ export default function EmployeeManager({
   };
 
   const save = async () => {
-    if (!validate() || (attemptRef.current && !attemptRef.current.signal.aborted)) return;
+    if (
+      !validate() ||
+      !recoveryReady ||
+      recoveryBlocked ||
+      pending ||
+      (attemptRef.current && !attemptRef.current.signal.aborted)
+    )
+      return;
     const controller = new AbortController();
     attemptRef.current = controller;
     const { signal } = controller;
     const check = () => assertWalletAttemptActive(signal);
+    const current = () => attemptRef.current === controller && !signal.aborted;
+    // Capture immutable values before the first await. Editing invalidates the wallet attempt.
+    const recipients = employees.map((e) => ({
+      address: e.address,
+      amount: e.amount,
+      label: e.label || undefined,
+      payoutMode: e.payoutMode ?? "crypto",
+      bankDetail: bankDetails[e.address] ? { ...bankDetails[e.address]! } : undefined,
+    }));
     setSaving(true);
     try {
-      const res = await fetch(`/api/deployments/${deploymentId}/payroll-update-recipients`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          recipients: employees.map((e) => ({
-            address: e.address,
-            amount: e.amount,
-            label: e.label || undefined,
-            payoutMode: e.payoutMode ?? "crypto",
-            bankDetail: bankDetails[e.address] ?? undefined,
-          })),
-        }),
-      });
-      const json = (await res.json()) as {
-        data?: {
-          unsignedXdr?: string;
-          networkPassphrase?: string;
-          txHash?: string;
-          txHashes?: string[];
+      await withContractCallLock(admissionKey, async () => {
+        let mayHaveWritten = false;
+        let onAbort!: () => void;
+        const cancelled = new Promise<never>((_resolve, reject) => {
+          onAbort = () => {
+            if (!mayHaveWritten) reject(new Error("Payroll update cancelled before submission."));
+          };
+          signal.addEventListener("abort", onAbort, { once: true });
+          if (signal.aborted) onAbort();
+        });
+        const execute = async () => {
+          check();
+          if (readPendingContractCall(admissionKey))
+            throw new Error("Resolve the pending transaction before updating payroll.");
+          const existing = loadPending();
+          if (existing) {
+            mayHaveWritten = true;
+            await reconcile(existing, current);
+            return;
+          }
+          const request: PendingPayroll = { requestId: crypto.randomUUID(), phase: "prepare" };
+          savePendingPayroll(pendingKey, request);
+          mayHaveWritten = true;
+          // This endpoint can submit relayer transactions. Do not abort or replay it.
+          const res = await fetch(`/api/deployments/${deploymentId}/payroll-update-recipients`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ recipients }),
+          });
+          const json: unknown = await res.json();
+          if (!res.ok) throw apiError(json, "Failed to prepare update");
+          if (
+            !json ||
+            typeof json !== "object" ||
+            !("data" in json) ||
+            !json.data ||
+            typeof json.data !== "object"
+          )
+            throw new Error("Invalid payroll response");
+          const data = json.data;
+          if ("txHashes" in data || "txHash" in data) {
+            const hashes =
+              "txHashes" in data ? data.txHashes : "txHash" in data ? [data.txHash] : [];
+            if (!Array.isArray(hashes)) throw new Error("Invalid payroll hashes");
+            // Parsing/persistence rejects invalid or empty lists, retaining unknown prepare.
+            const saved: PendingPayroll = {
+              requestId: request.requestId,
+              phase: "transactions",
+              txHashes: hashes,
+            };
+            savePendingPayroll(pendingKey, saved, request);
+            await reconcile(saved, current);
+            return;
+          }
+          if (
+            !("unsignedXdr" in data) ||
+            typeof data.unsignedXdr !== "string" ||
+            !("networkPassphrase" in data) ||
+            typeof data.networkPassphrase !== "string"
+          )
+            throw new Error("Missing transaction payload");
+          // Only this route's PAYROLL branch returns unsigned-only; it has no chain write.
+          // It can already have synced Employee DB records; cancellation is not a rollback.
+          clearPendingPayroll(pendingKey, request);
+          mayHaveWritten = false;
+          check();
+          const { unsignedXdr, networkPassphrase } = data;
+          const { assertWalletNetwork, signedWalletTransactionHash } =
+            await import("@/lib/stellar/wallet-signature");
+          check();
+          assertWalletNetwork(network, networkPassphrase);
+          const { getWalletKit } = await import("@/components/deploy/wallet-kit");
+          check();
+          const shared = await getWalletKit(network);
+          check();
+          const connection = await connectSelectedWallet(shared, network, signal);
+          check();
+          if (!connection) {
+            toast.warning("Update cancelled");
+            return;
+          }
+          const { address, walletId } = connection;
+          void trackWalletConnection({ address, network, walletId, surface: "payroll" });
+          const { signedTxXdr } = await connection.signTransaction(unsignedXdr, {
+            address,
+            networkPassphrase,
+          });
+          check();
+          const txHash = signedWalletTransactionHash(
+            network,
+            unsignedXdr,
+            signedTxXdr,
+            address,
+            networkPassphrase,
+          );
+          const saved: PendingPayroll = {
+            requestId: request.requestId,
+            phase: "transactions",
+            txHashes: [txHash],
+          };
+          savePendingPayroll(pendingKey, saved);
+          mayHaveWritten = true;
+          try {
+            void fetch(`/api/deployments/${deploymentId}/submit-invoke`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ signedXdr: signedTxXdr }),
+            }).catch(() => {});
+          } catch {
+            /* Preserve hash even if dispatch/response fails. */
+          }
+          await reconcile(saved, current);
         };
-        error?: { message?: string };
-      };
-      check();
-      if (!res.ok) throw apiError(json, "Failed to prepare update");
-      const data = json.data;
-      if (!data) throw new Error("Prepare failed");
-
-      if (data.txHashes) {
-        toast.info("Transactions submitted. Waiting for confirmation...");
-        const results = await Promise.all(
-          data.txHashes.map((txHash) => pollTxStatus(deploymentId, txHash, signal)),
-        );
-        check();
-        const failed = results.find((r) => r.status === "FAILED");
-        if (failed) {
-          throw new Error(failed.errorMessage ?? "Transaction failed on the network");
+        try {
+          await Promise.race([execute(), cancelled]);
+        } finally {
+          signal.removeEventListener("abort", onAbort);
         }
-        toast.success("Employees updated on-chain");
-        return;
-      }
-
-      if (data.txHash) {
-        toast.success("Employees updated on-chain");
-        return;
-      }
-
-      if (!data.unsignedXdr || !data.networkPassphrase) {
-        throw new Error("Missing transaction payload");
-      }
-
-      const { unsignedXdr, networkPassphrase } = data;
-      const { getWalletKit } = await import("@/components/deploy/wallet-kit");
-      check();
-      const shared = await getWalletKit(network);
-      check();
-      const connection = await connectSelectedWallet(shared, network, signal);
-      check();
-      if (!connection) {
-        toast.warning("Update cancelled");
-        return;
-      }
-      const { address, walletId } = connection;
-      void trackWalletConnection({ address, network, walletId, surface: "payroll" });
-      const { signedTxXdr } = await connection.signTransaction(unsignedXdr, {
-        address,
-        networkPassphrase,
       });
-      check();
-      const submitRes = await fetch(`/api/deployments/${deploymentId}/submit-invoke`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ signedXdr: signedTxXdr }),
-      });
-      check();
-      if (!submitRes.ok) throw apiError(await submitRes.json(), "Submit failed");
-      toast.success("Employees updated on-chain");
     } catch (err) {
-      if (signal.aborted) return;
-      toastError(err, "Update failed");
+      if (current()) {
+        let saved: PendingPayroll | null = null;
+        try {
+          saved = loadPending();
+        } catch {
+          /* Fail closed. */
+        }
+        if (saved)
+          setStatusMessage(
+            saved.phase === "prepare"
+              ? "The payroll request outcome is unknown and no transaction hashes were received. Further actions are blocked. Ask an operator to reconcile this request; do not repeat it or clear site storage."
+              : "Payroll transaction confirmation is still unknown. Check status before another action.",
+          );
+        else toastError(err, "Update failed");
+      }
     } finally {
       if (attemptRef.current === controller) {
         attemptRef.current = null;
@@ -421,12 +628,41 @@ export default function EmployeeManager({
       <button
         type="button"
         onClick={save}
-        disabled={saving}
+        disabled={saving || !recoveryReady || recoveryBlocked || Boolean(pending)}
         className="bg-primary text-on-primary hover:shadow-primary/50 w-full rounded-lg py-2.5 font-mono font-bold transition-shadow disabled:opacity-50"
       >
         {saving ? "SAVING…" : "SAVE EMPLOYEES"}
       </button>
 
+      {(pending || statusMessage || recoveryBlocked) && (
+        <div role="status" className="text-on-surface-variant space-y-2 text-xs">
+          <p>
+            {statusMessage ??
+              (pending?.phase === "prepare"
+                ? "The payroll request outcome is unresolved. Ask an operator to reconcile it before another action."
+                : "A transaction is awaiting confirmation. Check status before another action.")}
+          </p>
+          {pending?.phase === "transactions" && (
+            <>
+              <ul>
+                {pending.txHashes.map((hash) => (
+                  <li key={hash} className="font-mono break-all">
+                    {hash}
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void checkStatus(pending)}
+                className="text-secondary underline"
+              >
+                CHECK PAYROLL STATUS
+              </button>
+            </>
+          )}
+        </div>
+      )}
       <button
         type="button"
         onClick={saveBankDetails}

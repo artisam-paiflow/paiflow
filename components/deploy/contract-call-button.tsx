@@ -14,6 +14,7 @@ import {
   withContractCallLock,
   type PendingContractCall,
 } from "@/lib/contract-call-pending";
+import { assertNoPendingPayroll } from "@/lib/payroll-pending";
 import { getWalletKit } from "./wallet-kit";
 import { assertWalletAttemptActive, connectSelectedWallet } from "./selected-wallet-connection";
 
@@ -69,6 +70,7 @@ export default function ContractCallButton({
 
   function loadPending() {
     try {
+      assertNoPendingPayroll(deploymentId, network);
       const saved = readPendingContractCall(pendingKey);
       setPending(saved);
       setStorageBlocked(false);
@@ -76,7 +78,7 @@ export default function ContractCallButton({
     } catch {
       setStorageBlocked(true);
       setStatusMessage(
-        "Transaction status storage is unavailable or invalid. Resolve it before starting another action.",
+        "A payroll request or transaction may be unresolved, or recovery storage is unavailable or invalid. Check payroll and transaction status before another action.",
       );
       throw new Error("Transaction status storage is unavailable or invalid.");
     } finally {

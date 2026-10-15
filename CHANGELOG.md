@@ -7,6 +7,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Preserve unresolved payroll update requests and every returned transaction hash
+  across navigation and reloads. Block replacement actions, cancel stale roster
+  approvals and validate all wallet responses before dispatch.
+
 - Centralize mobile wallet names, icons and handoff links while preserving existing
   Freighter, LOBSTR and xBull behavior; keep Lantern gated on official metadata.
 

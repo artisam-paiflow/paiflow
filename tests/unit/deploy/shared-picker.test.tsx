@@ -11,6 +11,12 @@ const mocks = vi.hoisted(() => ({
   signTransaction: vi.fn(),
   getAddress: vi.fn(),
   setWallet: vi.fn(),
+  poll: vi.fn(),
+}));
+vi.mock("@/lib/hooks/use-poll-tx-status", () => ({ usePollTxStatus: () => mocks.poll }));
+vi.mock("@/lib/stellar/wallet-signature", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stellar/wallet-signature")>()),
+  signedWalletTransactionHash: vi.fn(() => "a".repeat(64)),
 }));
 vi.mock("@/components/deploy/wallet-kit", () => ({ getWalletKit: mocks.getWalletKit }));
 vi.mock("@/lib/wallet-tracking", () => ({ trackWalletConnection: mocks.trackWalletConnection }));
@@ -29,6 +35,13 @@ const response = (data: unknown, ok = true) => ({ ok, json: async () => ({ data 
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
+  vi.stubGlobal("navigator", {
+    locks: {
+      request: async (_key: string, _opts: unknown, fn: (lock: object) => Promise<void>) => fn({}),
+    },
+  });
+  mocks.poll.mockRejectedValue(new Error("Finality unknown"));
   mocks.getAddress.mockResolvedValue({ address: ADDRESS });
   mocks.signTransaction.mockResolvedValue({ signedTxXdr: "signed" });
   mocks.getWalletKit.mockResolvedValue({
@@ -204,7 +217,10 @@ describe("EmployeeManager shared picker", () => {
         if (url.endsWith("/payroll-update-recipients"))
           return response({
             unsignedXdr: "payroll-unsigned",
-            networkPassphrase: "payroll-server-passphrase",
+            networkPassphrase:
+              network === "testnet"
+                ? "Test SDF Network ; September 2015"
+                : "Public Global Stellar Network ; September 2015",
           });
         return response({});
       });
@@ -224,7 +240,10 @@ describe("EmployeeManager shared picker", () => {
       });
       expect(mocks.signTransaction).toHaveBeenCalledWith("payroll-unsigned", {
         address: ADDRESS,
-        networkPassphrase: "payroll-server-passphrase",
+        networkPassphrase:
+          network === "testnet"
+            ? "Test SDF Network ; September 2015"
+            : "Public Global Stellar Network ; September 2015",
       });
       expect(fetcher.mock.calls.filter(([url]) => url.endsWith("/submit-invoke"))).toHaveLength(1);
     },
@@ -292,6 +311,7 @@ describe("shared picker attempt lifecycle", () => {
     fireEvent.click(screen.getByRole("button", { name: /deploy to testnet/i }));
     await waitFor(() => expect(mocks.getWalletKit).toHaveBeenCalled());
     await choose();
+    await waitFor(() => expect(finish).toBeTypeOf("function"));
     view.unmount();
     await act(async () => {
       finish({ signedTxXdr: "signed" });
@@ -306,7 +326,10 @@ describe("payroll picker attempt lifecycle", () => {
       if (url.endsWith("/payroll-recipients"))
         return response({ recipients: [{ address: ADDRESS, amount: "1000000" }] });
       if (url.endsWith("/employees/bank")) return response([]);
-      return response({ unsignedXdr: "old-payroll", networkPassphrase: "server-passphrase" });
+      return response({
+        unsignedXdr: "old-payroll",
+        networkPassphrase: "Test SDF Network ; September 2015",
+      });
     });
     vi.stubGlobal("fetch", fetcher);
     const view = render(
@@ -337,7 +360,10 @@ describe("payroll picker attempt lifecycle", () => {
       if (url.endsWith("/payroll-recipients"))
         return response({ recipients: [{ address: ADDRESS, amount: "1000000" }] });
       if (url.endsWith("/employees/bank")) return response([]);
-      return response({ unsignedXdr: "old-payroll", networkPassphrase: "server-passphrase" });
+      return response({
+        unsignedXdr: "old-payroll",
+        networkPassphrase: "Test SDF Network ; September 2015",
+      });
     });
     vi.stubGlobal("fetch", fetcher);
     const view = render(
@@ -346,6 +372,7 @@ describe("payroll picker attempt lifecycle", () => {
     fireEvent.click(await screen.findByRole("button", { name: "SAVE EMPLOYEES" }));
     await waitFor(() => expect(mocks.getWalletKit).toHaveBeenCalled());
     await choose();
+    await waitFor(() => expect(finish).toBeTypeOf("function"));
     view.unmount();
     await act(async () => {
       finish({ signedTxXdr: "signed" });
