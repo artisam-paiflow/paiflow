@@ -2,8 +2,8 @@
 
 `.railway/railway.ts` describes the existing **paiflow / staging** environment only.
 It refuses other project/environment IDs so this staging snapshot cannot be used
-against production or testing. The PR target branch `testing` does not change the
-Railway target or the existing services' `staging` source branches.
+against production or testing. A Git pull request's base branch does not change
+the pinned Railway target or the existing services' `staging` source branches.
 
 This reconciliation addresses [#529](https://github.com/webnxt-2030/pinkraft/issues/529).
 **Do not apply it.** The issue's apply restriction remains until review is complete;

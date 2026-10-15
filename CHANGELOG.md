@@ -51,6 +51,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Reconcile the staging-only Railway configuration with the distinct live/archive
+  database volumes and guard its target; infrastructure applies remain separately
+  controlled (#529).
+
 - Allow anonymous Schedule state reads through middleware while retaining sandbox,
   deployment lifecycle and mutation authentication guards (#977).
 
