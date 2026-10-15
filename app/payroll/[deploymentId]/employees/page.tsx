@@ -30,6 +30,8 @@ export default async function PayrollEmployeesPage({
   )
     notFound();
 
+  if (deployment.network !== "testnet" && deployment.network !== "mainnet") notFound();
+
   const graph = deployment.graphSnapshot as {
     nodes: Array<{ type: string; config?: { asset?: Asset } }>;
   };
@@ -57,7 +59,7 @@ export default async function PayrollEmployeesPage({
         </div>
 
         <section className="glass-panel rounded-xl p-6">
-          <EmployeeManager deploymentId={deploymentId} asset={asset} />
+          <EmployeeManager deploymentId={deploymentId} asset={asset} network={deployment.network} />
         </section>
       </main>
     </div>
