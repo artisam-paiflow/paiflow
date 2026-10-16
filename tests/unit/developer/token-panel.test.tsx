@@ -1,4 +1,4 @@
-import { render, screen, within, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, within, waitFor, cleanup, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
@@ -108,12 +108,31 @@ beforeEach(() => {
     }),
   );
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 const ready = async () => {
   await screen.findByRole("checkbox", { name: /Donations/ });
   await screen.findByRole("button", { name: "Refresh token list" });
 };
 const form = () => within(screen.getByRole("form", { name: "Create developer token" }));
+
+// Capture a real response snapshot but delay delivery to exercise ordering.
+function deferResponse(matches: (url: string, method: string) => boolean) {
+  const original = vi.mocked(fetch).getMockImplementation();
+  if (!original) throw new Error("Missing fetch mock");
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  vi.mocked(fetch).mockImplementation(async (input, init) => {
+    const result = await original(input, init);
+    if (matches(String(input), init?.method ?? "GET")) await gate;
+    return result;
+  });
+  return release;
+}
 
 describe("developer token management", () => {
   it("creates only explicitly chosen deployments across pages, copies once and never recovers plaintext", async () => {
@@ -322,6 +341,123 @@ describe("developer token management", () => {
       true,
     );
   });
+  it("blocks mutations behind an in-flight metadata refresh and recovers when it resolves", async () => {
+    rows = [token()];
+    const user = userEvent.setup();
+    render(<DeveloperTokenPanel />);
+    await ready();
+    await user.click(screen.getByRole("checkbox", { name: /Donations/ }));
+    const release = deferResponse(
+      (url, method) => method === "GET" && url.startsWith("/api/developer-tokens?"),
+    );
+    await user.click(screen.getByRole("button", { name: "Refresh token list" }));
+    for (const name of ["Generate token", "Edit deployments", "Revoke token"]) {
+      const control = screen.getByRole("button", { name });
+      expect(control.matches(":disabled")).toBe(true);
+      await user.click(control);
+    }
+    expect(requests.some((r) => r.method !== "GET")).toBe(false);
+    await act(async () => {
+      release();
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Revoke token" }).matches(":disabled")).toBe(false),
+    );
+    await user.click(screen.getByRole("button", { name: "Revoke token" }));
+    await user.click(screen.getByRole("button", { name: "Confirm revocation" }));
+    await screen.findByText("Revoked", { selector: "span" });
+    expect(screen.queryByText("Active", { selector: "span" })).toBeNull();
+  });
+  it.each(["POST", "PATCH", "DELETE"])(
+    "blocks stale list reads while %s is pending and releases controls after completion",
+    async (method) => {
+      rows = method === "POST" ? [] : [token()];
+      const user = userEvent.setup();
+      render(<DeveloperTokenPanel />);
+      await ready();
+      const release = deferResponse((_url, requestMethod) => requestMethod === method);
+      if (method === "POST") {
+        await user.click(screen.getByRole("checkbox", { name: /Donations/ }));
+        await user.click(form().getByRole("button", { name: "Generate token" }));
+      } else if (method === "PATCH") {
+        await user.click(screen.getByRole("button", { name: "Edit deployments" }));
+        const editor = within(
+          await screen.findByRole("form", { name: "Edit deployments for Campus backend" }),
+        );
+        await user.click(editor.getByRole("button", { name: `Remove ${A}` }));
+        await user.click(editor.getByRole("button", { name: "Save selection" }));
+      } else {
+        await user.click(screen.getByRole("button", { name: "Revoke token" }));
+        await user.click(screen.getByRole("button", { name: "Confirm revocation" }));
+      }
+      await waitFor(() => expect(requests.some((r) => r.method === method)).toBe(true));
+      const before = requests.filter((r) => r.url.startsWith("/api/developer-tokens?")).length;
+      const refresh = screen.getByRole("button", { name: "Refresh token list" });
+      expect(refresh.matches(":disabled")).toBe(true);
+      await user.click(refresh);
+      expect(requests.filter((r) => r.url.startsWith("/api/developer-tokens?")).length).toBe(
+        before,
+      );
+      await act(async () => {
+        release();
+      });
+      const state =
+        method === "POST"
+          ? "Active"
+          : method === "PATCH"
+            ? "Suspended (no deployments)"
+            : "Revoked";
+      await screen.findByText(state, { selector: "span" });
+      await waitFor(() => expect(refresh.matches(":disabled")).toBe(false));
+      await user.click(refresh);
+      await waitFor(() =>
+        expect(requests.filter((r) => r.url.startsWith("/api/developer-tokens?")).length).toBe(
+          before + 1,
+        ),
+      );
+      await screen.findByText(state, { selector: "span" });
+    },
+  );
+  it.each(["pagehide", "visibilitychange"])(
+    "does not reveal a late create response after %s dismisses the secret",
+    async (event) => {
+      const user = userEvent.setup();
+      render(<DeveloperTokenPanel />);
+      await ready();
+      const release = deferResponse((_url, method) => method === "POST");
+      await user.click(screen.getByRole("checkbox", { name: /Donations/ }));
+      await user.click(form().getByRole("button", { name: "Generate token" }));
+      await waitFor(() => expect(requests.some((r) => r.method === "POST")).toBe(true));
+      if (event === "visibilitychange") {
+        const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+        act(() => {
+          document.dispatchEvent(new Event(event));
+        });
+        visibility.mockReturnValue("visible");
+        act(() => {
+          document.dispatchEvent(new Event(event));
+        });
+      } else
+        act(() => {
+          window.dispatchEvent(new Event(event));
+        });
+      await act(async () => {
+        release();
+      });
+      await screen.findByText(/Token created after the secret reveal was dismissed/);
+      expect(screen.queryByTestId("developer-token-reveal")).toBeNull();
+      expect(document.body.textContent).not.toContain(SECRET);
+      await screen.findByText("Active", { selector: "span" });
+      expect(screen.getByRole("button", { name: "Revoke token" }).matches(":disabled")).toBe(false);
+      await user.click(screen.getByRole("button", { name: "Refresh token list" }));
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "Refresh token list" }).matches(":disabled"),
+        ).toBe(false),
+      );
+      expect(screen.queryByTestId("developer-token-reveal")).toBeNull();
+    },
+  );
   it("has labelled keyboard controls without automated accessibility violations", async () => {
     rows = [token()];
     const user = userEvent.setup();

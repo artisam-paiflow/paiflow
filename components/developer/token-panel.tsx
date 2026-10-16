@@ -33,10 +33,16 @@ function SelectionEditor({
   token,
   onSaved,
   onClose,
+  startRequest,
+  finishRequest,
+  disabled,
 }: {
   token: DeveloperToken;
   onSaved: (token: DeveloperToken) => void;
   onClose: () => void;
+  startRequest: () => boolean;
+  finishRequest: () => void;
+  disabled: boolean;
 }) {
   const [selected, setSelected] = useState(token.deploymentIds);
   const [busy, setBusy] = useState(false);
@@ -49,6 +55,7 @@ function SelectionEditor({
       setFields(parsed.error.flatten().fieldErrors);
       return;
     }
+    if (!startRequest()) return;
     setBusy(true);
     setError(null);
     setFields({});
@@ -67,6 +74,7 @@ function SelectionEditor({
       if (err instanceof ManagementError) setFields(err.fields);
     } finally {
       setBusy(false);
+      finishRequest();
     }
   }
   return (
@@ -85,7 +93,7 @@ function SelectionEditor({
       <DeploymentPicker
         selected={selected}
         onChange={setSelected}
-        disabled={busy}
+        disabled={busy || disabled}
         error={fields.deploymentIds?.join(" ")}
       />
       {!selected.length ? <p role="status">This token will have no deployment access.</p> : null}
@@ -95,10 +103,10 @@ function SelectionEditor({
         </p>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        <button className={buttonClass} disabled={busy}>
+        <button className={buttonClass} disabled={busy || disabled}>
           Save selection
         </button>
-        <button type="button" className={buttonClass} disabled={busy} onClick={onClose}>
+        <button type="button" className={buttonClass} disabled={busy || disabled} onClick={onClose}>
           Cancel selection edit
         </button>
       </div>
@@ -122,16 +130,33 @@ export default function DeveloperTokenPanel() {
   // The secret has its own short-lived state; metadata state never contains plaintext.
   const [revealed, setRevealed] = useState<{ id: string; token: string } | null>(null);
   const revealRef = useRef<HTMLElement>(null);
+  const revealGeneration = useRef(0);
   useEffect(() => {
     if (revealed) revealRef.current?.focus();
   }, [revealed]);
   const [copyError, setCopyError] = useState(false);
   const [editing, setEditing] = useState<DeveloperToken | null>(null);
-  const [action, setAction] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
 
+  // Token metadata reads and writes share one lane. The ref closes same-tick
+  // event gaps; disabling controls alone would not prevent a stale list response
+  // from replacing the result of a successful create, selection save or revoke.
+  const requestInFlight = useRef(false);
+  const [requestPending, setRequestPending] = useState(false);
+  function startRequest() {
+    if (requestInFlight.current) return false;
+    requestInFlight.current = true;
+    setRequestPending(true);
+    return true;
+  }
+  function finishRequest() {
+    requestInFlight.current = false;
+    setRequestPending(false);
+  }
   async function load(cursor?: string) {
+    if (!startRequest()) return;
+    setEditing(null);
     setListBusy(true);
     setListError(null);
     try {
@@ -153,6 +178,7 @@ export default function DeveloperTokenPanel() {
       setListError("Could not load tokens. Retry to view their current status.");
     } finally {
       setListBusy(false);
+      finishRequest();
     }
   }
   useEffect(() => {
@@ -160,7 +186,10 @@ export default function DeveloperTokenPanel() {
   }, []);
   useEffect(() => {
     // Clear on page departure, tab hiding and BFCache page transitions as well as Done/revoke.
-    const clear = () => setRevealed(null);
+    const clear = () => {
+      revealGeneration.current += 1;
+      setRevealed(null);
+    };
     const visibility = () => {
       if (document.visibilityState === "hidden") clear();
     };
@@ -189,6 +218,8 @@ export default function DeveloperTokenPanel() {
       setFields(parsed.error.flatten().fieldErrors);
       return;
     }
+    if (!startRequest()) return;
+    const creationGeneration = revealGeneration.current;
     setBusy(true);
     try {
       const data = await managementRequest(base, CreatedDeveloperTokenSchema, {
@@ -197,14 +228,24 @@ export default function DeveloperTokenPanel() {
         body: JSON.stringify(parsed.data),
       });
       const { token, ...metadata } = data;
-      setRevealed({ id: metadata.id, token });
+      const canReveal =
+        creationGeneration === revealGeneration.current && document.visibilityState !== "hidden";
+      if (canReveal) setRevealed({ id: metadata.id, token });
+      else
+        setFormError(
+          "Token created after the secret reveal was dismissed. Its secret is no longer available. Revoke the new token below and create a replacement.",
+        );
       setCopyError(false);
       setTokens((previous) => [metadata, ...previous]);
       setLabel("");
       setSelected([]);
       setExpiry("");
       setPermission("READ_ONLY");
-      toast.success("Developer token created. Copy it now.");
+      toast.success(
+        canReveal
+          ? "Developer token created. Copy it now."
+          : "Developer token created. Revoke it and create a replacement to obtain a secret.",
+      );
     } catch (err) {
       setFormError(
         err instanceof ManagementError
@@ -214,10 +255,11 @@ export default function DeveloperTokenPanel() {
       if (err instanceof ManagementError) setFields(err.fields);
     } finally {
       setBusy(false);
+      finishRequest();
     }
   }
   async function inspect(token: DeveloperToken) {
-    setAction(token.id);
+    if (!startRequest()) return;
     setActionError(null);
     try {
       const latest = await managementRequest(`${base}/${token.id}`, DeveloperTokenSchema);
@@ -229,11 +271,11 @@ export default function DeveloperTokenPanel() {
         err instanceof ManagementError ? err.message : "Could not load token. Try again.",
       );
     } finally {
-      setAction(null);
+      finishRequest();
     }
   }
   async function revoke(token: DeveloperToken) {
-    setAction(token.id);
+    if (!startRequest()) return;
     setActionError(null);
     try {
       const updated = await managementRequest(`${base}/${token.id}`, DeveloperTokenSchema, {
@@ -249,7 +291,7 @@ export default function DeveloperTokenPanel() {
         err instanceof ManagementError ? err.message : "Could not revoke token. Try again.",
       );
     } finally {
-      setAction(null);
+      finishRequest();
     }
   }
   return (
@@ -353,7 +395,7 @@ export default function DeveloperTokenPanel() {
           aria-label="Create developer token"
           aria-busy={busy}
         >
-          <fieldset disabled={busy || !!revealed} className="space-y-4">
+          <fieldset disabled={requestPending || !!revealed} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="developer-label" className={labelClass}>
@@ -427,7 +469,7 @@ export default function DeveloperTokenPanel() {
             <DeploymentPicker
               selected={selected}
               onChange={setSelected}
-              disabled={busy || !!revealed}
+              disabled={requestPending || !!revealed}
               error={fields.deploymentIds?.join(" ")}
             />
             <button type="submit" className={primaryClass}>
@@ -461,9 +503,8 @@ export default function DeveloperTokenPanel() {
         <button
           type="button"
           className={buttonClass}
-          disabled={listBusy}
+          disabled={requestPending}
           onClick={() => {
-            setEditing(null);
             void load();
           }}
         >
@@ -528,7 +569,7 @@ export default function DeveloperTokenPanel() {
                   <button
                     type="button"
                     className={buttonClass}
-                    disabled={!!action}
+                    disabled={requestPending}
                     onClick={() => void inspect(token)}
                   >
                     Edit deployments
@@ -538,7 +579,7 @@ export default function DeveloperTokenPanel() {
                   <button
                     type="button"
                     className={buttonClass}
-                    disabled={!!action}
+                    disabled={requestPending}
                     onClick={() => setConfirmRevoke(token.id)}
                   >
                     Revoke token
@@ -555,7 +596,7 @@ export default function DeveloperTokenPanel() {
                     <button
                       type="button"
                       className={buttonClass}
-                      disabled={!!action}
+                      disabled={requestPending}
                       onClick={() => void revoke(token)}
                     >
                       Confirm revocation
@@ -563,7 +604,7 @@ export default function DeveloperTokenPanel() {
                     <button
                       type="button"
                       className={buttonClass}
-                      disabled={!!action}
+                      disabled={requestPending}
                       onClick={() => setConfirmRevoke(null)}
                     >
                       Cancel revocation
@@ -575,6 +616,9 @@ export default function DeveloperTokenPanel() {
                 <SelectionEditor
                   key={editing.id}
                   token={editing}
+                  startRequest={startRequest}
+                  finishRequest={finishRequest}
+                  disabled={requestPending}
                   onClose={() => setEditing(null)}
                   onSaved={(updated) => {
                     update(updated);
@@ -589,7 +633,7 @@ export default function DeveloperTokenPanel() {
           <button
             type="button"
             className={buttonClass}
-            disabled={listBusy}
+            disabled={requestPending}
             onClick={() => void load(next)}
           >
             Load more tokens
