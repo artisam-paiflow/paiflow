@@ -98,6 +98,16 @@ Traces, videos, screenshots and Playwright failure DOM snapshots are disabled. O
 the sanitized JSON measurement file is copied into this report directory. The SDK
 artifact, token material, sessions and signed envelopes are never committed.
 
+## Independent review
+
+The independent reviewer reproduced the dedicated browser and financial harness at
+`e7836833afa4e70af7625204c0a30bb415569422` with the same SDK artifact hash. Review
+found the default Playwright configuration also collected this opt-in fixture. The
+fix excludes it from default collection; the dedicated configuration still collects
+one journey. Both `--list` checks verify the boundary without executing fixtures.
+This configuration/report-only correction requires fresh exact-head CI and review;
+it does not change the recorded browser measurements or product code.
+
 ## Explicit limits
 
 Unverified: hosted deployment/configuration, production build behavior in a hosted
