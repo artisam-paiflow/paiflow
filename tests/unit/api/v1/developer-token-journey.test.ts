@@ -18,6 +18,9 @@ import { NextRequest } from "next/server";
 import { afterAll, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
+  latest: vi.fn(async () => {
+    throw new Error("Synthetic history gap");
+  }),
   send: vi.fn(),
   prepare: vi.fn(),
   relayerSimulate: vi.fn(),
@@ -32,7 +35,11 @@ vi.mock("@/lib/stellar/relayer-channels", () => ({
   withRelayerChannel: (callback: (channel: unknown) => Promise<unknown>) => callback({}),
 }));
 vi.mock("@/lib/stellar/client", () => ({
-  sorobanRpc: () => ({ getTransaction: mocks.get, sendTransaction: mocks.send }),
+  sorobanRpc: () => ({
+    getTransaction: mocks.get,
+    sendTransaction: mocks.send,
+    getLatestLedger: mocks.latest,
+  }),
 }));
 vi.mock("@/lib/stellar/trigger", () => ({ prepareTriggerTx: mocks.prepare }));
 vi.mock("@/lib/stellar/events", () => ({ pollEventsFor: async () => 0 }));
@@ -41,6 +48,8 @@ vi.mock("@/lib/api/request-history/delivery", () => ({ queueApiRequest: mocks.hi
 import { db } from "@/lib/db";
 import { hashApiToken } from "@/lib/auth/api-token";
 import { beforeServiceSubmission, observeServiceTransaction } from "@/lib/deployments/service-work";
+import { POST as reconcilePause } from "@/app/api/v1/deployments/[id]/schedule/pause/reconcile/route";
+import { POST as reconcileResume } from "@/app/api/v1/deployments/[id]/schedule/resume/reconcile/route";
 import { POST as release } from "@/app/api/v1/deployments/[id]/release-early/route";
 import { POST as prepare } from "@/app/api/v1/deployments/[id]/execute/route";
 import { POST as submit } from "@/app/api/v1/deployments/[id]/execute/submit/route";
@@ -61,6 +70,7 @@ afterAll(async () => {
   await db.developerApiToken.deleteMany({ where: { id: { in: tokens } } });
   await db.serviceTransaction.deleteMany({ where: { work: { deploymentId: { in: ids } } } });
   await db.deploymentWork.deleteMany({ where: { deploymentId: { in: ids } } });
+  await db.walletControlIntent.deleteMany({ where: { deploymentId: { in: ids } } });
   await db.deployment.deleteMany({ where: { id: { in: ids } } });
   if (owner) {
     await db.flow.deleteMany({ where: { ownerId: owner } });
@@ -152,6 +162,10 @@ it("preserves separate wallet consent, first attribution and unknown work throug
       return status(req, { params: Promise.resolve({ id, txHash: parts[6]! }) });
     if (parts[5] === "execute" && parts[6] === "submit")
       return submit(req, { params: Promise.resolve({ id }) });
+    if (parts[5] === "schedule" && parts[7] === "reconcile")
+      return (parts[6] === "pause" ? reconcilePause : reconcileResume)(req, {
+        params: Promise.resolve({ id }),
+      });
     if (parts[5] === "release-early") return release(req, { params: Promise.resolve({ id }) });
     if (parts[5] === "execute") return prepare(req, { params: Promise.resolve({ id }) });
     throw new Error("Unexpected fixture route");
@@ -244,6 +258,39 @@ it("preserves separate wallet consent, first attribution and unknown work throug
   expect(["PENDING", "UNKNOWN"]).toContain(unknown.data.status);
   expect(await db.signedTransaction.count({ where: { txHash: hash } })).toBe(1);
   expect(await db.serviceTransaction.count({ where: { txHash: hash, state: "PENDING" } })).toBe(1);
+  // A previously submitted control is separately bound to deployment/action.
+  // Its wall-clock expiry cannot release it when the RPC history is incomplete.
+  const controlHash = randomBytes(32).toString("hex");
+  const control = await db.walletControlIntent.create({
+    data: {
+      deploymentId: ids[0]!,
+      network: "testnet",
+      nodeId: "schedule",
+      contractAddress: contract,
+      action: "schedule.pause",
+      walletAddress: wallet.publicKey(),
+      txHash: controlHash,
+      maxTime: "1",
+      preparationLedger: 1,
+      state: "SUBMITTING",
+    },
+  });
+  expect((await recovered.transactions.get(controlHash)).data.status).toBe("UNKNOWN");
+  await expect(
+    client(replacement.raw).deployment(ids[1]!).transactions.get(controlHash),
+  ).rejects.toMatchObject({ status: 404 });
+  await expect(
+    client(replacement.raw).deployment(ids[1]!).schedule.pause.reconcile({ intent: control.id }),
+  ).rejects.toMatchObject({ status: 404 });
+  await expect(recovered.schedule.resume.reconcile({ intent: control.id })).rejects.toMatchObject({
+    status: 404,
+  });
+  await expect(recovered.schedule.pause.reconcile({ intent: control.id })).rejects.toMatchObject({
+    status: 502,
+  });
+  expect(
+    (await db.walletControlIntent.findUniqueOrThrow({ where: { id: control.id } })).state,
+  ).toBe("SUBMITTING");
   // A shared credential does not make an existing hash portable to a second deployment,
   // even if a malformed fixture repeats the contract address in both snapshots.
   const sends = mocks.send.mock.calls.length;

@@ -1,0 +1,27 @@
+{
+  "checkedAt": "2026-10-16T07:57:47.405Z",
+  "appRevision": "793459637f594de308849c4b282704c438abfea7",
+  "workingTreeClean": true,
+  "node": "v22.22.2",
+  "chromium": "147.0.7727.15",
+  "sdk": {
+    "name": "@paiflow/sdk",
+    "version": "0.1.0",
+    "sha256": "d78ba6036521ca201ec0612684c45f9b5143cec0889d5817057f9783f7b59cb4"
+  },
+  "environment": "local, loopback only, testnet configuration; no chain requests",
+  "viewports": [1440, 393],
+  "primaryButton": {
+    "foreground": "rgb(101, 0, 46)",
+    "background": "rgb(255, 177, 196)",
+    "contrastRatio": 7.746123324577324
+  },
+  "results": {
+    "browserHttpPackedSdk": "passed",
+    "operateRoutesRefusedReadOnly": 23,
+    "sharedCapabilitiesAllowance": 60,
+    "axeFormViolationsDesktopAndMobile": 0,
+    "clipboard": "injected callback verified; system clipboard unverified",
+    "telemetry": "browser console and Redis request records checked without credential/hash/webhook leakage"
+  }
+}
