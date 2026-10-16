@@ -27,6 +27,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- A reusable hackathon event primer template and PDF, with embedded resource links
+  and organiser notes for event decisions, schedule checks and documentation structure.
+
 - Include API request totals, endpoint/method counts and deltas in analytics
   snapshots by default, with compatible API baselines and `--no-api` opt-out.
 
