@@ -182,6 +182,7 @@ model User {
   files               FileAsset[]
   addressBookEntries  AddressBookEntry[]
   passwordResetTokens PasswordResetToken[]
+  developerApiTokens  DeveloperApiToken[]
   devApiTokens        DevApiToken[]
   deploymentApiTokens DeploymentApiToken[]
   signedTransactions  SignedTransaction[]  @relation("signingSession")
@@ -228,6 +229,41 @@ model DeploymentApiToken {
   createdBy          User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
   signedTransactions SignedTransaction[]
 
+  @@index([deploymentId])
+}
+
+enum DeveloperTokenPermission {
+  READ_ONLY
+  READ_OPERATE
+}
+
+/// Explicitly scoped partner credential, separate from legacy DevApiToken.
+/// Revocation retains the row and durable transaction attribution.
+model DeveloperApiToken {
+  id                 String                   @id @default(uuid()) @db.Uuid
+  ownerId            String                   @db.Uuid
+  tokenHash          String                   @unique
+  tokenPrefix        String
+  label              String?
+  permission         DeveloperTokenPermission
+  createdAt          DateTime                 @default(now())
+  lastUsedAt         DateTime?
+  expiresAt          DateTime?
+  revokedAt          DateTime?
+  owner              User                     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  grants             DeveloperTokenGrant[]
+  signedTransactions SignedTransaction[]
+
+  @@index([ownerId, id])
+}
+
+model DeveloperTokenGrant {
+  tokenId      String            @db.Uuid
+  deploymentId String            @db.Uuid
+  token        DeveloperApiToken @relation(fields: [tokenId], references: [id], onDelete: Restrict)
+  deployment   Deployment        @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
+
+  @@id([tokenId, deploymentId])
   @@index([deploymentId])
 }
 
@@ -355,6 +391,7 @@ model Deployment {
   retirementCoverageGap   String?
   retirementBlocker       String?
   retirementCheckedAt     DateTime?
+  developerTokenGrants    DeveloperTokenGrant[]
   serviceWork             DeploymentWork[]
   status                  DeploymentStatus       @default(DRAFT)
   errorMessage            String?
@@ -405,6 +442,7 @@ model Deployment {
   walletControlIntents WalletControlIntent[]
 
   @@unique([ownerId, idempotencyKey])
+  @@index([ownerId, status, serviceState, id])
   @@index([ownerId, createdAt(sort: Desc)])
   @@index([status])
   @@index([status, nextChargeAt])
@@ -749,44 +787,46 @@ model AuditLog {
 /// is the system of record, because it is indexed and its write is not
 /// best-effort. See lib/signed-tx.ts.
 model SignedTransaction {
-  callerAccountId    String?             @db.Uuid
-  callerAccount      User?               @relation("transactionCaller", fields: [callerAccountId], references: [id], onDelete: SetNull)
-  trackingVersion    String?
-  audience           AnalyticsAudience   @default(UNCLASSIFIED)
-  apiTokenId         String?             @db.Uuid
-  outcome            TransactionOutcome?
-  submittedAt        DateTime?
-  acceptedAt         DateTime?
-  confirmedAt        DateTime?
-  failedAt           DateTime?
-  rejectedAt         DateTime?
-  ledger             Int?
-  failureCode        String?
-  nextCheckAt        DateTime?
-  lastCheckedAt      DateTime?
-  checkAttempts      Int                 @default(0)
-  submissionRevision Int                 @default(0)
-  outcomeRevision    Int                 @default(0)
-  apiToken           DeploymentApiToken? @relation(fields: [apiTokenId], references: [id], onDelete: SetNull)
-  id                 String              @id @default(uuid()) @db.Uuid
+  developerApiTokenId String?             @db.Uuid
+  developerApiToken   DeveloperApiToken?  @relation(fields: [developerApiTokenId], references: [id], onDelete: Restrict)
+  callerAccountId     String?             @db.Uuid
+  callerAccount       User?               @relation("transactionCaller", fields: [callerAccountId], references: [id], onDelete: SetNull)
+  trackingVersion     String?
+  audience            AnalyticsAudience   @default(UNCLASSIFIED)
+  apiTokenId          String?             @db.Uuid
+  outcome             TransactionOutcome?
+  submittedAt         DateTime?
+  acceptedAt          DateTime?
+  confirmedAt         DateTime?
+  failedAt            DateTime?
+  rejectedAt          DateTime?
+  ledger              Int?
+  failureCode         String?
+  nextCheckAt         DateTime?
+  lastCheckedAt       DateTime?
+  checkAttempts       Int                 @default(0)
+  submissionRevision  Int                 @default(0)
+  outcomeRevision     Int                 @default(0)
+  apiToken            DeploymentApiToken? @relation(fields: [apiTokenId], references: [id], onDelete: SetNull)
+  id                  String              @id @default(uuid()) @db.Uuid
   /// Lowercase hex, the hash the network knows the envelope by.
-  txHash             String              @unique
+  txHash              String              @unique
   /// Always the G… form, so it joins to every other address column.
-  signerAddress      String
+  signerAddress       String
   /// Set only for a fee bump, where it differs from the signer.
-  feeSourceAddress   String?
+  feeSourceAddress    String?
   /// The M… address when the source was muxed.
-  muxedSource        String?
-  isFeeBump          Boolean             @default(false)
+  muxedSource         String?
+  isFeeBump           Boolean             @default(false)
   /// A signature on the envelope verifies against the source key.
-  signedBySource     Boolean             @default(true)
+  signedBySource      Boolean             @default(true)
   /// The session user who submitted the envelope; the app has no wallet↔user binding.
-  userId             String?             @db.Uuid
-  deploymentId       String?             @db.Uuid
-  kind               SignedTxKind
-  network            String
-  ip                 String?
-  createdAt          DateTime            @default(now())
+  userId              String?             @db.Uuid
+  deploymentId        String?             @db.Uuid
+  kind                SignedTxKind
+  network             String
+  ip                  String?
+  createdAt           DateTime            @default(now())
 
   user       User?       @relation("signingSession", fields: [userId], references: [id], onDelete: SetNull)
   deployment Deployment? @relation(fields: [deploymentId], references: [id], onDelete: SetNull)
@@ -794,6 +834,7 @@ model SignedTransaction {
   @@index([callerAccountId, createdAt])
   @@index([trackingVersion, network, audience, createdAt])
   @@index([outcome, nextCheckAt])
+  @@index([developerApiTokenId, createdAt])
   @@index([apiTokenId, createdAt])
   @@index([signerAddress, createdAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])
@@ -1020,10 +1061,10 @@ model ServiceTransaction {
 
 // Reusable event invitations. The raw code is shown only when created.
 model GoogleSignupCode {
-  id         String   @id @default(uuid()) @db.Uuid
+  id         String               @id @default(uuid()) @db.Uuid
   label      String
-  codeHash   String   @unique
-  createdAt  DateTime @default(now())
+  codeHash   String               @unique
+  createdAt  DateTime             @default(now())
   expiresAt  DateTime
   disabledAt DateTime?
   intents    GoogleSignupIntent[]
@@ -1032,9 +1073,9 @@ model GoogleSignupCode {
 // A single browser authorization, never the reusable invitation itself.
 model GoogleSignupIntent {
   username  String?
-  id        String   @id @default(uuid()) @db.Uuid
-  tokenHash String   @unique
-  codeId    String   @db.Uuid
+  id        String           @id @default(uuid()) @db.Uuid
+  tokenHash String           @unique
+  codeId    String           @db.Uuid
   expiresAt DateTime
   code      GoogleSignupCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
 
