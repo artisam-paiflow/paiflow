@@ -292,7 +292,8 @@ describe("selected-deployment developer credentials", () => {
     const { raw } = await issue("READ_ONLY");
     const call = (raw: string, query = "") =>
       discovery(new NextRequest(req(raw).url + query, { headers: req(raw).headers }), {
-        params: Promise.resolve({}),
+        // Static Next route contexts have no params member.
+        // Dynamic route fixtures above still supply their required ID.
       });
     const first = await (await call(raw, "?limit=1")).json();
     const second = await (await call(raw, `?limit=1&cursor=${first.data.nextCursor}`)).json();

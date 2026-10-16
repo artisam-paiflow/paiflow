@@ -7,6 +7,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Reproducible local app/API/packed-SDK developer-token verification, including live selection edits and financial recovery boundaries (#1034).
+
 - Document selected-deployment developer credentials, owner-session management and safe recovery; add a two-deployment server example with separate wallet consent and packed-consumer validation (#1033).
 
 - Unreleased Node SDK support for developer credentials across selected deployments,
@@ -90,6 +92,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 - App, API, and future SDK release policy, with contributor and agent guidance.
 
 ### Fixed
+
+- Handle static deployment-discovery route contexts and restore readable Developer API primary-button contrast, found by integrated browser/API verification (#1034).
 
 - Reconcile the staging-only Railway configuration with the distinct live/archive
   database volumes and guard its target; infrastructure applies remain separately

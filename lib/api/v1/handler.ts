@@ -113,7 +113,7 @@ function createV1Route<P extends { id?: string }, A extends ApiCredentialAuth>(
   authenticate: (req: NextRequest, params: P) => Promise<A>,
   fn: (ctx: A & { req: NextRequest; params: P }) => Promise<Response>,
 ) {
-  const handler = async (req: NextRequest, ctx: { params: Promise<P> }): Promise<Response> => {
+  const handler = async (req: NextRequest, ctx: { params?: Promise<P> }): Promise<Response> => {
     const started = performance.now();
     const occurredAt = new Date().toISOString();
     const telemetryId = crypto.randomUUID();
@@ -124,7 +124,8 @@ function createV1Route<P extends { id?: string }, A extends ApiCredentialAuth>(
     const res = await requestHistoryContext.run(history, () =>
       withErrorHandler(async () => {
         try {
-          const params = await ctx.params;
+          // Next omits params for static routes such as deployment discovery.
+          const params = (await ctx.params) ?? ({} as P);
           if (params.id !== undefined && !isUuid(params.id))
             throw new AppError("NOT_FOUND", "Deployment not found");
 

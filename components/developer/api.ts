@@ -45,6 +45,7 @@ export async function managementRequest<T>(
   return parsed.data;
 }
 
-export const buttonClass =
-  "border-outline-variant/50 text-on-surface hover:border-primary focus-visible:ring-primary min-h-11 rounded border px-3 py-2 text-sm focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50";
-export const primaryClass = `${buttonClass} bg-primary text-on-primary font-semibold`;
+const buttonBase =
+  "border-outline-variant/50 hover:border-primary focus-visible:ring-primary min-h-11 rounded border px-3 py-2 text-sm focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50";
+export const buttonClass = `${buttonBase} text-on-surface`;
+export const primaryClass = `${buttonBase} bg-primary text-on-primary font-semibold`;
