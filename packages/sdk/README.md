@@ -1,9 +1,13 @@
 # @paiflow/sdk
 
+For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](https://github.com/webnxt-2030/pinkraft/blob/c3c2a27bcd378df357841bef9993620907a0a4cd/docs/api/developer-tokens.md). Support is on the `dev-token` integration branch; verify hosted availability separately. These SDK additions are Unreleased source and are not published by this work; do not assume registry 0.1.0 includes them. Existing deployment-only integrations remain supported.
+
 Node SDK beta with typed deployment reads, payments, funding, Schedule
 and Subscription controls, public allowance consent, public utilities and embed
-SSE. Includes keyed/unkeyed Webhook callbacks and early release. All 42 HTTP
-operations in the coverage matrix are implemented. Bounded testnet workflows have
+SSE. Includes keyed/unkeyed Webhook callbacks and early release. All 43 HTTP
+operations in the current source coverage matrix are implemented. Developer token
+and deployment discovery support is unreleased and locally verified only; it is
+not evidence of a published artifact containing this addition. Bounded testnet workflows have
 been verified in the [live evidence report](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/testing/2026-10-14-sdk-live-verification.md)
 and [real Swap execution report](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/testing/2026-10-15-sdk-swap-execution-982.md).
 
@@ -58,12 +62,12 @@ builds declarations and JavaScript before normal packing.
 
 ## Transport foundation
 
-Configure a trusted HTTPS service origin, a server-side deployment token when
+Configure a trusted HTTPS service origin, a server-side developer or deployment token when
 needed, and optionally an injected standards-compliant fetch implementation.
 HTTP is accepted only for `localhost`, `127.0.0.1`, or `[::1]` development origins.
 Base URLs cannot contain credentials, query strings or path prefixes. Requests
 never follow redirects and use `credentials: "omit"`; public and webhook requests
-never inherit the deployment token. An injected fetch must honor these options.
+never inherit the bearer token. An injected fetch must honor these options.
 
 `request()` requires explicit public, token or webhook authentication and a
 parser from `unknown` to the desired result. It unwraps `{data}` once, or accepts
@@ -85,6 +89,39 @@ subscription-allowance status protocol. Do not log that URL. Request options
 allow validated caller request IDs and UUID preparation-history correlation IDs,
 not arbitrary header overrides. Read methods validate published response fields and tolerate additive fields.
 Unknown transaction statuses are malformed; UNKNOWN and REJECTED are preserved.
+
+## Selected deployment discovery (unreleased)
+
+Use one developer token (`pfd_` plus 64 lowercase hex characters) in your Node
+server to access explicitly selected existing deployments. Keep the credential out
+of browser bundles, URLs and logs. Existing `pfk_` clients keep working, with their
+single-deployment scope; legacy `pkdev_` credentials are rejected.
+
+```ts
+const client = new Paiflow({ baseUrl: serviceOrigin, token: developerToken });
+for await (const page of client.deployments.pages({ limit: 20 }, { maxPages: 10, signal })) {
+  for (const selected of page.data.items) {
+    const events = await client.deployment(selected.id).events.list({}, { signal });
+    // Process events.data; retain page.data.nextCursor for explicit continuation.
+  }
+}
+```
+
+`deployments.list(query?, options?)` returns one `ApiResponse<ListDeploymentsResponse>`:
+`{items:[{id,flowName,network}],nextCursor}`. Query fields are optional UUID `cursor`
+and integer `limit` (1–100, server default 20). `deployments.pages` follows ID-ordered
+cursors until null or its page cap (default 100, configurable 1–10,000), rejecting
+repeated, cyclic or backward cursors. A cap ends iteration with the last yielded
+cursor available for continuation; it does not prove discovery is complete.
+Each request has its own timeout and response metadata. Cancellation throws
+`PaiflowAbortError`; no automatic retries occur.
+
+Read only credentials can discover and read. Read and operate additionally permits
+existing preparation, submission, reconciliation and relayer workflows, subject to
+server enforcement and required wallet consent. Selection changes and revocation
+apply to subsequent requests, so discovery does not guarantee later access.
+Endpoint rate allowances are shared across the token's selected deployments.
+Tokens do not create flows/deployments or authorize separate webhook secrets.
 
 ## Deployment reads and public utilities
 
@@ -229,7 +266,7 @@ Amounts are positive integer stroop strings bounded to i128; never floating poin
 
 Funding supports deployed STREAMER Schedule and WEBHOOK pool nodes. These calls
 add funds only; they do not execute a payout, reward or Webhook callback.
-All HTTP funding methods require a deployment token. The token grants API access;
+All HTTP funding methods require a developer or deployment token. The token grants API access;
 any consenting funder's wallet signs, independently of the owner or controller.
 
 ```ts

@@ -21,7 +21,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), queue: vi.fn(), limit: vi.fn() }));
-vi.mock("@/lib/api/v1/auth", () => ({
+vi.mock("@/lib/api/v1/auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/v1/auth")>()),
   requireDeploymentToken: mocks.auth,
   bearerDeploymentToken: () => null,
 }));
@@ -57,6 +58,9 @@ const ctx = { params: Promise.resolve({ id }) };
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.auth.mockResolvedValue({
+    tokenType: "deployment_token",
+    ownerId: account,
+    tokenCreatorId: creator,
     token: { id: token, createdById: creator },
     deployment: { id, ownerId: account },
     analyticsAudience: "INTERNAL",
@@ -66,8 +70,9 @@ beforeEach(() => {
 });
 describe("API request history boundary", () => {
   it("records balance reads under the balance endpoint rather than unknown", async () => {
-    await v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () =>
-      NextResponse.json({ data: {} }),
+    await v1Route(
+      { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+      async () => NextResponse.json({ data: {} }),
     )(request("balances"), ctx);
     expect(mocks.queue.mock.calls[0]![0].endpoint).toBe("/api/v1/deployments/:id/balances");
     expect(requestEndpoint(`/api/v1/deployments/${id}/balances`)).toBe(
@@ -76,8 +81,9 @@ describe("API request history boundary", () => {
     expect(ApiRequestRecordSchema.safeParse(mocks.queue.mock.calls[0]![0]).success).toBe(true);
   });
   it("records verified caller, token creator and audience without headers, bodies or query", async () => {
-    const res = await v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () =>
-      NextResponse.json({ data: { token: "synthetic" } }),
+    const res = await v1Route(
+      { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+      async () => NextResponse.json({ data: { token: "synthetic" } }),
     )(request(), ctx);
     const record = mocks.queue.mock.calls[0]![0];
     expect(ApiRequestRecordSchema.parse(record)).toMatchObject({
@@ -96,8 +102,9 @@ describe("API request history boundary", () => {
     "leaves failed authentication unattributed",
     async (error) => {
       mocks.auth.mockRejectedValue(error);
-      await v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () =>
-        NextResponse.json({}),
+      await v1Route(
+        { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+        async () => NextResponse.json({}),
       )(request(), ctx);
       expect(mocks.queue.mock.calls[0]![0]).toMatchObject({
         accountId: null,
@@ -114,9 +121,12 @@ describe("API request history boundary", () => {
     new AppError("RATE_LIMITED", "secret"),
     new AppError("CONFLICT", "secret"),
   ])("records structured thrown failures", async (error) => {
-    await v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () => {
-      throw error;
-    })(request(), ctx);
+    await v1Route(
+      { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+      async () => {
+        throw error;
+      },
+    )(request(), ctx);
     expect(mocks.queue.mock.calls[0]![0]).toMatchObject({
       accountId: account,
       errorCode: error.code,
@@ -124,16 +134,20 @@ describe("API request history boundary", () => {
     });
   });
   it("records validation failures without rejected input", async () => {
-    await v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () => {
-      z.string().parse(3);
-      return NextResponse.json({});
-    })(request(), ctx);
+    await v1Route(
+      { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+      async () => {
+        z.string().parse(3);
+        return NextResponse.json({});
+      },
+    )(request(), ctx);
     expect(mocks.queue.mock.calls[0]![0]).toMatchObject({ errorCode: "VALIDATION", status: 422 });
   });
   it("keeps telemetry failure from changing the response and distinguishes HTTP retries", async () => {
     mocks.queue.mockRejectedValue(new Error("offline"));
-    const route = v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () =>
-      NextResponse.json({ data: { ok: true } }),
+    const route = v1Route(
+      { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+      async () => NextResponse.json({ data: { ok: true } }),
     );
     const a = await route(request(), ctx),
       b = await route(request(), ctx);
@@ -142,11 +156,14 @@ describe("API request history boundary", () => {
     expect(a.headers.get("x-history-request-id")).not.toBe(b.headers.get("x-history-request-id"));
   });
   it("isolates transaction correlation across concurrent requests", async () => {
-    const route = v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async ({ req }) => {
-      linkApiTransaction(req.headers.get("x-test-hash")!);
-      await Promise.resolve();
-      return NextResponse.json({});
-    });
+    const route = v1Route(
+      { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+      async ({ req }) => {
+        linkApiTransaction(req.headers.get("x-test-hash")!);
+        await Promise.resolve();
+        return NextResponse.json({});
+      },
+    );
     const a = request("execute/submit"),
       b = request("execute/submit");
     a.headers.set("x-test-hash", "a".repeat(64));
@@ -160,8 +177,9 @@ describe("API request history boundary", () => {
   it.each(["execute", "payouts"])(
     "preserves the %s preparation ID on submit retries",
     async (operation) => {
-      const route = v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () =>
-        NextResponse.json({ data: { ok: true } }),
+      const route = v1Route(
+        { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+        async () => NextResponse.json({ data: { ok: true } }),
       );
       const prepared = await route(request(operation), ctx);
       const preparationId = prepared.headers.get("x-history-request-id")!;
@@ -187,16 +205,18 @@ describe("API request history boundary", () => {
     async (value) => {
       const submit = request("execute/submit");
       if (value) submit.headers.set("x-preparation-request-id", value);
-      const response = await v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () =>
-        NextResponse.json({}),
+      const response = await v1Route(
+        { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+        async () => NextResponse.json({}),
       )(submit, ctx);
       expect(response.status).toBe(200);
       expect(mocks.queue.mock.calls[0]![0].preparationRequestId).toBeNull();
     },
   );
   it("records the capabilities endpoint through storage and PostHog validation", async () => {
-    await v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () =>
-      NextResponse.json({}),
+    await v1Route(
+      { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+      async () => NextResponse.json({}),
     )(request("capabilities"), ctx);
     const record = ApiRequestRecordSchema.parse(mocks.queue.mock.calls[0]![0]);
     expect(record.endpoint).toBe("/api/v1/deployments/:id/capabilities");
@@ -205,8 +225,9 @@ describe("API request history boundary", () => {
     });
   });
   it("records Subscription state with a stable allowlisted endpoint", async () => {
-    await v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () =>
-      NextResponse.json({ data: {} }),
+    await v1Route(
+      { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+      async () => NextResponse.json({ data: {} }),
     )(request("subscription/state"), ctx);
     expect(ApiRequestRecordSchema.parse(mocks.queue.mock.calls[0]![0]).endpoint).toBe(
       "/api/v1/deployments/:id/subscription/state",
@@ -219,8 +240,9 @@ describe("API request history boundary", () => {
   )(
     "records wallet control %s without exposing request bodies or wallet signatures",
     async (suffix) => {
-      await v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () =>
-        NextResponse.json({ data: {} }),
+      await v1Route(
+        { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+        async () => NextResponse.json({ data: {} }),
       )(request(suffix), ctx);
       const record = ApiRequestRecordSchema.parse(mocks.queue.mock.calls[0]![0]);
       expect(record.endpoint).toBe(`/api/v1/deployments/:id/${suffix}`);
@@ -243,8 +265,9 @@ describe("API request history boundary", () => {
     );
   });
   it("rejects unapproved fields, endpoints, identifiers and report windows", async () => {
-    await v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () =>
-      NextResponse.json({}),
+    await v1Route(
+      { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+      async () => NextResponse.json({}),
     )(request(), ctx);
     const record = mocks.queue.mock.calls[0]![0];
     for (const patch of [

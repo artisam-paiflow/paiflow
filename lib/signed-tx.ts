@@ -4,6 +4,7 @@ import { enqueueAnalytics, deliverOutbox } from "./analytics/outbox";
 import { audienceFor, TRACKING_VERSION } from "./analytics/policy";
 import { env } from "./env";
 import { db } from "./db";
+import { AppError } from "./errors";
 import { log } from "./log";
 import type { SignerInfo } from "./stellar/signer";
 
@@ -33,6 +34,7 @@ export type SignedTransactionInput = {
   deploymentId?: string | null;
   ip?: string | null;
   apiTokenId?: string | null;
+  developerApiTokenId?: string | null;
 };
 
 /** The row for a parsed envelope, or null when the envelope could not be read. */
@@ -61,6 +63,7 @@ export function signedTransactionRow(
     network: input.network,
     ip: input.ip ?? null,
     apiTokenId: input.apiTokenId ?? null,
+    developerApiTokenId: input.developerApiTokenId ?? null,
     trackingVersion: TRACKING_VERSION,
     outcome: "RECEIVED",
     submittedAt: new Date(),
@@ -98,17 +101,43 @@ export async function insertSignedTransaction(
             },
           })
         )?.deployment.owner ?? null)
-      : null;
+      : row.developerApiTokenId
+        ? ((
+            await client.developerApiToken.findUnique({
+              where: { id: row.developerApiTokenId },
+              select: { owner: { select: { id: true, role: true, analyticsAudience: true } } },
+            })
+          )?.owner ?? null)
+        : null;
   const audience = audienceFor(user);
   const { count } = await client.signedTransaction.createMany({
     data: [{ ...row, audience, callerAccountId: user?.id ?? null }],
     skipDuplicates: true,
   });
+  if (!count) {
+    const existing = await client.signedTransaction.findUnique({
+      where: { txHash: row.txHash },
+      select: { deploymentId: true, network: true },
+    });
+    if (
+      existing &&
+      (existing.deploymentId !== (row.deploymentId ?? null) || existing.network !== row.network)
+    )
+      throw new AppError(
+        "CONFLICT",
+        "Transaction already belongs to another deployment or network",
+      );
+  }
   if (count)
     await enqueueAnalytics(client, {
       key: `${row.network}:signed:${row.txHash}`,
       distinctId:
-        row.userId ?? (row.apiTokenId ? `api:${row.apiTokenId}` : `wallet:${row.signerAddress}`),
+        row.userId ??
+        (row.apiTokenId
+          ? `api:${row.apiTokenId}`
+          : row.developerApiTokenId
+            ? `developer-api:${row.developerApiTokenId}`
+            : `wallet:${row.signerAddress}`),
       name: "transaction_signed",
       properties: {
         deployment_id: row.deploymentId ?? null,
@@ -120,7 +149,13 @@ export async function insertSignedTransaction(
       context: {
         audience,
         account_id: user?.id ?? "",
-        caller_type: row.userId ? "session" : row.apiTokenId ? "api" : "wallet",
+        caller_type: row.userId
+          ? "session"
+          : row.apiTokenId
+            ? "api"
+            : row.developerApiTokenId
+              ? "developer_token"
+              : "wallet",
         stellar_network: row.network,
         app_env: env().NEXT_PUBLIC_APP_ENV,
         app_version: process.env.NEXT_PUBLIC_APP_VERSION ?? "dev",

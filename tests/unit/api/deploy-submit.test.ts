@@ -41,6 +41,7 @@ const { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR, fakeT
       user: { findUnique: vi.fn(async () => null) },
       analyticsDelivery: { createMany: vi.fn(async () => ({ count: 1 })) },
       signedTransaction: {
+        findUnique: vi.fn(async () => null as { deploymentId: string; network: string } | null),
         createMany: vi.fn(async () => ({ count: 1 })),
       },
     };
@@ -133,6 +134,7 @@ function makeContext(deploymentId: string) {
 function makeDeployment(overrides: Record<string, unknown> = {}) {
   return {
     id: "dep-1",
+    network: "testnet",
     status: "PENDING_SIGNATURE",
     deployTxHash: null,
     contractAddress: null,
@@ -172,6 +174,11 @@ describe("deployments/[id]/submit", () => {
   });
   beforeEach(() => {
     vi.clearAllMocks();
+    // Duplicate signed-row reads are part of retry isolation. Reset queued outcomes so a
+    // failed assertion cannot leak a count:0/claim-update response into the next case.
+    mockDb.signedTransaction.createMany.mockReset().mockResolvedValue({ count: 1 });
+    mockDb.signedTransaction.findUnique.mockReset().mockResolvedValue(null);
+    mockDb.deployment.update.mockReset();
     mockEnv.FEATURE_DEV_MODE_ENABLED = true;
     mockFromXDR.mockImplementation(() => fakeTx("aabbccdd"));
     mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID = undefined;
@@ -407,6 +414,26 @@ describe("deployments/[id]/submit", () => {
     expect(mockDb.signedTransaction.createMany).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { deploymentId: "another-deployment", network: "testnet" },
+    { deploymentId: "dep-1", network: "mainnet" },
+  ])(
+    "refuses an existing signed hash attributed outside this deployment/network: %j",
+    async (existing) => {
+      mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
+      mockDb.signedTransaction.createMany.mockResolvedValueOnce({ count: 0 });
+      mockDb.signedTransaction.findUnique.mockResolvedValue(existing);
+      const res = await POST(
+        makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+        makeContext("dep-1"),
+      );
+      expect(res.status).toBe(409);
+      expect((await res.json()).error.code).toBe("CONFLICT");
+      expect(mockDeploy.submitDeployTx).not.toHaveBeenCalled();
+      expect(auditActions()).toEqual([]);
+    },
+  );
+
   it("marks FAILED only while still SUBMITTED, so a confirmed deployment is never overwritten", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
     mockDeploy.submitDeployTx.mockResolvedValue({
@@ -465,7 +492,11 @@ describe("deployments/[id]/submit", () => {
         contractAddress: "CABC",
         pipelineSnapshot: [{ nodeId: "n1", contractAddress: "CABC", templateKind: "SPLITTER" }],
       });
-      // The signer row is keyed on the hash: created once, skipped on the retry.
+      // The signer row is keyed on the hash: created once, scoped and skipped on retry.
+      mockDb.signedTransaction.findUnique.mockResolvedValue({
+        deploymentId: "dep-1",
+        network: "testnet",
+      });
       mockDb.signedTransaction.createMany
         .mockResolvedValueOnce({ count: 1 })
         .mockResolvedValueOnce({ count: 0 });
@@ -488,6 +519,10 @@ describe("deployments/[id]/submit", () => {
       expect(mockDeploy.submitDeployTx).toHaveBeenCalledTimes(2);
       expect(auditActions()).toEqual(["DEPLOY_SUBMIT", "DEPLOY_SUBMIT", "DEPLOY_CONFIRM"]);
       expect(mockDb.analyticsDelivery.createMany).toHaveBeenCalledTimes(1);
+      expect(mockDb.signedTransaction.findUnique).toHaveBeenCalledWith({
+        where: { txHash: TX_HASH },
+        select: { deploymentId: true, network: true },
+      });
       expect(capturedEvents()).not.toContain("deploy_failed");
     });
 
