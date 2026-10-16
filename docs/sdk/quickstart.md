@@ -1,14 +1,18 @@
 # TypeScript SDK quickstart and API migration
 
-For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](../api/developer-tokens.md). Support is on the `dev-token` integration branch; verify hosted availability separately. These SDK additions are Unreleased source and are not published by this work; do not assume registry 0.1.0 includes them. Existing deployment-only integrations remain supported.
+For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](../api/developer-tokens.md). Developer-token support is merged into `develop` and included in the `@paiflow/sdk@0.2.0` beta release candidate. Publication is pending; registry `0.1.0` does not include these additions. Verify the configured backend supports them. Existing deployment-only integrations remain supported.
 
-`@paiflow/sdk` is a Node SDK for existing Paiflow deployments. The developer-token
-and discovery additions below are **Unreleased source** on `dev-token`; this work
-does not publish a package or verify registry availability. Source package metadata
-remains `0.1.0`; installing a registry artifact with that version does not establish
-support for these additions. The local artifact below does. Supports Node `>=22.22.2 <23`, ESM and TypeScript declarations;
+`@paiflow/sdk` is a Node SDK for existing Paiflow deployments. This checkout
+prepares beta `0.2.0`, including developer credentials and scoped deployment
+discovery; publication is pending. The published `0.1.0` package does not contain
+these additions. Supports Node `>=22.22.2 <23`, ESM and TypeScript declarations;
 CommonJS consumers can use dynamic import. SDK versions are independent of the app
 and API under the [release policy](../releasing.md).
+
+Developer-token discovery requires a backend implementing OpenAPI revision
+`1.1.0`; check its deployed specification and capabilities. The
+[hosted testnet evidence](../verification/developer-tokens-hosted-verification-2026-10-16.md)
+records bounded testing and does not establish production/mainnet support.
 
 All HTTP operations in the [coverage matrix](contract.md#endpoint-matrix) are
 implemented, spanning API v1 and explicitly included unversioned user routes.
@@ -19,7 +23,17 @@ This SDK does not create/deploy flows, manage dashboard sessions or expose legac
 Dev setters. Hackathon Dev mode remains disabled as documented in the
 [API quickstart](../hackathon/developer-api-quickstart.md).
 
-## Install the local artifact
+## Install
+
+After beta `0.2.0` is published, install the exact version:
+
+```sh
+npm install @paiflow/sdk@0.2.0
+```
+
+Publication is pending. Until then, use the locally built candidate below.
+
+### Build the local artifact
 
 In this checkout, install the existing root dependencies, then:
 
@@ -32,7 +46,7 @@ npm pack ./packages/sdk --ignore-scripts --pack-destination /tmp/paiflow-sdk-art
 In your own Node ESM app, install the actual emitted tarball filename:
 
 ```sh
-npm install /tmp/paiflow-sdk-artifacts/paiflow-sdk-0.1.0.tgz
+npm install /tmp/paiflow-sdk-artifacts/paiflow-sdk-0.2.0.tgz
 ```
 
 Set your consumer's `package.json` to `"type": "module"`. TypeScript consumers use

@@ -1,6 +1,6 @@
 # Paiflow developer context guide
 
-For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](../api/developer-tokens.md). Support is on the `dev-token` integration branch; verify hosted availability separately. These SDK additions are Unreleased source and are not published by this work; do not assume registry 0.1.0 includes them. Existing deployment-only integrations remain supported.
+For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](../api/developer-tokens.md). Developer-token support is merged into `develop` and included in the `@paiflow/sdk@0.2.0` beta release candidate. Publication is pending; registry `0.1.0` does not include these additions. Verify the configured backend supports them. Existing deployment-only integrations remain supported.
 
 Shared technical guidance updated Oct 12, 2026. API and product details checked against pinkraft `staging` @ b945e6a. Testnet only.
 
