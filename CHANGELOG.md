@@ -13,6 +13,12 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
   legacy deployment-request reservations; exclude payroll/off-ramp from Lantern acceptance
   and document the existing flags that block new use without stopping settlement.
 
+- Record five expired real unsigned Testnet scan samples: factory deployment,
+  deposit, Streamer top-up, one-stroop token approval, and a read-only actual-builder
+  distribution simulation. Preserve public metadata and explicit remaining Lantern
+  acceptance and capture-provenance limits;
+  retain the five synthetic examples (#1003).
+
 - Align alpha testing guides and PDFs with the shared wallet picker, keeping
   Freighter as the wallet for this test plan and Lantern explicitly unavailable.
 
