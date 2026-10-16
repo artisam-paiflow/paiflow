@@ -86,7 +86,7 @@ describe("bounded API telemetry delivery", () => {
     await drainApiRequests();
     await drainApiRequests();
     expect(h.db.apiRequestLog.createMany).toHaveBeenCalledWith({
-      data: [{ ...record, occurredAt: new Date(record.occurredAt) }],
+      data: [{ ...record, developerApiTokenId: null, occurredAt: new Date(record.occurredAt) }],
       skipDuplicates: true,
     });
     expect(h.db.analyticsDelivery.createMany.mock.calls[0]![0].data[0]).toMatchObject({

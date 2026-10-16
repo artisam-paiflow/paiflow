@@ -7,7 +7,10 @@ import { linkApiTransaction } from "@/lib/api/request-history/context";
 
 export const dynamic = "force-dynamic";
 export const POST = v1Route(
-  { rateLimit: V1_RATE_LIMITS.subscriptionControlReconcile },
+  {
+    operation: "POST subscription/reactivate/reconcile",
+    rateLimit: V1_RATE_LIMITS.subscriptionControlReconcile,
+  },
   async ({ deployment, req }) => {
     const body = SubscriptionControlReconcileSchema.parse(await req.json());
     const intent = await reconcileControlIntent(

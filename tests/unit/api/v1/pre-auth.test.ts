@@ -67,7 +67,10 @@ function req(ip: string, authorization?: string): NextRequest {
 
 const handler = vi.fn(async () => NextResponse.json({ data: { ok: true } }));
 // A per-token limit no test here reaches, so every 429 below is a pre-auth one.
-const GET = v1Route({ rateLimit: { limit: 1_000_000, windowSeconds: 60 } }, handler);
+const GET = v1Route(
+  { operation: "GET events", rateLimit: { limit: 1_000_000, windowSeconds: 60 } },
+  handler,
+);
 
 const call = (ip: string, token?: { plaintext: string } | string) =>
   GET(
@@ -308,7 +311,10 @@ describe("per-address backstop on lookups of unseen tokens", () => {
 
 describe("per-token limit is unchanged", () => {
   it("still 429s a token at its own limit, whatever the address allows", async () => {
-    const GET2 = v1Route({ rateLimit: { limit: 2, windowSeconds: 60 } }, handler);
+    const GET2 = v1Route(
+      { operation: "GET events", rateLimit: { limit: 2, windowSeconds: 60 } },
+      handler,
+    );
     const token = issue();
     const ip = nextIp();
     const r = () => GET2(req(ip, `Bearer ${token.plaintext}`), ctx());

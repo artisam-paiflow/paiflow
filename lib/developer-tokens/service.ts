@@ -6,6 +6,7 @@ import type { AuditAction } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { hashApiToken } from "@/lib/auth/api-token";
+import { markTokenKnown } from "@/lib/api/v1/pre-auth";
 import { AppError } from "@/lib/errors";
 import { clientIp, enforceRateLimit } from "@/lib/rate-limit";
 import {
@@ -120,6 +121,7 @@ export async function createDeveloperToken(
     });
     return token;
   });
+  void markTokenKnown(tokenHash, row.expiresAt);
   return { ...developerTokenMetadata(row), token: plaintext };
 }
 export async function inspectDeveloperToken(ownerId: string, id: string) {

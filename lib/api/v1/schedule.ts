@@ -1,4 +1,5 @@
 import "server-only";
+import type { ApiTokenType } from "@/lib/api/v1/auth";
 import type { Deployment } from "@prisma/client";
 import { StrKey } from "@stellar/stellar-sdk";
 import { z } from "zod";
@@ -151,6 +152,7 @@ export async function prepareScheduleControl(
 export async function submitScheduleControl(input: {
   deployment: Deployment;
   tokenId: string;
+  tokenType?: ApiTokenType;
   action: ScheduleAction;
   intent: string;
   signedXdr: string;

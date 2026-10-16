@@ -130,6 +130,19 @@
   ],
   "item": [
     {
+      "name": "List authorized deployments",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments"]
+        },
+        "description": "Bearer token scope only; paginated with cursor and limit. Both developer and deployment tokens are accepted."
+      }
+    },
+    {
       "name": "Get demo token",
       "request": {
         "method": "POST",
@@ -139,14 +152,8 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/v1/demo-token",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "demo-token"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "demo-token"]
         },
         "description": "Public; no token and no account. Returns a bearer token for one shared swapper deployment on testnet, so you can run the calls above before registering. Takes no body. Available only where the public demo is enabled (the testnet instance); 403 otherwise.\n\n**This deployment is shared.** Anyone else holding a demo token can read the events your deposit produces, including the account you deposited from. The swap proceeds are paid to a Paiflow-owned testnet account, not back to you, so the testnet XLM you deposit is spent. Fund a throwaway account with friendbot and never point this at an account you care about.\n\nFor an isolated deployment and a token that does not expire in an hour, register, deploy your own flow and mint a token in the **API access** panel.\n\nRate limit: 3 requests per 3600 seconds per client IP. Rate limit: 60 requests per 3600 seconds instance-wide."
       },
@@ -178,14 +185,8 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/demo-token",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "demo-token"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "demo-token"]
             }
           },
           "status": "Created",
@@ -208,16 +209,8 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/capabilities",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "capabilities"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "capabilities"]
         },
         "description": "Discover recorded integration support and prerequisites. Requires the deployment token. Conditional support is not live eligibility; no transactions are sent."
       },
@@ -229,16 +222,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/capabilities",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "capabilities"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "capabilities"]
             },
             "description": "Discover recorded integration support and prerequisites. Requires the deployment token. Conditional support is not live eligibility; no transactions are sent."
           },
@@ -261,16 +246,8 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/balances",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "balances"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "balances"]
         },
         "description": "Display current contract token balances, with read timestamps and partial/completeness information. Poll at most every 10 seconds. Not Schedule payout availability or payment success. Hosted testnet verification pending."
       },
@@ -282,16 +259,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/balances",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "balances"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "balances"]
             },
             "description": "Display current contract token balances, with read timestamps and partial/completeness information. Poll at most every 10 seconds. Not Schedule payout availability or payment success. Hosted testnet verification pending."
           },
@@ -317,14 +286,8 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/v1/openapi.json",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "openapi.json"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "openapi.json"]
         },
         "description": "Public; no token. Returned as the bare document, without the `data` envelope. Rate limit: 60 requests per 60 seconds per client IP."
       },
@@ -353,14 +316,8 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/openapi.json",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "openapi.json"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "openapi.json"]
             }
           },
           "status": "OK",
@@ -388,16 +345,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "execute"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute"]
         },
         "body": {
           "mode": "raw",
@@ -443,16 +392,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "execute"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute"]
             },
             "body": {
               "mode": "raw",
@@ -487,16 +428,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "execute"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute"]
             },
             "body": {
               "mode": "raw",
@@ -531,16 +464,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "execute"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute"]
             },
             "body": {
               "mode": "raw",
@@ -577,17 +502,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute/submit",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "execute",
-            "submit"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute", "submit"]
         },
         "body": {
           "mode": "raw",
@@ -640,17 +556,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute/submit",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "execute",
-                "submit"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute", "submit"]
             },
             "body": {
               "mode": "raw",
@@ -685,17 +592,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute/submit",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "execute",
-                "submit"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute", "submit"]
             },
             "body": {
               "mode": "raw",
@@ -730,17 +628,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute/submit",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "execute",
-                "submit"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute", "submit"]
             },
             "body": {
               "mode": "raw",
@@ -777,16 +666,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/release-early",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "release-early"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "release-early"]
         },
         "body": {
           "mode": "raw",
@@ -826,16 +707,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/release-early",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "release-early"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "release-early"]
             },
             "body": {
               "mode": "raw",
@@ -867,16 +740,8 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/events?limit=50",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "events"
-          ],
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "events"],
           "query": [
             {
               "key": "limit",
@@ -922,16 +787,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/events?limit=50",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "events"
-              ],
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "events"],
               "query": [
                 {
                   "key": "limit",
@@ -972,17 +829,8 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/transactions/{{txHash}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "transactions",
-            "{{txHash}}"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "transactions", "{{txHash}}"]
         },
         "description": "Poll existing transaction without resubmitting; UNKNOWN never authorizes another payment."
       },
@@ -1020,14 +868,8 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/webhooks/{{deploymentId}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "webhooks",
-            "{{deploymentId}}"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "webhooks", "{{deploymentId}}"]
         },
         "description": "Requires a separately funded webhook deployment and its callback secret. Keep the same event key and payload for retries; changing payload conflicts. Keys never reopen automatically; UNKNOWN must not trigger a fresh payment. This route uses the relayer, not caller wallet signing."
       },
@@ -1040,17 +882,8 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/state",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "subscription",
-            "state"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "subscription", "state"]
         },
         "description": "Read live subscriber, token, allowance and cancellation state. Unconfigured Dev subscriber returns setupRequired:true and allowance:\"0\". Read only; no wallet mutation. Limit 40/minute/token."
       },
@@ -1062,17 +895,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/state",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "subscription",
-                "state"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "subscription", "state"]
             },
             "description": "Read live subscriber, token, allowance and cancellation state. Unconfigured Dev subscriber returns setupRequired:true and allowance:\"0\". Read only; no wallet mutation. Limit 40/minute/token."
           },
@@ -1113,9 +937,7 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/cancel/prepare",
-          "host": [
-            "{{baseUrl}}"
-          ],
+          "host": ["{{baseUrl}}"],
           "path": [
             "api",
             "v1",
@@ -1162,9 +984,7 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/cancel/submit",
-          "host": [
-            "{{baseUrl}}"
-          ],
+          "host": ["{{baseUrl}}"],
           "path": [
             "api",
             "v1",
@@ -1200,9 +1020,7 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/cancel/reconcile",
-          "host": [
-            "{{baseUrl}}"
-          ],
+          "host": ["{{baseUrl}}"],
           "path": [
             "api",
             "v1",
@@ -1238,9 +1056,7 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/reactivate/prepare",
-          "host": [
-            "{{baseUrl}}"
-          ],
+          "host": ["{{baseUrl}}"],
           "path": [
             "api",
             "v1",
@@ -1287,9 +1103,7 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/reactivate/submit",
-          "host": [
-            "{{baseUrl}}"
-          ],
+          "host": ["{{baseUrl}}"],
           "path": [
             "api",
             "v1",
@@ -1325,9 +1139,7 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/reactivate/reconcile",
-          "host": [
-            "{{baseUrl}}"
-          ],
+          "host": ["{{baseUrl}}"],
           "path": [
             "api",
             "v1",
@@ -1349,16 +1161,8 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/swap-quote?amountStroops={{amount}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "swap-quote"
-          ],
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "swap-quote"],
           "query": [
             {
               "key": "amountStroops",
@@ -1381,16 +1185,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/swap-quote?amountStroops={{amount}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "swap-quote"
-              ],
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "swap-quote"],
               "query": [
                 {
                   "key": "amountStroops",
@@ -1428,17 +1224,8 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/state",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "schedule",
-            "state"
-          ],
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "schedule", "state"],
           "query": [
             {
               "key": "nodeId",
@@ -1463,17 +1250,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/pause",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "schedule",
-            "pause"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "schedule", "pause"]
         },
         "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
         "body": {
@@ -1516,18 +1294,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/pause/submit",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "schedule",
-            "pause",
-            "submit"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "schedule", "pause", "submit"]
         },
         "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
         "body": {
@@ -1554,18 +1322,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/pause/reconcile",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "schedule",
-            "pause",
-            "reconcile"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "schedule", "pause", "reconcile"]
         },
         "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
         "body": {
@@ -1592,17 +1350,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/resume",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "schedule",
-            "resume"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "schedule", "resume"]
         },
         "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
         "body": {
@@ -1645,18 +1394,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/resume/submit",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "schedule",
-            "resume",
-            "submit"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "schedule", "resume", "submit"]
         },
         "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
         "body": {
@@ -1683,9 +1422,7 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/resume/reconcile",
-          "host": [
-            "{{baseUrl}}"
-          ],
+          "host": ["{{baseUrl}}"],
           "path": [
             "api",
             "v1",
@@ -1721,17 +1458,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/retrieve",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "schedule",
-            "retrieve"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "schedule", "retrieve"]
         },
         "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
         "body": {
@@ -1774,18 +1502,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/retrieve/submit",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "schedule",
-            "retrieve",
-            "submit"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "schedule", "retrieve", "submit"]
         },
         "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
         "body": {
@@ -1812,9 +1530,7 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/retrieve/reconcile",
-          "host": [
-            "{{baseUrl}}"
-          ],
+          "host": ["{{baseUrl}}"],
           "path": [
             "api",
             "v1",
@@ -1845,16 +1561,8 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "funding"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding"]
         },
         "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending."
       },
@@ -1866,16 +1574,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "funding"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding"]
             },
             "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending."
           },
@@ -1903,16 +1603,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "funding"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding"]
         },
         "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending.",
         "body": {
@@ -1950,16 +1642,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "funding"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding"]
             },
             "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending.",
             "body": {
@@ -1996,17 +1680,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding/submit",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "funding",
-            "submit"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding", "submit"]
         },
         "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending.",
         "body": {
@@ -2032,17 +1707,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding/reconcile",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "funding",
-            "reconcile"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding", "reconcile"]
         },
         "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending.",
         "body": {
@@ -2068,17 +1734,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding/reconcile",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "funding",
-                "reconcile"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding", "reconcile"]
             },
             "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending.",
             "body": {

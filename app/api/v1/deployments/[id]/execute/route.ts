@@ -17,8 +17,8 @@ import { prepareTriggerTx } from "@/lib/stellar/trigger";
  * it with the `from` key and posts it to `…/execute/submit`; no key is held here.
  */
 export const POST = v1Route(
-  { rateLimit: V1_RATE_LIMITS.execute },
-  async ({ req, params, token, deployment }) => {
+  { operation: "POST execute", rateLimit: V1_RATE_LIMITS.execute },
+  async ({ req, params, token, tokenType, deployment }) => {
     const input = ExecutePrepareSchema.parse(
       await req.json().catch(() => {
         throw new AppError("VALIDATION", "Request body must be valid JSON");
@@ -47,6 +47,7 @@ export const POST = v1Route(
       metadata: {
         deploymentId: params.id,
         tokenId: token.id,
+        tokenType,
         from: input.from,
         amount: input.amount,
       },
