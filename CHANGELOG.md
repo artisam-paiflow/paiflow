@@ -22,6 +22,13 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Align the builder's English preview to the far right of its desktop toolbar.
+
+- Simplify deployment API access into Quickstart, Credentials and Reference tabs,
+  with flow-specific examples, grouped operations and separate token history.
+  Condense Developer API guidance into a server-storage reminder and expandable
+  permission and access details.
+
 - Limit developer and deployment API token last-used timestamp writes to once per
   five minutes per token, while retaining authentication checks on every request.
 
