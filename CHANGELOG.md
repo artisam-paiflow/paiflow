@@ -7,6 +7,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Unreleased Node SDK support for developer credentials across selected deployments,
+  with typed, bounded deployment discovery and credential isolation ([#1032](https://github.com/webnxt-2030/pinkraft/issues/1032)).
+
 - Self-service Developer API panel for creating, selecting deployments, inspecting and revoking multi-deployment tokens, with one-time secret reveal and read/operate permissions ([#1031](https://github.com/webnxt-2030/pinkraft/issues/1031)).
 
 - API v1 support for selected-deployment developer credentials, read/operate permissions, scoped deployment discovery, shared limits and durable caller attribution ([#1030](https://github.com/webnxt-2030/pinkraft/issues/1030)).

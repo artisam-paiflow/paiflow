@@ -212,41 +212,42 @@ test("credentials are confined to their route families", async () => {
   );
 });
 
-test("native fetch never forwards credentials to redirected origins", async () => {
-  const { createServer } = await import("node:http");
-  const { once } = await import("node:events");
-  let destinationCalls = 0;
-  const destination = createServer((_, response) => {
-    destinationCalls++;
-    response.end("{}");
-  });
-  destination.listen(0, "127.0.0.1");
-  await once(destination, "listening");
-  const source = createServer((incoming, response) => {
-    assert.equal(incoming.headers.authorization, "Bearer pfk_test");
-    response.writeHead(302, {
-      location: `http://127.0.0.1:${destination.address().port}/api/other`,
+for (const token of ["pfk_test", `pfd_${"a".repeat(64)}`])
+  test(`${token.slice(0, 4)} native fetch never forwards credentials to redirected origins`, async () => {
+    const { createServer } = await import("node:http");
+    const { once } = await import("node:events");
+    let destinationCalls = 0;
+    const destination = createServer((_, response) => {
+      destinationCalls++;
+      response.end("{}");
     });
-    response.end();
-  });
-  source.listen(0, "127.0.0.1");
-  await once(source, "listening");
-  try {
-    const sdk = new PaiflowTransport({
-      baseUrl: `http://127.0.0.1:${source.address().port}`,
-      token: "pfk_test",
+    destination.listen(0, "127.0.0.1");
+    await once(destination, "listening");
+    const source = createServer((incoming, response) => {
+      assert.equal(incoming.headers.authorization, `Bearer ${token}`);
+      response.writeHead(302, {
+        location: `http://127.0.0.1:${destination.address().port}/api/other`,
+      });
+      response.end();
     });
-    await assert.rejects(sdk.request(request), PaiflowTransportError);
-    assert.equal(destinationCalls, 0);
-  } finally {
-    source.closeAllConnections();
-    destination.closeAllConnections();
-    await Promise.all([
-      new Promise((resolve) => source.close(resolve)),
-      new Promise((resolve) => destination.close(resolve)),
-    ]);
-  }
-});
+    source.listen(0, "127.0.0.1");
+    await once(source, "listening");
+    try {
+      const sdk = new PaiflowTransport({
+        baseUrl: `http://127.0.0.1:${source.address().port}`,
+        token,
+      });
+      await assert.rejects(sdk.request(request), PaiflowTransportError);
+      assert.equal(destinationCalls, 0);
+    } finally {
+      source.closeAllConnections();
+      destination.closeAllConnections();
+      await Promise.all([
+        new Promise((resolve) => source.close(resolve)),
+        new Promise((resolve) => destination.close(resolve)),
+      ]);
+    }
+  });
 test("body cancellation releases stream reader and aborts fetch signal", async () => {
   let cancelled = false;
   let signal;
