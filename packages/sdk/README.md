@@ -1,11 +1,13 @@
 # @paiflow/sdk
 
+For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](https://github.com/webnxt-2030/pinkraft/blob/c3c2a27bcd378df357841bef9993620907a0a4cd/docs/api/developer-tokens.md). Support is on the `dev-token` integration branch; verify hosted availability separately. These SDK additions are Unreleased source and are not published by this work; do not assume registry 0.1.0 includes them. Existing deployment-only integrations remain supported.
+
 Node SDK beta with typed deployment reads, payments, funding, Schedule
 and Subscription controls, public allowance consent, public utilities and embed
 SSE. Includes keyed/unkeyed Webhook callbacks and early release. All 43 HTTP
 operations in the current source coverage matrix are implemented. Developer token
 and deployment discovery support is unreleased and locally verified only; it is
-not a claim about the registry's 0.1.0 artifact. Bounded testnet workflows have
+not evidence of a published artifact containing this addition. Bounded testnet workflows have
 been verified in the [live evidence report](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/testing/2026-10-14-sdk-live-verification.md)
 and [real Swap execution report](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/testing/2026-10-15-sdk-swap-execution-982.md).
 

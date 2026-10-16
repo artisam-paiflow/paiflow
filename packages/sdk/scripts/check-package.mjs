@@ -283,6 +283,7 @@ import "@paiflow/sdk/dist/index.js";
       "--outDir",
       "examples/compiled",
       "examples/payment-server.ts",
+      "examples/developer-server.ts",
       "examples/payment-browser.ts",
       "examples/workflows.ts",
     ],

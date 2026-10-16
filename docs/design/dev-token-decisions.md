@@ -48,3 +48,12 @@
 
 - Independent review found asynchronous UI races. Serialize token metadata lists, fresh inspection, creation, selection saves and revocation through one shared in-flight guard, with a synchronous ref plus disabled controls. Deployment-candidate reads stay independent. Always release the guard in `finally`, including failures, so retries remain available. This prevents a stale list response from restoring pre-revocation status, old grants or omitting a newly created token.
 - A pagehide/tab-hide event also invalidates pending one-time reveals, using a lifecycle generation captured at create start. A late create response still adds safe token metadata, but never restores plaintext after a dismissal (even when the tab becomes visible before the response). Explain that the uncopied token must be revoked and replaced. Deferred-response regressions cover both list/mutation ordering and pagehide/tab-hide during token creation.
+
+## 2026-10-16 — #1033 documentation and examples
+
+- Centralize lifecycle, limits, permissions, discovery and recovery in `docs/api/developer-tokens.md`; link product/auth, API, SDK and maintained hackathon/AI context. Preserve historical event rules and PDFs. External starter setup retains deployment-only assumptions; this issue neither changes nor certifies those repositories.
+- Add owner-session management to OpenAPI/Postman, explicitly disabling inherited bearer authentication in management requests. Keep bearer security identifier `bearerAuth`, API revision 1.1.0 (already advanced for this addition in #1030) and app/SDK package versions unchanged. No hosted or registry availability claim; new SDK additions are Unreleased, without asserting registry version 0.1.0 is absent.
+- Add a two-explicit-ID server example with bounded discovery/read usage and optional operate composition over the existing persisted-envelope/receipt handlers. Validate it against the locally packed consumer with an injected wallet callback and no network transactions. No new runtime dependency or credential custody.
+- Require an immutable deployment ID on example orders and enforce it inside the durable order callback before preparation or submission; fixtures refuse reuse across the two selected deployments.
+- Inject a typed consumer configuration/secret loader into the portable Node example rather than reading secret environment variables outside the app's `lib/env.ts` or importing that app-only module.
+- No unresolved scope questions or assumptions beyond the documented need to verify hosted rollout separately in #1034.
