@@ -1,5 +1,13 @@
 # Developer token implementation decisions
 
+## 2026-10-16 — #1032 Node SDK
+
+- Accept exact `pfd_` + 64 lowercase hex credentials alongside the existing `pfk_` validator. Keep one private transport per client and reuse `client.deployment(id)` for all selected deployments. Reject legacy `pkdev_`; no token management, flow/deployment creation or wallet custody API is added.
+- Add `client.deployments.list(query?, options?)` and `pages(query?, options?)`, exporting `ListDeploymentsQuery`, `DeploymentPagesOptions`, `DeploymentSummary` and `ListDeploymentsResponse`. UUID cursor and limit 1–100 mirror the API; omitted limit retains server default 20. Pages follow the ID bound until null, reject repeated/cyclic/backward cursors, and stop at a configurable cap (default 100, range 1–10,000), retaining the last yielded cursor. Each page retains metadata, cancellation and a request timeout; no retries or authorization caching.
+- Narrowly allow bearer authentication for GET `/api/v1/deployments` in addition to existing deployment routes. Public/demo/embed/SSE and webhook requests never inherit either bearer family; both retain trusted-origin, credentials-omit and no-redirect rules. Sanitize both credential families, including echoed keys and metadata. Required wallet signatures and independent webhook secrets remain unchanged.
+- Validate discovery from unknown with UUIDs, names, recognized network and at most 100 entries, ignoring additive fields. Server permission/selection refusals remain typed API errors. Re-run the developer/discovery fixtures against the installed tarball and compile the exported discovery types in a clean packed consumer, alongside maintained examples.
+- Keep SDK metadata at 0.1.0 and API contract revision at 1.1.0; collect additions under Unreleased. No registry publication, hosted requests or financial transactions. Broader integration guidance/examples remain #1033. No unresolved scope questions.
+
 ## 2026-10-16 — #1029 shared contract
 
 - Use a new `DeveloperApiToken` credential: `pfd_` followed by 64 lowercase hex characters (32 cryptographically random bytes). It is distinct from `pfk_` and legacy `pkdev_`; it grants no legacy dev/payroll access.

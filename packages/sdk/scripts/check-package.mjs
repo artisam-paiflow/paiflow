@@ -90,6 +90,16 @@ await assert.rejects(import("@paiflow/sdk/dist/index.js"), { code: "ERR_PACKAGE_
 `,
   );
   run(process.execPath, ["smoke.mjs"], consumer);
+  // Exercise developer credentials and discovery against the installed tarball,
+  // including multi-deployment calls, refusal errors and credential isolation.
+  await writeFile(
+    join(consumer, "deployments.test.mjs"),
+    (await readFile(join(packageRoot, "tests/deployments.test.mjs"), "utf8")).replace(
+      '"../dist/index.js"',
+      '"@paiflow/sdk"',
+    ),
+  );
+  process.stdout.write(run(process.execPath, ["--test", "deployments.test.mjs"], consumer));
   await writeFile(
     join(consumer, "smoke.ts"),
     `
@@ -103,6 +113,17 @@ const result: Promise<sdk.ApiResponse<boolean>> = transport.request({path: "/api
 void result;
 const client = new sdk.Paiflow({baseUrl: "https://example.com", token: "pfk_test"});
 const deployment = client.deployment("11111111-1111-4111-8111-111111111111");
+const developer = new sdk.Paiflow({baseUrl: "https://example.com", token: "pfd_" + "a".repeat(64)});
+const discoveryQuery: sdk.ListDeploymentsQuery = {limit: 20};
+const discoveryOptions: sdk.DeploymentPagesOptions = {maxPages: 10};
+const discovery: Promise<sdk.ApiResponse<sdk.ListDeploymentsResponse>> = developer.deployments.list(discoveryQuery);
+const discoveryPages: AsyncGenerator<sdk.ApiResponse<sdk.ListDeploymentsResponse>> = developer.deployments.pages(discoveryQuery, discoveryOptions);
+async function summaries() {for await (const page of discoveryPages) {const summary: sdk.DeploymentSummary | undefined = page.data.items[0]; void summary;}}
+// @ts-expect-error Deployment pagination limits are numbers.
+developer.deployments.list({limit: "20"});
+// @ts-expect-error Discovery does not create deployments.
+developer.deployments.create({});
+void [discovery, summaries];
 const balances: Promise<sdk.ApiResponse<sdk.DeploymentBalances>> = deployment.balances.get();
 const capabilities: Promise<sdk.ApiResponse<sdk.DeploymentCapabilities>> = deployment.capabilities.get();
 const quote: Promise<sdk.ApiResponse<sdk.SwapQuote>> = deployment.swap.quote({amountStroops: "9007199254740993"});
