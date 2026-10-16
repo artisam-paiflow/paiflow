@@ -114,10 +114,11 @@ private window.
 
 On builds containing #1028, use one `pfd_` credential for multiple explicitly
 selected existing owned deployments. Create it in the signed-in
-`/account/developer` panel; READ*ONLY permits reads and READ_OPERATE adds supported
+`/account/developer` panel; `READ_ONLY` permits reads and `READ_OPERATE` adds supported
 operations. Permissions, labels and expiry are immutable; selection is editable,
-including an empty selection. Future deployments never inherit access. Both `pfd*`and existing`pfk\_`support`GET /api/v1/deployments`discovery, with ID-bound UUID
-pagination (default 20, max 100) and`{data:{items:[{id,flowName,network}],nextCursor}}`.
+including an empty selection. Future deployments never inherit access. Both `pfd_`
+and existing `pfk_` support `GET /api/v1/deployments` discovery, with ID-bound UUID
+pagination (default 20, max 100) and `{data:{items:[{id,flowName,network}],nextCursor}}`.
 
 The [lifecycle and management reference](developer-tokens.md) covers owner-session
 APIs, one-time reveal, 10 active credentials/100 grants, expiry, replacement and

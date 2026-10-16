@@ -214,7 +214,15 @@ Limit: 60 requests/minute per token; confirmed deployments on this environment's
 
 ## Authentication and integration boundary
 
-Use `Authorization: Bearer pfd_<64 lowercase hex characters>` for selected-deployment credentials or `pfk_<64 lowercase hex characters>` for existing single-deployment tokens. `pfd_` requires explicit grants and immutable READ*ONLY/READ_OPERATE permissions; operate endpoints (including reconciliation and relayer early release) require READ_OPERATE. A `pfk*`token is bound to exactly one deployment. Mint it in **API access** on the team's confirmed deployment; it is shown only once. Store it on the app server. Missing, malformed, unknown, expired, revoked or wrong-deployment tokens all return HTTP 401`UNAUTHENTICATED`, with `A valid API token for this deployment is required`. A malformed deployment UUID is 404. Revocation takes effect on the next call.
+Use `Authorization: Bearer pfd_<64 lowercase hex characters>` for selected-deployment
+credentials or `pfk_<64 lowercase hex characters>` for existing single-deployment
+tokens. `pfd_` requires explicit grants and immutable `READ_ONLY` / `READ_OPERATE`
+permissions; operate endpoints (including reconciliation and relayer early release)
+require `READ_OPERATE`. A `pfk_` token is bound to exactly one deployment. Mint it in
+**API access** on the team's confirmed deployment; it is shown only once. Store it
+on the app server. Missing, malformed, unknown, expired, revoked or wrong-deployment
+tokens all return HTTP 401 `UNAUTHENTICATED`, with
+`A valid API token for this deployment is required`. A malformed deployment UUID is 404. Revocation takes effect on the next call.
 
 **Put all Paiflow calls in one typed, server-only `lib/paiflow.ts` module in the starter repo, and call the API through it.** Use `import "server-only";`, read `PAIFLOW_API_TOKEN` and `PAIFLOW_DEPLOYMENT_ID` from server environment, and expose `prepareExecute`, `submitExecute`, `listEvents`, `releaseEarly`. Its header should say: `starter code, not a supported package — edit freely.` Follow the shapes below and the public OpenAPI document. Do not invent other v1 methods. Keep the bearer token out of browser bundles, browser requests and logs.
 
