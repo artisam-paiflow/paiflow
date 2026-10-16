@@ -26,3 +26,5 @@
 - OpenAPI/Postman gain the discovery operation now to keep executable contract drift checks green; the broader integration guide/examples and SDK are still #1032/#1033. No product scope questions remain unresolved for this issue.
 
 - Independent review: bump the OpenAPI contract revision from `1.0.0` to `1.1.0` for the compatible developer-credential and discovery additions, as required by `docs/releasing.md`. Keep the `/api/v1` major and app/SDK versions unchanged; this is not a release or publication.
+
+- Full CI exposed older deployment-submit fixtures missing the new duplicate signed-row scope read, and owner-token lifecycle fixtures replacing all rate-limit helpers. Update those fixtures to retain database retry and pre-auth fallback contracts; reset per-case queued signer/claim responses and add deployment/network replay refusal cases. No production isolation or retry behavior is relaxed.

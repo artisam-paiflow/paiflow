@@ -23,7 +23,11 @@ import { GET as candidates } from "@/app/api/developer-tokens/deployments/route"
 
 const mocks = vi.hoisted(() => ({ session: vi.fn(), rate: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requireSession: mocks.session }));
-vi.mock("@/lib/rate-limit", () => ({ enforceRateLimit: mocks.rate, clientIp: () => "127.0.0.1" }));
+vi.mock("@/lib/rate-limit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/rate-limit")>()),
+  enforceRateLimit: mocks.rate,
+  clientIp: () => "127.0.0.1",
+}));
 const depId = randomUUID();
 const dep2Id = randomUUID();
 const foreignId = randomUUID();
