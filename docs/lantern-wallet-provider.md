@@ -114,8 +114,8 @@ deleted or ignored when flags turn off, and malformed state still fails closed.
 Resolve a legacy recipient update through its original status/recovery controls;
 turning a feature off does not establish transaction finality.
 
-Status checked **2026-10-15 UTC**: all five integration issues remain open. The
-merged source snapshot is `6d8d7294`; the completed manual financial rehearsal
+Historical acceptance checkpoint (**2026-10-15 UTC**): all five integration issues
+were open at that check. The merged source snapshot is `6d8d7294`; the completed manual financial rehearsal
 used `b7b92a49`. Do not treat evidence from that earlier build as a new run on
 `6d8d7294`, or Paiflow preparation as working Lantern support.
 
@@ -142,12 +142,26 @@ preserved. No deploy control or wallet was used, no prepare/sign/submit path was
 exercised, and CSP violations were unmeasured in the ephemeral contexts; emulation
 is not handset or wallet acceptance.
 
-Five additional real, expired unsigned inputs have been prepared and independently
-reviewed **locally only**: four application captures and one read-only actual-builder
-RPC simulation. They have not been published or delivered. Export still requires
-explicit user approval for the exact payload and destination; no payload is linked
-here. The committed five offline fixtures remain synthetic, and neither packet
-establishes Lantern scanner interpretation or acceptance.
+As of **2026-10-16 UTC**, five additional real, expired unsigned inputs are
+published for review in [PR #1022](https://github.com/webnxt-2030/pinkraft/pull/1022),
+following explicit user approval of the exact packet and Pinkraft destination.
+The independently reviewed packet includes four application captures, one
+read-only actual-builder RPC simulation, a decoded manifest, provenance and
+validation tests. It covers factory deployment, deposit, splitter distribution,
+streamer top-up and token approval. Expired inputs are for scanning, not execution.
+
+PR #1022 targets `lantern-integration` and remains unmerged at this check. Review
+its [exact files](https://github.com/webnxt-2030/pinkraft/pull/1022/files) on
+[`docs/lantern-live-scan-samples` at `f9ae2e04e69a5ea512c6fc5098a3dc6dfbbf0023`](https://github.com/webnxt-2030/pinkraft/tree/f9ae2e04e69a5ea512c6fc5098a3dc6dfbbf0023).
+Do not assume those files are already present on `lantern-integration`; use that
+integration branch, rather than `develop`, for the remaining integration work.
+
+The earlier committed offline fixtures remain synthetic. Publication does not
+establish delivery to Lantern's preferred scanner destination, scanner results or
+acceptance. Confirm the destination, format and returned results with Lantern,
+and obtain any required approval for onward delivery. The current contract/build
+requests and acceptance checklist are in
+[handoff #1021](https://github.com/webnxt-2030/pinkraft/issues/1021).
 
 ## Required next steps
 
