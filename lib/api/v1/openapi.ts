@@ -668,13 +668,11 @@ export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: "Paiflow API v1",
-    version: "1.0.0",
+    version: "1.1.0",
     description: [
       "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.",
       "",
-      "Every `/api/v1/deployments/{id}/…` call authenticates with a deployment API token " +
-        "(`Authorization: Bearer pfk_…`) that the deployment's owner mints in the **API access** " +
-        "panel on the deployment page. A token reaches exactly one deployment.",
+      "Every `/api/v1/deployments/{id}/…` call requires a Bearer credential: a deployment token (`pfk_…`) bound to one deployment, or a developer token (`pfd_…`) with explicit grants to selected existing deployments still owned by the token owner. GET /api/v1/deployments discovers only that credential's eligible deployments. Developer READ_ONLY permits reads, quotes and funding discovery; READ_OPERATE additionally permits preparation, submission, reconciliation and relayer release. See docs/api/developer-token-permissions.md for the complete matrix. No token grants flow/deployment creation or legacy dev/payroll access.",
       "",
       "**Execute deposits are signed by the caller.** `execute` returns an unsigned envelope; you sign it with the " +
         "`from` key, which stays on your side, and post it to `execute/submit`. A leaked token can " +
@@ -686,7 +684,7 @@ export const openApiDocument = {
       "| --- | --- |",
       errorTable,
       "",
-      "Rate limits are per token and per endpoint (each operation lists its own). A token that " +
+      "Rate limits are per token and per endpoint (each operation lists its own). Allowances are shared across the selected deployments. A token that " +
         "has been issued or has worked in the last 30 days is subject to nothing else. Any other " +
         "token is limited per client address before it is looked up: " +
         `${V1_PRE_AUTH_LIMITS.ipBackstop.limit} lookups per ` +
@@ -695,7 +693,7 @@ export const openApiDocument = {
         `${V1_PRE_AUTH_LIMITS.failedAuth.windowSeconds} seconds from the address, ` +
         `${V1_PRE_AUTH_LIMITS.blockedLookups.limit} per ` +
         `${V1_PRE_AUTH_LIMITS.blockedLookups.windowSeconds} seconds. A token refused in the last ` +
-        "minute is refused again without a lookup. So one caller's bad token does not lock out " +
+        "minute is refused again without a lookup. Refusal of a live developer credential for a missing grant is never negatively cached, so selection edits take effect immediately. So one caller's bad token does not lock out " +
         "others on the same network.",
       "",
       "No account? `POST /api/v1/demo-token` hands you a short-lived token for a shared demo " +
@@ -746,6 +744,55 @@ export const openApiDocument = {
     },
   ],
   paths: {
+    "/api/v1/deployments": {
+      get: {
+        tags: ["Capabilities"],
+        operationId: "listAuthorizedDeployments",
+        summary: "List deployments authorized by this token",
+        description:
+          "Bearer pfd_ or pfk_ only. Returns currently confirmed active deployments explicitly granted to this credential and still owned by its active non-sandbox owner. A deployment token returns at most its own deployment. Safe metadata only; no session fallback. Read-only tokens are accepted. 60 requests per token per minute shared across deployments.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: "cursor", in: "query", schema: { type: "string", format: "uuid" } },
+          {
+            name: "limit",
+            in: "query",
+            schema: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Authorized deployments",
+            content: json({
+              type: "object",
+              required: ["data"],
+              properties: {
+                data: {
+                  type: "object",
+                  required: ["items", "nextCursor"],
+                  properties: {
+                    items: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        required: ["id", "flowName", "network"],
+                        properties: {
+                          id: { type: "string", format: "uuid" },
+                          flowName: { type: "string" },
+                          network: { type: "string" },
+                        },
+                      },
+                    },
+                    nextCursor: { type: "string", format: "uuid", nullable: true },
+                  },
+                },
+              },
+            }),
+          },
+          ...errors("UNAUTHENTICATED", "VALIDATION", "RATE_LIMITED", "INTERNAL"),
+        },
+      },
+    },
     "/api/v1/deployments/{id}/funding": {
       get: {
         tags: ["Capabilities"],
@@ -1091,7 +1138,7 @@ export const openApiDocument = {
         summary: "Discover a deployment's supported integration paths",
         description: [
           DeploymentCapabilitiesSchema.description,
-          "Requires this deployment's pfk_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.",
+          "Requires an authorized pfk_ or pfd_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.",
           "Operations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are swapQuote (/api/v1/deployments/{id}/swap-quote), execute (execute and execute/submit), events, transactions, releaseEarly (release-early), webhook (/api/webhooks/{id}), scheduleState (/api/v1/deployments/{id}/schedule/state), scheduleControls (Schedule pause, resume and retrieve preparation, submit and reconcile), subscriptionState (/api/v1/deployments/{id}/subscription/state), subscriptionCancel and subscriptionReactivate (subscription/cancel or subscription/reactivate prepare, submit and reconcile), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). The payouts capability key remains in discovery responses but reports unsupported while Dev mode is disabled; no payout route is published. Each operation includes status, authentication, requirements and candidate nodeIds. Subscription approval must be checked by its own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.",
           "Returns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.",
           rate(V1_RATE_LIMITS.capabilities, "per token"),
@@ -1360,7 +1407,7 @@ export const openApiDocument = {
         operationId: "getTransactionStatus",
         summary: "Look up an attributed transaction without resubmitting",
         description:
-          "Accepts this deployment's pfk_ token. SUCCESS and FAILED are final; REJECTED means submission refusal, not on-chain failure. PENDING requires known acceptance. UNKNOWN means an attributed attempt has no established acceptance or finality; it never authorizes a new payment. Unattributed hashes return 404, including missing outside submissions. Supports execute records, queued webhook audit records, early-release audit records, ingested events and verified direct pipeline invocations in recent RPC envelopes. Outside indirect calls and token transfers alone are unsupported. Stored terminal outcomes and ingested events survive RPC retention; missing historical evidence cannot be reconstructed. Poll after 2 seconds, exponentially back off with jitter to 30 seconds; honor Retry-After on 429. RPC failures return 502, never FAILED. One bounded RPC read per request, at most 60/min per deployment across tokens; production requires shared Redis for that RPC budget. " +
+          "Accepts an authorized pfk_ or pfd_ token. SUCCESS and FAILED are final; REJECTED means submission refusal, not on-chain failure. PENDING requires known acceptance. UNKNOWN means an attributed attempt has no established acceptance or finality; it never authorizes a new payment. Unattributed hashes return 404, including missing outside submissions. Supports execute records, queued webhook audit records, early-release audit records, ingested events and verified direct pipeline invocations in recent RPC envelopes. Outside indirect calls and token transfers alone are unsupported. Stored terminal outcomes and ingested events survive RPC retention; missing historical evidence cannot be reconstructed. Poll after 2 seconds, exponentially back off with jitter to 30 seconds; honor Retry-After on 429. RPC failures return 502, never FAILED. One bounded RPC read per request, at most 60/min per deployment across tokens; production requires shared Redis for that RPC budget. " +
           rate(V1_RATE_LIMITS.transactions, "per token across transaction hashes"),
         security: [{ bearerAuth: [] }],
         parameters: [
@@ -1612,7 +1659,7 @@ export const openApiDocument = {
       bearerAuth: {
         type: "http",
         scheme: "bearer",
-        bearerFormat: "pfk_<64 hex>",
+        bearerFormat: "pfk_<64 hex> or pfd_<64 hex>",
         description:
           "A deployment API token, minted by the deployment's owner in the API access panel and shown once.",
       },

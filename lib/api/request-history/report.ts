@@ -25,15 +25,15 @@ export async function apiRequestReport(input: z.infer<typeof ApiRequestReportSch
         AND network = ${options.network} AND environment = ${options.environment}
         AND audience = ${options.audience}::"AnalyticsAudience"
         AND "occurredAt" >= ${start} AND "occurredAt" < ${end}
-      ) SELECT endpoint, method, "accountId" AS account_id, "apiTokenId" AS api_token_id, "tokenCreatorId" AS token_creator_id, count(*)::text AS requests,
+      ) SELECT endpoint, method, "accountId" AS account_id, "apiTokenId" AS api_token_id, "developerApiTokenId" AS developer_api_token_id, "callerType" AS caller_type, "tokenCreatorId" AS token_creator_id, count(*)::text AS requests,
         count(*) FILTER (WHERE status >= 400)::text AS errors,
         count(*) FILTER (WHERE status = 401)::text AS authentication_failures,
         count(*) FILTER (WHERE status = 429)::text AS rate_limited,
         count(DISTINCT "accountId")::text AS calling_accounts,
-        count(DISTINCT "apiTokenId")::text AS tokens,
+        count(DISTINCT ("callerType", COALESCE("apiTokenId", "developerApiTokenId"))) FILTER (WHERE COALESCE("apiTokenId", "developerApiTokenId") IS NOT NULL)::text AS tokens,
         percentile_cont(0.5) WITHIN GROUP (ORDER BY "durationMs") AS p50_ms,
         percentile_cont(0.95) WITHIN GROUP (ORDER BY "durationMs") AS p95_ms
-      FROM requests GROUP BY endpoint, method, "accountId", "apiTokenId", "tokenCreatorId" ORDER BY endpoint, method, "accountId", "apiTokenId" LIMIT 1001`;
+      FROM requests GROUP BY endpoint, method, "accountId", "apiTokenId", "developerApiTokenId", "callerType", "tokenCreatorId" ORDER BY endpoint, method, "accountId", "callerType", "apiTokenId", "developerApiTokenId" LIMIT 1001`;
       const weeks = await tx.$queryRaw<Record<string, unknown>[]>`
       SELECT date_trunc('week', "occurredAt") AS week,
         count(DISTINCT "accountId")::text AS calling_accounts,
@@ -66,17 +66,22 @@ export async function apiRequestReport(input: z.infer<typeof ApiRequestReportSch
       GROUP BY "txHash" HAVING count(*) > 1 LIMIT 1000`;
       const activation = await tx.$queryRaw<Record<string, unknown>[]>`
       WITH first_calls AS (
-        SELECT "apiTokenId", min("occurredAt") AS first_call FROM "ApiRequestLog"
+        SELECT COALESCE("apiTokenId", "developerApiTokenId") AS token_id, "callerType" AS family,
+          min("occurredAt") AS first_call FROM "ApiRequestLog"
         WHERE "trackingVersion" = ${API_HISTORY_VERSION} AND network = ${options.network}
           AND environment = ${options.environment} AND audience = ${options.audience}::"AnalyticsAudience"
-          AND "occurredAt" >= ${start} AND "occurredAt" < ${end} AND "apiTokenId" IS NOT NULL
-        GROUP BY "apiTokenId")
+          AND "occurredAt" >= ${start} AND "occurredAt" < ${end}
+          AND COALESCE("apiTokenId", "developerApiTokenId") IS NOT NULL
+        GROUP BY token_id, "callerType"), tokens AS (
+          SELECT id, "createdAt", 'deployment_token' AS family FROM "DeploymentApiToken"
+          UNION ALL SELECT id, "createdAt", 'developer_token' AS family FROM "DeveloperApiToken")
       SELECT count(*)::text AS calling_tokens,
         avg(EXTRACT(EPOCH FROM (f.first_call-t."createdAt"))) AS mean_token_to_observed_call_seconds,
         count(*) FILTER (WHERE s.confirmed IS NOT NULL)::text AS tokens_with_confirmed_transactions
-      FROM first_calls f JOIN "DeploymentApiToken" t ON t.id = f."apiTokenId"
+      FROM first_calls f JOIN tokens t ON t.id=f.token_id AND t.family=f.family
       LEFT JOIN LATERAL (SELECT min("confirmedAt") AS confirmed FROM "SignedTransaction"
-        WHERE "apiTokenId"=f."apiTokenId" AND network=${options.network}
+        WHERE ((f.family='deployment_token' AND "apiTokenId"=f.token_id) OR
+               (f.family='developer_token' AND "developerApiTokenId"=f.token_id)) AND network=${options.network}
           AND outcome='CONFIRMED' AND audience=${options.audience}::"AnalyticsAudience" AND "createdAt">=${start} AND "createdAt"<${end}) s ON true`;
       const preparation = await tx.$queryRaw<Record<string, unknown>[]>`
         WITH preparations AS (
@@ -84,12 +89,12 @@ export async function apiRequestReport(input: z.infer<typeof ApiRequestReportSch
             AND network=${options.network} AND environment=${options.environment}
             AND audience=${options.audience}::"AnalyticsAudience" AND "occurredAt">=${start} AND "occurredAt"<${end}
             AND endpoint IN ('/api/v1/deployments/:id/execute','/api/v1/deployments/:id/payouts')
-            AND status < 400 AND "apiTokenId" IS NOT NULL
+            AND status < 400 AND COALESCE("apiTokenId", "developerApiTokenId") IS NOT NULL
         ) SELECT count(*)::text AS preparations,
           count(*) FILTER (WHERE EXISTS (
             SELECT 1 FROM "ApiRequestLog" s WHERE s."preparationRequestId"=p.id
               AND s.network=p.network AND s.environment=p.environment AND s.audience=p.audience AND s."accountId"=p."accountId"
-              AND s."apiTokenId"=p."apiTokenId" AND s."deploymentId"=p."deploymentId"
+              AND s."apiTokenId" IS NOT DISTINCT FROM p."apiTokenId" AND s."developerApiTokenId" IS NOT DISTINCT FROM p."developerApiTokenId" AND s."callerType"=p."callerType" AND s."deploymentId"=p."deploymentId"
               AND s.endpoint=p.endpoint || '/submit' AND s."occurredAt">=p."occurredAt"
               AND s."occurredAt"<p."occurredAt"+interval '24 hours' AND s."txHash" IS NOT NULL
           ))::text AS explicitly_linked_submissions
@@ -99,14 +104,14 @@ export async function apiRequestReport(input: z.infer<typeof ApiRequestReportSch
           SELECT * FROM "ApiRequestLog" WHERE "trackingVersion"=${API_HISTORY_VERSION}
             AND network=${options.network} AND environment=${options.environment}
             AND audience=${options.audience}::"AnalyticsAudience" AND "occurredAt">=${start} AND "occurredAt"<${end}
-            AND method='POST' AND "apiTokenId" IS NOT NULL AND "txHash" IS NOT NULL
+            AND method='POST' AND COALESCE("apiTokenId", "developerApiTokenId") IS NOT NULL AND "txHash" IS NOT NULL
             AND endpoint IN ('/api/v1/deployments/:id/execute/submit','/api/v1/deployments/:id/payouts/submit')
         ), links AS (
           SELECT s.*, EXISTS (
             SELECT 1 FROM "ApiRequestLog" p WHERE p.id=s."preparationRequestId"
               AND p."trackingVersion"=s."trackingVersion" AND p.status<400 AND p.method='POST'
               AND p.network=s.network AND p.environment=s.environment AND p.audience=s.audience
-              AND p."accountId"=s."accountId" AND p."apiTokenId"=s."apiTokenId"
+              AND p."accountId"=s."accountId" AND p."apiTokenId" IS NOT DISTINCT FROM s."apiTokenId" AND p."developerApiTokenId" IS NOT DISTINCT FROM s."developerApiTokenId" AND p."callerType"=s."callerType"
               AND p."deploymentId"=s."deploymentId" AND s.endpoint=p.endpoint || '/submit'
               AND p."occurredAt">=${policy.activatedAt} AND p."occurredAt"<=s."occurredAt"
               AND s."occurredAt"<p."occurredAt"+interval '24 hours'
@@ -122,12 +127,12 @@ export async function apiRequestReport(input: z.infer<typeof ApiRequestReportSch
         SELECT count(*)::text AS failed_submit_requests,
           count(*) FILTER (WHERE EXISTS (
             SELECT 1 FROM "ApiRequestLog" retry JOIN "SignedTransaction" t ON t."txHash"=retry."txHash" AND t.network=retry.network
-            WHERE retry."txHash"=failed."txHash" AND retry."apiTokenId"=failed."apiTokenId"
+            WHERE retry."txHash"=failed."txHash" AND retry."apiTokenId" IS NOT DISTINCT FROM failed."apiTokenId" AND retry."developerApiTokenId" IS NOT DISTINCT FROM failed."developerApiTokenId" AND retry."callerType"=failed."callerType"
               AND retry."deploymentId"=failed."deploymentId" AND retry.environment=failed.environment
               AND retry.network=failed.network AND retry.audience=failed.audience AND retry."accountId"=failed."accountId"
               AND retry.endpoint=failed.endpoint AND retry."occurredAt">failed."occurredAt"
               AND retry."occurredAt"<failed."occurredAt"+interval '24 hours'
-              AND retry.status<400 AND t.outcome='CONFIRMED' AND t.audience=retry.audience
+              AND retry.status<400 AND t."deploymentId"=retry."deploymentId" AND t."callerAccountId"=retry."accountId" AND t.outcome='CONFIRMED' AND t.audience=retry.audience
           ))::text AS recovered_same_hash_within_24h
         FROM "ApiRequestLog" failed WHERE failed."trackingVersion"=${API_HISTORY_VERSION}
           AND failed.network=${options.network} AND failed.environment=${options.environment}

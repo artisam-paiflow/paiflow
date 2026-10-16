@@ -100,6 +100,7 @@ export async function drainApiRequests() {
                     duration_ms: record.durationMs,
                     error_code: record.errorCode,
                     api_token_id: record.apiTokenId,
+                    developer_api_token_id: record.developerApiTokenId ?? null,
                     token_creator_id: record.tokenCreatorId,
                     deployment_id: record.deploymentId,
                     tx_hash: record.txHash,

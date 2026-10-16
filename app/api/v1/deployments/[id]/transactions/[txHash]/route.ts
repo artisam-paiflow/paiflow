@@ -7,6 +7,7 @@ import { getTransactionStatus } from "@/lib/api/v1/transaction-status";
 
 export const GET = v1Route<{ id: string; txHash: string }>(
   {
+    operation: "GET transactions/:txHash",
     rateLimit: V1_RATE_LIMITS.transactions,
     rateLimitRoute: "/api/v1/deployments/:id/transactions/:txHash",
   },

@@ -6,7 +6,10 @@ import { prepareSubscriptionControl } from "@/lib/api/v1/subscription-controls";
 
 export const dynamic = "force-dynamic";
 export const POST = v1Route(
-  { rateLimit: V1_RATE_LIMITS.subscriptionControlPrepare },
+  {
+    operation: "POST subscription/reactivate/prepare",
+    rateLimit: V1_RATE_LIMITS.subscriptionControlPrepare,
+  },
   async ({ deployment, req }) => {
     const body = SubscriptionControlPrepareSchema.parse(await req.json());
     const data = await prepareSubscriptionControl(

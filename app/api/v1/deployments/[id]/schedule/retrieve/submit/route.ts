@@ -5,13 +5,14 @@ import { V1_RATE_LIMITS } from "@/lib/api/v1/limits";
 import { clientIp } from "@/lib/rate-limit";
 import { WalletControlSubmitSchema, submitScheduleControl } from "@/lib/api/v1/schedule";
 export const POST = v1Route(
-  { rateLimit: V1_RATE_LIMITS.scheduleSubmit },
-  async ({ req, deployment, token }) => {
+  { operation: "POST schedule/retrieve/submit", rateLimit: V1_RATE_LIMITS.scheduleSubmit },
+  async ({ req, deployment, token, tokenType }) => {
     const body = WalletControlSubmitSchema.parse(await readScheduleJson(req));
     return NextResponse.json({
       data: await submitScheduleControl({
         deployment,
         tokenId: token.id,
+        tokenType,
         action: "retrieve",
         ...body,
         ip: clientIp(req),

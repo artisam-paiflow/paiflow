@@ -1,4 +1,5 @@
 import "server-only";
+import { signedTokenAttribution, type ApiTokenType } from "@/lib/api/v1/auth";
 import type { Deployment } from "@prisma/client";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
@@ -24,6 +25,7 @@ import type { TransactionStatus } from "./schema";
 export async function submitControlIntent(input: {
   deployment: Deployment;
   tokenId: string;
+  tokenType?: ApiTokenType;
   action: WalletControlAction;
   intent: string;
   signedXdr: string;
@@ -57,7 +59,7 @@ export async function submitControlIntent(input: {
         kind: "INVOKE",
         network: env().STELLAR_NETWORK,
         deploymentId: input.deployment.id,
-        apiTokenId: input.tokenId,
+        ...signedTokenAttribution(input),
         ip: input.ip,
       });
       if (!row) throw new AppError("INTERNAL", "Cannot record wallet-control signer");
@@ -75,6 +77,7 @@ export async function submitControlIntent(input: {
             method: input.action,
             signerAddress: intent.walletAddress,
             tokenId: input.tokenId,
+            tokenType: input.tokenType ?? "deployment_token",
           },
         },
       });
