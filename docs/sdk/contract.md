@@ -1,8 +1,9 @@
 # Node SDK contract and endpoint coverage
 
 Implementation contract originating in [#954](https://github.com/webnxt-2030/pinkraft/issues/954), under
-[#953](https://github.com/webnxt-2030/pinkraft/issues/953). The Node package implements this surface. Beta `0.1.0` is published; this checkout
-prepares beta `0.2.0` with developer credentials and discovery, pending publication.
+[#953](https://github.com/webnxt-2030/pinkraft/issues/953). The Node package implements this surface. Beta `0.2.0` provides
+developer credentials and scoped deployment discovery; see the
+[release record](release-checklist.md) for registry availability.
 Local SDK tests do not establish hosted availability. See the
 [quickstart and migration guide](quickstart.md) for compiled examples.
 
@@ -18,7 +19,7 @@ actual handlers. The original contract used `testing` baseline `e803520c`
 (2026-10-13); the current matrix includes developer-token work merged into `develop`.
 
 Use `packages/sdk`, with independent package metadata, declarations, exports,
-build configuration, changelog and tests. Prepare beta `0.2.0` under
+build configuration, changelog and tests. SDK beta `0.2.0` follows the
 [release policy](../releasing.md); SDK versions do not match app versions. Declare
 compatibility with API v1 and the explicitly listed unversioned routes.
 
@@ -167,8 +168,9 @@ The final yielded cursor permits explicit continuation after the cap; completion
 at the cap does not prove the entire scope was read. Cancellation throws
 `PaiflowAbortError`; each request retains metadata and its own timeout, with no retries.
 Responses parse from unknown, tolerate additive fields and cap items at 100.
-These compatible additions are included in the `0.2.0` beta release candidate.
-Publication is pending; `0.1.0` does not contain them. Hosted support must be checked separately against the configured backend.
+These compatible additions are provided by SDK beta `0.2.0`; `0.1.0` does not
+contain them. They require a backend implementing OpenAPI revision `1.1.0`.
+Hosted support must be checked separately against the configured backend.
 
 Webhooks require a separate `webhookSecret` in each call’s options; it is
 never inherited from the client token. The safe `webhook.trigger` requires

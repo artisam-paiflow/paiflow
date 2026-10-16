@@ -1,11 +1,9 @@
 # TypeScript SDK quickstart and API migration
 
-For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](../api/developer-tokens.md). Developer-token support is merged into `develop` and included in the `@paiflow/sdk@0.2.0` beta release candidate. Publication is pending; registry `0.1.0` does not include these additions. Verify the configured backend supports them. Existing deployment-only integrations remain supported.
+For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](../api/developer-tokens.md). SDK `0.2.0` supports developer credentials and scoped discovery with a backend implementing OpenAPI revision `1.1.0`; SDK `0.1.0` does not include these additions. Existing deployment-only integrations remain supported. See the [SDK release record](release-checklist.md) for registry availability.
 
-`@paiflow/sdk` is a Node SDK for existing Paiflow deployments. This checkout
-prepares beta `0.2.0`, including developer credentials and scoped deployment
-discovery; publication is pending. The published `0.1.0` package does not contain
-these additions. Supports Node `>=22.22.2 <23`, ESM and TypeScript declarations;
+`@paiflow/sdk` is a Node SDK for existing Paiflow deployments. Beta `0.2.0`
+provides developer credentials and scoped deployment discovery. Supports Node `>=22.22.2 <23`, ESM and TypeScript declarations;
 CommonJS consumers can use dynamic import. SDK versions are independent of the app
 and API under the [release policy](../releasing.md).
 
@@ -25,13 +23,15 @@ Dev setters. Hackathon Dev mode remains disabled as documented in the
 
 ## Install
 
-After beta `0.2.0` is published, install the exact version:
+Registry installation (when available):
 
 ```sh
 npm install @paiflow/sdk@0.2.0
 ```
 
-Publication is pending. Until then, use the locally built candidate below.
+Use the exact version for reproducible installation; `@beta` follows the moving
+beta tag. See the [release record](release-checklist.md) for registry availability.
+You can also build and install the source artifact below.
 
 ### Build the local artifact
 

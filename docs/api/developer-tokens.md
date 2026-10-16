@@ -1,8 +1,8 @@
 # One credential for selected existing deployments
 
-Developer-token support (#1028) is merged into `develop` and included in the
-`@paiflow/sdk@0.2.0` beta release candidate. Publication is pending; the published
-`0.1.0` SDK does not include it. OpenAPI revision `1.1.0` describes this compatible
+SDK beta `0.2.0` supports developer credentials and scoped deployment discovery
+(#1028); SDK `0.1.0` does not include these additions. OpenAPI revision `1.1.0`
+describes this compatible
 addition to API v1. Check the deployed service's specification and panel before
 relying on support. A package release does not upgrade a backend or external
 starter repository. The [release policy](../releasing.md) and

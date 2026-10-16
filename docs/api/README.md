@@ -1,6 +1,6 @@
 # Developer API
 
-For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](developer-tokens.md). Developer-token support is merged into `develop` and included in the `@paiflow/sdk@0.2.0` beta release candidate. Publication is pending; registry `0.1.0` does not include these additions. Verify the configured backend supports them. Existing deployment-only integrations remain supported.
+For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](developer-tokens.md). SDK `0.2.0` supports developer credentials and scoped discovery with a backend implementing OpenAPI revision `1.1.0`; SDK `0.1.0` does not include these additions. Existing deployment-only integrations remain supported. See the [SDK release record](../sdk/release-checklist.md) for registry availability.
 
 For typed Node integrations with existing deployments, see the [local SDK quickstart](../sdk/quickstart.md).
 

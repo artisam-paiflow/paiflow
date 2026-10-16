@@ -1,13 +1,12 @@
 # @paiflow/sdk
 
-For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](https://github.com/webnxt-2030/pinkraft/blob/sdk-js-v0.2.0/docs/api/developer-tokens.md). Developer-token support is merged into `develop` and included in the `@paiflow/sdk@0.2.0` beta release candidate. Publication is pending; registry `0.1.0` does not include these additions. Verify the configured backend supports them. Existing deployment-only integrations remain supported.
+For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](https://github.com/webnxt-2030/pinkraft/blob/sdk-js-v0.2.0/docs/api/developer-tokens.md). SDK `0.2.0` supports developer credentials and scoped discovery with a backend implementing OpenAPI revision `1.1.0`; SDK `0.1.0` does not include these additions. Existing deployment-only integrations remain supported. See the [SDK release record](https://github.com/webnxt-2030/pinkraft/blob/develop/docs/sdk/release-checklist.md) for registry availability.
 
 Node SDK beta with typed deployment reads, payments, funding, Schedule
 and Subscription controls, public allowance consent, public utilities and embed
 SSE. Includes keyed/unkeyed Webhook callbacks and early release. All 43 HTTP
-operations in the current source coverage matrix are implemented. Developer token
-and deployment discovery support is included in the `0.2.0` beta release candidate;
-publication remains pending. Bounded testnet workflows have
+operations in the current source coverage matrix are implemented. SDK `0.2.0` provides developer credentials and scoped deployment discovery.
+Bounded testnet workflows have
 been verified in the [live evidence report](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/testing/2026-10-14-sdk-live-verification.md)
 and [real Swap execution report](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/testing/2026-10-15-sdk-swap-execution-982.md).
 
@@ -33,13 +32,13 @@ Package versions advance independently of the app and API versions.
 Start with the [quickstart and migration guide](https://github.com/webnxt-2030/pinkraft/blob/sdk-js-v0.2.0/docs/sdk/quickstart.md).
 The [beta validation/publication checklist](https://github.com/webnxt-2030/pinkraft/blob/sdk-js-v0.2.0/docs/sdk/release-checklist.md) records local coverage and outstanding live checks.
 
-After the `0.2.0` beta is published, install this exact version (publication is pending):
+Registry installation (when available):
 
 ```sh
 npm install @paiflow/sdk@0.2.0
 ```
 
-Until publication, build this candidate locally and install the tarball:
+For a local source build, pack and install the tarball:
 
 ```sh
 pnpm sdk:build

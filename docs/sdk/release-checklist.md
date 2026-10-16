@@ -35,6 +35,9 @@ or production backend promotion is claimed by this preparation record.
   artifacts that still carried `0.1.0` metadata. They are historical evidence,
   not registry `0.2.0` validation or a production/mainnet availability claim.
 
+Packaged documentation describes version capabilities without temporal publication
+claims; the evolving availability record stays in this repository checklist.
+
 ### Preparation validation
 
 - [x] SDK source/declaration typecheck: `pnpm sdk:typecheck`.
