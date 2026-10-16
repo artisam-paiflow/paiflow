@@ -1,5 +1,6 @@
 export interface PaiflowOptions {
   baseUrl: string;
+  /** Server-side developer (pfd_) or deployment (pfk_) credential. */
   token?: string;
   fetch?: typeof globalThis.fetch;
   timeoutMs?: number;
@@ -75,6 +76,11 @@ export class PaiflowApiError extends Error {
 const record = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 const headerValue = (value: string) => value.length > 0 && !/[\r\n\x00-\x1f\x7f]/.test(value);
+const redactCredentials = (value: string, secrets: readonly (string | undefined)[]) => {
+  let clean = value;
+  for (const secret of secrets) if (secret) clean = clean.split(secret).join("[redacted]");
+  return clean.replace(/(?:pfk|pfd)_[A-Za-z0-9_-]+/g, "[redacted]");
+};
 const duration = (value: number) => {
   if (!Number.isSafeInteger(value) || value < 1 || value > 2147483647)
     throw new TypeError("Invalid timeoutMs");
@@ -103,9 +109,10 @@ export class PaiflowTransport {
     this.origin = base.origin;
     if (
       options.token !== undefined &&
-      (!headerValue(options.token) || !/^pfk_[A-Za-z0-9_-]+$/.test(options.token))
+      (!headerValue(options.token) ||
+        !/^(?:pfk_[A-Za-z0-9_-]+|pfd_[0-9a-f]{64})$/.test(options.token))
     )
-      throw new TypeError("Invalid deployment token");
+      throw new TypeError("Invalid API token");
     this.#token = options.token;
     this.#fetch = options.fetch ?? globalThis.fetch;
     this.#timeout = duration(options.timeoutMs ?? 30000);
@@ -119,6 +126,7 @@ export class PaiflowTransport {
       throw new TypeError("Invalid API path");
     if (
       request.auth.kind === "token" &&
+      !(request.method === "GET" && request.path === "/api/v1/deployments") &&
       !/^\/api\/v1\/deployments\/[A-Za-z0-9_-]+\//.test(request.path)
     )
       throw new TypeError("Token authentication requires a partner deployment route");
@@ -138,7 +146,7 @@ export class PaiflowTransport {
     }
     const headers = new Headers({ Accept: "application/json", "Content-Type": "application/json" });
     if (request.auth.kind === "token") {
-      if (!this.#token) throw new TypeError("Deployment token required");
+      if (!this.#token) throw new TypeError("API token required");
       headers.set("Authorization", `Bearer ${this.#token}`);
     } else if (request.auth.kind === "webhook") {
       if (!headerValue(request.auth.secret)) throw new TypeError("Invalid webhook secret");
@@ -194,15 +202,13 @@ export class PaiflowTransport {
     const sanitize = (value: unknown, depth = 0): unknown => {
       if (depth > 12) return "[redacted]";
       if (typeof value === "string") {
-        let clean = value;
-        for (const secret of secrets) if (secret) clean = clean.split(secret).join("[redacted]");
-        return clean.replace(/pfk_[A-Za-z0-9_-]+/g, "[redacted]");
+        return redactCredentials(value, secrets);
       }
       if (Array.isArray(value)) return value.map((child) => sanitize(child, depth + 1));
       if (record(value))
         return Object.fromEntries(
           Object.entries(value).map(([key, child]) => [
-            key,
+            redactCredentials(key, secrets),
             sensitive(key, child) ? "[redacted]" : sanitize(child, depth + 1),
           ]),
         );
@@ -254,7 +260,7 @@ export class PaiflowTransport {
           ["retryAfter", "retry-after"],
         ] as const) {
           const value = response.headers.get(name);
-          if (value !== null) metadata[key] = value;
+          if (value !== null) metadata[key] = redactCredentials(value, secrets);
         }
         if (response.redirected || (response.url && new URL(response.url).origin !== this.origin)) {
           void response.body?.cancel().catch(() => {});
@@ -404,7 +410,7 @@ export class PaiflowTransport {
         ["retryAfter", "retry-after"],
       ] as const) {
         const value = response.headers.get(name);
-        if (value !== null) metadata[key] = value;
+        if (value !== null) metadata[key] = redactCredentials(value, [this.#token]);
       }
       if (response.redirected || (response.url && new URL(response.url).origin !== this.origin)) {
         void response.body?.cancel().catch(() => {});

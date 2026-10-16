@@ -4,7 +4,7 @@ import { V1_RATE_LIMITS } from "@/lib/api/v1/limits";
 import { ScheduleStateQuerySchema, scheduleState } from "@/lib/api/v1/schedule";
 export const dynamic = "force-dynamic";
 export const GET = v1Route(
-  { rateLimit: V1_RATE_LIMITS.scheduleState },
+  { operation: "GET schedule/state", rateLimit: V1_RATE_LIMITS.scheduleState },
   async ({ req, deployment }) => {
     const query = ScheduleStateQuerySchema.parse(Object.fromEntries(new URL(req.url).searchParams));
     return NextResponse.json(

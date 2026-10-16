@@ -5,6 +5,19 @@ SDK versions are independent of the app and API. Follow the repository release
 
 ## [Unreleased]
 
+### Added
+
+- Document selected-deployment developer credentials, owner-session management and safe recovery; add a two-deployment server example with separate wallet consent and packed-consumer validation (#1033).
+
+- Developer credentials (`pfd_`) for one Node client across explicitly selected
+  deployments, alongside existing `pfk_` credentials. Typed `deployments.list`
+  and bounded `deployments.pages` discover the current authorized scope (#1032).
+
+### Security
+
+- Redact developer credentials in error bodies, keys and response metadata;
+  retain public/demo/embed/webhook bearer isolation and disabled redirects (#1032).
+
 ## [0.1.0] - 2026-10-15
 
 First beta: targets API v1 and the explicitly documented public/Webhook routes

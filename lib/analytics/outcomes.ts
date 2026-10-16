@@ -186,7 +186,11 @@ export async function recordTransactionOutcome(
           key: `${row.network}:outcome:${row.txHash}:${outcomeRevision}`,
           distinctId:
             row.userId ??
-            (row.apiTokenId ? `api:${row.apiTokenId}` : `wallet:${row.signerAddress}`),
+            (row.apiTokenId
+              ? `api:${row.apiTokenId}`
+              : row.developerApiTokenId
+                ? `developer-api:${row.developerApiTokenId}`
+                : `wallet:${row.signerAddress}`),
           name: "transaction_outcome",
           properties: {
             deployment_id: row.deploymentId,
@@ -209,7 +213,13 @@ export async function recordTransactionOutcome(
           context: {
             audience: row.audience,
             account_id: row.callerAccountId ?? "",
-            caller_type: row.userId ? "session" : row.apiTokenId ? "api" : "wallet",
+            caller_type: row.userId
+              ? "session"
+              : row.apiTokenId
+                ? "api"
+                : row.developerApiTokenId
+                  ? "developer_token"
+                  : "wallet",
             stellar_network: row.network,
             app_env: env().NEXT_PUBLIC_APP_ENV,
             app_version: process.env.NEXT_PUBLIC_APP_VERSION ?? "dev",

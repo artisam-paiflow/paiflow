@@ -410,6 +410,7 @@ describe("POST …/execute (prepare)", () => {
         metadata: {
           deploymentId: DEPLOYMENT_ID,
           tokenId: token.id,
+          tokenType: "deployment_token",
           from: FROM,
           amount: "10000000",
         },
@@ -707,12 +708,14 @@ describe("POST …/execute/submit", () => {
     expect(vi.mocked(audit).mock.calls[0]![0].metadata).toEqual({
       deploymentId: DEPLOYMENT_ID,
       tokenId: token.id,
+      tokenType: "deployment_token",
       txHash,
       signerAddress: signer.publicKey(),
     });
     expect(vi.mocked(audit).mock.calls[1]![0].metadata).toEqual({
       deploymentId: DEPLOYMENT_ID,
       tokenId: token.id,
+      tokenType: "deployment_token",
       txHash,
       signerAddress: signer.publicKey(),
       ledger: 4242,

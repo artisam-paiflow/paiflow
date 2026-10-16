@@ -1,4 +1,5 @@
 import "server-only";
+import type { ApiTokenType } from "@/lib/api/v1/auth";
 import type { Deployment } from "@prisma/client";
 import { AppError } from "@/lib/errors";
 import { stellarPassphrase } from "@/lib/env";
@@ -115,6 +116,7 @@ export async function submitSubscriptionControl(input: {
   intent: string;
   signedXdr: string;
   tokenId: string;
+  tokenType?: ApiTokenType;
   req: Parameters<typeof clientIp>[0];
 }) {
   // A valid signed retry uses durable finality even after cancellation/configuration changed.

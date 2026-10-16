@@ -5,6 +5,8 @@ const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  // Requires its own guarded fixture database and secret-safe artifact settings.
+  testIgnore: "**/developer-tokens-local.spec.ts",
   timeout: 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
