@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requirePageSession } from "@/lib/auth";
 import { googleErrorMessage } from "@/lib/auth/google-messages";
 import { db } from "@/lib/db";
@@ -85,6 +86,20 @@ export default async function Account({
                 <GoogleButton link authOrigin={new URL(env().AUTH_URL).origin} />
               </>
             )}
+          </section>
+        ) : null}
+        {user.role !== "SANDBOX" ? (
+          <section className="glass-panel mt-md p-md rounded-xl">
+            <h2 className="text-on-surface">Developer API</h2>
+            <p className="text-on-surface-muted mt-2">
+              Connect your backend to selected existing deployments with one API token.
+            </p>
+            <Link
+              href="/account/developer"
+              className="text-primary mt-2 inline-block min-h-11 py-2 underline"
+            >
+              Manage developer tokens
+            </Link>
           </section>
         ) : null}
         <PasskeyManager />
