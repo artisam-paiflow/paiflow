@@ -115,6 +115,12 @@ export default function DeployReview({
       const outcome = await pollTxStatus(saved.deploymentId, saved.txHash);
       if (outcome.status !== "SUCCESS" && outcome.status !== "FAILED")
         throw new Error("Deployment finality is unknown.");
+      const response = await fetch(`/api/deployments/${saved.deploymentId}/status`);
+      if (!response.ok) throw new Error("Deployment bookkeeping is unavailable.");
+      const stored: { status?: string; txHash?: string } = await response.json();
+      const expected = outcome.status === "SUCCESS" ? "CONFIRMED" : "FAILED";
+      if (stored.status !== expected || stored.txHash !== saved.txHash)
+        throw new Error("Deployment bookkeeping is not reconciled.");
       clearPendingDeploy(pendingKey, saved);
       if (!current()) return;
       if (outcome.status === "SUCCESS") {

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { isUuid } from "@/lib/api/v1/handler";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { reconcileOwnerDeployment } from "@/lib/deployments/reconcile-owner-deployment";
 import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -19,11 +20,18 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
     await enforceWriteRateLimit("deploymentStatus", `${user.id}:${id}`);
     const deployment = await db.deployment.findFirst({
       where: { id, ownerId: user.id },
-      select: { status: true },
+      include: { flow: { select: { templateKind: true } } },
     });
     if (!deployment) throw new AppError("NOT_FOUND", "Deployment not found");
 
-    return new Response(JSON.stringify({ status: deployment.status }), {
+    await reconcileOwnerDeployment(deployment);
+    const current = await db.deployment.findFirst({
+      where: { id, ownerId: user.id },
+      select: { status: true, deployTxHash: true },
+    });
+    if (!current) throw new AppError("NOT_FOUND", "Deployment not found");
+
+    return new Response(JSON.stringify({ status: current.status, txHash: current.deployTxHash }), {
       headers: { "Content-Type": "application/json" },
     });
   });

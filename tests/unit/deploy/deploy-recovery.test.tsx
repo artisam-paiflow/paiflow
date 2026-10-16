@@ -50,6 +50,9 @@ function prepared() {
     }),
   };
 }
+function ownerStatus(status = "FAILED", txHash = HASH) {
+  return { ok: true, json: async () => ({ status, txHash }) };
+}
 function deploy() {
   return screen.getByRole("button", { name: /deploy to testnet/i }) as HTMLButtonElement;
 }
@@ -78,7 +81,11 @@ beforeEach(() => {
   mocks.hash.mockReturnValue(HASH);
   mocks.poll.mockRejectedValue(new Error("Finality unknown"));
   mocks.fetch.mockImplementation(async (url: string) =>
-    url.endsWith("/prepare") ? prepared() : Promise.reject(new Error("Response lost")),
+    url.endsWith("/prepare")
+      ? prepared()
+      : url.endsWith("/status")
+        ? ownerStatus()
+        : Promise.reject(new Error("Response lost")),
   );
 });
 afterEach(() => {
@@ -162,7 +169,7 @@ describe("deployment submission recovery", () => {
     mocks.poll.mockResolvedValue({ status: "FAILED" });
     fireEvent.click(screen.getByRole("button", { name: "CHECK DEPLOYMENT STATUS" }));
     await waitFor(() => expect(localStorage.getItem(KEY)).toBeNull());
-    expect(mocks.fetch).not.toHaveBeenCalled();
+    expect(mocks.fetch).toHaveBeenCalledExactlyOnceWith(`/api/deployments/${DEPLOYMENT}/status`);
     expect(mocks.sign).not.toHaveBeenCalled();
   });
   it("post-dispatch flow changes suppress old UI but retain and reconcile the captured deployment", async () => {
@@ -170,7 +177,11 @@ describe("deployment submission recovery", () => {
     const response = deferred<ReturnType<typeof prepared>>();
     mocks.poll.mockReturnValue(outcome.promise);
     mocks.fetch.mockImplementation(async (url: string) =>
-      url.endsWith("/prepare") ? prepared() : response.promise,
+      url.endsWith("/prepare")
+        ? prepared()
+        : url.endsWith("/status")
+          ? ownerStatus()
+          : response.promise,
     );
     const view = render(<DeployReview {...props} />);
     await click();
@@ -180,7 +191,7 @@ describe("deployment submission recovery", () => {
     await act(async () => outcome.resolve({ status: "FAILED" }));
     expect(localStorage.getItem(KEY)).toBeNull();
     expect(mocks.error).not.toHaveBeenCalled();
-    expect(mocks.fetch).toHaveBeenCalledTimes(2);
+    expect(mocks.fetch).toHaveBeenCalledTimes(3);
     response.resolve(prepared());
   });
   it("releases an empty lock after pre-dispatch cancellation while ignoring a late signature", async () => {
@@ -200,11 +211,59 @@ describe("deployment submission recovery", () => {
   it("accepts authoritative success during recovery without repeating a write", async () => {
     localStorage.setItem(KEY, JSON.stringify({ deploymentId: DEPLOYMENT, txHash: HASH }));
     mocks.poll.mockResolvedValue({ status: "SUCCESS" });
+    mocks.fetch.mockResolvedValue(ownerStatus("CONFIRMED"));
     render(<DeployReview {...props} />);
     await waitFor(() => expect(localStorage.getItem(KEY)).toBeNull());
     expect(screen.getByRole("status").textContent).toContain("Deployment confirmed");
-    expect(mocks.fetch).not.toHaveBeenCalled();
+    expect(mocks.fetch).toHaveBeenCalledExactlyOnceWith(`/api/deployments/${DEPLOYMENT}/status`);
     expect(mocks.sign).not.toHaveBeenCalled();
+  });
+  it.each(["SUBMITTED", "FAILED", "wrong-hash", "unavailable"])(
+    "keeps the marker when chain succeeded but owner bookkeeping is %s",
+    async (kind) => {
+      localStorage.setItem(KEY, JSON.stringify({ deploymentId: DEPLOYMENT, txHash: HASH }));
+      mocks.poll.mockResolvedValue({ status: "SUCCESS" });
+      mocks.fetch.mockResolvedValue(
+        kind === "unavailable"
+          ? { ok: false }
+          : ownerStatus(
+              kind === "wrong-hash" ? "CONFIRMED" : kind,
+              kind === "wrong-hash" ? "b".repeat(64) : HASH,
+            ),
+      );
+      render(<DeployReview {...props} />);
+      await waitFor(() =>
+        expect(screen.getByRole("status").textContent).toContain("still unknown"),
+      );
+      expect(localStorage.getItem(KEY)).not.toBeNull();
+      expect(deploy().disabled).toBe(true);
+      expect(mocks.sign).not.toHaveBeenCalled();
+      expect(mocks.fetch).toHaveBeenCalledExactlyOnceWith(`/api/deployments/${DEPLOYMENT}/status`);
+    },
+  );
+  it("recovers a submit HTTP500 through owner confirmation without another prepare/sign/submit", async () => {
+    mocks.poll.mockResolvedValue({ status: "SUCCESS" });
+    mocks.fetch.mockImplementation(async (url: string) =>
+      url.endsWith("/prepare")
+        ? prepared()
+        : url.endsWith("/submit")
+          ? { ok: false, status: 500 }
+          : ownerStatus("SUBMITTED"),
+    );
+    render(<DeployReview {...props} />);
+    await click();
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("still unknown"));
+    expect(localStorage.getItem(KEY)).not.toBeNull();
+    mocks.fetch.mockResolvedValue(ownerStatus("CONFIRMED"));
+    fireEvent.click(screen.getByRole("button", { name: "CHECK DEPLOYMENT STATUS" }));
+    await waitFor(() => expect(localStorage.getItem(KEY)).toBeNull());
+    expect(mocks.sign).toHaveBeenCalledOnce();
+    expect(mocks.fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/deployments/prepare",
+      `/api/deployments/${DEPLOYMENT}/submit`,
+      `/api/deployments/${DEPLOYMENT}/status`,
+      `/api/deployments/${DEPLOYMENT}/status`,
+    ]);
   });
   it("retains corrupt status instead of silently allowing a fresh deployment", () => {
     localStorage.setItem(KEY, "corrupt");
