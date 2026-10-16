@@ -1,13 +1,12 @@
 # @paiflow/sdk
 
-For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](https://github.com/webnxt-2030/pinkraft/blob/c3c2a27bcd378df357841bef9993620907a0a4cd/docs/api/developer-tokens.md). Support is on the `dev-token` integration branch; verify hosted availability separately. These SDK additions are Unreleased source and are not published by this work; do not assume registry 0.1.0 includes them. Existing deployment-only integrations remain supported.
+For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](https://github.com/webnxt-2030/pinkraft/blob/sdk-js-v0.2.0/docs/api/developer-tokens.md). SDK `0.2.0` supports developer credentials and scoped discovery with a backend implementing OpenAPI revision `1.1.0`; SDK `0.1.0` does not include these additions. Existing deployment-only integrations remain supported. See the [SDK release record](https://github.com/webnxt-2030/pinkraft/blob/develop/docs/sdk/release-checklist.md) for registry availability.
 
 Node SDK beta with typed deployment reads, payments, funding, Schedule
 and Subscription controls, public allowance consent, public utilities and embed
 SSE. Includes keyed/unkeyed Webhook callbacks and early release. All 43 HTTP
-operations in the current source coverage matrix are implemented. Developer token
-and deployment discovery support is unreleased and locally verified only; it is
-not evidence of a published artifact containing this addition. Bounded testnet workflows have
+operations in the current source coverage matrix are implemented. SDK `0.2.0` provides developer credentials and scoped deployment discovery.
+Bounded testnet workflows have
 been verified in the [live evidence report](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/testing/2026-10-14-sdk-live-verification.md)
 and [real Swap execution report](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/testing/2026-10-15-sdk-swap-execution-982.md).
 
@@ -17,21 +16,26 @@ fee was 51.6198331 testnet XLM, including 51.6169576 XLM rent. A later unsigned
 estimate was lower; it was not another execution or a guarantee of future fees.
 Testing demo-token minting is disabled, and unattended scheduling was not established.
 
+Developer credentials and discovery require a backend implementing OpenAPI revision
+`1.1.0`; verify its deployed specification and capabilities before use. The
+[hosted testing report](https://github.com/webnxt-2030/pinkraft/blob/sdk-js-v0.2.0/docs/verification/developer-tokens-hosted-verification-2026-10-16.md)
+records bounded testnet evidence, not production/mainnet availability.
+
 The SDK covers existing-deployment user APIs: API v1 and the explicitly
-listed unversioned routes in [the SDK contract](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/sdk/contract.md).
+listed unversioned routes in [the SDK contract](https://github.com/webnxt-2030/pinkraft/blob/sdk-js-v0.2.0/docs/sdk/contract.md).
 It does not create or deploy flows.
 
 Supported runtime: Node `>=22.22.2 <23`. Output is ESM with TypeScript declarations;
 CommonJS consumers can use dynamic import. There are no runtime dependencies.
 Package versions advance independently of the app and API versions.
 
-Start with the [quickstart and migration guide](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/sdk/quickstart.md).
-The [beta validation/publication checklist](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/sdk/release-checklist.md) records local coverage and outstanding live checks.
+Start with the [quickstart and migration guide](https://github.com/webnxt-2030/pinkraft/blob/sdk-js-v0.2.0/docs/sdk/quickstart.md).
+The [beta validation/publication checklist](https://github.com/webnxt-2030/pinkraft/blob/sdk-js-v0.2.0/docs/sdk/release-checklist.md) records local coverage and outstanding live checks.
 
-For registry installation of the beta release:
+Registry installation (when available):
 
 ```sh
-npm install @paiflow/sdk@0.1.0
+npm install @paiflow/sdk@0.2.0
 ```
 
 For a local source build, pack and install the tarball:
@@ -41,7 +45,7 @@ pnpm sdk:build
 mkdir -p /tmp/paiflow-sdk-artifacts
 npm pack ./packages/sdk --ignore-scripts --pack-destination /tmp/paiflow-sdk-artifacts
 # In your Node ESM consumer (use the actual emitted filename):
-npm install /tmp/paiflow-sdk-artifacts/paiflow-sdk-0.1.0.tgz
+npm install /tmp/paiflow-sdk-artifacts/paiflow-sdk-0.2.0.tgz
 ```
 
 From the repository root, after installing root development dependencies:
@@ -54,7 +58,7 @@ pnpm sdk:test:package
 ```
 
 The package uses the repository's existing TypeScript compiler without inheriting
-its Next.js configuration. No pnpm workspace is introduced. Artifact validation also compiles and runs the [consumer examples](https://github.com/webnxt-2030/pinkraft/tree/71e9326b62d18bf9366ffbf0564fdd62847c3af6/packages/sdk/examples)
+its Next.js configuration. No pnpm workspace is introduced. Artifact validation also compiles and runs the [consumer examples](https://github.com/webnxt-2030/pinkraft/tree/sdk-js-v0.2.0/packages/sdk/examples)
 using the packed SDK. It packs into a temporary directory, installs that tarball into a clean consumer,
 checks ESM import and declarations, and rejects unexpected published files.
 Generated output and tarballs are ignored by Git. The package's `prepack` script
@@ -90,7 +94,7 @@ allow validated caller request IDs and UUID preparation-history correlation IDs,
 not arbitrary header overrides. Read methods validate published response fields and tolerate additive fields.
 Unknown transaction statuses are malformed; UNKNOWN and REJECTED are preserved.
 
-## Selected deployment discovery (unreleased)
+## Selected deployment discovery (0.2.0)
 
 Use one developer token (`pfd_` plus 64 lowercase hex characters) in your Node
 server to access explicitly selected existing deployments. Keep the credential out
@@ -200,7 +204,7 @@ Neither stream closure nor fallback polling establishes transaction finality.
 These features are verified against source contracts and local fixtures, not fresh
 hosted testnet transactions. Full workflow validation remains in #964.
 
-## Payments and signing (unreleased)
+## Payments and signing
 
 ```ts
 import { Paiflow, signPrepared } from "@paiflow/sdk";
@@ -262,7 +266,7 @@ PENDING. It provides no receipt reconciliation or replacement-safety evidence.
 A public submit 502 may be uncertain; never automatically create a replacement.
 Amounts are positive integer stroop strings bounded to i128; never floating point.
 
-## Funding (unreleased)
+## Funding
 
 Funding supports deployed STREAMER Schedule and WEBHOOK pool nodes. These calls
 add funds only; they do not execute a payout, reward or Webhook callback.

@@ -5,6 +5,14 @@ SDK versions are independent of the app and API. Follow the repository release
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-16
+
+Beta release for selected-deployment developer credentials and scoped
+API v1 discovery. Requires a backend implementing OpenAPI revision `1.1.0`;
+SDK `0.1.0` does not include these additions. Existing deployment-token integrations,
+Node `>=22.22.2 <23`, ESM/declaration exports and zero runtime dependencies remain
+supported. No consumer migration is required for existing `pfk_` integrations.
+
 ### Added
 
 - Document selected-deployment developer credentials, owner-session management and safe recovery; add a two-deployment server example with separate wallet consent and packed-consumer validation (#1033).

@@ -6,12 +6,12 @@ release changes; [CLAUDE.md](../CLAUDE.md) describes the contribution workflow.
 
 ## Version ownership
 
-| Surface           | Source of truth                          | Meaning                                                                                                                                            |
-| ----------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| App release       | Root `package.json` → `version`          | A release of the Paiflow application, including its UI, backend, and bundled code. Currently `0.1.0`.                                              |
-| Public API major  | URL prefix, currently `/api/v1`          | The compatibility contract for API consumers.                                                                                                      |
-| API specification | `lib/api/v1/openapi.ts` → `info.version` | A revision of the documented API contract. Currently `1.1.0`. `openapi: "3.1.0"` identifies the specification format, not the Paiflow API version. |
-| SDK release       | Each SDK package's own version metadata  | A release of that SDK. `packages/sdk` contains an unreleased Node SDK.                                                                             |
+| Surface           | Source of truth                          | Meaning                                                                                                                                             |
+| ----------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App release       | Root `package.json` → `version`          | A release of the Paiflow application, including its UI, backend, and bundled code. Currently `0.1.0`.                                               |
+| Public API major  | URL prefix, currently `/api/v1`          | The compatibility contract for API consumers.                                                                                                       |
+| API specification | `lib/api/v1/openapi.ts` → `info.version` | A revision of the documented API contract. Currently `1.1.0`. `openapi: "3.1.0"` identifies the specification format, not the Paiflow API version.  |
+| SDK release       | Each SDK package's own version metadata  | A release of that SDK. `packages/sdk` defines Node SDK beta `0.2.0`; see the [SDK release record](sdk/release-checklist.md) for publication status. |
 
 These versions advance independently. A dashboard feature can bump the app version
 without changing the API contract or SDK. An SDK fix can ship without an app release.
@@ -75,8 +75,9 @@ Keep the newest release first, with `Unreleased` at the top. Use `Added`, `Chang
 Entries describe user or integration impact. Link issues or PRs when available.
 
 Do not invent historical release dates or infer shipped features from the current
-package version. The existing `0.1.0` is the starting metadata value; this policy
-does not establish a historical release or a deployment claim.
+package version. The app’s `0.1.0` is its starting metadata value; SDK publication
+has a separate record in the [SDK release checklist](sdk/release-checklist.md).
+This policy does not establish a historical app release or a deployment claim.
 
 ## App release checklist
 
