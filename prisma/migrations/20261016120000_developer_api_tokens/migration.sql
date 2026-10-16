@@ -54,4 +54,3 @@ ALTER TABLE "DeveloperTokenGrant" ADD CONSTRAINT "DeveloperTokenGrant_deployment
 
 -- AddForeignKey
 ALTER TABLE "SignedTransaction" ADD CONSTRAINT "SignedTransaction_developerApiTokenId_fkey" FOREIGN KEY ("developerApiTokenId") REFERENCES "DeveloperApiToken"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
