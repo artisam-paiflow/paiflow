@@ -7,6 +7,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Record Lantern’s reported desktop API/build readiness, artifact and executable-fixture
+  gates, error/recovery acceptance, and completed scanner-fixture handoff; keep the
+  provisional adapter disabled until the real module and extension are verified (#1001).
+
 - Recover wallet deployments after an RPC timeout through authenticated owner status checks; retain pending recovery until the matching deployment is confirmed in the app. (#1000, #1003)
 
 - Isolate shared wallet signing from deprecated payroll recovery names while retaining
