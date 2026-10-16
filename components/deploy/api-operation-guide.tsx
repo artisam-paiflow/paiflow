@@ -38,7 +38,7 @@ const OPERATION_LABELS = {
 } satisfies Record<keyof DeploymentCapabilities["operations"], string>;
 
 const AUTH_LABELS = {
-  deployment_token: "Deployment API token",
+  deployment_token: "API token",
   webhook_secret: "Webhook secret",
   subscriber_wallet: "Subscriber wallet",
 };
@@ -62,7 +62,9 @@ export default function ApiOperationGuide({
   webhookSecret,
   origin,
   copy,
+  view,
 }: {
+  view: "quickstart" | "credentials" | "reference";
   deploymentId: string;
   capabilities: DeploymentCapabilities | null;
   webhookSecret: string | null;
@@ -70,6 +72,7 @@ export default function ApiOperationGuide({
   copy: (value: string) => Promise<void>;
 }) {
   const [secretVisible, setSecretVisible] = useState(false);
+  const [recipe, setRecipe] = useState("events");
   if (!capabilities) {
     return (
       <p className="text-label-md text-on-surface-variant mt-md">
@@ -81,80 +84,125 @@ export default function ApiOperationGuide({
   const webhookUrl = `${origin}/api/webhooks/${deploymentId}`;
   const webhookEnabled = capabilities.operations.webhook.status === "supported";
   const webhookExample = `curl -X POST '${webhookUrl}' \\\n  -H 'x-webhook-secret: YOUR_WEBHOOK_SECRET' \\\n  -H 'Idempotency-Key: reward-event-123' \\\n  -H 'Content-Type: application/json' \\\n  -d '{"escrow":true,"amount":"10000000"}'`;
-  const tokenExample = deploymentTokenExample(deploymentId, capabilities, origin, "YOUR_API_TOKEN");
+  const tokenExample =
+    recipe === "payment"
+      ? deploymentTokenExample(deploymentId, capabilities, origin, "YOUR_API_TOKEN")
+      : `curl '${origin}/api/v1/deployments/${deploymentId}/events' \\\n  -H 'Authorization: Bearer YOUR_API_TOKEN'`;
   const supported = (Object.keys(OPERATION_LABELS) as Array<keyof typeof OPERATION_LABELS>).filter(
     (key) => capabilities.operations[key].status !== "unsupported",
   );
   return (
     <div className="mt-md space-y-4" data-testid="api-operation-guide">
-      <p className="text-body-md text-on-surface">{TRIGGER_GUIDANCE[capabilities.triggerType]}</p>
-      <p className="text-label-sm text-on-surface-variant">
-        These operations reflect the deployment snapshot. Balances, consent and current readiness
-        are checked when you use them. Event collection can lag; a missing event or UNKNOWN
-        transaction status does not prove failure.
-      </p>
-      {webhookEnabled && (
-        <div className="border-outline-variant/30 rounded-lg border p-3">
-          <h3 className="text-label-md text-on-surface font-semibold">Webhook callback</h3>
-          <p className="text-label-sm text-on-surface-variant mt-1">
-            Authenticate with x-webhook-secret. A deployment API token cannot authorize this
-            callback.
-          </p>
-          <div className="mt-3 min-w-0">
-            <span className="text-label-sm text-on-surface-variant">Webhook URL</span>
-            <div className="mt-1 flex items-start gap-2">
-              <code className="text-on-surface min-w-0 flex-1 text-sm break-all">{webhookUrl}</code>
-              <button
-                type="button"
-                onClick={() => void copy(webhookUrl)}
-                className="text-primary shrink-0 text-sm"
-              >
-                Copy URL
-              </button>
-            </div>
-          </div>
-          {webhookSecret ? (
-            <div className="ph-no-capture mt-3" data-testid="webhook-secret">
-              <span className="text-label-sm text-on-surface-variant">Webhook secret</span>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                <code className="text-on-surface min-w-0 basis-full text-sm break-all sm:flex-1 sm:basis-0">
-                  {secretVisible ? webhookSecret : "••••••••••••••••"}
-                </code>
-                <button
-                  type="button"
-                  onClick={() => setSecretVisible(!secretVisible)}
-                  aria-expanded={secretVisible}
-                  className="text-primary text-sm"
-                >
-                  {secretVisible ? "Hide secret" : "Show secret"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void copy(webhookSecret)}
-                  className="text-primary text-sm"
-                >
-                  Copy secret
-                </button>
-              </div>
-            </div>
-          ) : null}
-          <p className="text-label-sm text-on-surface-variant mt-3">
-            Fund the reward pool first using the deployment overview. This example requests one unit
-            of the input asset: amount is in stroops (10000000 is one unit). Set it to your intended
-            reward amount; omitting amount or using "0" releases the entire available pool.
-            Non-escrow callbacks require the source account’s signed authorization.
-          </p>
-          <CodeExample label="Escrow reward callback" value={webhookExample} copy={copy} />
-          <p className="text-label-sm text-on-surface-variant mt-3">
-            Replace the secret placeholder and use a unique key for each application event. Retry
-            the same event with the same key and payload. A changed payload returns a conflict;
-            unkeyed callbacks can each pay again. For PENDING or UNKNOWN, keep the original key and
-            check the original transaction hash when available. An interrupted preparation can
-            remain UNKNOWN without a hash and need operator investigation.
-          </p>
-        </div>
+      {view === "quickstart" && (
+        <>
+          <label className="text-on-surface-variant grid gap-2 text-sm">
+            Example
+            <select
+              value={recipe}
+              onChange={(event) => setRecipe(event.target.value)}
+              className="border-outline-variant/40 bg-surface-container-lowest text-on-surface w-full rounded-lg border p-3 sm:max-w-[24rem]"
+            >
+              <option value="events">Read payment events</option>
+              {capabilities.operations.execute.status === "supported" && (
+                <option value="payment">Prepare a payment</option>
+              )}
+              {webhookEnabled && <option value="webhook">Trigger a webhook</option>}
+              {capabilities.operations.subscriptionAllowance.status !== "unsupported" && (
+                <option value="subscription">Set up a subscription allowance</option>
+              )}
+            </select>
+          </label>
+          {recipe !== "events" && (
+            <p className="text-body-md text-on-surface">
+              {TRIGGER_GUIDANCE[capabilities.triggerType]}
+            </p>
+          )}
+        </>
       )}
-      {capabilities.operations.subscriptionAllowance.status !== "unsupported" && (
+      {view === "reference" && (
+        <p className="text-label-sm text-on-surface-variant">
+          These operations reflect the deployment snapshot. Balances, consent and current readiness
+          are checked when you use them. Event collection can lag; a missing event or UNKNOWN
+          transaction status does not prove failure.
+        </p>
+      )}
+      {webhookEnabled &&
+        (view === "credentials" || (view === "quickstart" && recipe === "webhook")) && (
+          <div className="border-outline-variant/30 rounded-lg border p-3">
+            <h3 className="text-label-md text-on-surface font-semibold">Webhook callback</h3>
+            <p className="text-label-sm text-on-surface-variant mt-1">
+              Authenticate with x-webhook-secret. An API token cannot authorize this callback.
+            </p>
+            {view === "credentials" && (
+              <>
+                <div className="mt-3 min-w-0">
+                  <span className="text-label-sm text-on-surface-variant">Webhook URL</span>
+                  <div className="mt-1 flex items-start gap-2">
+                    <code className="text-on-surface min-w-0 flex-1 text-sm break-all">
+                      {webhookUrl}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => void copy(webhookUrl)}
+                      className="text-primary shrink-0 text-sm"
+                    >
+                      Copy URL
+                    </button>
+                  </div>
+                </div>
+                {webhookSecret ? (
+                  <div className="ph-no-capture mt-3" data-testid="webhook-secret">
+                    <span className="text-label-sm text-on-surface-variant">Webhook secret</span>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <code className="text-on-surface min-w-0 basis-full text-sm break-all sm:flex-1 sm:basis-0">
+                        {secretVisible ? webhookSecret : "••••••••••••••••"}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => setSecretVisible(!secretVisible)}
+                        aria-expanded={secretVisible}
+                        className="text-primary text-sm"
+                      >
+                        {secretVisible ? "Hide secret" : "Show secret"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void copy(webhookSecret)}
+                        className="text-primary text-sm"
+                      >
+                        Copy secret
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </>
+            )}
+            {view === "quickstart" && (
+              <>
+                <p className="text-on-surface-variant mt-2 text-sm">
+                  Find the callback URL and secret in Credentials.
+                </p>
+                <p className="text-label-sm text-on-surface-variant mt-3">
+                  Fund the reward pool first using the deployment overview. This example requests
+                  one unit of the input asset: amount is in stroops (10000000 is one unit). Set it
+                  to your intended reward amount; omitting amount or using "0" releases the entire
+                  available pool. Non-escrow callbacks require the source account’s signed
+                  authorization.
+                </p>
+                <CodeExample label="Escrow reward callback" value={webhookExample} copy={copy} />
+                <p className="text-label-sm text-on-surface-variant mt-3">
+                  Replace the secret placeholder and use a unique key for each application event.
+                  Retry the same event with the same key and payload. A changed payload returns a
+                  conflict; unkeyed callbacks can each pay again. For PENDING or UNKNOWN, keep the
+                  original key and check the original transaction hash when available. An
+                  interrupted preparation can remain UNKNOWN without a hash and need operator
+                  investigation.
+                </p>
+              </>
+            )}
+          </div>
+        )}
+      {view === "quickstart" && recipe === "subscription" && (
         <a
           href={`/allowance/${deploymentId}`}
           className="text-primary inline-block text-sm underline"
@@ -162,16 +210,14 @@ export default function ApiOperationGuide({
           Open subscriber allowance approval
         </a>
       )}
-      <CodeExample
-        label={
-          capabilities.operations.execute.status === "supported"
-            ? "Prepare a payment"
-            : "Read payment events"
-        }
-        value={tokenExample}
-        copy={copy}
-      />
-      {capabilities.operations.execute.status === "supported" && (
+      {view === "quickstart" && (recipe === "events" || recipe === "payment") && (
+        <CodeExample
+          label={recipe === "payment" ? "Prepare a payment" : "Read payment events"}
+          value={tokenExample}
+          copy={copy}
+        />
+      )}
+      {view === "quickstart" && recipe === "payment" && (
         <p className="text-label-sm text-on-surface-variant">
           Replace the wallet placeholder. Amount is in stroops of the input asset (10000000 is one
           unit). Sign the returned XDR with that wallet using the returned network passphrase, then
@@ -180,68 +226,125 @@ export default function ApiOperationGuide({
           deployment token alone cannot sign a deposit.
         </p>
       )}
-      <div>
-        <h3 className="text-label-md text-on-surface font-semibold">Available operations</h3>
-        <div className="mt-2 space-y-2">
-          <details className="border-outline-variant/20 rounded-lg border p-3">
-            <summary className="text-on-surface cursor-pointer text-sm">
-              Read deployment capabilities · Deployment API token
-            </summary>
-            <p className="text-on-surface-variant mt-2 text-sm">
-              GET <code className="break-all">/api/v1/deployments/{deploymentId}/capabilities</code>{" "}
-              to discover supported operations and prerequisites from your backend. This reads the
-              deployment snapshot and does not verify live readiness or return credentials.
-            </p>
-          </details>
-          {supported.map((key) => {
-            const operation = capabilities.operations[key];
-            return (
-              <details key={key} className="border-outline-variant/20 rounded-lg border p-3">
-                <summary className="text-on-surface cursor-pointer text-sm">
-                  {OPERATION_LABELS[key]} · {AUTH_LABELS[operation.authentication]}
-                  {operation.status === "conditional" ? " · Requires eligibility checks" : ""}
-                </summary>
-                {key === "funding" && (
-                  <p className="text-on-surface-variant mt-2 text-sm">
-                    GET <code>/api/v1/deployments/{deploymentId}/funding</code> for live assets.
-                    POST to that path with nodeId, fromAddress, tokenContractAddress and
-                    amountStroops; sign the returned XDR with the funding wallet and returned
-                    network passphrase, then POST action, intent and signedXdr to{" "}
-                    <code>/funding/submit</code>. Funding adds funds only. Any consenting funder may
-                    sign. Poll transactions using the returned hash; reconcile the original intent
-                    through <code>/funding/reconcile</code>
-                    before replacing it. UNKNOWN never permits another deposit.
-                  </p>
-                )}
-                {key === "balances" && (
-                  <p className="text-on-surface-variant mt-2 text-sm">
-                    GET{" "}
-                    <code className="break-all">/api/v1/deployments/{deploymentId}/balances</code>{" "}
-                    to read held contract funds. Check freshness and totalsComplete; unknown
-                    balances are not zero. Contract balances are not Schedule payout availability or
-                    proof of a successful payment. Poll no faster than every 10 seconds.
-                  </p>
-                )}
-                {key === "transactions" && (
-                  <p className="text-on-surface-variant mt-2 text-sm">
-                    GET{" "}
-                    <code className="break-all">
-                      /api/v1/deployments/{deploymentId}/transactions/{"{txHash}"}
-                    </code>{" "}
-                    with the original transaction hash. Only transactions attributable to this
-                    deployment can be read; a 404 does not prove payment failure.
-                  </p>
-                )}
-                <ul className="text-on-surface-variant mt-2 list-disc space-y-1 pl-5 text-sm">
-                  {operation.requirements.map((requirement) => (
-                    <li key={requirement}>{requirement}</li>
-                  ))}
-                </ul>
-              </details>
-            );
-          })}
+      {view === "quickstart" && recipe === "events" && (
+        <p className="text-on-surface-variant text-sm">
+          Use a deployment token or a developer credential with access to this deployment. Event
+          collection can lag; a missing event does not prove payment failure.
+        </p>
+      )}
+      {view === "reference" && (
+        <div>
+          <h3 className="text-label-md text-on-surface font-semibold">Available operations</h3>
+          <div className="mt-2 space-y-2">
+            <details className="border-outline-variant/20 rounded-lg border p-3">
+              <summary className="text-on-surface cursor-pointer text-sm">
+                Read deployment capabilities · API token
+              </summary>
+              <p className="text-on-surface-variant mt-2 text-sm">
+                GET{" "}
+                <code className="break-all">/api/v1/deployments/{deploymentId}/capabilities</code>{" "}
+                to discover supported operations and prerequisites from your backend. This reads the
+                deployment snapshot and does not verify live readiness or return credentials.
+              </p>
+            </details>
+            {(
+              [
+                [
+                  "Read data",
+                  [
+                    "events",
+                    "balances",
+                    "transactions",
+                    "swapQuote",
+                    "scheduleState",
+                    "subscriptionState",
+                  ],
+                ],
+                ["Payments", ["execute", "funding", "payouts"]],
+                [
+                  "Flow controls",
+                  [
+                    "releaseEarly",
+                    "webhook",
+                    "subscriptionAllowance",
+                    "scheduleControls",
+                    "subscriptionCancel",
+                    "subscriptionReactivate",
+                  ],
+                ],
+              ] as const
+            ).map(([group, keys]) => {
+              const operations = supported.filter((key) => keys.some((value) => value === key));
+              return (
+                operations.length > 0 && (
+                  <section key={group} className="pt-3">
+                    <h4 className="text-on-surface-variant mb-2 text-sm font-semibold">{group}</h4>
+                    <div className="space-y-2">
+                      {operations.map((key) => {
+                        const operation = capabilities.operations[key];
+                        return (
+                          <details
+                            key={key}
+                            className="border-outline-variant/20 rounded-lg border p-3"
+                          >
+                            <summary className="text-on-surface cursor-pointer text-sm">
+                              {OPERATION_LABELS[key]} · {AUTH_LABELS[operation.authentication]}
+                              {operation.status === "conditional"
+                                ? " · Requires eligibility checks"
+                                : ""}
+                            </summary>
+                            {key === "funding" && (
+                              <p className="text-on-surface-variant mt-2 text-sm">
+                                GET <code>/api/v1/deployments/{deploymentId}/funding</code> for live
+                                assets. POST to that path with nodeId, fromAddress,
+                                tokenContractAddress and amountStroops; sign the returned XDR with
+                                the funding wallet and returned network passphrase, then POST
+                                action, intent and signedXdr to <code>/funding/submit</code>.
+                                Funding adds funds only. Any consenting funder may sign. Poll
+                                transactions using the returned hash; reconcile the original intent
+                                through <code>/funding/reconcile</code>
+                                before replacing it. UNKNOWN never permits another deposit.
+                              </p>
+                            )}
+                            {key === "balances" && (
+                              <p className="text-on-surface-variant mt-2 text-sm">
+                                GET{" "}
+                                <code className="break-all">
+                                  /api/v1/deployments/{deploymentId}/balances
+                                </code>{" "}
+                                to read held contract funds. Check freshness and totalsComplete;
+                                unknown balances are not zero. Contract balances are not Schedule
+                                payout availability or proof of a successful payment. Poll no faster
+                                than every 10 seconds.
+                              </p>
+                            )}
+                            {key === "transactions" && (
+                              <p className="text-on-surface-variant mt-2 text-sm">
+                                GET{" "}
+                                <code className="break-all">
+                                  /api/v1/deployments/{deploymentId}/transactions/{"{txHash}"}
+                                </code>{" "}
+                                with the original transaction hash. Only transactions attributable
+                                to this deployment can be read; a 404 does not prove payment
+                                failure.
+                              </p>
+                            )}
+                            <ul className="text-on-surface-variant mt-2 list-disc space-y-1 pl-5 text-sm">
+                              {operation.requirements.map((requirement) => (
+                                <li key={requirement}>{requirement}</li>
+                              ))}
+                            </ul>
+                          </details>
+                        );
+                      })}
+                    </div>
+                  </section>
+                )
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
