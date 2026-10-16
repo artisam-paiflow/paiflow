@@ -14,7 +14,7 @@ import {
   withContractCallLock,
   type PendingContractCall,
 } from "@/lib/contract-call-pending";
-import { assertNoPendingPayroll } from "@/lib/payroll-pending";
+import { assertNoPendingDeploymentRequest } from "@/lib/deployment-request-pending";
 import { readAllowancePendingHash } from "@/lib/subscription/allowance-pending";
 import { getWalletKit } from "./wallet-kit";
 import { assertWalletAttemptActive, connectSelectedWallet } from "./selected-wallet-connection";
@@ -72,7 +72,7 @@ export default function ContractCallButton({
 
   function loadPending() {
     try {
-      assertNoPendingPayroll(deploymentId, network);
+      assertNoPendingDeploymentRequest(deploymentId, network);
       const saved = readPendingContractCall(pendingKey);
       const allowanceHash = readAllowancePendingHash(deploymentId, network);
       setAllowancePending(Boolean(allowanceHash));
@@ -89,7 +89,7 @@ export default function ContractCallButton({
     } catch {
       setStorageBlocked(true);
       setStatusMessage(
-        "A payroll request or transaction may be unresolved, or recovery storage is unavailable or invalid. Check payroll and transaction status before another action.",
+        "A deployment request or transaction may be unresolved, or recovery storage is unavailable or invalid. Check the original action and transaction status before another action.",
       );
       throw new Error("Transaction status storage is unavailable or invalid.");
     } finally {
@@ -228,7 +228,7 @@ export default function ContractCallButton({
             await reconcile(existing, isCurrent);
             return;
           }
-          assertNoPendingPayroll(deploymentId, network);
+          assertNoPendingDeploymentRequest(deploymentId, network);
           if (readAllowancePendingHash(deploymentId, network)) {
             throw new Error(
               "An approval is awaiting confirmation. Check its status on the allowance page before starting another action.",
@@ -267,7 +267,7 @@ export default function ContractCallButton({
           );
           // The allowance protocol owns its opaque intent and clearing proof.
           // Only read its public pending status, under the same admission lock.
-          assertNoPendingPayroll(deploymentId, network);
+          assertNoPendingDeploymentRequest(deploymentId, network);
           if (readAllowancePendingHash(deploymentId, network)) {
             throw new Error(
               "An approval is awaiting confirmation. Check its status on the allowance page before starting another action.",

@@ -1,9 +1,16 @@
 # Real unsigned Testnet scan samples — five of five
 
-**Local preparation only: not approved for publication or external handoff.** A
-previous export attempt was rejected by automatic approval review; this expanded
-payload requires explicit user approval for the exact files and destination before
-any push, PR or other export. Keeping it local is not Lantern delivery or scan acceptance.
+**Published for review in [PR #1022](https://github.com/webnxt-2030/pinkraft/pull/1022).**
+The user explicitly approved publication of this exact ten-file packet at
+`f9ae2e04e69a5ea512c6fc5098a3dc6dfbbf0023` to `webnxt-2030/pinkraft`, branch
+`docs/lantern-live-scan-samples`. This documentation update does not change the
+approved samples, manifest, simulation evidence or validation tests.
+
+Repository publication does not establish delivery to Lantern's preferred scanner
+destination, scanner results or acceptance. Confirm the destination and format
+through [handoff #1021](https://github.com/webnxt-2030/pinkraft/issues/1021), and
+obtain any required approval for onward delivery. Expired inputs are for scanning,
+not signing or execution.
 
 This package contains five **real, expired, unsigned** envelopes. Factory
 deployment and deposit were captured from the pinned Railway testing application
@@ -139,7 +146,7 @@ compares assembled resource data/auth entries, and verifies its source/recipient
 preflight and absence of an actual chain execution/charged fee. The tests use no
 network or database.
 
-This local packet contains **all five** requested real scan examples, including one expressly
+This published packet contains **all five** requested real scan examples, including one expressly
 read-only actual-builder RPC sample. No external handoff/upload to Lantern occurred. Lantern scanner interpretation, risk labels,
 provider compatibility, real handset behavior and wallet-support acceptance remain
 unverified. Do not sign or submit these expired historical samples.

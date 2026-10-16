@@ -107,6 +107,34 @@ afterEach(() => {
 });
 
 describe("trigger dispatch admission and read-only recovery", () => {
+  it.each([{}, { mode: "allowance", templateKind: "SUBSCRIPTION" }] as const)(
+    "blocks a same-deployment legacy preparation without clearing it: %j",
+    async (props) => {
+      const legacyKey = "paiflow_payroll_pending:deployment:testnet";
+      const raw = JSON.stringify({
+        requestId: "11111111-1111-1111-1111-111111111111",
+        phase: "prepare",
+      });
+      localStorage.setItem(legacyKey, raw);
+      render(<TriggerButton {...base} {...props} />);
+      await waitFor(() => expect(button().disabled).toBe(true));
+      await click();
+      expect(mocks.connect).not.toHaveBeenCalled();
+      expect(mocks.fetch).not.toHaveBeenCalled();
+      expect(localStorage.getItem(legacyKey)).toBe(raw);
+      expect(screen.getByRole("status").textContent).toContain("deployment request");
+    },
+  );
+  it("allows ordinary trigger signing despite unrelated legacy reservations", async () => {
+    localStorage.setItem("paiflow_payroll_pending:other:testnet", "invalid");
+    localStorage.setItem("paiflow_payroll_pending:deployment:mainnet", "invalid");
+    await mount();
+    await click();
+    await waitFor(() => expect(mocks.poll).toHaveBeenCalledOnce());
+    expect(mocks.sign).toHaveBeenCalledOnce();
+    expect(mocks.fetch).toHaveBeenCalledTimes(2);
+  });
+
   it("rejects a mismatched server network before asking the wallet to sign", async () => {
     mocks.assertNetwork.mockImplementation(() => {
       throw new Error("Network mismatch");

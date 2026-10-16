@@ -7,6 +7,12 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Recover wallet deployments after an RPC timeout through authenticated owner status checks; retain pending recovery until the matching deployment is confirmed in the app. (#1000, #1003)
+
+- Isolate shared wallet signing from deprecated payroll recovery names while retaining
+  legacy deployment-request reservations; exclude payroll/off-ramp from Lantern acceptance
+  and document the existing flags that block new use without stopping settlement.
+
 - Record five expired real unsigned Testnet scan samples: factory deployment,
   deposit, Streamer top-up, one-stroop token approval, and a read-only actual-builder
   distribution simulation. Preserve public metadata and explicit remaining Lantern
