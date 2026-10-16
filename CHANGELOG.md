@@ -7,6 +7,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Document selected-deployment developer credentials, owner-session management and safe recovery; add a two-deployment server example with separate wallet consent and packed-consumer validation (#1033).
+
 - Unreleased Node SDK support for developer credentials across selected deployments,
   with typed, bounded deployment discovery and credential isolation ([#1032](https://github.com/webnxt-2030/pinkraft/issues/1032)).
 

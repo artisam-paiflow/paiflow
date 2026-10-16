@@ -1,6 +1,8 @@
 # Developer API
 
-For typed Node integrations with existing deployments, see the [unpublished SDK quickstart](../sdk/quickstart.md).
+For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](developer-tokens.md). Support is on the `dev-token` integration branch; verify hosted availability separately. These SDK additions are Unreleased source and are not published by this work; do not assume registry 0.1.0 includes them. Existing deployment-only integrations remain supported.
+
+For typed Node integrations with existing deployments, see the [local SDK quickstart](../sdk/quickstart.md).
 
 For a complete frontend/backend integration without the starter, follow the [API quickstart](../hackathon/developer-api-quickstart.md). For wallet setup, flow deployment and the ready-wired starter, use the [Paiflow Guide](../hackathon/paiflow-guide.md). Both guides are event-neutral; this reference provides the detailed API contract.
 
@@ -48,8 +50,7 @@ Then `GET /api/v1/deployments/{id}/events` returns the deposit and whatever the 
 **Execute deposits are signed by the caller.** Paiflow is non-custodial: your secret key never leaves your side and is
 never sent to Paiflow. The sign step is always yours, and curl alone can't do it, which is why the
 examples below use `stellar tx sign` or the Stellar SDK between the two calls. It also limits what a
-leaked API token can do: prepare an envelope, and relay one that your key already signed. It can't
-move funds on its own.
+leaked API token can do: prepare an envelope, and relay one that your key already signed. Supported relayer operations, including early release, have their own authorization rules; protect operate credentials accordingly.
 {% endhint %}
 
 ## Prerequisites
@@ -57,7 +58,7 @@ move funds on its own.
 - **A confirmed deployment whose flow starts with a deposit trigger.** Build and deploy a flow such
   as `Receive XLM → Swap → Pay USDC` or `Receive USDC → Split` in the builder; its status must be `CONFIRMED`. Its id is in the deployment page URL
   (`/deployments/<id>`), where the **API access** panel also lives.
-- **A deployment API token**, minted by the deployment's owner (see below).
+- **A deployment API token**, or a Read and operate developer token explicitly selecting this deployment (see the developer-token guide above).
 - **A funded Stellar account** to deposit from. It pays the deposit and the transaction fee, and
   signs the envelope. On testnet, fund one with friendbot:
   `curl "https://friendbot.stellar.org?addr=G…"`. Depositing XLM needs nothing more; depositing
@@ -109,9 +110,33 @@ Send the demo token exactly as any other: `Authorization: Bearer pfk_…`. Note 
 signed in as the **Try the sandbox** identity is refused on `/api/v1`, so use curl, Postman or a
 private window.
 
+## Selected-deployment developer tokens
+
+On builds containing #1028, use one `pfd_` credential for multiple explicitly
+selected existing owned deployments. Create it in the signed-in
+`/account/developer` panel; READ*ONLY permits reads and READ_OPERATE adds supported
+operations. Permissions, labels and expiry are immutable; selection is editable,
+including an empty selection. Future deployments never inherit access. Both `pfd*`and existing`pfk\_`support`GET /api/v1/deployments`discovery, with ID-bound UUID
+pagination (default 20, max 100) and`{data:{items:[{id,flowName,network}],nextCursor}}`.
+
+The [lifecycle and management reference](developer-tokens.md) covers owner-session
+APIs, one-time reveal, 10 active credentials/100 grants, expiry, replacement and
+revocation. The [permission matrix](developer-token-permissions.md) classifies every
+operation. Per-endpoint rate allowances are shared across selected deployments,
+including known live credential permission/grant refusals. A valid scoped READ_ONLY
+credential gets 403 for operations; missing grants get generic 401. Wallet consent
+and webhook secrets remain separate. READ_OPERATE can authorize supported relayer
+early release; protect it accordingly.
+
+Grant removal or revocation stops subsequent requests; submitted transactions and
+settlement/finality evidence remain. Recover the original hash using a still-authorized
+same-deployment credential or owner workflow. No automatic financial retries or
+programmatic flow/deployment creation are added. Verify hosted rollout separately;
+source OpenAPI revision 1.1.0 and local SDK support alone do not prove availability.
+
 ## Deployment API tokens
 
-A token is bound to **one deployment**. Its supported operations depend on that deployment:
+A `pfk_` token is bound to **one deployment**. Its supported operations depend on that deployment:
 reading events, transaction status and capabilities; preparing/submitting deposits for On Receive
 flows; and eligible payouts or relayer-authorized early releases. It grants no access to another
 deployment, account data or admin routes.

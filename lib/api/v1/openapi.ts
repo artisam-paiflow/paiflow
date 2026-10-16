@@ -664,6 +664,95 @@ function schedulePaths(): Record<string, Record<string, unknown>> {
   return paths;
 }
 
+// Owner-session management is intentionally separate from bearer API v1.
+const developerTokenIdParam = {
+  name: "tokenId",
+  in: "path",
+  required: true,
+  schema: { type: "string", format: "uuid" },
+};
+const developerTokenPagination = [
+  { name: "cursor", in: "query", schema: { type: "string", format: "uuid" } },
+  {
+    name: "limit",
+    in: "query",
+    schema: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+  },
+];
+const developerManagementErrors = () =>
+  sessionErrors(
+    "UNAUTHENTICATED",
+    "FORBIDDEN",
+    "NOT_FOUND",
+    "CONFLICT",
+    "VALIDATION",
+    "RATE_LIMITED",
+    "INTERNAL",
+  );
+const developerMetadataProperties = {
+  id: { type: "string", format: "uuid" },
+  tokenPrefix: { type: "string" },
+  label: { type: ["string", "null"] },
+  permission: { type: "string", enum: ["READ_ONLY", "READ_OPERATE"] },
+  createdAt: { type: "string", format: "date-time" },
+  ...Object.fromEntries(
+    ["lastUsedAt", "expiresAt", "revokedAt"].map((name) => [
+      name,
+      { type: ["string", "null"], format: "date-time" },
+    ]),
+  ),
+  deploymentIds: {
+    type: "array",
+    maxItems: 100,
+    uniqueItems: true,
+    items: { type: "string", format: "uuid" },
+  },
+};
+const developerManagementDescription =
+  "Owner browser session only; bearer credentials cannot manage tokens. Sandbox sessions refused. Successful responses are no-store. Writes share 30 requests/minute per owner. Removing grants or revoking prevents subsequent authorization, never cancels submitted transactions or deletes financial history.";
+function developerManagementOperation(
+  operationId: string,
+  summary: string,
+  schema: string,
+  options: {
+    item?: boolean;
+    request?: string;
+    create?: boolean;
+    description?: string;
+  } = {},
+) {
+  return {
+    tags: ["Token management (owner session)"],
+    operationId,
+    summary,
+    description: developerManagementDescription + " " + (options.description ?? ""),
+    security: [{ cookieAuth: [] }],
+    parameters: options.item
+      ? [developerTokenIdParam]
+      : options.create
+        ? []
+        : developerTokenPagination,
+    ...(options.request
+      ? {
+          requestBody: {
+            required: true,
+            content: json({ $ref: "#/components/schemas/" + options.request }),
+          },
+        }
+      : {}),
+    responses: {
+      [options.create ? "201" : "200"]: {
+        description: options.create
+          ? "Created; token is revealed only in this response. Store securely now."
+          : "Safe metadata; never plaintext or hash.",
+        headers: { "Cache-Control": { schema: { type: "string", const: "no-store" } } },
+        content: json(dataEnvelope("#/components/schemas/" + schema)),
+      },
+      ...developerManagementErrors(),
+    },
+  };
+}
+
 export const openApiDocument = {
   openapi: "3.1.0",
   info: {
@@ -738,19 +827,72 @@ export const openApiDocument = {
     {
       name: "Token management (owner session)",
       description:
-        "How deployment tokens are minted and revoked. These are the owner's signed-in session " +
+        "How deployment and developer tokens are minted and revoked. These are the owner's signed-in session " +
         "routes behind the API access panel, not part of the token-authenticated API: they take " +
         "the session cookie, never a deployment token, and a sandbox session is refused.",
     },
   ],
   paths: {
+    "/api/developer-tokens": {
+      get: developerManagementOperation(
+        "listDeveloperTokens",
+        "List owner developer credentials",
+        "DeveloperTokenList",
+      ),
+      post: developerManagementOperation(
+        "createDeveloperToken",
+        "Create selected-deployment credential",
+        "CreatedDeveloperToken",
+        {
+          create: true,
+          request: "CreateDeveloperTokenRequest",
+          description:
+            "At most 10 unrevoked unexpired credentials per owner. Select 1–100 unique existing CONFIRMED ACTIVE owned deployment UUIDs; future deployments never inherit access. Label, permission and expiry are immutable. Omit expiresInDays for no expiry.",
+        },
+      ),
+    },
+    "/api/developer-tokens/deployments": {
+      get: developerManagementOperation(
+        "listDeveloperTokenCandidates",
+        "List eligible owned deployment choices",
+        "DeveloperTokenDeploymentList",
+      ),
+    },
+    "/api/developer-tokens/{tokenId}": {
+      get: developerManagementOperation(
+        "inspectDeveloperToken",
+        "Inspect credential metadata",
+        "DeveloperToken",
+        { item: true },
+      ),
+      patch: developerManagementOperation(
+        "updateDeveloperToken",
+        "Atomically replace selected deployments",
+        "DeveloperToken",
+        {
+          item: true,
+          request: "UpdateDeveloperTokenRequest",
+          description:
+            "Only deploymentIds can change. Empty selection suspends all access. Revoked or expired credentials cannot be edited. Replacement selection must contain only eligible owned deployments; remove retiring/retired grants.",
+        },
+      ),
+      delete: developerManagementOperation(
+        "revokeDeveloperToken",
+        "Revoke credential retaining history",
+        "DeveloperToken",
+        {
+          item: true,
+          description: "Idempotent; an already revoked credential returns unchanged.",
+        },
+      ),
+    },
     "/api/v1/deployments": {
       get: {
         tags: ["Capabilities"],
         operationId: "listAuthorizedDeployments",
         summary: "List deployments authorized by this token",
         description:
-          "Bearer pfd_ or pfk_ only. Returns currently confirmed active deployments explicitly granted to this credential and still owned by its active non-sandbox owner. A deployment token returns at most its own deployment. Safe metadata only; no session fallback. Read-only tokens are accepted. 60 requests per token per minute shared across deployments.",
+          "UUID cursor is an immutable ID bound, not a required existing row. Default page size 20, maximum 100. Bearer pfd_ or pfk_ only. Returns currently confirmed active deployments explicitly granted to this credential and still owned by its active non-sandbox owner. A deployment token returns at most its own deployment. Safe metadata only; no session fallback. Read-only tokens are accepted. 60 requests per token per minute shared across deployments.",
         security: [{ bearerAuth: [] }],
         parameters: [
           { name: "cursor", in: "query", schema: { type: "string", format: "uuid" } },
@@ -1661,7 +1803,7 @@ export const openApiDocument = {
         scheme: "bearer",
         bearerFormat: "pfk_<64 hex> or pfd_<64 hex>",
         description:
-          "A deployment API token, minted by the deployment's owner in the API access panel and shown once.",
+          "Server-side pfk_ deployment token from API access, or pfd_ developer token from /account/developer. Both use 64 lowercase hex characters and one-time reveal. Developer permission and explicit grants are rechecked on each request; no pkdev_ or session fallback. READ_ONLY permits reads; READ_OPERATE permits supported writes including relayer early release. Wallet consent and webhook secrets remain separate.",
       },
       cookieAuth: {
         type: "apiKey",
@@ -1671,6 +1813,74 @@ export const openApiDocument = {
       },
     },
     schemas: {
+      DeveloperToken: {
+        type: "object",
+        additionalProperties: false,
+        required: Object.keys(developerMetadataProperties),
+        properties: developerMetadataProperties,
+      },
+      CreatedDeveloperToken: {
+        type: "object",
+        additionalProperties: false,
+        required: [...Object.keys(developerMetadataProperties), "token"],
+        properties: {
+          ...developerMetadataProperties,
+          token: {
+            type: "string",
+            pattern: "^pfd_[0-9a-f]{64}$",
+            description: "One-time server-side credential; never log or send to analytics.",
+          },
+        },
+      },
+      CreateDeveloperTokenRequest: {
+        type: "object",
+        additionalProperties: false,
+        required: ["permission", "deploymentIds"],
+        properties: {
+          label: {
+            type: "string",
+            minLength: 1,
+            maxLength: 64,
+            description: "Trimmed before validation.",
+          },
+          permission: developerMetadataProperties.permission,
+          deploymentIds: { ...developerMetadataProperties.deploymentIds, minItems: 1 },
+          expiresInDays: { type: "integer", minimum: 1, maximum: 365 },
+        },
+      },
+      UpdateDeveloperTokenRequest: {
+        type: "object",
+        additionalProperties: false,
+        required: ["deploymentIds"],
+        properties: { deploymentIds: developerMetadataProperties.deploymentIds },
+      },
+      DeveloperTokenList: {
+        type: "object",
+        required: ["items", "nextCursor"],
+        properties: {
+          items: { type: "array", items: { $ref: "#/components/schemas/DeveloperToken" } },
+          nextCursor: { type: ["string", "null"], format: "uuid" },
+        },
+      },
+      DeveloperTokenDeploymentList: {
+        type: "object",
+        required: ["items", "nextCursor"],
+        properties: {
+          items: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["id", "flowName", "network"],
+              properties: {
+                id: { type: "string", format: "uuid" },
+                flowName: { type: "string" },
+                network: { type: "string" },
+              },
+            },
+          },
+          nextCursor: { type: ["string", "null"], format: "uuid" },
+        },
+      },
       SubscriptionControlPrepare: {
         type: "object",
         additionalProperties: false,

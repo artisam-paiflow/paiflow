@@ -46,16 +46,794 @@
     },
     {
       "name": "Token management (owner session)",
-      "description": "How deployment tokens are minted and revoked. These are the owner's signed-in session routes behind the API access panel, not part of the token-authenticated API: they take the session cookie, never a deployment token, and a sandbox session is refused."
+      "description": "How deployment and developer tokens are minted and revoked. These are the owner's signed-in session routes behind the API access panel, not part of the token-authenticated API: they take the session cookie, never a deployment token, and a sandbox session is refused."
     }
   ],
   "paths": {
+    "/api/developer-tokens": {
+      "get": {
+        "tags": ["Token management (owner session)"],
+        "operationId": "listDeveloperTokens",
+        "summary": "List owner developer credentials",
+        "description": "Owner browser session only; bearer credentials cannot manage tokens. Sandbox sessions refused. Successful responses are no-store. Writes share 30 requests/minute per owner. Removing grants or revoking prevents subsequent authorization, never cancels submitted transactions or deletes financial history. ",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Safe metadata; never plaintext or hash.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DeveloperTokenList"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: No valid signed-in session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "Authentication required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: A sandbox session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed id, or a deployment you do not own (its existence is not disclosed). On revoke, also a token that is not on this deployment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The deployment already has 10 active tokens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body failed validation (`fields` names each problem), or the deployment is not `CONFIRMED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Token management (owner session)"],
+        "operationId": "createDeveloperToken",
+        "summary": "Create selected-deployment credential",
+        "description": "Owner browser session only; bearer credentials cannot manage tokens. Sandbox sessions refused. Successful responses are no-store. Writes share 30 requests/minute per owner. Removing grants or revoking prevents subsequent authorization, never cancels submitted transactions or deletes financial history. At most 10 unrevoked unexpired credentials per owner. Select 1–100 unique existing CONFIRMED ACTIVE owned deployment UUIDs; future deployments never inherit access. Label, permission and expiry are immutable. Omit expiresInDays for no expiry.",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDeveloperTokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created; token is revealed only in this response. Store securely now.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/CreatedDeveloperToken"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: No valid signed-in session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "Authentication required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: A sandbox session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed id, or a deployment you do not own (its existence is not disclosed). On revoke, also a token that is not on this deployment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The deployment already has 10 active tokens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body failed validation (`fields` names each problem), or the deployment is not `CONFIRMED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/developer-tokens/deployments": {
+      "get": {
+        "tags": ["Token management (owner session)"],
+        "operationId": "listDeveloperTokenCandidates",
+        "summary": "List eligible owned deployment choices",
+        "description": "Owner browser session only; bearer credentials cannot manage tokens. Sandbox sessions refused. Successful responses are no-store. Writes share 30 requests/minute per owner. Removing grants or revoking prevents subsequent authorization, never cancels submitted transactions or deletes financial history. ",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Safe metadata; never plaintext or hash.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DeveloperTokenDeploymentList"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: No valid signed-in session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "Authentication required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: A sandbox session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed id, or a deployment you do not own (its existence is not disclosed). On revoke, also a token that is not on this deployment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The deployment already has 10 active tokens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body failed validation (`fields` names each problem), or the deployment is not `CONFIRMED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/developer-tokens/{tokenId}": {
+      "get": {
+        "tags": ["Token management (owner session)"],
+        "operationId": "inspectDeveloperToken",
+        "summary": "Inspect credential metadata",
+        "description": "Owner browser session only; bearer credentials cannot manage tokens. Sandbox sessions refused. Successful responses are no-store. Writes share 30 requests/minute per owner. Removing grants or revoking prevents subsequent authorization, never cancels submitted transactions or deletes financial history. ",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tokenId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Safe metadata; never plaintext or hash.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DeveloperToken"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: No valid signed-in session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "Authentication required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: A sandbox session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed id, or a deployment you do not own (its existence is not disclosed). On revoke, also a token that is not on this deployment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The deployment already has 10 active tokens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body failed validation (`fields` names each problem), or the deployment is not `CONFIRMED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Token management (owner session)"],
+        "operationId": "updateDeveloperToken",
+        "summary": "Atomically replace selected deployments",
+        "description": "Owner browser session only; bearer credentials cannot manage tokens. Sandbox sessions refused. Successful responses are no-store. Writes share 30 requests/minute per owner. Removing grants or revoking prevents subsequent authorization, never cancels submitted transactions or deletes financial history. Only deploymentIds can change. Empty selection suspends all access. Revoked or expired credentials cannot be edited. Replacement selection must contain only eligible owned deployments; remove retiring/retired grants.",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tokenId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDeveloperTokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Safe metadata; never plaintext or hash.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DeveloperToken"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: No valid signed-in session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "Authentication required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: A sandbox session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed id, or a deployment you do not own (its existence is not disclosed). On revoke, also a token that is not on this deployment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The deployment already has 10 active tokens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body failed validation (`fields` names each problem), or the deployment is not `CONFIRMED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Token management (owner session)"],
+        "operationId": "revokeDeveloperToken",
+        "summary": "Revoke credential retaining history",
+        "description": "Owner browser session only; bearer credentials cannot manage tokens. Sandbox sessions refused. Successful responses are no-store. Writes share 30 requests/minute per owner. Removing grants or revoking prevents subsequent authorization, never cancels submitted transactions or deletes financial history. Idempotent; an already revoked credential returns unchanged.",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tokenId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Safe metadata; never plaintext or hash.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DeveloperToken"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: No valid signed-in session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "Authentication required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: A sandbox session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed id, or a deployment you do not own (its existence is not disclosed). On revoke, also a token that is not on this deployment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The deployment already has 10 active tokens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body failed validation (`fields` names each problem), or the deployment is not `CONFIRMED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/deployments": {
       "get": {
         "tags": ["Capabilities"],
         "operationId": "listAuthorizedDeployments",
         "summary": "List deployments authorized by this token",
-        "description": "Bearer pfd_ or pfk_ only. Returns currently confirmed active deployments explicitly granted to this credential and still owned by its active non-sandbox owner. A deployment token returns at most its own deployment. Safe metadata only; no session fallback. Read-only tokens are accepted. 60 requests per token per minute shared across deployments.",
+        "description": "UUID cursor is an immutable ID bound, not a required existing row. Default page size 20, maximum 100. Bearer pfd_ or pfk_ only. Returns currently confirmed active deployments explicitly granted to this credential and still owned by its active non-sandbox owner. A deployment token returns at most its own deployment. Safe metadata only; no session fallback. Read-only tokens are accepted. 60 requests per token per minute shared across deployments.",
         "security": [
           {
             "bearerAuth": []
@@ -5502,7 +6280,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "pfk_<64 hex> or pfd_<64 hex>",
-        "description": "A deployment API token, minted by the deployment's owner in the API access panel and shown once."
+        "description": "Server-side pfk_ deployment token from API access, or pfd_ developer token from /account/developer. Both use 64 lowercase hex characters and one-time reveal. Developer permission and explicit grants are rechecked on each request; no pkdev_ or session fallback. READ_ONLY permits reads; READ_OPERATE permits supported writes including relayer early release. Wallet consent and webhook secrets remain separate."
       },
       "cookieAuth": {
         "type": "apiKey",
@@ -5512,6 +6290,217 @@
       }
     },
     "schemas": {
+      "DeveloperToken": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "tokenPrefix",
+          "label",
+          "permission",
+          "createdAt",
+          "lastUsedAt",
+          "expiresAt",
+          "revokedAt",
+          "deploymentIds"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tokenPrefix": {
+            "type": "string"
+          },
+          "label": {
+            "type": ["string", "null"]
+          },
+          "permission": {
+            "type": "string",
+            "enum": ["READ_ONLY", "READ_OPERATE"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastUsedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "revokedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "deploymentIds": {
+            "type": "array",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "CreatedDeveloperToken": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "tokenPrefix",
+          "label",
+          "permission",
+          "createdAt",
+          "lastUsedAt",
+          "expiresAt",
+          "revokedAt",
+          "deploymentIds",
+          "token"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tokenPrefix": {
+            "type": "string"
+          },
+          "label": {
+            "type": ["string", "null"]
+          },
+          "permission": {
+            "type": "string",
+            "enum": ["READ_ONLY", "READ_OPERATE"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastUsedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "revokedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "deploymentIds": {
+            "type": "array",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "token": {
+            "type": "string",
+            "pattern": "^pfd_[0-9a-f]{64}$",
+            "description": "One-time server-side credential; never log or send to analytics."
+          }
+        }
+      },
+      "CreateDeveloperTokenRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["permission", "deploymentIds"],
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Trimmed before validation."
+          },
+          "permission": {
+            "type": "string",
+            "enum": ["READ_ONLY", "READ_OPERATE"]
+          },
+          "deploymentIds": {
+            "type": "array",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1
+          },
+          "expiresInDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          }
+        }
+      },
+      "UpdateDeveloperTokenRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["deploymentIds"],
+        "properties": {
+          "deploymentIds": {
+            "type": "array",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "DeveloperTokenList": {
+        "type": "object",
+        "required": ["items", "nextCursor"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeveloperToken"
+            }
+          },
+          "nextCursor": {
+            "type": ["string", "null"],
+            "format": "uuid"
+          }
+        }
+      },
+      "DeveloperTokenDeploymentList": {
+        "type": "object",
+        "required": ["items", "nextCursor"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "flowName", "network"],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "flowName": {
+                  "type": "string"
+                },
+                "network": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "nextCursor": {
+            "type": ["string", "null"],
+            "format": "uuid"
+          }
+        }
+      },
       "SubscriptionControlPrepare": {
         "type": "object",
         "additionalProperties": false,
