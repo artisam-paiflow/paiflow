@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -206,7 +206,8 @@ describe("AddressPicker combobox ARIA", () => {
     const listbox = screen.getByRole("listbox", { name: "Saved contacts" });
     expect(input.getAttribute("aria-controls")).toBe(listbox.id);
 
-    // The search box takes focus when the address book has entries.
+    // Opening contacts keeps focus in the wallet input for typing/pasting.
+    expect(document.activeElement).toBe(input);
     const focused = document.activeElement as HTMLElement;
     const active = () =>
       document.getElementById(focused.getAttribute("aria-activedescendant") ?? "")?.textContent;
@@ -289,11 +290,11 @@ describe("AddressPicker editable styling", () => {
     return inputClass.split(" ").filter((c) => !el.classList.contains(c));
   }
 
-  it("the editable input is styled from styles.ts, plus room for the save button", () => {
+  it("the editable input uses shared styles without an icon gutter", () => {
     render(<AddressPicker label="Recipient" value="" onChange={() => {}} />);
     const input = screen.getByRole("combobox", { name: "Recipient" });
     expect(missingFromInputClass(input)).toEqual([]);
-    expect(input.classList.contains("pr-10")).toBe(true);
+    expect(input.classList.contains("pr-10")).toBe(false);
     // BRAND §6: the ring is keyboard-only. A `focus:` ring is the bug #648 fixed.
     expect(input.className).not.toMatch(/(^|\s)focus:(ring|border)-/);
   });
@@ -323,82 +324,219 @@ describe("AddressPicker editable styling", () => {
   });
 });
 
-describe("AddressPicker editable controls (#661)", () => {
-  // `ACCOUNT` is saveable: a G… account that is not already in the book.
-  const saveable = () =>
-    render(<AddressPicker label="Recipient" value={ACCOUNT} onChange={() => {}} />);
+describe("AddressPicker inline contact saving", () => {
+  const saveable = (addressBook: AddressEntry[] = []) =>
+    render(
+      <AddressPicker
+        label="Recipient"
+        value={ACCOUNT}
+        onChange={vi.fn()}
+        addressBook={addressBook}
+      />,
+    );
+  const saveButton = () => screen.getByRole("button", { name: "Save contact" });
+  const nameInput = () => screen.getByRole("textbox", { name: "Contact name" });
 
-  it("the save button has a real name, and the glyph is not part of it", () => {
-    saveable();
-    // The assertion that proves the fix. axe cannot: `button-name` lists
-    // `non-empty-title` among its `any` checks, so the title-only button it
-    // replaced passed every scan in this repo.
-    const button = screen.getByRole("button", { name: "Save to address book" });
-    expect(button.textContent).toContain("bookmark_add");
-    expect(button.getAttribute("aria-label")).toBe("Save to address book");
-    expect(screen.queryByRole("button", { name: /bookmark_add/ })).toBeNull();
-  });
+  it.each([{ book: [] }, { book: [BOOK[1]!] }])(
+    "offers a labelled button with an empty or populated book (%j)",
+    ({ book }) => {
+      saveable(book);
+      const button = saveButton();
+      expect(button.textContent).toContain("Save contact");
+      expect(button.classList.contains("border")).toBe(true);
+      expect(button.classList.contains("min-h-11")).toBe(true);
+      expect(button.classList.contains("absolute")).toBe(false);
+      expect(screen.queryByRole("button", { name: /person_add/ })).toBeNull();
+    },
+  );
 
-  it("the save button meets the coarse-pointer target", () => {
-    saveable();
-    const button = screen.getByRole("button", { name: "Save to address book" });
-    // jsdom has no layout, so the class is the claim here; the geometry is
-    // measured in tests/e2e/d3-swap-panel.spec.ts's 44x44 scan.
-    expect(button.classList.contains("pointer-coarse:min-h-11")).toBe(true);
-    expect(button.classList.contains("pointer-coarse:min-w-11")).toBe(true);
-    // The gutter has to hold that target, or it covers what the user typed.
-    const input = screen.getByRole("combobox", { name: "Recipient" });
-    expect(input.classList.contains("pointer-coarse:pr-14")).toBe(true);
-  });
-
-  it("that name opens the save form, whose label field is named", async () => {
+  it("keeps focus in the wallet input when contacts exist, so paste enters the wallet", async () => {
     const user = userEvent.setup();
-    saveable();
-    await user.click(screen.getByRole("button", { name: "Save to address book" }));
-    expect(screen.getByRole("textbox", { name: "Label" })).toBeTruthy();
+    const onChange = vi.fn();
+    render(<Harness onChange={onChange} addressBook={[BOOK[1]!]} />);
+    const input = screen.getByRole("combobox", { name: "Recipient" });
+    await user.click(input);
+    expect(document.activeElement).toBe(input);
+    await user.paste(ACCOUNT);
+    expect(onChange).toHaveBeenLastCalledWith(ACCOUNT);
+    expect(saveButton()).toBeTruthy();
+  });
+
+  it("keeps Save contact available when contact search has no matches", async () => {
+    const user = userEvent.setup();
+    saveable([BOOK[1]!]);
+    await user.click(screen.getByRole("combobox", { name: "Recipient" }));
+    await user.type(screen.getByRole("combobox", { name: "Search contacts" }), "missing");
+    expect(screen.getByText(/No contacts match/)).toBeTruthy();
+    await user.click(saveButton());
+    expect(nameInput()).toBeTruthy();
+  });
+
+  it("shows a saved contact's name and no duplicate-save action", () => {
+    saveable(BOOK);
+    expect(screen.getByRole("status").textContent).toContain("Saved as Alice");
+    expect(screen.queryByRole("button", { name: "Save contact" })).toBeNull();
+  });
+
+  it("opens an inline form with the full address, a focused name, and no axe violations", async () => {
+    const user = userEvent.setup();
+    const { container } = saveable();
+    await user.click(saveButton());
+    expect(container.querySelector("section")?.textContent).toContain(ACCOUNT);
+    expect(document.activeElement).toBe(nameInput());
     expect(await axeViolations()).toEqual([]);
   });
 
-  it("the loading row hides its spinner's ligature from the accessible name", () => {
-    render(<AddressPicker label="Recipient" value="" onChange={() => {}} addressBookLoading />);
-    fireEvent.focus(screen.getByRole("combobox", { name: "Recipient" }));
-    const row = screen.getByText(/Loading contacts/);
-    const glyph = row.querySelector(".material-symbols-outlined");
-    expect(glyph?.textContent?.trim()).toBe("sync");
-    expect(glyph?.getAttribute("aria-hidden")).toBe("true");
+  it("Escape cancels only the inline form and restores wallet focus", async () => {
+    const user = userEvent.setup();
+    const outerKey = vi.fn();
+    render(
+      <div onKeyDown={outerKey}>
+        <AddressPicker label="Recipient" value={ACCOUNT} onChange={vi.fn()} />
+      </div>,
+    );
+    await user.click(saveButton());
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("textbox", { name: "Contact name" })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("combobox", { name: "Recipient" }));
+    expect(outerKey).not.toHaveBeenCalled();
+    expect(screen.queryByText("NO SAVED CONTACTS.")).toBeNull();
   });
 
-  it("the save form opens on the first click, not the second", async () => {
+  it("keeps contacts closed while the inline form is open and handles Escape from the wallet", async () => {
     const user = userEvent.setup();
-    saveable();
-    await user.click(screen.getByRole("button", { name: "Save to address book" }));
-    expect(screen.getByRole("textbox", { name: "Label" })).toBeTruthy();
-    // and it still toggles shut
-    await user.click(screen.getByRole("button", { name: "Save to address book" }));
-    expect(screen.queryByRole("textbox", { name: "Label" })).toBeNull();
-  });
-
-  it("reopening the dropdown after a close shows contacts, not the save form", async () => {
-    const user = userEvent.setup();
-    saveable();
+    saveable([BOOK[1]!]);
+    await user.click(saveButton());
     const input = screen.getByRole("combobox", { name: "Recipient" });
-    // The ordinary path: the field is already focused, so the button's setOpen(true)
-    // is a no-op and the [open] effect never runs to spend `openingToSave`.
-    fireEvent.focus(input);
-    await user.click(screen.getByRole("button", { name: "Save to address book" }));
-    expect(screen.getByRole("textbox", { name: "Label" })).toBeTruthy();
-
-    fireEvent.mouseDown(document.body);
-    fireEvent.focus(input);
-    // An invariant lock, not a regression guard: this passed before the ref was
-    // scoped to the opening click too, because every close path clears showSave.
-    expect(screen.queryByRole("textbox", { name: "Label" })).toBeNull();
+    await user.click(input);
+    await user.keyboard("{ArrowDown}");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(nameInput()).toBeTruthy();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("textbox", { name: "Contact name" })).toBeNull();
+    expect(document.activeElement).toBe(input);
   });
 
-  it("a pending value is never saveable, so the badge and the button never collide", () => {
-    render(<AddressPicker label="Recipient" value="PENDING:payroll" onChange={() => {}} pending />);
-    expect(screen.getByText("needs address")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Save to address book" })).toBeNull();
+  it("Cancel and reopening contacts do not resurrect the inline form", async () => {
+    const user = userEvent.setup();
+    saveable();
+    await user.click(saveButton());
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("combobox", { name: "Recipient" }));
+    expect(screen.queryByRole("textbox", { name: "Contact name" })).toBeNull();
+    expect(screen.getByText("NO SAVED CONTACTS.")).toBeTruthy();
+  });
+
+  it("saves with Enter using create-only semantics and shows Saved as immediately", async () => {
+    const user = userEvent.setup();
+    const refresh = vi.fn();
+    const onChange = vi.fn();
+    render(
+      <AddressPicker
+        label="Recipient"
+        value={ACCOUNT}
+        onChange={onChange}
+        onAddressBookChange={refresh}
+      />,
+    );
+    await user.click(saveButton());
+    await user.type(nameInput(), "  Carol  ");
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("Saved as Carol"));
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/address-book",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ label: "Carol", address: ACCOUNT, createOnly: true }),
+      }),
+    );
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(onChange).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(screen.getByRole("combobox", { name: "Recipient" }));
+    expect(screen.queryByRole("button", { name: "Save contact" })).toBeNull();
+  });
+
+  it("rejects an existing contact name before sending a request", async () => {
+    const user = userEvent.setup();
+    saveable([BOOK[1]!]);
+    await user.click(saveButton());
+    await user.type(nameInput(), "Bob");
+    await user.click(saveButton());
+    expect(fetch).not.toHaveBeenCalled();
+    expect(nameInput().getAttribute("aria-invalid")).toBe("true");
+    expect(describedText(nameInput())).toContain("Choose a different name");
+  });
+
+  it("keeps failed saves inline and allows retrying", async () => {
+    const user = userEvent.setup();
+    saveable();
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          error: {
+            code: "CONFLICT",
+            message: "A contact with this name already exists. Choose a different name.",
+          },
+        }),
+        { status: 409 },
+      ),
+    );
+    await user.click(saveButton());
+    await user.type(nameInput(), "Carol");
+    await user.click(saveButton());
+    await waitFor(() => expect(nameInput().getAttribute("aria-invalid")).toBe("true"));
+    expect((nameInput() as HTMLInputElement).value).toBe("Carol");
+    await user.clear(nameInput());
+    await user.type(nameInput(), "New contact");
+    await user.click(saveButton());
+    await waitFor(() =>
+      expect(screen.getByRole("status").textContent).toContain("Saved as New contact"),
+    );
+  });
+
+  it("does not submit twice or restore an old wallet after a delayed save", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    let finish!: (response: Response) => void;
+    vi.mocked(fetch).mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    render(<Harness initial={ACCOUNT} onChange={onChange} />);
+    await user.click(saveButton());
+    await user.type(nameInput(), "Carol");
+    await user.keyboard("{Enter}{Enter}");
+    expect(fetch).toHaveBeenCalledOnce();
+    const input = screen.getByRole("combobox", { name: "Recipient" }) as HTMLInputElement;
+    await user.clear(input);
+    await user.paste(ACCOUNT_2);
+    finish(
+      new Response(JSON.stringify({ data: { label: "Carol", address: ACCOUNT } }), { status: 200 }),
+    );
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Saving…" })).toBeNull());
+    expect(input.value).toBe(ACCOUNT_2);
+    expect(onChange).toHaveBeenLastCalledWith(ACCOUNT_2);
+    expect(screen.queryByText("Saved as Carol")).toBeNull();
+  });
+
+  it("does not offer contact saving for pending addresses or contracts", () => {
+    const { rerender } = render(
+      <AddressPicker label="Recipient" value="PENDING:payroll" onChange={vi.fn()} pending />,
+    );
+    expect(screen.queryByRole("button", { name: "Save contact" })).toBeNull();
+    rerender(
+      <AddressPicker label="Contract" value={CONTRACT} accept="contract" onChange={vi.fn()} />,
+    );
+    expect(screen.queryByRole("button", { name: "Save contact" })).toBeNull();
+  });
+
+  it("the loading row hides its spinner's ligature from the accessible name", () => {
+    render(<AddressPicker label="Recipient" value="" onChange={vi.fn()} addressBookLoading />);
+    fireEvent.focus(screen.getByRole("combobox", { name: "Recipient" }));
+    const glyph = screen.getByText(/Loading contacts/).querySelector(".material-symbols-outlined");
+    expect(glyph?.getAttribute("aria-hidden")).toBe("true");
   });
 });
 

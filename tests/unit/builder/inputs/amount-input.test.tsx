@@ -217,3 +217,45 @@ describe("AmountInput", () => {
     expect((await axe.run(container)).violations).toEqual([]);
   });
 });
+
+describe("AmountInput with immediate draft commits", () => {
+  it("preserves zero-on-clear and does not restore the previous amount on blur", async () => {
+    const user = userEvent.setup();
+    const spy = vi.fn();
+    render(<Owned initial="15000000" spy={spy} commit="draft" />);
+    await user.clear(field());
+    expect(spy).toHaveBeenLastCalledWith("0");
+    expect(field().value).toBe("");
+    await user.tab();
+    expect(field().value).toBe("0");
+    expect(spy).not.toHaveBeenCalledWith("15000000");
+  });
+
+  it("preserves partial decimal entry and exact amounts larger than Number.MAX_SAFE_INTEGER", async () => {
+    const user = userEvent.setup();
+    const spy = vi.fn();
+    render(<Owned spy={spy} commit="draft" />);
+    await user.type(field(), "9007199254740993.");
+    expect(field().value).toBe("9007199254740993.");
+    await user.type(field(), "1234567");
+    expect(spy).toHaveBeenLastCalledWith("90071992547409931234567");
+    await user.tab();
+    expect(field().value).toBe("9007199254740993.1234567");
+  });
+
+  it("leaves range validation to the node and describes refused precision and server errors", async () => {
+    const user = userEvent.setup();
+    const spy = vi.fn();
+    render(<Owned spy={spy} commit="draft" error="Amount is above the supported limit" />);
+    await user.type(field(), "0.12345678");
+    expect(field().value).toBe("0.1234567");
+    expect(describedText(field())).toContain("At most 7 decimal places.");
+    expect(describedText(field())).toContain("Amount is above the supported limit");
+    expect(field().getAttribute("aria-invalid")).toBe("true");
+    await user.clear(field());
+    const aboveContractLimit = "9".repeat(39);
+    await user.type(field(), aboveContractLimit);
+    await user.tab();
+    expect(spy).toHaveBeenLastCalledWith(`${aboveContractLimit}0000000`);
+  });
+});

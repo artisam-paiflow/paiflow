@@ -656,18 +656,15 @@ test.describe("Config panel container (Instawards D3)", () => {
 
       const input = page.getByRole("combobox", { name: /Recipient/ });
       await input.fill(RECIPIENT);
-      const save = page.getByRole("button", { name: "Save to address book" });
+      const save = page.getByRole("button", { name: "Save contact", exact: true });
       await expect(save).toBeVisible();
 
       const inputBox = (await input.boundingBox())!;
       const saveBox = (await save.boundingBox())!;
-      expect({ w: Math.round(saveBox.width), h: Math.round(saveBox.height) }).toEqual({
-        w: 44,
-        h: 44,
-      });
-      // The target must sit in the gutter `pointer-coarse:pr-14` reserves, not
-      // over the address the user is typing.
-      expect(saveBox.x).toBeGreaterThanOrEqual(inputBox.x + inputBox.width - 56);
+      expect(Math.round(saveBox.width)).toBeGreaterThanOrEqual(44);
+      expect(Math.round(saveBox.height)).toBeGreaterThanOrEqual(44);
+      // Saving sits below the wallet input, where it cannot cover the address.
+      expect(saveBox.y).toBeGreaterThanOrEqual(inputBox.y + inputBox.height);
       expect(Math.round(inputBox.height)).toBeGreaterThanOrEqual(44);
     });
   });

@@ -26,6 +26,14 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 - Make the SDK the default Node integration path in hackathon resources and shared AI context, with the payment-only SDK starter as an optional example; retain Campus Snacks as a domain sample for its planned SDK migration.
 
+- Shorten address validation messages to actionable instructions without repeating the entered address, and show builder errors in the regular UI font.
+
+- Keep builder address fields within the settings panel while typing invalid addresses; wrap long validation messages.
+
+- Make inline address-book saving discoverable with a labeled Save contact button, full-address review, keyboard controls, and saved-contact status; keep wallet input focus and prevent inline saves from replacing existing contact names.
+
+- Adopt shared builder controls for Receive, Schedule, HTTP Webhook, Subscription, crypto Pay/Split, and amount/time conditions, preserving numeric clearing, precision, and validation behavior.
+
 - Dock builder node settings over the right side, including the English preview, with a full-height scrolling form; clicking blank canvas closes settings, and AI chat shares the same space. Mobile keeps its bottom sheet.
 
 - Align the builder's English preview to the far right of its desktop toolbar.
