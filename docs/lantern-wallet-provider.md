@@ -139,7 +139,8 @@ responses. See the policy details below. This permission does not establish
 embedded login or signing, and the previous bridge is not restored.
 
 Android Chrome WalletConnect remains pending on Lantern under #1002. Confirm its
-`stellar:testnet` namespace and `stellar_signXDR` method when pairing is built.
+Stellar namespace, `stellar:testnet` chain and `stellar_signXDR` method when
+pairing is built.
 Apps-tab embedding remains separate and needs its actual signing contract/build
 and joint tests; it does not complete #1002. The optional `related_applications`
 entry for `com.lantern.wallet` is not implemented and does not block desktop QA.
