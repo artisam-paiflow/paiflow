@@ -1,7 +1,6 @@
 # Node SDK contract and endpoint coverage
 
-Implementation contract originating in [#954](https://github.com/webnxt-2030/pinkraft/issues/954), under
-[#953](https://github.com/webnxt-2030/pinkraft/issues/953). The Node package implements this surface. Beta `0.2.0` provides
+The Node package implements the existing-deployment surface below. Beta `0.2.0` provides
 developer credentials and scoped deployment discovery; see the
 [release record](release-checklist.md) for registry availability.
 Local SDK tests do not establish hosted availability. See the

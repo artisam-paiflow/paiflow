@@ -22,11 +22,12 @@ Dev setters. Hackathon Dev mode remains disabled as documented in the
 [hackathon feature policy](../hackathon/README.md#hackathon-feature-availability).
 
 The [SDK README](../../packages/sdk/README.md) is the main detailed SDK entry point;
-this page provides supplementary quickstart and migration examples.
+this page provides supplementary quickstart and migration examples. The
+[generated method/type reference](reference/README.md) lists the exported API.
 
 ## Install
 
-Registry installation (when available):
+Install the published beta:
 
 ```sh
 npm install @paiflow/sdk@0.2.0

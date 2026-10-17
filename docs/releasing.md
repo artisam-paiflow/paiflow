@@ -10,7 +10,7 @@ release changes; [CLAUDE.md](../CLAUDE.md) describes the contribution workflow.
 | ----------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | App release       | Root `package.json` → `version`          | A release of the Paiflow application, including its UI, backend, and bundled code. Currently `0.1.0`.                                                              |
 | Public API major  | URL prefix, currently `/api/v1`          | The compatibility contract for API consumers.                                                                                                                      |
-| API specification | `lib/api/v1/openapi.ts` → `info.version` | A revision of the documented API contract. Currently `1.1.0`. `openapi: "3.1.0"` identifies the specification format, not the Paiflow API version.                 |
+| API specification | `lib/api/v1/openapi.ts` → `info.version` | A revision of the documented API contract. Currently `1.1.1`. `openapi: "3.1.0"` identifies the specification format, not the Paiflow API version.                 |
 | SDK release       | Each SDK package's own version metadata  | A release of that SDK. `packages/sdk` contains the published Node SDK beta `0.2.0`; see the [SDK release record](sdk/release-checklist.md) for publication status. |
 
 These versions advance independently. A dashboard feature can bump the app version
@@ -63,6 +63,11 @@ Each SDK has its own package version, changelog, and documented
 API-major and runtime compatibility. Apply the same beta version rules above while
 it is below `1.0.0`; after `1.0.0`, use major/minor/patch for breaking changes,
 compatible features, and compatible fixes respectively.
+
+SDK package repository metadata points to the public source mirror. Before
+publishing a release, ensure that mirror contains the matching SDK source and
+release tag. Metadata corrections require a new package version; changing the
+source manifest does not update an already-published npm artifact.
 
 Do not match SDK numbers to app numbers. For example, SDK `0.2.0` can still target
 API v1. In a shared repository, use distinct SDK tags such as

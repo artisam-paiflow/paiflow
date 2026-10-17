@@ -86,8 +86,17 @@ const parseReleased = (value: unknown) => {
     ...(d.ledger === undefined ? {} : { ledger: integer(d.ledger, Number.MIN_SAFE_INTEGER) }),
   };
 };
+/** Durable keyed callback outcome; preserve the same event key and effective arguments.
+ * @useDeclaredType
+ */
 export type WebhookAttempt = ReturnType<typeof parseAttempt>;
+/** Legacy unkeyed callback hash; every deliberate call can pay again.
+ * @useDeclaredType
+ */
 export type WebhookUnkeyedResult = ReturnType<typeof parseUnkeyed>;
+/** Explicit early-release result with node ID, transaction hash and optional ledger.
+ * @useDeclaredType
+ */
 export type Released = ReturnType<typeof parseReleased>;
 export function webhookMethods(transport: PaiflowTransport, id: string) {
   const auth = (options: WebhookUnkeyedOptions) =>

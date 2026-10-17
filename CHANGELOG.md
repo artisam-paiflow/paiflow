@@ -7,9 +7,15 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Preserve optional parameter defaults and inline return fields in the generated SDK reference; align validation assertions with the current address guidance.
+
+- Point SDK package repository metadata to the public source mirror for future releases.
+
 - Preserve typed wallet destinations on Enter until contacts are deliberately navigated; make contact search reachable with Tab and return to the wallet with Shift+Tab or Escape.
 
 ### Added
+
+- Complete the SDK onboarding README and generated Markdown method/type reference with CI drift checks; align OpenAPI/Postman guidance with the published beta and bounded testnet evidence (API specification correction 1.1.1).
 
 - Reproducible local app/API/packed-SDK developer-token verification, including live selection edits and financial recovery boundaries (#1034).
 
