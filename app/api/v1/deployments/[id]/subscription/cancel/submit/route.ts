@@ -6,14 +6,18 @@ import { submitSubscriptionControl } from "@/lib/api/v1/subscription-controls";
 
 export const dynamic = "force-dynamic";
 export const POST = v1Route(
-  { rateLimit: V1_RATE_LIMITS.subscriptionControlSubmit },
-  async ({ deployment, req, token }) => {
+  {
+    operation: "POST subscription/cancel/submit",
+    rateLimit: V1_RATE_LIMITS.subscriptionControlSubmit,
+  },
+  async ({ deployment, req, token, tokenType }) => {
     const body = WalletControlSubmitSchema.parse(await req.json());
     const data = await submitSubscriptionControl({
       deployment,
       action: "subscription.cancel",
       ...body,
       tokenId: token.id,
+      tokenType,
       req,
     });
     return NextResponse.json({ data }, { headers: { "Cache-Control": "no-store" } });

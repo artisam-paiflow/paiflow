@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Paiflow API v1",
-    "description": "Execute a deployed deposit-triggered flow and poll its events. Fill in the collection variables `deploymentId`, `apiToken` (minted by the deployment's owner in the API access panel), `from` and `amount`.\n\nThe API never signs. Run **Prepare execute**, sign the `unsignedXdr` variable it stores with the `from` key on your side (`stellar tx sign --sign-with-key S\u2026 --network testnet`), paste the result into `signedXdr`, then run **Submit execute**. Guide: docs/api/README.md in the repository.",
+    "description": "API v1 supports server-side pfd_ developer credentials across explicit existing owned deployment selections, or existing deployment-only pfk_ tokens. Set apiToken privately; do not export credentials or signed envelopes. READ_OPERATE is required for prepare/submit/reconcile/early release; READ_ONLY permits reads. Wallet consent and webhook secrets remain separate. Owner-session developer-token management requests explicitly disable inherited bearer auth and require a signed-in owner cookie jar; do not supply a token as management auth. Support is on the dev-token integration branch; verify hosted availability. Developer-token/discovery SDK additions are Unreleased source and are not published by this work; registry 0.1.0 support must not be assumed. See docs/api/developer-tokens.md and developer-token-permissions.md.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -126,9 +126,26 @@
       "key": "fundingSignedXdr",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "developerTokenId",
+      "value": ""
     }
   ],
   "item": [
+    {
+      "name": "List authorized deployments",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments"]
+        },
+        "description": "Bearer token scope only; paginated with cursor and limit. Both developer and deployment tokens are accepted. Developer token minimum permission: READ_ONLY. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
+      }
+    },
     {
       "name": "Get demo token",
       "request": {
@@ -139,14 +156,8 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/v1/demo-token",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "demo-token"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "demo-token"]
         },
         "description": "Public; no token and no account. Returns a bearer token for one shared swapper deployment on testnet, so you can run the calls above before registering. Takes no body. Available only where the public demo is enabled (the testnet instance); 403 otherwise.\n\n**This deployment is shared.** Anyone else holding a demo token can read the events your deposit produces, including the account you deposited from. The swap proceeds are paid to a Paiflow-owned testnet account, not back to you, so the testnet XLM you deposit is spent. Fund a throwaway account with friendbot and never point this at an account you care about.\n\nFor an isolated deployment and a token that does not expire in an hour, register, deploy your own flow and mint a token in the **API access** panel.\n\nRate limit: 3 requests per 3600 seconds per client IP. Rate limit: 60 requests per 3600 seconds instance-wide."
       },
@@ -178,14 +189,8 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/demo-token",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "demo-token"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "demo-token"]
             }
           },
           "status": "Created",
@@ -208,18 +213,10 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/capabilities",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "capabilities"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "capabilities"]
         },
-        "description": "Discover recorded integration support and prerequisites. Requires the deployment token. Conditional support is not live eligibility; no transactions are sent."
+        "description": "Discover recorded integration support and prerequisites. Requires the deployment token. Conditional support is not live eligibility; no transactions are sent. Developer token minimum permission: READ_ONLY. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": [
         {
@@ -229,16 +226,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/capabilities",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "capabilities"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "capabilities"]
             },
             "description": "Discover recorded integration support and prerequisites. Requires the deployment token. Conditional support is not live eligibility; no transactions are sent."
           },
@@ -261,18 +250,10 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/balances",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "balances"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "balances"]
         },
-        "description": "Display current contract token balances, with read timestamps and partial/completeness information. Poll at most every 10 seconds. Not Schedule payout availability or payment success. Hosted testnet verification pending."
+        "description": "Display current contract token balances, with read timestamps and partial/completeness information. Poll at most every 10 seconds. Not Schedule payout availability or payment success. Hosted testnet verification pending. Developer token minimum permission: READ_ONLY. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": [
         {
@@ -282,16 +263,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/balances",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "balances"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "balances"]
             },
             "description": "Display current contract token balances, with read timestamps and partial/completeness information. Poll at most every 10 seconds. Not Schedule payout availability or payment success. Hosted testnet verification pending."
           },
@@ -317,14 +290,8 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/v1/openapi.json",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "openapi.json"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "openapi.json"]
         },
         "description": "Public; no token. Returned as the bare document, without the `data` envelope. Rate limit: 60 requests per 60 seconds per client IP."
       },
@@ -353,14 +320,8 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/openapi.json",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "openapi.json"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "openapi.json"]
             }
           },
           "status": "OK",
@@ -388,16 +349,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "execute"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute"]
         },
         "body": {
           "mode": "raw",
@@ -408,7 +361,7 @@
             }
           }
         },
-        "description": "Prepare the deposit that executes a deposit-triggered flow. `from` must be a funded account on this network: it pays the deposit and the fee, and signs the envelope. The flow's payout recipient must hold a trustline for the asset it receives; a missing trustline reverts the whole pipeline.\n\nThe flow runs through its deposit trigger; the next pipeline steps (pay, split, condition, swap) run in the same transaction. Sign the returned `xdr` with the `from` key using `networkPassphrase`, before `expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook, payroll and other trigger-headed flows are refused with `VALIDATION`.\n\nRate limit: 30 requests per 60 seconds per token.\n\nThe collection saves executeUnsignedXdr and its preparation ID. Sign this envelope and paste the result into executeSignedXdr. A successful new preparation replaces this operation's unsigned envelope and ID and clears its previous signed envelope. Failed preparations preserve the previous payment's retry data."
+        "description": "Prepare the deposit that executes a deposit-triggered flow. `from` must be a funded account on this network: it pays the deposit and the fee, and signs the envelope. The flow's payout recipient must hold a trustline for the asset it receives; a missing trustline reverts the whole pipeline.\n\nThe flow runs through its deposit trigger; the next pipeline steps (pay, split, condition, swap) run in the same transaction. Sign the returned `xdr` with the `from` key using `networkPassphrase`, before `expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook, payroll and other trigger-headed flows are refused with `VALIDATION`.\n\nRate limit: 30 requests per 60 seconds per token.\n\nThe collection saves executeUnsignedXdr and its preparation ID. Sign this envelope and paste the result into executeSignedXdr. A successful new preparation replaces this operation's unsigned envelope and ID and clears its previous signed envelope. Failed preparations preserve the previous payment's retry data. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "event": [
         {
@@ -443,16 +396,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "execute"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute"]
             },
             "body": {
               "mode": "raw",
@@ -487,16 +432,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "execute"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute"]
             },
             "body": {
               "mode": "raw",
@@ -531,16 +468,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "execute"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute"]
             },
             "body": {
               "mode": "raw",
@@ -577,17 +506,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute/submit",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "execute",
-            "submit"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute", "submit"]
         },
         "body": {
           "mode": "raw",
@@ -598,7 +518,7 @@
             }
           }
         },
-        "description": "Submit a signed deposit that executes a deposit-triggered flow.\n\nThe envelope must be the one `execute` returned, signed by `from`: anything but a single `deposit` call on this flow's trigger contract is refused with `VALIDATION`, as is a fee-bump envelope.\n\nIdempotent on the envelope hash: submitting the same `signedXdr` again never sends a second transaction, it reports the one already on the network. That is also how to check a `PENDING` result. A transaction that reached the network and failed is a `200` with `status: FAILED` and an `error`, not an HTTP error.\n\nRate limit: 30 requests per 60 seconds per token.\n\nThe collection sends the matching preparation response ID as x-preparation-request-id when available. Reuse it for retries of this envelope; a new prepare replaces its own operation ID. It is optional analytics metadata, not payment authorization."
+        "description": "Submit a signed deposit that executes a deposit-triggered flow.\n\nThe envelope must be the one `execute` returned, signed by `from`: anything but a single `deposit` call on this flow's trigger contract is refused with `VALIDATION`, as is a fee-bump envelope.\n\nIdempotent on the envelope hash: submitting the same `signedXdr` again never sends a second transaction, it reports the one already on the network. That is also how to check a `PENDING` result. A transaction that reached the network and failed is a `200` with `status: FAILED` and an `error`, not an HTTP error.\n\nRate limit: 30 requests per 60 seconds per token.\n\nThe collection sends the matching preparation response ID as x-preparation-request-id when available. Reuse it for retries of this envelope; a new prepare replaces its own operation ID. It is optional analytics metadata, not payment authorization. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "event": [
         {
@@ -640,17 +560,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute/submit",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "execute",
-                "submit"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute", "submit"]
             },
             "body": {
               "mode": "raw",
@@ -685,17 +596,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute/submit",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "execute",
-                "submit"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute", "submit"]
             },
             "body": {
               "mode": "raw",
@@ -730,17 +632,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute/submit",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "execute",
-                "submit"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute", "submit"]
             },
             "body": {
               "mode": "raw",
@@ -777,16 +670,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/release-early",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "release-early"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "release-early"]
         },
         "body": {
           "mode": "raw",
@@ -797,7 +682,7 @@
             }
           }
         },
-        "description": "Release a timelock branch's before side now (work delivered). Omit `nodeId` when the deployment has one timelock branch. Rate limit: 10 requests per 60 seconds per token."
+        "description": "Release a timelock branch's before side now (work delivered). Omit `nodeId` when the deployment has one timelock branch. Rate limit: 10 requests per 60 seconds per token. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "event": [
         {
@@ -826,16 +711,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/release-early",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "release-early"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "release-early"]
             },
             "body": {
               "mode": "raw",
@@ -867,16 +744,8 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/events?limit=50",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "events"
-          ],
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "events"],
           "query": [
             {
               "key": "limit",
@@ -896,7 +765,7 @@
             }
           ]
         },
-        "description": "Forward-paginated events the app decoded for this deployment's contracts, ascending by `(ledger, eventId)`. This is the app's record, not a raw chain feed: each event appears once (`eventId` is unique).\n\n**Freshness.** When this deployment's events were last collected from the network more than 10 seconds ago, a call collects them first and waits up to 5 seconds for that before answering from the record. So an event usually appears within 10 to 20 seconds of its ledger closing, whoever submitted the transaction (a wallet paying the contract directly, a scanned SEP-7 QR, a scheduled charge), provided you keep polling. Collection is shared by every caller of the deployment: one at a time, and the next no sooner than 10 seconds after the last one ends, so polling faster than that does not make events arrive sooner. A call that arrives while a collection is already running, or when the network is slow, answers with what is recorded, and the event appears on a later call; a background poller also collects every minute. A confirmed `execute/submit` records its own events before it returns.\n\nA swap is `kind: PAYOUT` with `topic: \"swap\"` and `data` `{ assetIn, assetOut, amountIn, amountOut }`; amounts are stroops as strings.\n\nTo poll: store `nextCursor` and pass it back as `cursor`. While `hasMore` is true, ask again straight away; once it is false, wait and ask again with the same cursor. `nextCursor` is never null once the deployment has events: on an empty page it echoes the cursor you sent. It is null only when there are no events and no cursor was sent.\n\nRate limit: 120 requests per 60 seconds per token."
+        "description": "Forward-paginated events the app decoded for this deployment's contracts, ascending by `(ledger, eventId)`. This is the app's record, not a raw chain feed: each event appears once (`eventId` is unique).\n\n**Freshness.** When this deployment's events were last collected from the network more than 10 seconds ago, a call collects them first and waits up to 5 seconds for that before answering from the record. So an event usually appears within 10 to 20 seconds of its ledger closing, whoever submitted the transaction (a wallet paying the contract directly, a scanned SEP-7 QR, a scheduled charge), provided you keep polling. Collection is shared by every caller of the deployment: one at a time, and the next no sooner than 10 seconds after the last one ends, so polling faster than that does not make events arrive sooner. A call that arrives while a collection is already running, or when the network is slow, answers with what is recorded, and the event appears on a later call; a background poller also collects every minute. A confirmed `execute/submit` records its own events before it returns.\n\nA swap is `kind: PAYOUT` with `topic: \"swap\"` and `data` `{ assetIn, assetOut, amountIn, amountOut }`; amounts are stroops as strings.\n\nTo poll: store `nextCursor` and pass it back as `cursor`. While `hasMore` is true, ask again straight away; once it is false, wait and ask again with the same cursor. `nextCursor` is never null once the deployment has events: on an empty page it echoes the cursor you sent. It is null only when there are no events and no cursor was sent.\n\nRate limit: 120 requests per 60 seconds per token. Developer token minimum permission: READ_ONLY. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "event": [
         {
@@ -922,16 +791,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/events?limit=50",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "events"
-              ],
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "events"],
               "query": [
                 {
                   "key": "limit",
@@ -972,19 +833,10 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/transactions/{{txHash}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "transactions",
-            "{{txHash}}"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "transactions", "{{txHash}}"]
         },
-        "description": "Poll existing transaction without resubmitting; UNKNOWN never authorizes another payment."
+        "description": "Poll existing transaction without resubmitting; UNKNOWN never authorizes another payment. Developer token minimum permission: READ_ONLY. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": []
     },
@@ -1020,14 +872,8 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/webhooks/{{deploymentId}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "webhooks",
-            "{{deploymentId}}"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "webhooks", "{{deploymentId}}"]
         },
         "description": "Requires a separately funded webhook deployment and its callback secret. Keep the same event key and payload for retries; changing payload conflicts. Keys never reopen automatically; UNKNOWN must not trigger a fresh payment. This route uses the relayer, not caller wallet signing."
       },
@@ -1040,19 +886,10 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/state",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "subscription",
-            "state"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "subscription", "state"]
         },
-        "description": "Read live subscriber, token, allowance and cancellation state. Unconfigured Dev subscriber returns setupRequired:true and allowance:\"0\". Read only; no wallet mutation. Limit 40/minute/token."
+        "description": "Read live subscriber, token, allowance and cancellation state. Unconfigured Dev subscriber returns setupRequired:true and allowance:\"0\". Read only; no wallet mutation. Limit 40/minute/token. Developer token minimum permission: READ_ONLY. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": [
         {
@@ -1062,17 +899,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/state",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "subscription",
-                "state"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "subscription", "state"]
             },
             "description": "Read live subscriber, token, allowance and cancellation state. Unconfigured Dev subscriber returns setupRequired:true and allowance:\"0\". Read only; no wallet mutation. Limit 40/minute/token."
           },
@@ -1113,9 +941,7 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/cancel/prepare",
-          "host": [
-            "{{baseUrl}}"
-          ],
+          "host": ["{{baseUrl}}"],
           "path": [
             "api",
             "v1",
@@ -1126,7 +952,7 @@
             "prepare"
           ]
         },
-        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending."
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": [],
       "event": [
@@ -1162,9 +988,7 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/cancel/submit",
-          "host": [
-            "{{baseUrl}}"
-          ],
+          "host": ["{{baseUrl}}"],
           "path": [
             "api",
             "v1",
@@ -1175,7 +999,7 @@
             "submit"
           ]
         },
-        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending."
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": []
     },
@@ -1200,9 +1024,7 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/cancel/reconcile",
-          "host": [
-            "{{baseUrl}}"
-          ],
+          "host": ["{{baseUrl}}"],
           "path": [
             "api",
             "v1",
@@ -1213,7 +1035,7 @@
             "reconcile"
           ]
         },
-        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending."
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": []
     },
@@ -1238,9 +1060,7 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/reactivate/prepare",
-          "host": [
-            "{{baseUrl}}"
-          ],
+          "host": ["{{baseUrl}}"],
           "path": [
             "api",
             "v1",
@@ -1251,7 +1071,7 @@
             "prepare"
           ]
         },
-        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending."
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": [],
       "event": [
@@ -1287,9 +1107,7 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/reactivate/submit",
-          "host": [
-            "{{baseUrl}}"
-          ],
+          "host": ["{{baseUrl}}"],
           "path": [
             "api",
             "v1",
@@ -1300,7 +1118,7 @@
             "submit"
           ]
         },
-        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending."
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": []
     },
@@ -1325,9 +1143,7 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/reactivate/reconcile",
-          "host": [
-            "{{baseUrl}}"
-          ],
+          "host": ["{{baseUrl}}"],
           "path": [
             "api",
             "v1",
@@ -1338,7 +1154,7 @@
             "reconcile"
           ]
         },
-        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending."
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": []
     },
@@ -1349,16 +1165,8 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/swap-quote?amountStroops={{amount}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "swap-quote"
-          ],
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "swap-quote"],
           "query": [
             {
               "key": "amountStroops",
@@ -1371,7 +1179,7 @@
             }
           ]
         },
-        "description": "Estimate the selected deployed Swap node, not the entire flow or guaranteed output. Enable nodeId for multiple Swap nodes. Assets/router/slippage come from live getters. Hosted verification pending."
+        "description": "Estimate the selected deployed Swap node, not the entire flow or guaranteed output. Enable nodeId for multiple Swap nodes. Assets/router/slippage come from live getters. Hosted verification pending. Developer token minimum permission: READ_ONLY. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": [
         {
@@ -1381,16 +1189,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/swap-quote?amountStroops={{amount}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "swap-quote"
-              ],
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "swap-quote"],
               "query": [
                 {
                   "key": "amountStroops",
@@ -1428,17 +1228,8 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/state",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "schedule",
-            "state"
-          ],
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "schedule", "state"],
           "query": [
             {
               "key": "nodeId",
@@ -1447,7 +1238,7 @@
             }
           ]
         },
-        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery."
+        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery. Developer token minimum permission: READ_ONLY. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": []
     },
@@ -1463,19 +1254,10 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/pause",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "schedule",
-            "pause"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "schedule", "pause"]
         },
-        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
+        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate.",
         "body": {
           "mode": "raw",
           "raw": "{\n  \"walletAddress\": \"{{scheduleWalletAddress}}\",\n  \"nodeId\": \"{{scheduleNodeId}}\"\n}",
@@ -1516,20 +1298,10 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/pause/submit",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "schedule",
-            "pause",
-            "submit"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "schedule", "pause", "submit"]
         },
-        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
+        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate.",
         "body": {
           "mode": "raw",
           "raw": "{\n  \"intent\": \"{{scheduleIntent}}\",\n  \"signedXdr\": \"{{scheduleSignedXdr}}\"\n}",
@@ -1554,20 +1326,10 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/pause/reconcile",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "schedule",
-            "pause",
-            "reconcile"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "schedule", "pause", "reconcile"]
         },
-        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
+        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate.",
         "body": {
           "mode": "raw",
           "raw": "{\n  \"intent\": \"{{scheduleIntent}}\"\n}",
@@ -1592,19 +1354,10 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/resume",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "schedule",
-            "resume"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "schedule", "resume"]
         },
-        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
+        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate.",
         "body": {
           "mode": "raw",
           "raw": "{\n  \"walletAddress\": \"{{scheduleWalletAddress}}\",\n  \"nodeId\": \"{{scheduleNodeId}}\"\n}",
@@ -1645,20 +1398,10 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/resume/submit",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "schedule",
-            "resume",
-            "submit"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "schedule", "resume", "submit"]
         },
-        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
+        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate.",
         "body": {
           "mode": "raw",
           "raw": "{\n  \"intent\": \"{{scheduleIntent}}\",\n  \"signedXdr\": \"{{scheduleSignedXdr}}\"\n}",
@@ -1683,9 +1426,7 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/resume/reconcile",
-          "host": [
-            "{{baseUrl}}"
-          ],
+          "host": ["{{baseUrl}}"],
           "path": [
             "api",
             "v1",
@@ -1696,7 +1437,7 @@
             "reconcile"
           ]
         },
-        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
+        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate.",
         "body": {
           "mode": "raw",
           "raw": "{\n  \"intent\": \"{{scheduleIntent}}\"\n}",
@@ -1721,19 +1462,10 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/retrieve",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "schedule",
-            "retrieve"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "schedule", "retrieve"]
         },
-        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
+        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate.",
         "body": {
           "mode": "raw",
           "raw": "{\n  \"walletAddress\": \"{{scheduleWalletAddress}}\",\n  \"nodeId\": \"{{scheduleNodeId}}\"\n}",
@@ -1774,20 +1506,10 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/retrieve/submit",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "schedule",
-            "retrieve",
-            "submit"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "schedule", "retrieve", "submit"]
         },
-        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
+        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate.",
         "body": {
           "mode": "raw",
           "raw": "{\n  \"intent\": \"{{scheduleIntent}}\",\n  \"signedXdr\": \"{{scheduleSignedXdr}}\"\n}",
@@ -1812,9 +1534,7 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/retrieve/reconcile",
-          "host": [
-            "{{baseUrl}}"
-          ],
+          "host": ["{{baseUrl}}"],
           "path": [
             "api",
             "v1",
@@ -1825,7 +1545,7 @@
             "reconcile"
           ]
         },
-        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
+        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate.",
         "body": {
           "mode": "raw",
           "raw": "{\n  \"intent\": \"{{scheduleIntent}}\"\n}",
@@ -1845,18 +1565,10 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "funding"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding"]
         },
-        "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending."
+        "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending. Developer token minimum permission: READ_ONLY. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": [
         {
@@ -1866,16 +1578,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "funding"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding"]
             },
             "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending."
           },
@@ -1903,18 +1607,10 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "funding"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding"]
         },
-        "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending.",
+        "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate.",
         "body": {
           "mode": "raw",
           "raw": "{\n  \"nodeId\": \"{{fundingNodeId}}\",\n  \"fromAddress\": \"{{from}}\",\n  \"tokenContractAddress\": \"{{fundingAsset}}\",\n  \"amountStroops\": \"{{amount}}\"\n}",
@@ -1950,16 +1646,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "funding"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding"]
             },
             "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending.",
             "body": {
@@ -1996,19 +1684,10 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding/submit",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "funding",
-            "submit"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding", "submit"]
         },
-        "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending.",
+        "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate.",
         "body": {
           "mode": "raw",
           "raw": "{\n  \"action\": \"{{fundingAction}}\",\n  \"intent\": \"{{fundingIntent}}\",\n  \"signedXdr\": \"{{fundingSignedXdr}}\"\n}",
@@ -2032,19 +1711,10 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding/reconcile",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "deployments",
-            "{{deploymentId}}",
-            "funding",
-            "reconcile"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding", "reconcile"]
         },
-        "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending.",
+        "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate.",
         "body": {
           "mode": "raw",
           "raw": "{\n  \"action\": \"{{fundingAction}}\",\n  \"intent\": \"{{fundingIntent}}\"\n}",
@@ -2068,17 +1738,8 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding/reconcile",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "deployments",
-                "{{deploymentId}}",
-                "funding",
-                "reconcile"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding", "reconcile"]
             },
             "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending.",
             "body": {
@@ -2102,6 +1763,136 @@
           "body": "{\n  \"data\": {\n    \"intent\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"action\": \"schedule.fund\",\n    \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n    \"network\": \"testnet\",\n    \"state\": \"PREPARED\",\n    \"expiresAt\": \"2026-10-12T00:03:00.000Z\"\n  }\n}"
         }
       ]
+    },
+    {
+      "name": "List developer credentials",
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/developer-tokens",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "developer-tokens"]
+        },
+        "description": "Owner browser session cookie jar only; inherited bearer disabled. Sandbox refused. Success no-store. Writes share 30/min per owner. Create reveals plaintext once; save directly to your private server secret store, never collection variables or exports. Selection replacement is atomic; [] suspends. Revocation retains history and never cancels submitted work. See docs/api/developer-tokens.md."
+      },
+      "response": []
+    },
+    {
+      "name": "Create developer credential",
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/developer-tokens",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "developer-tokens"]
+        },
+        "description": "Owner browser session cookie jar only; inherited bearer disabled. Sandbox refused. Success no-store. Writes share 30/min per owner. Create reveals plaintext once; save directly to your private server secret store, never collection variables or exports. Selection replacement is atomic; [] suspends. Revocation retains history and never cancels submitted work. See docs/api/developer-tokens.md.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"label\": \"Server read integration\",\n  \"permission\": \"READ_ONLY\",\n  \"deploymentIds\": [\n    \"11111111-1111-4111-8111-111111111111\",\n    \"22222222-2222-4222-8222-222222222222\"\n  ],\n  \"expiresInDays\": 30\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List eligible deployment choices",
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/developer-tokens/deployments",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "developer-tokens", "deployments"]
+        },
+        "description": "Owner browser session cookie jar only; inherited bearer disabled. Sandbox refused. Success no-store. Writes share 30/min per owner. Create reveals plaintext once; save directly to your private server secret store, never collection variables or exports. Selection replacement is atomic; [] suspends. Revocation retains history and never cancels submitted work. See docs/api/developer-tokens.md."
+      },
+      "response": []
+    },
+    {
+      "name": "Inspect developer credential",
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/developer-tokens/{{developerTokenId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "developer-tokens", "{{developerTokenId}}"]
+        },
+        "description": "Owner browser session cookie jar only; inherited bearer disabled. Sandbox refused. Success no-store. Writes share 30/min per owner. Create reveals plaintext once; save directly to your private server secret store, never collection variables or exports. Selection replacement is atomic; [] suspends. Revocation retains history and never cancels submitted work. See docs/api/developer-tokens.md."
+      },
+      "response": []
+    },
+    {
+      "name": "Replace developer selections",
+      "request": {
+        "method": "PATCH",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/developer-tokens/{{developerTokenId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "developer-tokens", "{{developerTokenId}}"]
+        },
+        "description": "Owner browser session cookie jar only; inherited bearer disabled. Sandbox refused. Success no-store. Writes share 30/min per owner. Create reveals plaintext once; save directly to your private server secret store, never collection variables or exports. Selection replacement is atomic; [] suspends. Revocation retains history and never cancels submitted work. See docs/api/developer-tokens.md.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"deploymentIds\": []\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Revoke developer credential",
+      "request": {
+        "method": "DELETE",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/developer-tokens/{{developerTokenId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "developer-tokens", "{{developerTokenId}}"]
+        },
+        "description": "Owner browser session cookie jar only; inherited bearer disabled. Sandbox refused. Success no-store. Writes share 30/min per owner. Create reveals plaintext once; save directly to your private server secret store, never collection variables or exports. Selection replacement is atomic; [] suspends. Revocation retains history and never cancels submitted work. See docs/api/developer-tokens.md."
+      },
+      "response": []
     }
   ]
 }

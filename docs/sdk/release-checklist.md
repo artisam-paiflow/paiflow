@@ -1,5 +1,93 @@
 # SDK beta validation and release checklist
 
+## Beta 0.2.0 — release preparation, 2026-10-16
+
+`@paiflow/sdk@0.2.0` is the current **release candidate**, pending independent
+review, exact-head CI, merge, SDK tagging and npm publication. The user authorized
+this release separately from the completed first beta below. No `0.2.0` publication
+or production backend promotion is claimed by this preparation record.
+
+### Identity and compatibility
+
+- Prepare from current `develop` baseline
+  `ecb58243c839a49c23ec4d785c77d3838a92c99c` (developer-token work integrated by
+  [PR #1042](https://github.com/webnxt-2030/pinkraft/pull/1042)). Release-preparation
+  PRs target `develop`; SDK and app versions advance independently.
+- Package `@paiflow/sdk@0.2.0`; planned annotated tag `sdk-js-v0.2.0` and GitHub
+  prerelease. Package `publishConfig` remains public with npm dist-tag `beta`.
+  Current published `0.1.0` remains the previous beta. Publication must move
+  `beta` to `0.2.0` while preserving `latest` at `0.1.0`; plain unversioned npm
+  installation must not be represented as selecting this new beta.
+- Compared with `sdk-js-v0.1.0`, add `pfd_` developer credentials, typed
+  `client.deployments.list/pages`, selected-scope integration examples and
+  credential redaction in response metadata/error keys. Existing `pfk_`
+  integrations remain compatible; no consumer migration is required.
+- API remains `/api/v1`; the developer-token/discovery additions require a backend
+  implementing OpenAPI revision `1.1.0`. Owner-session token management remains
+  outside the SDK. Wallet signatures and webhook secrets remain separate.
+- Node `>=22.22.2 <23`, ESM with TypeScript declarations and zero runtime
+  dependencies remain unchanged. This preparation changes package metadata and
+  maintained documentation only; it adds no SDK runtime/API behavior, root app
+  version, dependencies or migrations.
+- [Integrated local verification](../verification/developer-tokens-2026-10-16.md)
+  and [bounded hosted testing evidence](../verification/developer-tokens-hosted-verification-2026-10-16.md)
+  establish their exact documented candidates and testnet scope, using branch-built
+  artifacts that still carried `0.1.0` metadata. They are historical evidence,
+  not registry `0.2.0` validation or a production/mainnet availability claim.
+
+Packaged documentation describes version capabilities without temporal publication
+claims; the evolving availability record stays in this repository checklist.
+
+### Preparation validation
+
+- [x] SDK source/declaration typecheck: `pnpm sdk:typecheck`.
+- [x] SDK built-package tests: `pnpm sdk:test` — 193 passed.
+- [x] `pnpm sdk:test:package` — clean offline tarball consumer, declarations/ESM
+      exports, file allowlist, 22 developer-discovery cases and compiled examples
+      passed, including explicit selection and separate wallet/receipt gates.
+- [x] Repository TypeScript: `pnpm typecheck`.
+- [x] `pnpm audit` passed with the existing single ignored low advisory under
+      repository policy ([#753](https://github.com/webnxt-2030/pinkraft/issues/753));
+      no new dependency or advisory exception was added.
+- [ ] Independent source/artifact review and exact-head/postmerge CI.
+- [ ] Final retained archive identity and independent registry verification.
+
+The SDK subprocess checks required execution outside the restricted sandbox;
+those complete checks passed without changing runtime or tests. Initial sandboxed
+child-process failures are not counted as successful validation. Archive hashes
+and contents must be retained for the final reviewed bytes, following the steps
+below, rather than copying the historical `0.1.0` archive identity.
+
+### Publication SOP for this beta
+
+1. Review the release PR and pass its required exact-head Node/Rust CI. Merge into
+   `develop`, verify the reviewed SDK tree is unchanged and pass postmerge checks.
+2. Build and validate the final package; retain its allowlisted archive, file
+   listing, SHA-256 and npm integrity. Independently install that exact archive
+   into a clean ESM/TypeScript consumer. Never substitute an unreviewed rebuild.
+3. Verify the publisher is an authorized `@paiflow` owner using the normal npm
+   authentication flow. Never copy credentials into files, chat or logs. Check
+   `0.2.0` is absent and record existing dist-tags before publication.
+4. Create/push annotated `sdk-js-v0.2.0` on the reviewed merge and publish GitHub
+   prerelease notes from the SDK changelog. Verify annotation and peeled commit.
+   Package README links use this versioned tag; do not publish before it exists.
+5. Publish the approved archive once, explicitly using `--access public --tag beta`
+   and `--ignore-scripts` because its build/artifact checks are already complete.
+   This is an SDK publication, not an app release, backend deployment or contract
+   upgrade. Do not retag `latest` or overwrite/unpublish an existing version.
+6. Verify registry version, `beta=0.2.0`, unchanged `latest=0.1.0` and published
+   integrity. Download independently, compare SHA-256/files with the retained
+   archive, then run clean registry ESM/declaration and developer-token smoke
+   checks without live financial writes. Record actual results, merge/tag/archive
+   identities and CI/release links; retain any limitations honestly.
+
+After publication, exact-version install is `npm install @paiflow/sdk@0.2.0`;
+`npm install @paiflow/sdk@beta` follows the moving beta tag. Both are pending until
+the registry verification above succeeds. If authentication or publication is
+blocked, report the concrete blocker without claiming a completed release.
+
+## Historical first beta 0.1.0 — published 2026-10-15
+
 Local validation for [#964](https://github.com/webnxt-2030/pinkraft/issues/964)
 began on 2026-10-13. The user separately approved the first-beta release on
 2026-10-15; **`@paiflow/sdk@0.1.0` is published**, with its annotated SDK tag,

@@ -28,10 +28,10 @@ const BASE64_BLOB = /[A-Za-z0-9+/]{80,}={0,2}/g;
 // would swallow `/deployments/<uuid>/payroll-runs/<uuid>` in $pathname, which
 // stays readable by decision (#517, 17 Sep 2026).
 const BASE64URL_BLOB = /[A-Za-z0-9_-]{80,}/g;
-// Credentials this app mints and shows once: `pfk_` partner tokens
-// (lib/api/v1/tokens.ts) and `whsec_` webhook secrets. Both are 68 chars, under
-// every length-based rule here.
-const PREFIXED_SECRET = /\b(?:pfk|whsec)_[0-9a-f]{32,}\b/gi;
+// Credentials this app mints and shows once: `pfk_` deployment tokens, `pfd_`
+// developer tokens and `whsec_` webhook secrets. Each is shorter than the
+// length-based blob rules here.
+const PREFIXED_SECRET = /\b(?:pfk|pfd|whsec)_[0-9a-f]{32,}\b/gi;
 const JWT = /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
 // Sandbox and passkey sign-in tickets: `<User.id>.<epoch ms>.<32 hex>`.
 const LOGIN_TICKET = /\b[0-9a-f-]{36}\.\d{13}\.[0-9a-f]{32}\b/gi;

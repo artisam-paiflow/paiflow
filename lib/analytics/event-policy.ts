@@ -10,6 +10,7 @@ const PROPERTIES: Record<EventName, readonly string[]> = {
     "duration_ms",
     "error_code",
     "api_token_id",
+    "developer_api_token_id",
     "token_creator_id",
     "deployment_id",
     "tx_hash",
@@ -231,7 +232,15 @@ const WALLETS = new Set([
   "stellarwalletskit",
 ]);
 function approvedValue(key: string, value: unknown): unknown {
-  if (["request_id", "preparation_request_id", "api_token_id", "token_creator_id"].includes(key))
+  if (
+    [
+      "request_id",
+      "preparation_request_id",
+      "api_token_id",
+      "developer_api_token_id",
+      "token_creator_id",
+    ].includes(key)
+  )
     return value === null
       ? null
       : typeof value === "string" && /^[0-9a-f-]{36}$/i.test(value)

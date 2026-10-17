@@ -196,7 +196,7 @@ test("public allowance works without a configured token", async () => {
     fetch: async () => response(state),
   }).deployment(id);
   await d.subscription.allowance.get();
-  await assert.rejects(d.subscription.get(), /Deployment token required/);
+  await assert.rejects(d.subscription.get(), /API token required/);
 });
 test("allowance signing checks explicit scoped state before callback without decoding intent", async () => {
   let calls = 0;

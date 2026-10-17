@@ -8,8 +8,8 @@ import { preparePayout } from "@/lib/api/v1/payouts";
 import { clientIp } from "@/lib/rate-limit";
 
 export const POST = v1Route(
-  { rateLimit: V1_RATE_LIMITS.payouts },
-  async ({ req, token, deployment }) => {
+  { operation: "POST payouts", rateLimit: V1_RATE_LIMITS.payouts },
+  async ({ req, token, tokenType, deployment }) => {
     requireFeature("devMode");
     const input = PayoutPrepareSchema.parse(
       await req.json().catch(() => {
@@ -17,7 +17,7 @@ export const POST = v1Route(
       }),
     );
     return NextResponse.json({
-      data: await preparePayout(deployment, token.id, input, clientIp(req)),
+      data: await preparePayout(deployment, token.id, input, clientIp(req), tokenType),
     });
   },
 );

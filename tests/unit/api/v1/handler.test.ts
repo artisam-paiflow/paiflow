@@ -24,7 +24,8 @@ const { mockRequireDeploymentToken } = vi.hoisted(() => ({
   mockRequireDeploymentToken: vi.fn(),
 }));
 
-vi.mock("@/lib/api/v1/auth", () => ({
+vi.mock("@/lib/api/v1/auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/v1/auth")>()),
   requireDeploymentToken: mockRequireDeploymentToken,
   // `pfk_x` is not a well-formed token; the pre-auth guards are covered in pre-auth.test.ts.
   bearerDeploymentToken: () => null,
@@ -49,6 +50,7 @@ const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
 let tokenSeq = 0;
 function authAs(tokenId: string) {
   mockRequireDeploymentToken.mockResolvedValue({
+    tokenType: "deployment_token",
     token: { id: tokenId },
     deployment: { serviceState: "ACTIVE", id: DEPLOYMENT_ID },
   });
@@ -64,7 +66,10 @@ beforeEach(() => {
 describe("v1Route", () => {
   it("hands the handler the params, token and deployment", async () => {
     const fn = vi.fn(async () => ok());
-    const GET = v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, fn);
+    const GET = v1Route(
+      { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+      fn,
+    );
     const req = makeReq(`/api/v1/deployments/${DEPLOYMENT_ID}/events`);
 
     const res = await GET(req, ctx(DEPLOYMENT_ID));
@@ -75,6 +80,7 @@ describe("v1Route", () => {
     expect(fn).toHaveBeenCalledWith({
       req,
       params: { id: DEPLOYMENT_ID },
+      tokenType: "deployment_token",
       token: { id: `token-${tokenSeq}` },
       deployment: { serviceState: "ACTIVE", id: DEPLOYMENT_ID },
     });
@@ -82,7 +88,10 @@ describe("v1Route", () => {
 
   it("returns 404 for a non-UUID id, before authenticating", async () => {
     const fn = vi.fn(async () => ok());
-    const GET = v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, fn);
+    const GET = v1Route(
+      { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+      fn,
+    );
 
     const res = await GET(makeReq("/api/v1/deployments/not-a-uuid/events"), ctx("not-a-uuid"));
 
@@ -97,7 +106,10 @@ describe("v1Route", () => {
   it("does not run the handler when authentication fails", async () => {
     mockRequireDeploymentToken.mockRejectedValue(new AppError("UNAUTHENTICATED", "nope"));
     const fn = vi.fn(async () => ok());
-    const GET = v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, fn);
+    const GET = v1Route(
+      { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+      fn,
+    );
 
     const res = await GET(
       makeReq(`/api/v1/deployments/${DEPLOYMENT_ID}/events`),
@@ -111,7 +123,10 @@ describe("v1Route", () => {
 
   it("returns 429 in the envelope shape once the token's limit is spent", async () => {
     const fn = vi.fn(async () => ok());
-    const GET = v1Route({ rateLimit: { limit: 2, windowSeconds: 60 } }, fn);
+    const GET = v1Route(
+      { operation: "GET events", rateLimit: { limit: 2, windowSeconds: 60 } },
+      fn,
+    );
     const path = `/api/v1/deployments/${DEPLOYMENT_ID}/events`;
 
     expect((await GET(makeReq(path), ctx(DEPLOYMENT_ID))).status).toBe(200);
@@ -127,7 +142,10 @@ describe("v1Route", () => {
   });
 
   it("keys the limit on the token, so another token is unaffected", async () => {
-    const GET = v1Route({ rateLimit: { limit: 1, windowSeconds: 60 } }, async () => ok());
+    const GET = v1Route(
+      { operation: "GET events", rateLimit: { limit: 1, windowSeconds: 60 } },
+      async () => ok(),
+    );
     const path = `/api/v1/deployments/${DEPLOYMENT_ID}/events`;
 
     authAs("token-first");
@@ -139,9 +157,9 @@ describe("v1Route", () => {
   });
 
   it("keys the limit per route, so one endpoint does not spend another's", async () => {
-    const opts = { rateLimit: { limit: 1, windowSeconds: 60 } };
+    const opts = { operation: "GET events" as const, rateLimit: { limit: 1, windowSeconds: 60 } };
     const events = v1Route(opts, async () => ok());
-    const execute = v1Route(opts, async () => ok());
+    const execute = v1Route({ ...opts, operation: "POST execute" }, async () => ok());
 
     authAs("token-per-route");
     const eventsPath = `/api/v1/deployments/${DEPLOYMENT_ID}/events`;
@@ -152,9 +170,12 @@ describe("v1Route", () => {
   });
 
   it("passes an AppError from the handler through withErrorHandler unchanged", async () => {
-    const GET = v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () => {
-      throw new AppError("CONFLICT", "Already submitted", { txHash: ["duplicate"] });
-    });
+    const GET = v1Route(
+      { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+      async () => {
+        throw new AppError("CONFLICT", "Already submitted", { txHash: ["duplicate"] });
+      },
+    );
 
     const res = await GET(
       makeReq(`/api/v1/deployments/${DEPLOYMENT_ID}/execute`),
@@ -168,10 +189,13 @@ describe("v1Route", () => {
   });
 
   it("maps a ZodError from the handler to 422 with fields", async () => {
-    const GET = v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () => {
-      z.object({ signedXdr: z.string() }).parse({});
-      return ok();
-    });
+    const GET = v1Route(
+      { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+      async () => {
+        z.object({ signedXdr: z.string() }).parse({});
+        return ok();
+      },
+    );
 
     const res = await GET(
       makeReq(`/api/v1/deployments/${DEPLOYMENT_ID}/execute`),
@@ -188,7 +212,10 @@ describe("v1Route", () => {
     const path = `/api/v1/deployments/${DEPLOYMENT_ID}/events`;
 
     it("echoes the caller's id on success", async () => {
-      const GET = v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () => ok());
+      const GET = v1Route(
+        { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+        async () => ok(),
+      );
       const res = await GET(
         makeReq(path, { "x-request-id": "partner-req-42" }),
         ctx(DEPLOYMENT_ID),
@@ -197,7 +224,10 @@ describe("v1Route", () => {
     });
 
     it("echoes the caller's id on an error", async () => {
-      const GET = v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () => ok());
+      const GET = v1Route(
+        { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+        async () => ok(),
+      );
       const res = await GET(
         makeReq("/api/v1/deployments/bad/events", { "x-request-id": "partner-req-43" }),
         ctx("bad"),
@@ -207,13 +237,19 @@ describe("v1Route", () => {
     });
 
     it("generates one when the caller sends none", async () => {
-      const GET = v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () => ok());
+      const GET = v1Route(
+        { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+        async () => ok(),
+      );
       const res = await GET(makeReq(path), ctx(DEPLOYMENT_ID));
       expect(res.headers.get("x-request-id")).toMatch(/^[0-9a-f-]{36}$/);
     });
 
     it("replaces a malformed id rather than reflecting it", async () => {
-      const GET = v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () => ok());
+      const GET = v1Route(
+        { operation: "GET events", rateLimit: { limit: 5, windowSeconds: 60 } },
+        async () => ok(),
+      );
       const res = await GET(makeReq(path, { "x-request-id": "<script>" }), ctx(DEPLOYMENT_ID));
       expect(res.headers.get("x-request-id")).toMatch(/^[0-9a-f-]{36}$/);
     });

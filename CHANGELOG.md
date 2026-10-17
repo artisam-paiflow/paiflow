@@ -5,6 +5,21 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+### Added
+
+- Reproducible local app/API/packed-SDK developer-token verification, including live selection edits and financial recovery boundaries (#1034).
+
+- Document selected-deployment developer credentials, owner-session management and safe recovery; add a two-deployment server example with separate wallet consent and packed-consumer validation (#1033).
+
+- Unreleased Node SDK support for developer credentials across selected deployments,
+  with typed, bounded deployment discovery and credential isolation ([#1032](https://github.com/webnxt-2030/pinkraft/issues/1032)).
+
+- Self-service Developer API panel for creating, selecting deployments, inspecting and revoking multi-deployment tokens, with one-time secret reveal and read/operate permissions ([#1031](https://github.com/webnxt-2030/pinkraft/issues/1031)).
+
+- API v1 support for selected-deployment developer credentials, read/operate permissions, scoped deployment discovery, shared limits and durable caller attribution ([#1030](https://github.com/webnxt-2030/pinkraft/issues/1030)).
+
+- Owner-managed developer token lifecycle APIs with explicit deployment grants, immutable read/operate permissions, expiry and revocation. API v1 credential acceptance follows separately ([#1029](https://github.com/webnxt-2030/pinkraft/issues/1029)).
+
 ### Changed
 
 - Recover wallet deployments after an RPC timeout through authenticated owner status checks; retain pending recovery until the matching deployment is confirmed in the app. (#1000, #1003)
@@ -61,6 +76,15 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 - Use the shared wallet picker for deployment and payroll employee updates, record
   the chosen wallet, and sign with the server-provided transaction network. Bind
   WalletConnect signing to the approved session and cancel stale view attempts.
+- Align the builder's English preview to the far right of its desktop toolbar.
+
+- Simplify deployment API access into Quickstart, Credentials and Reference tabs,
+  with flow-specific examples, grouped operations and separate token history.
+  Condense Developer API guidance into a server-storage reminder and expandable
+  permission and access details.
+
+- Limit developer and deployment API token last-used timestamp writes to once per
+  five minutes per token, while retaining authentication checks on every request.
 
 - Save analytics snapshots beside an explicitly selected environment file by
   default; retain `--dir` overrides and the existing fallback without `--env-file`.
@@ -136,6 +160,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 - App, API, and future SDK release policy, with contributor and agent guidance.
 
 ### Fixed
+
+- Handle static deployment-discovery route contexts and restore readable Developer API primary-button contrast, found by integrated browser/API verification (#1034).
 
 - Reconcile the staging-only Railway configuration with the distinct live/archive
   database volumes and guard its target; infrastructure applies remain separately

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { linkApiTransaction } from "@/lib/api/request-history/context";
+import { apiTokenKey } from "@/lib/api/v1/auth";
 import { AppError } from "@/lib/errors";
 import { requireFeature } from "@/lib/features";
 import { v1Route } from "@/lib/api/v1/handler";
@@ -12,8 +13,8 @@ import { submitPreparedDeposit } from "@/lib/stellar/submit-deposit";
 import { clientIp } from "@/lib/rate-limit";
 
 export const POST = v1Route(
-  { rateLimit: V1_RATE_LIMITS.payoutsSubmit },
-  async ({ req, params, token, deployment }) => {
+  { operation: "POST payouts/submit", rateLimit: V1_RATE_LIMITS.payoutsSubmit },
+  async ({ req, params, token, tokenType, deployment }) => {
     requireFeature("devMode");
     const input = PayoutSubmitSchema.parse(
       await req.json().catch(() => {
@@ -27,7 +28,7 @@ export const POST = v1Route(
     const tx = assertDepositEnvelope(input.signedXdr, triggerAddress);
     const { record, allowSubmit } = await assertPreparedPayout(
       params.id,
-      token.id,
+      apiTokenKey(token.id, tokenType),
       tx.hash().toString("hex"),
     );
     linkApiTransaction(tx.hash().toString("hex"));
@@ -35,6 +36,7 @@ export const POST = v1Route(
       tx,
       wait,
       tokenId: token.id,
+      tokenType,
       deploymentId: params.id,
       deployment,
       nodes,
