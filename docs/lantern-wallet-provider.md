@@ -8,7 +8,8 @@ have other features; installing it does not activate this integration.
 
 [#1001](https://github.com/webnxt-2030/pinkraft/issues/1001) requests a browser-wallet
 entry alongside Freighter, separate from the reverted embedded Apps-tab bridge.
-This implementation does not restore framing, embedding or postMessage adapters.
+The desktop adapter does not restore embedded signing or postMessage adapters.
+The separate framing permission below does not activate this adapter.
 It uses the installed Stellar Wallets Kit **1.x** module interface without new
 dependencies or a library migration.
 
@@ -179,8 +180,8 @@ requests and acceptance checklist are in
    scan path before considering mainnet adapter activation under #1003.
 
 No real-extension, real-phone or mainnet acceptance is claimed by the unit tests.
-The local copied icon does not require a CSP change. No Lantern scripts, frames or
-network endpoints are added to Paiflow's CSP.
+The local copied icon does not require a CSP change. The adapter adds no Lantern scripts, child-frame sources or network endpoints
+to Paiflow's CSP. The separate ancestor permission below controls who may frame Paiflow.
 
 ## Icon attribution
 
@@ -191,3 +192,28 @@ The repository's MIT license credits â€œCopyright (c) 2026 Lantern contributorsâ
 Its full license text is retained in `public/wallets/lantern-license.txt`. This is
 asset attribution; it does not imply upstream review or endorsement of Paiflow's
 provisional adapter.
+
+## Lantern framing permission
+
+For the framing request in [#1021](https://github.com/webnxt-2030/pinkraft/issues/1021),
+Paiflow permits these exact parent origins in `frame-ancestors` across the app:
+
+- `https://android.golantern.xyz`
+- `chrome-extension://iflpkjgolcbleombhldiibhojohjpnmd`
+
+All other ancestor origins remain blocked, including Paiflow itself and other
+Lantern subdomains or extension IDs. Every ancestor in a nested frame chain must
+be permitted. `X-Frame-Options: DENY` is removed because it conflicts with this
+permission; an ancestor-only static CSP also protects middleware-excluded paths.
+Middleware responses retain the full nonce-bearing CSP and the same ancestor list.
+Existing marketing redirects (`/about`, `/privacy`, `/terms`) leave this app for
+`beta.paiflow.xyz`; they do not grant framing permission to that destination.
+
+This is header permission only, not embedded-app acceptance. The previous bridge
+from [#928](https://github.com/webnxt-2030/pinkraft/issues/928) is not restored;
+real Apps-tab loading and signing still require compatible Lantern artifacts and
+joint tests. This is separate from desktop external connection (#1001) and Android
+Chrome WalletConnect (#1002). Auth guards, redirects, session cookies
+(`HttpOnly`, `Secure`, `SameSite=Lax`), passkeys, Google sign-in and other security
+headers are unchanged. Cross-site cookie restrictions may prevent authenticated
+sessions in an iframe; no embedded login or signing readiness is claimed.

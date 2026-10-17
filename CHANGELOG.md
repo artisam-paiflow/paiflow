@@ -22,6 +22,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Permit app framing only by Lantern's exact Android and Chrome-extension origins,
+  with consistent CSP protection on middleware and static responses; embedded
+  authentication and signing remain unverified (#1021).
+
 - Recover wallet deployments after an RPC timeout through authenticated owner status checks; retain pending recovery until the matching deployment is confirmed in the app. (#1000, #1003)
 
 - Isolate shared wallet signing from deprecated payroll recovery names while retaining
