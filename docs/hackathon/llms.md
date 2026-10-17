@@ -1,5 +1,7 @@
 # Paiflow developer context guide
 
+For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](../api/developer-tokens.md). SDK `0.2.0` supports developer credentials and scoped discovery with a backend implementing OpenAPI revision `1.1.0`; SDK `0.1.0` does not include these additions. Existing deployment-only integrations remain supported. See the [SDK release record](../sdk/release-checklist.md) for registry availability.
+
 Shared technical guidance updated Oct 12, 2026. API and product details checked against pinkraft `staging` @ b945e6a. Testnet only.
 
 ## Choose the right resource
@@ -57,7 +59,7 @@ Use the team's Paiflow account to build and review a flow, connect the team's wa
 Paiflow is **non-custodial**: it does not hold customers' private keys. Customers authorise their payments in their wallets. Funds held by a condition are on-chain, subject to the condition's release rules and authorised releasers. This guide and starter use **testnet only**; balances have no real-money value.
 
 - The team designs a flow on the canvas and deploys it from the team's Paiflow account.
-- The team's app drives that **one deployment** through `/api/v1`, using a `pfk_` token kept server-side.
+- The starter uses one explicit deployment with a server-side `pfk_` token. Custom multi-deployment integrations can use `pfd_` with explicit selections; do not assume external starter validation supports it.
 - **One deployment serves one business or group. The API drives existing deployments; it does not create per-user copies.** A subscription also has one configured subscriber, rather than a separate subscription for each app user. If your idea needs per-user deployments, describe that as future work rather than a feature this starter already provides.
 
 # 2. Blocks
@@ -212,7 +214,15 @@ Limit: 60 requests/minute per token; confirmed deployments on this environment's
 
 ## Authentication and integration boundary
 
-Use `Authorization: Bearer pfk_<64 lowercase hex characters>`. A token is bound to exactly one deployment. Mint it in **API access** on the team's confirmed deployment; it is shown only once. Store it on the app server. Missing, malformed, unknown, expired, revoked or wrong-deployment tokens all return HTTP 401 `UNAUTHENTICATED`, with `A valid API token for this deployment is required`. A malformed deployment UUID is 404. Revocation takes effect on the next call.
+Use `Authorization: Bearer pfd_<64 lowercase hex characters>` for selected-deployment
+credentials or `pfk_<64 lowercase hex characters>` for existing single-deployment
+tokens. `pfd_` requires explicit grants and immutable `READ_ONLY` / `READ_OPERATE`
+permissions; operate endpoints (including reconciliation and relayer early release)
+require `READ_OPERATE`. A `pfk_` token is bound to exactly one deployment. Mint it in
+**API access** on the team's confirmed deployment; it is shown only once. Store it
+on the app server. Missing, malformed, unknown, expired, revoked or wrong-deployment
+tokens all return HTTP 401 `UNAUTHENTICATED`, with
+`A valid API token for this deployment is required`. A malformed deployment UUID is 404. Revocation takes effect on the next call.
 
 **Put all Paiflow calls in one typed, server-only `lib/paiflow.ts` module in the starter repo, and call the API through it.** Use `import "server-only";`, read `PAIFLOW_API_TOKEN` and `PAIFLOW_DEPLOYMENT_ID` from server environment, and expose `prepareExecute`, `submitExecute`, `listEvents`, `releaseEarly`. Its header should say: `starter code, not a supported package — edit freely.` Follow the shapes below and the public OpenAPI document. Do not invent other v1 methods. Keep the bearer token out of browser bundles, browser requests and logs.
 
@@ -542,17 +552,17 @@ The quoted text below is returned by the API or its contract error translation. 
 
 > `from` must be a funded account on this network: it pays the deposit and the fee, and signs the envelope. The flow's payout recipient must hold a trustline for the asset it receives; a missing trustline reverts the whole pipeline.
 
-| Failure / exact message                                                                                                                                                     | What to do                                                                                                                                                               |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `TrustlineMissingError`: `The payout recipient has no trustline for {asset}. The recipient must add a trustline for {asset} before this flow can pay them.`                 | Add the recipient's trustline to the exact testnet code/issuer, then prepare again. It is normally a 422 simulation refusal, not a partial payout.                       |
-| `AccountMissingError`: `The account receiving {asset} doesn't exist on this network yet. Fund it with XLM first, then add a trustline for {asset}.`                         | Friendbot-fund the recipient and add its line.                                                                                                                           |
-| `BalanceError`: `There isn't enough {asset} to cover this transfer.`                                                                                                        | Check payer/input balance, and any funded contract balance needed by the flow. Top up the correct testnet asset.                                                         |
-| `Insufficient balance to cover this transaction. Check the account balance and try again.`                                                                                  | Check testnet asset balance and XLM for fees/reserves.                                                                                                                   |
-| `txInsufficientBalance`: ``The `from` account cannot cover the fee for this transaction.``                                                                                  | Fund the signing account with testnet XLM.                                                                                                                               |
-| 429 `RATE_LIMITED`: `Too many requests`                                                                                                                                     | Stop immediate retries and wait the `Retry-After` seconds; reduce polling and duplicate submit loops.                                                                    |
-| `txTooLate`: `The transaction's 180-second window expired before it reached the network. Prepare it again.`                                                                 | Execute expired: prepare again and sign promptly. Use the new preparation before its `expiresAt`. |
-| `txBadSeq`: ``The `from` account's sequence number moved since this envelope was prepared. Prepare it again.``                                                              | Avoid simultaneous transactions from the same customer wallet; prepare again after its other transaction finishes.                                                       |
-| `txBadAuth`: ``The envelope is not signed by the `from` account.``                                                                                                          | Reconnect the selected customer's wallet and sign with the returned passphrase.                                                                                          |
+| Failure / exact message                                                                                                                                     | What to do                                                                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TrustlineMissingError`: `The payout recipient has no trustline for {asset}. The recipient must add a trustline for {asset} before this flow can pay them.` | Add the recipient's trustline to the exact testnet code/issuer, then prepare again. It is normally a 422 simulation refusal, not a partial payout. |
+| `AccountMissingError`: `The account receiving {asset} doesn't exist on this network yet. Fund it with XLM first, then add a trustline for {asset}.`         | Friendbot-fund the recipient and add its line.                                                                                                     |
+| `BalanceError`: `There isn't enough {asset} to cover this transfer.`                                                                                        | Check payer/input balance, and any funded contract balance needed by the flow. Top up the correct testnet asset.                                   |
+| `Insufficient balance to cover this transaction. Check the account balance and try again.`                                                                  | Check testnet asset balance and XLM for fees/reserves.                                                                                             |
+| `txInsufficientBalance`: ``The `from` account cannot cover the fee for this transaction.``                                                                  | Fund the signing account with testnet XLM.                                                                                                         |
+| 429 `RATE_LIMITED`: `Too many requests`                                                                                                                     | Stop immediate retries and wait the `Retry-After` seconds; reduce polling and duplicate submit loops.                                              |
+| `txTooLate`: `The transaction's 180-second window expired before it reached the network. Prepare it again.`                                                 | Execute expired: prepare again and sign promptly. Use the new preparation before its `expiresAt`.                                                  |
+| `txBadSeq`: ``The `from` account's sequence number moved since this envelope was prepared. Prepare it again.``                                              | Avoid simultaneous transactions from the same customer wallet; prepare again after its other transaction finishes.                                 |
+| `txBadAuth`: ``The envelope is not signed by the `from` account.``                                                                                          | Reconnect the selected customer's wallet and sign with the returned passphrase.                                                                    |
 
 If submission returns `PENDING` or a transport/502 error, keep its signed envelope and check again. Expiry is a reason to prepare anew only once the old payment is known not to have succeeded; don't mistake an uncertain response for no payment. For any unfamiliar error, keep `x-request-id`, status, code and message for platform support, without exposing credentials.
 

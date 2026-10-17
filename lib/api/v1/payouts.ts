@@ -1,4 +1,5 @@
 import "server-only";
+import { apiTokenKey, type ApiTokenType } from "./auth";
 import type { Deployment } from "@prisma/client";
 import { audit } from "@/lib/audit";
 import { AppError } from "@/lib/errors";
@@ -19,11 +20,14 @@ export async function preparePayout(
   tokenId: string,
   input: PayoutPrepare,
   ip: string,
+  tokenType?: ApiTokenType,
 ): Promise<PayoutPrepared> {
   requireFeature("devMode");
-  const lease = await acquirePayoutLease(deployment.id, tokenId).catch((err: unknown) => {
-    throw prepareFailure(err);
-  });
+  const lease = await acquirePayoutLease(deployment.id, apiTokenKey(tokenId, tokenType)).catch(
+    (err: unknown) => {
+      throw prepareFailure(err);
+    },
+  );
   try {
     const eligible = await payoutEligibility(deployment, input);
     const checks = await checkPayoutTrustlines(
@@ -60,6 +64,7 @@ export async function preparePayout(
               metadata: {
                 deploymentId: deployment.id,
                 tokenId,
+                tokenType: tokenType ?? "deployment_token",
                 nodeId: eligible.selected.nodeId,
                 txHash: tx.hash().toString("hex"),
                 status: "PREPARED",
@@ -75,6 +80,7 @@ export async function preparePayout(
         metadata: {
           deploymentId: deployment.id,
           tokenId,
+          tokenType: tokenType ?? "deployment_token",
           nodeId: eligible.selected.nodeId,
           txHash: result.txHash,
           status: result.status,
@@ -108,6 +114,7 @@ export async function preparePayout(
       metadata: {
         deploymentId: deployment.id,
         tokenId,
+        tokenType: tokenType ?? "deployment_token",
         nodeId: eligible.selected.nodeId,
         from: input.from,
         recipient: input.recipient,

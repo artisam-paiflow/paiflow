@@ -54,6 +54,10 @@ const BLOCKED = [
   // Account and admin surface: a disposable identity has nothing to manage.
   "/account",
   "/account/address-book",
+  "/account/developer",
+  "/api/developer-tokens",
+  "/api/developer-tokens/deployments",
+  `/api/developer-tokens/${DEPLOYMENT}`,
   "/admin",
   "/admin/users",
   "/admin/offramp",

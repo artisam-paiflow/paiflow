@@ -9,7 +9,8 @@ have other features; installing it does not activate this integration.
 
 [#1001](https://github.com/webnxt-2030/pinkraft/issues/1001) requests a browser-wallet
 entry alongside Freighter, separate from the reverted embedded Apps-tab bridge.
-This implementation does not restore framing, embedding or postMessage adapters.
+The desktop adapter does not restore embedded signing or postMessage adapters.
+The separate framing permission below does not activate this adapter.
 It uses the installed Stellar Wallets Kit **1.x** module interface without new
 dependencies or a library migration.
 
@@ -30,21 +31,27 @@ Lantern adapter; it does not change the environment-pinned network model in
 
 ## Desktop readiness — 2026-10-17
 
-The latest reply was relayed directly by the Paiflow maintainer and is summarized
-in [#1001](https://github.com/webnxt-2030/pinkraft/issues/1001); it is not yet a new
-comment on [handoff #1021](https://github.com/webnxt-2030/pinkraft/issues/1021).
+The latest replies relayed by the Paiflow maintainer are recorded in
+[current handoff #1050](https://github.com/webnxt-2030/pinkraft/issues/1050),
+continuing [#1021](https://github.com/webnxt-2030/pinkraft/issues/1021).
 Lantern reports that desktop external connect is built, test builds are ready,
 and the extension exposes `window.lantern` with `apiVersion: 1`.
 Its reported Chrome extension ID is `iflpkjgolcbleombhldiibhojohjpnmd`.
-Lantern offers an import-free, single-file Stellar Wallets Kit module compatible
-with **1.9.5**, reference docs and test builds for direct delivery pending publication.
+Paiflow intends to vendor the offered `lantern.module.ts`: an import-free,
+single-file Stellar Wallets Kit module compatible with **1.9.5**, registered
+alongside Freighter. Upstream SWK inclusion has no schedule; we are not waiting
+for it. The actual file, reference docs and compatible build remain outstanding.
+Joint desktop acceptance will use Lantern's published Testnet release once
+available; receipt of source/docs can unblock preparation before that run.
 These are upstream-reported facts, not independently verified installation or
 compatibility instructions. The extension ID and provider name alone do not
 establish provenance, capabilities or a trusted API.
 
 The reported signing model matches Paiflow's requirement: Lantern returns signed
-XDR and never submits; Paiflow submits the accepted envelope once. The shared
-kit stays on 1.x. Do not replace `paiflow-provisional-v1` with `1` and assume the
+XDR and never submits; Paiflow submits the accepted envelope once. Lantern
+refuses `signTransaction` with `submit: true` and requires the server-supplied
+Testnet `networkPassphrase` on each request. Mainnet is refused in this release.
+The shared kit stays on 1.x. Do not replace `paiflow-provisional-v1` with `1` and assume the
 method signatures, response fields, permissions or lifecycle are compatible.
 The actual module/reference contract must replace those fixture assumptions.
 The private upstream tracking issue
@@ -53,12 +60,13 @@ remains inaccessible; it is not evidence of unimplemented work.
 
 ### Reported error contract to verify
 
-| Lantern-reported failure           | Reported kit mapping | Required Paiflow behavior                                                                                                                                           |
-| ---------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `user_rejected`                    | `-4`                 | Show the existing cancellation message; do not submit or automatically retry.                                                                                       |
-| `not_allowed` / `account_mismatch` | `-3`                 | Refuse submission and require the documented permission/account recovery. Do not classify these as user cancellation.                                               |
-| `timeout` / `connection_lost`      | Not specified        | Treat the outcome as unknown. Retain the known transaction identity/hash and reconcile before another signature. Without authoritative resolution, retain the hold. |
-| Locked wallet / wrong network      | Not specified        | Obtain the actual response shape and code from the reference docs; do not infer one from text.                                                                      |
+| Lantern-reported failure      | Reported kit mapping | Required Paiflow behavior                                                                                                                                           |
+| ----------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `user_rejected`               | `-4`                 | Show the existing cancellation message; do not submit or automatically retry.                                                                                       |
+| `not_allowed`                 | `-3`                 | Not connected or Lantern is on Mainnet: ask the user to connect/reconnect or switch to Testnet as appropriate. Do not classify this as cancellation.                |
+| `account_mismatch`            | `-3`                 | Require the intended connected account. Preserve the original failure kind to distinguish this from `not_allowed`.                                                  |
+| `timeout` / `connection_lost` | Not specified        | Treat the outcome as unknown. Retain the known transaction identity/hash and reconcile before another signature. Without authoritative resolution, retain the hold. |
+| Locked wallet                 | Not specified        | Obtain the actual response shape and code from the reference docs; do not infer one from text.                                                                      |
 
 This table records the supplied requirements, **not an implemented vendor error
 mapping**. The provisional adapter below continues to use its explicitly fake
@@ -72,44 +80,69 @@ than an indefinite spinner; ending a spinner never establishes financial finalit
 
 ### Deployment and executable test material
 
-Confirm the current authorized testing deployment, Testnet network and disabled
-payroll/off-ramp flags before providing an app origin. Lantern's suggested
-`https://beta.app.paiflow.xyz` is a question, not a confirmed target. The historical
-`https://pinkraft.xyz` testing origin must also be reverified; this document does
-not establish a currently available deployment. Record every host redirect and
-final origin, pinned app/module/extension revisions and available checksums in
-the joint test handoff. Use `lantern-integration`, not `develop` or a staging branch.
+As recorded in [#1050](https://github.com/webnxt-2030/pinkraft/issues/1050),
+checks on **2026-10-17 UTC** confirmed the testing app at **https://pinkraft.xyz**
+from `lantern-integration`, revision `5f956fe505aaa90fe670918b5cd2e96217ddbe30`,
+on **Testnet**, with payroll/off-ramp disabled and database, Redis and RPC healthy.
+This is a dated checkpoint; recheck the pinned build before joint signing.
 
-Provide a fresh, verified test packet before joint QA:
+Canonical HTTP redirects to HTTPS; signed-out HTTPS root leads to `/dashboard`
+and then `https://pinkraft.xyz/login?from=%2Fdashboard`, staying on that host.
+The Railway alias `https://pinkraft-prod.up.railway.app` directs signed-out dashboard
+entry to the canonical login. Configured `/about`, `/privacy` and `/terms` redirects
+leave the app for `https://beta.paiflow.xyz/{about,privacy,terms}.html`; those external
+pages' availability/framing was not verified.
 
-- A working trigger link on that origin: `/trigger/<deploymentId>` for a confirmed,
-  active supported deployment. Confirm its target, recipients, asset and amount.
-- A working allowance page and already-configured subscriber bound to the agreed
-  Testnet account and subscription contract. Confirm cancellation state, existing
-  allowance and pending recovery before selecting or preparing the fixture.
-- Exact asset identity, amount in stroops, period/allowance expiry where applicable,
-  and bounded fee/spending limits agreed for the test. Do not confuse the historical
-  scan sample's one-stroop allowance with its subscription's payment amount.
+The planned final app origin is **https://beta.app.paiflow.xyz**, separately from
+initial QA. Its availability/network/redirects are not verified or authorized for
+testing by this document. After separately ready and authorized, repeat focused
+connect/sign/reject/recovery checks there. Lantern reports only that final origin
+is in its directory: expect **“Unverified site” on `pinkraft.xyz`** unless the teams
+agree to add it. That expected QA warning is not evidence of connection failure.
+Each origin has separate site permissions and browser session/pending state.
+Reconnect/approve as required and authoritatively reconcile known pending
+transactions before switching; never clear markers or replay to unblock the move.
 
-No current working links, configured subscriber or fresh financial actions are
-claimed by this documentation. Historical scan envelopes are expired; previous
-rehearsal subscriptions may be cancelled and fixtures may retain unresolved
-recovery markers. Verify live state under a separately pinned testing session;
-do not reactivate, fund, clear pending state or replay historical transactions
-merely to make the packet appear ready. Share public links/transaction hashes,
+Available public trigger:
+[0.1 Test XLM trigger](https://pinkraft.xyz/trigger/492c9e37-5d6b-4c9b-9eb9-318169051b04).
+Its native-XLM payment is **1,000,000 stroops**, fixed to our disposable Testnet
+recipient `GCDF6TFSMWXBK7DGO4AQ4WYBSTS5OHM6S4OJRG7MZ7V34AT2LYSOJNWZ`.
+A different tester sends that amount to our account; it is **not refunded to them**.
+The page, contract state and an unsigned preparation were verified; this does not
+mean Lantern is enabled. Testers need Test XLM for both the payment and dynamic
+fees; review the actual quote before signing.
+
+The allowance/subscriber fixture remains pending **Lantern's tester public Testnet
+G-address** and agreement on the payment recipient, bounded allowance budget,
+expiry, amount and schedule. The historical subscription is cancelled and bound
+to our wallet; it is not a working approval fixture. The historical one-stroop
+scan approval is not a subscription payment budget. After receiving the address,
+prepare and verify the suitable fixture and provide its working allowance link
+through #1050 before QA. Authenticated deployment QA also needs separately
+provisioned tester access; credentials must not be posted publicly.
+
+Do not sign expired scan envelopes, reactivate/fund fixtures, clear pending state
+or replay historical transactions merely to make the packet appear ready.
+Record exact app/module/extension revisions, available checksums and bounded
+fee/spending limits before joint QA. Share public links and transaction hashes,
 never credentials, opaque approval intents or signed envelopes.
 
 ### Desktop and Android boundaries
 
 Desktop #1001 connects Paiflow's external website to the Chrome extension.
-Lantern's request to allow `https://android.golantern.xyz` and
-`chrome-extension://iflpkjgolcbleombhldiibhojohjpnmd` in `frame-ancestors`, remove
-conflicting `X-Frame-Options`, and optionally list `com.lantern.wallet` in
-`related_applications` belongs to its proposed embedded Apps-tab route. Those
-changes need separate security/scope review and are not desktop prerequisites.
-No framing or manifest changes are made here. Android Chrome WalletConnect is
-still pending on Lantern under #1002; embedded testing would not complete that
-acceptance.
+The separate [framing change #1049](https://github.com/webnxt-2030/pinkraft/pull/1049)
+is merged and its live headers were verified at the testing revision above:
+only `https://android.golantern.xyz` and
+`chrome-extension://iflpkjgolcbleombhldiibhojohjpnmd` may frame the app, and
+`X-Frame-Options` is absent on the checked login, dashboard redirect and trigger
+responses. See the policy details below. This permission does not establish
+embedded login or signing, and the previous bridge is not restored.
+
+Android Chrome WalletConnect remains pending on Lantern under #1002. Confirm its
+`stellar:testnet` namespace and `stellar_signXDR` method when pairing is built.
+Apps-tab embedding remains separate and needs its actual signing contract/build
+and joint tests; it does not complete #1002. The optional `related_applications`
+entry for `com.lantern.wallet` is not implemented and does not block desktop QA.
 
 ## Provisional fake-provider contract
 
@@ -210,7 +243,8 @@ recovery, approval/revocation and exact fee reconciliation. It does not establis
 scheduler, relayer, payroll, other-wallet or real-handset acceptance. Payroll was
 disabled in that test environment; its UI/relayer branch was not exercised.
 
-A working wallet-enabled browser E2E harness remains missing; the correction in
+At that historical checkpoint, a working wallet-enabled browser E2E harness was
+missing; the correction in
 [#1016](https://github.com/webnxt-2030/pinkraft/pull/1016) reports that path as
 explicitly skipped. On healthy, pinned `6d8d7294`, the unmodified builder-only test
 passed in desktop and Pixel 7 emulation (two cases, no retries or hooks), and the
@@ -250,17 +284,20 @@ establish external connection, real-extension signing or joint acceptance.
 2. Validate provider detection and compatibility before changing the default
    unavailable gate. Confirm how the connected account and network can be read
    without relying on self-reported signing-result metadata alone.
-3. Confirm the testing origin/redirects and provide the executable fixture packet
-   described above through #1021. On the same pinned TESTNET build, complete
-   real-extension deploy, trigger,
-   allowance and one subscription action; record transaction hashes and verify
-   each submits once. Run Freighter and WalletConnect regression checks too.
+3. Complete the executable allowance/subscriber packet through #1050 and recheck
+   the testing origin/redirects before signing. Run joint desktop QA with Lantern's
+   published Testnet release on the same pinned Testnet app build: connect, trigger,
+   allowance, deploy and one subscription action. Post transaction hashes/results
+   on #1021, cross-referencing #1050, and verify each submits once. Include refusal,
+   account/network change and interrupted/reloaded recovery cases. Run Freighter
+   and WalletConnect regressions on that build; existing-wallet mobile/device
+   acceptance remains outstanding.
 4. Complete Android WalletConnect separately in #1002. Confirm Lantern's mainnet
    scan path before considering mainnet adapter activation under #1003.
 
 No real-extension, real-phone or mainnet acceptance is claimed by the unit tests.
-The local copied icon does not require a CSP change. No Lantern scripts, frames or
-network endpoints are added to Paiflow's CSP.
+The local copied icon does not require a CSP change. The adapter adds no Lantern scripts, child-frame sources or network endpoints
+to Paiflow's CSP. The separate ancestor permission below controls who may frame Paiflow.
 
 ## Icon attribution
 
@@ -271,3 +308,28 @@ The repository's MIT license credits “Copyright (c) 2026 Lantern contributors�
 Its full license text is retained in `public/wallets/lantern-license.txt`. This is
 asset attribution; it does not imply upstream review or endorsement of Paiflow's
 provisional adapter.
+
+## Lantern framing permission
+
+For the framing request in [#1021](https://github.com/webnxt-2030/pinkraft/issues/1021),
+Paiflow permits these exact parent origins in `frame-ancestors` across the app:
+
+- `https://android.golantern.xyz`
+- `chrome-extension://iflpkjgolcbleombhldiibhojohjpnmd`
+
+All other ancestor origins remain blocked, including Paiflow itself and other
+Lantern subdomains or extension IDs. Every ancestor in a nested frame chain must
+be permitted. `X-Frame-Options: DENY` is removed because it conflicts with this
+permission; an ancestor-only static CSP also protects middleware-excluded paths.
+Middleware responses retain the full nonce-bearing CSP and the same ancestor list.
+Existing marketing redirects (`/about`, `/privacy`, `/terms`) leave this app for
+`beta.paiflow.xyz`; they do not grant framing permission to that destination.
+
+This is header permission only, not embedded-app acceptance. The previous bridge
+from [#928](https://github.com/webnxt-2030/pinkraft/issues/928) is not restored;
+real Apps-tab loading and signing still require compatible Lantern artifacts and
+joint tests. This is separate from desktop external connection (#1001) and Android
+Chrome WalletConnect (#1002). Auth guards, redirects, session cookies
+(`HttpOnly`, `Secure`, `SameSite=Lax`), passkeys, Google sign-in and other security
+headers are unchanged. Cross-site cookie restrictions may prevent authenticated
+sessions in an iframe; no embedded login or signing readiness is claimed.

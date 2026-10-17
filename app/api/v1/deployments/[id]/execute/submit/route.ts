@@ -9,8 +9,8 @@ import { clientIp } from "@/lib/rate-limit";
 import { submitPreparedDeposit } from "@/lib/stellar/submit-deposit";
 
 export const POST = v1Route(
-  { rateLimit: V1_RATE_LIMITS.executeSubmit },
-  async ({ req, params, token, deployment }) => {
+  { operation: "POST execute/submit", rateLimit: V1_RATE_LIMITS.executeSubmit },
+  async ({ req, params, token, tokenType, deployment }) => {
     const input = ExecuteSubmitSchema.parse(
       await req.json().catch(() => {
         throw new AppError("VALIDATION", "Request body must be valid JSON");
@@ -26,6 +26,7 @@ export const POST = v1Route(
       tx,
       wait,
       tokenId: token.id,
+      tokenType,
       deploymentId: params.id,
       deployment,
       nodes,

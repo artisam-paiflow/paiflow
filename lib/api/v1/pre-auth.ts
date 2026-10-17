@@ -172,8 +172,9 @@ export async function recordAuthFailure(
   route: string,
   deploymentId: string,
   tokenHash: string | null,
+  credentialVerified = false,
 ): Promise<void> {
-  if (tokenHash) {
+  if (tokenHash && !credentialVerified) {
     await Promise.all([
       flagDelete(known, knownKey(tokenHash)),
       flagSet(refused, refusedKey(tokenHash, deploymentId), REFUSED_TOKEN_TTL_SECONDS),

@@ -664,17 +664,104 @@ function schedulePaths(): Record<string, Record<string, unknown>> {
   return paths;
 }
 
+// Owner-session management is intentionally separate from bearer API v1.
+const developerTokenIdParam = {
+  name: "tokenId",
+  in: "path",
+  required: true,
+  schema: { type: "string", format: "uuid" },
+};
+const developerTokenPagination = [
+  { name: "cursor", in: "query", schema: { type: "string", format: "uuid" } },
+  {
+    name: "limit",
+    in: "query",
+    schema: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+  },
+];
+const developerManagementErrors = () =>
+  sessionErrors(
+    "UNAUTHENTICATED",
+    "FORBIDDEN",
+    "NOT_FOUND",
+    "CONFLICT",
+    "VALIDATION",
+    "RATE_LIMITED",
+    "INTERNAL",
+  );
+const developerMetadataProperties = {
+  id: { type: "string", format: "uuid" },
+  tokenPrefix: { type: "string" },
+  label: { type: ["string", "null"] },
+  permission: { type: "string", enum: ["READ_ONLY", "READ_OPERATE"] },
+  createdAt: { type: "string", format: "date-time" },
+  ...Object.fromEntries(
+    ["lastUsedAt", "expiresAt", "revokedAt"].map((name) => [
+      name,
+      { type: ["string", "null"], format: "date-time" },
+    ]),
+  ),
+  deploymentIds: {
+    type: "array",
+    maxItems: 100,
+    uniqueItems: true,
+    items: { type: "string", format: "uuid" },
+  },
+};
+const developerManagementDescription =
+  "Owner browser session only; bearer credentials cannot manage tokens. Sandbox sessions refused. Successful responses are no-store. Writes share 30 requests/minute per owner. Removing grants or revoking prevents subsequent authorization, never cancels submitted transactions or deletes financial history.";
+function developerManagementOperation(
+  operationId: string,
+  summary: string,
+  schema: string,
+  options: {
+    item?: boolean;
+    request?: string;
+    create?: boolean;
+    description?: string;
+  } = {},
+) {
+  return {
+    tags: ["Token management (owner session)"],
+    operationId,
+    summary,
+    description: developerManagementDescription + " " + (options.description ?? ""),
+    security: [{ cookieAuth: [] }],
+    parameters: options.item
+      ? [developerTokenIdParam]
+      : options.create
+        ? []
+        : developerTokenPagination,
+    ...(options.request
+      ? {
+          requestBody: {
+            required: true,
+            content: json({ $ref: "#/components/schemas/" + options.request }),
+          },
+        }
+      : {}),
+    responses: {
+      [options.create ? "201" : "200"]: {
+        description: options.create
+          ? "Created; token is revealed only in this response. Store securely now."
+          : "Safe metadata; never plaintext or hash.",
+        headers: { "Cache-Control": { schema: { type: "string", const: "no-store" } } },
+        content: json(dataEnvelope("#/components/schemas/" + schema)),
+      },
+      ...developerManagementErrors(),
+    },
+  };
+}
+
 export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: "Paiflow API v1",
-    version: "1.0.0",
+    version: "1.1.0",
     description: [
       "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.",
       "",
-      "Every `/api/v1/deployments/{id}/…` call authenticates with a deployment API token " +
-        "(`Authorization: Bearer pfk_…`) that the deployment's owner mints in the **API access** " +
-        "panel on the deployment page. A token reaches exactly one deployment.",
+      "Every `/api/v1/deployments/{id}/…` call requires a Bearer credential: a deployment token (`pfk_…`) bound to one deployment, or a developer token (`pfd_…`) with explicit grants to selected existing deployments still owned by the token owner. GET /api/v1/deployments discovers only that credential's eligible deployments. Developer READ_ONLY permits reads, quotes and funding discovery; READ_OPERATE additionally permits preparation, submission, reconciliation and relayer release. See docs/api/developer-token-permissions.md for the complete matrix. No token grants flow/deployment creation or legacy dev/payroll access.",
       "",
       "**Execute deposits are signed by the caller.** `execute` returns an unsigned envelope; you sign it with the " +
         "`from` key, which stays on your side, and post it to `execute/submit`. A leaked token can " +
@@ -686,7 +773,7 @@ export const openApiDocument = {
       "| --- | --- |",
       errorTable,
       "",
-      "Rate limits are per token and per endpoint (each operation lists its own). A token that " +
+      "Rate limits are per token and per endpoint (each operation lists its own). Allowances are shared across the selected deployments. A token that " +
         "has been issued or has worked in the last 30 days is subject to nothing else. Any other " +
         "token is limited per client address before it is looked up: " +
         `${V1_PRE_AUTH_LIMITS.ipBackstop.limit} lookups per ` +
@@ -695,7 +782,7 @@ export const openApiDocument = {
         `${V1_PRE_AUTH_LIMITS.failedAuth.windowSeconds} seconds from the address, ` +
         `${V1_PRE_AUTH_LIMITS.blockedLookups.limit} per ` +
         `${V1_PRE_AUTH_LIMITS.blockedLookups.windowSeconds} seconds. A token refused in the last ` +
-        "minute is refused again without a lookup. So one caller's bad token does not lock out " +
+        "minute is refused again without a lookup. Refusal of a live developer credential for a missing grant is never negatively cached, so selection edits take effect immediately. So one caller's bad token does not lock out " +
         "others on the same network.",
       "",
       "No account? `POST /api/v1/demo-token` hands you a short-lived token for a shared demo " +
@@ -740,12 +827,114 @@ export const openApiDocument = {
     {
       name: "Token management (owner session)",
       description:
-        "How deployment tokens are minted and revoked. These are the owner's signed-in session " +
+        "How deployment and developer tokens are minted and revoked. These are the owner's signed-in session " +
         "routes behind the API access panel, not part of the token-authenticated API: they take " +
         "the session cookie, never a deployment token, and a sandbox session is refused.",
     },
   ],
   paths: {
+    "/api/developer-tokens": {
+      get: developerManagementOperation(
+        "listDeveloperTokens",
+        "List owner developer credentials",
+        "DeveloperTokenList",
+      ),
+      post: developerManagementOperation(
+        "createDeveloperToken",
+        "Create selected-deployment credential",
+        "CreatedDeveloperToken",
+        {
+          create: true,
+          request: "CreateDeveloperTokenRequest",
+          description:
+            "At most 10 unrevoked unexpired credentials per owner. Select 1–100 unique existing CONFIRMED ACTIVE owned deployment UUIDs; future deployments never inherit access. Label, permission and expiry are immutable. Omit expiresInDays for no expiry.",
+        },
+      ),
+    },
+    "/api/developer-tokens/deployments": {
+      get: developerManagementOperation(
+        "listDeveloperTokenCandidates",
+        "List eligible owned deployment choices",
+        "DeveloperTokenDeploymentList",
+      ),
+    },
+    "/api/developer-tokens/{tokenId}": {
+      get: developerManagementOperation(
+        "inspectDeveloperToken",
+        "Inspect credential metadata",
+        "DeveloperToken",
+        { item: true },
+      ),
+      patch: developerManagementOperation(
+        "updateDeveloperToken",
+        "Atomically replace selected deployments",
+        "DeveloperToken",
+        {
+          item: true,
+          request: "UpdateDeveloperTokenRequest",
+          description:
+            "Only deploymentIds can change. Empty selection suspends all access. Revoked or expired credentials cannot be edited. Replacement selection must contain only eligible owned deployments; remove retiring/retired grants.",
+        },
+      ),
+      delete: developerManagementOperation(
+        "revokeDeveloperToken",
+        "Revoke credential retaining history",
+        "DeveloperToken",
+        {
+          item: true,
+          description: "Idempotent; an already revoked credential returns unchanged.",
+        },
+      ),
+    },
+    "/api/v1/deployments": {
+      get: {
+        tags: ["Capabilities"],
+        operationId: "listAuthorizedDeployments",
+        summary: "List deployments authorized by this token",
+        description:
+          "UUID cursor is an immutable ID bound, not a required existing row. Default page size 20, maximum 100. Bearer pfd_ or pfk_ only. Returns currently confirmed active deployments explicitly granted to this credential and still owned by its active non-sandbox owner. A deployment token returns at most its own deployment. Safe metadata only; no session fallback. Read-only tokens are accepted. 60 requests per token per minute shared across deployments.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: "cursor", in: "query", schema: { type: "string", format: "uuid" } },
+          {
+            name: "limit",
+            in: "query",
+            schema: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Authorized deployments",
+            content: json({
+              type: "object",
+              required: ["data"],
+              properties: {
+                data: {
+                  type: "object",
+                  required: ["items", "nextCursor"],
+                  properties: {
+                    items: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        required: ["id", "flowName", "network"],
+                        properties: {
+                          id: { type: "string", format: "uuid" },
+                          flowName: { type: "string" },
+                          network: { type: "string" },
+                        },
+                      },
+                    },
+                    nextCursor: { type: "string", format: "uuid", nullable: true },
+                  },
+                },
+              },
+            }),
+          },
+          ...errors("UNAUTHENTICATED", "VALIDATION", "RATE_LIMITED", "INTERNAL"),
+        },
+      },
+    },
     "/api/v1/deployments/{id}/funding": {
       get: {
         tags: ["Capabilities"],
@@ -1091,7 +1280,7 @@ export const openApiDocument = {
         summary: "Discover a deployment's supported integration paths",
         description: [
           DeploymentCapabilitiesSchema.description,
-          "Requires this deployment's pfk_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.",
+          "Requires an authorized pfk_ or pfd_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.",
           "Operations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are swapQuote (/api/v1/deployments/{id}/swap-quote), execute (execute and execute/submit), events, transactions, releaseEarly (release-early), webhook (/api/webhooks/{id}), scheduleState (/api/v1/deployments/{id}/schedule/state), scheduleControls (Schedule pause, resume and retrieve preparation, submit and reconcile), subscriptionState (/api/v1/deployments/{id}/subscription/state), subscriptionCancel and subscriptionReactivate (subscription/cancel or subscription/reactivate prepare, submit and reconcile), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). The payouts capability key remains in discovery responses but reports unsupported while Dev mode is disabled; no payout route is published. Each operation includes status, authentication, requirements and candidate nodeIds. Subscription approval must be checked by its own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.",
           "Returns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.",
           rate(V1_RATE_LIMITS.capabilities, "per token"),
@@ -1360,7 +1549,7 @@ export const openApiDocument = {
         operationId: "getTransactionStatus",
         summary: "Look up an attributed transaction without resubmitting",
         description:
-          "Accepts this deployment's pfk_ token. SUCCESS and FAILED are final; REJECTED means submission refusal, not on-chain failure. PENDING requires known acceptance. UNKNOWN means an attributed attempt has no established acceptance or finality; it never authorizes a new payment. Unattributed hashes return 404, including missing outside submissions. Supports execute records, queued webhook audit records, early-release audit records, ingested events and verified direct pipeline invocations in recent RPC envelopes. Outside indirect calls and token transfers alone are unsupported. Stored terminal outcomes and ingested events survive RPC retention; missing historical evidence cannot be reconstructed. Poll after 2 seconds, exponentially back off with jitter to 30 seconds; honor Retry-After on 429. RPC failures return 502, never FAILED. One bounded RPC read per request, at most 60/min per deployment across tokens; production requires shared Redis for that RPC budget. " +
+          "Accepts an authorized pfk_ or pfd_ token. SUCCESS and FAILED are final; REJECTED means submission refusal, not on-chain failure. PENDING requires known acceptance. UNKNOWN means an attributed attempt has no established acceptance or finality; it never authorizes a new payment. Unattributed hashes return 404, including missing outside submissions. Supports execute records, queued webhook audit records, early-release audit records, ingested events and verified direct pipeline invocations in recent RPC envelopes. Outside indirect calls and token transfers alone are unsupported. Stored terminal outcomes and ingested events survive RPC retention; missing historical evidence cannot be reconstructed. Poll after 2 seconds, exponentially back off with jitter to 30 seconds; honor Retry-After on 429. RPC failures return 502, never FAILED. One bounded RPC read per request, at most 60/min per deployment across tokens; production requires shared Redis for that RPC budget. " +
           rate(V1_RATE_LIMITS.transactions, "per token across transaction hashes"),
         security: [{ bearerAuth: [] }],
         parameters: [
@@ -1612,9 +1801,9 @@ export const openApiDocument = {
       bearerAuth: {
         type: "http",
         scheme: "bearer",
-        bearerFormat: "pfk_<64 hex>",
+        bearerFormat: "pfk_<64 hex> or pfd_<64 hex>",
         description:
-          "A deployment API token, minted by the deployment's owner in the API access panel and shown once.",
+          "Server-side pfk_ deployment token from API access, or pfd_ developer token from /account/developer. Both use 64 lowercase hex characters and one-time reveal. Developer permission and explicit grants are rechecked on each request; no pkdev_ or session fallback. READ_ONLY permits reads; READ_OPERATE permits supported writes including relayer early release. Wallet consent and webhook secrets remain separate.",
       },
       cookieAuth: {
         type: "apiKey",
@@ -1624,6 +1813,74 @@ export const openApiDocument = {
       },
     },
     schemas: {
+      DeveloperToken: {
+        type: "object",
+        additionalProperties: false,
+        required: Object.keys(developerMetadataProperties),
+        properties: developerMetadataProperties,
+      },
+      CreatedDeveloperToken: {
+        type: "object",
+        additionalProperties: false,
+        required: [...Object.keys(developerMetadataProperties), "token"],
+        properties: {
+          ...developerMetadataProperties,
+          token: {
+            type: "string",
+            pattern: "^pfd_[0-9a-f]{64}$",
+            description: "One-time server-side credential; never log or send to analytics.",
+          },
+        },
+      },
+      CreateDeveloperTokenRequest: {
+        type: "object",
+        additionalProperties: false,
+        required: ["permission", "deploymentIds"],
+        properties: {
+          label: {
+            type: "string",
+            minLength: 1,
+            maxLength: 64,
+            description: "Trimmed before validation.",
+          },
+          permission: developerMetadataProperties.permission,
+          deploymentIds: { ...developerMetadataProperties.deploymentIds, minItems: 1 },
+          expiresInDays: { type: "integer", minimum: 1, maximum: 365 },
+        },
+      },
+      UpdateDeveloperTokenRequest: {
+        type: "object",
+        additionalProperties: false,
+        required: ["deploymentIds"],
+        properties: { deploymentIds: developerMetadataProperties.deploymentIds },
+      },
+      DeveloperTokenList: {
+        type: "object",
+        required: ["items", "nextCursor"],
+        properties: {
+          items: { type: "array", items: { $ref: "#/components/schemas/DeveloperToken" } },
+          nextCursor: { type: ["string", "null"], format: "uuid" },
+        },
+      },
+      DeveloperTokenDeploymentList: {
+        type: "object",
+        required: ["items", "nextCursor"],
+        properties: {
+          items: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["id", "flowName", "network"],
+              properties: {
+                id: { type: "string", format: "uuid" },
+                flowName: { type: "string" },
+                network: { type: "string" },
+              },
+            },
+          },
+          nextCursor: { type: ["string", "null"], format: "uuid" },
+        },
+      },
       SubscriptionControlPrepare: {
         type: "object",
         additionalProperties: false,

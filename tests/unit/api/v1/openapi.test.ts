@@ -115,8 +115,34 @@ describe("OpenAPI document", () => {
   });
 
   it("documents the owner-session token routes as they exist", () => {
+    expect(specOperations("/api/developer-tokens")).toEqual(
+      routeOperations("api/developer-tokens"),
+    );
     const routes = routeOperations("api/deployments/[id]/api-tokens");
     expect(specOperations("/api/deployments/{id}/api-tokens")).toEqual(routes);
+  });
+
+  it("keeps developer management session-only and metadata separate from one-time secrets", () => {
+    for (const [, operations] of Object.entries(paths).filter(([p]) =>
+      p.startsWith("/api/developer-tokens"),
+    )) {
+      for (const operation of Object.values(operations) as Array<Record<string, unknown>>) {
+        expect(operation.security).toEqual([{ cookieAuth: [] }]);
+        const responses = operation.responses as Record<string, { headers?: unknown }>;
+        expect((responses["200"] ?? responses["201"])?.headers).toEqual({
+          "Cache-Control": { schema: { type: "string", const: "no-store" } },
+        });
+      }
+    }
+    expect(openApiDocument.components.schemas.DeveloperToken.properties).not.toHaveProperty(
+      "token",
+    );
+    expect(openApiDocument.components.schemas.DeveloperToken.properties).not.toHaveProperty(
+      "tokenHash",
+    );
+    expect(openApiDocument.components.schemas.CreatedDeveloperToken.properties.token.pattern).toBe(
+      "^pfd_[0-9a-f]{64}$",
+    );
   });
 
   it("has an error table equal to lib/errors.ts", () => {
@@ -201,7 +227,7 @@ describe("Postman collection", () => {
   ) as {
     item: Array<{
       name: string;
-      request: { method: string; url: { path: string[] } };
+      request: { method: string; url: { path: string[] }; auth?: { type: string } };
       response: Array<{ name: string; body: string }>;
     }>;
   };
@@ -211,13 +237,26 @@ describe("Postman collection", () => {
       .map(({ request }) => {
         const p = `/${request.url.path.join("/")}`
           .replace("{{deploymentId}}", "{id}")
-          .replace("{{txHash}}", "{txHash}");
+          .replace("{{txHash}}", "{txHash}")
+          .replace("{{developerTokenId}}", "{tokenId}");
         return `${p} ${request.method.toLowerCase()}`;
       })
       .sort();
     expect(requests).toEqual(
-      [...specOperations("/api/v1/"), ...specOperations("/api/webhooks/")].sort(),
+      [
+        ...specOperations("/api/v1/"),
+        ...specOperations("/api/webhooks/"),
+        ...specOperations("/api/developer-tokens"),
+      ].sort(),
     );
+  });
+
+  it("disables inherited bearer auth on every developer management request", () => {
+    const management = collection.item.filter(({ request }) =>
+      request.url.path.join("/").startsWith("api/developer-tokens"),
+    );
+    expect(management).toHaveLength(6);
+    for (const { request } of management) expect(request.auth).toEqual({ type: "noauth" });
   });
 
   it("saves the spec's examples as its example responses", () => {

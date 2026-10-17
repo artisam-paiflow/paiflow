@@ -16,6 +16,8 @@ export type {
 } from "./transport.js";
 export { Paiflow, PaiflowDeployment } from "./client.js";
 export type {
+  ListDeploymentsQuery,
+  DeploymentPagesOptions,
   ListEventsQuery,
   EventPagesOptions,
   SwapQuoteQuery,
@@ -23,6 +25,8 @@ export type {
   PublicEmbedMessage,
 } from "./client.js";
 export type {
+  DeploymentSummary,
+  ListDeploymentsResponse,
   DeploymentCapabilities,
   DeploymentBalances,
   SwapQuote,

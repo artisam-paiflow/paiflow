@@ -1,21 +1,25 @@
 # Node SDK contract and endpoint coverage
 
 Implementation contract originating in [#954](https://github.com/webnxt-2030/pinkraft/issues/954), under
-[#953](https://github.com/webnxt-2030/pinkraft/issues/953). The Node package implements this surface; it is not published and hosted
-availability has not been established by local SDK tests. See the
+[#953](https://github.com/webnxt-2030/pinkraft/issues/953). The Node package implements this surface. Beta `0.2.0` provides
+developer credentials and scoped deployment discovery; see the
+[release record](release-checklist.md) for registry availability.
+Local SDK tests do not establish hosted availability. See the
 [quickstart and migration guide](quickstart.md) for compiled examples.
 
 ## Scope and packaging
 
 User decisions: TypeScript, Node first, existing deployments, a separate package
-in this repository named `@paiflow/sdk`, with branches and PRs targeting `testing`.
-The npm scope needs to be created; publishing is separately authorized.
+in this repository named `@paiflow/sdk`. Release-preparation PRs target `develop`
+under the current workflow. The `@paiflow` npm scope exists; registry publishing,
+SDK tagging and backend promotion remain distinct release steps.
 Sources are the [quickstart](../hackathon/developer-api-quickstart.md),
 [developer context](../hackathon/llms.md), [API reference](../api/README.md), and
-actual handlers at `testing` baseline `e803520c` (2026-10-13).
+actual handlers. The original contract used `testing` baseline `e803520c`
+(2026-10-13); the current matrix includes developer-token work merged into `develop`.
 
 Use `packages/sdk`, with independent package metadata, declarations, exports,
-build configuration, changelog and tests. Prepare the first beta as `0.1.0` under
+build configuration, changelog and tests. SDK beta `0.2.0` follows the
 [release policy](../releasing.md); SDK versions do not match app versions. Declare
 compatibility with API v1 and the explicitly listed unversioned routes.
 
@@ -32,9 +36,14 @@ Any dependency must satisfy repository justification and audit rules.
 `V` = `/api/v1/deployments/{id}`; `P` = `/api/deployments/{id}`.
 Methods are current deployment namespaces unless prefixed with `client`. HTTP
 methods take request options; signing and URL helpers have their own options.
-**Token** means server-side `Authorization: Bearer pfk_…`. A token never supplies
+**Token** means server-side `Authorization: Bearer pfd_…` (developer token with
+explicit deployment grants) or `pfk_…` (existing single-deployment token). A token never supplies
 wallet consent. **Public** methods omit bearer credentials. Webhooks need their
-own secret. Rates are requests per 60 seconds, per token/route unless stated.
+own secret. Rates are requests per 60 seconds, per token/route unless stated;
+one developer token shares each endpoint allowance across its selected deployments.
+Developer `READ_ONLY` permits discovery and reads; `READ_OPERATE` also permits
+preparation, submission, reconciliation and relayer operations. The server enforces
+the [permission matrix](../api/developer-token-permissions.md) on every request.
 
 Schema aliases below refer to these exact sources:
 
@@ -43,9 +52,11 @@ Schema aliases below refer to these exact sources:
 - **Q**: [Swap quote schemas](../../lib/api/v1/swap-quote-schema.ts).
 - **C**: [control intent](../../lib/api/v1/control-intent.ts), including `WalletControlSubmitSchema`.
 - **A**: [allowance schemas](../../lib/subscription/schema.ts).
+- **D**: [discovery](../../lib/api/v1/discovery.ts) and [query schema](../../lib/developer-tokens/schema.ts).
 
 | HTTP path                                | Proposed SDK method                                      | Auth/consent                                | Rate                               | Input → output authority                                                         | Issue |
 | ---------------------------------------- | -------------------------------------------------------- | ------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------- | ----- |
+| GET /api/v1/deployments                  | `client.deployments.list(query) / .pages(query)`         | token; either permission                    | 60                                 | D: query → `{items:[{id,flowName,network}],nextCursor}`                          | #1032 |
 | GET V/capabilities                       | `capabilities.get()`                                     | token                                       | 60                                 | S: DeploymentCapabilitiesSchema                                                  | #957  |
 | GET V/balances                           | `balances.get()`                                         | token                                       | 30                                 | S: DeploymentBalancesSchema                                                      | #957  |
 | GET V/swap-quote                         | `swap.quote(query)`                                      | token                                       | 20                                 | Q: SwapQuoteQuerySchema → SwapQuoteSchema                                        | #957  |
@@ -138,8 +149,31 @@ type IntentState = "PREPARED" | "SUBMITTING" | "SUCCESS" | "FAILED" | "EXPIRED";
 ```
 
 `new Paiflow(options).deployment(id)` binds matrix namespaces to one deployment
-UUID. Webhooks require a separate `webhookSecret` in each call’s options; it is
-never inherited from the client deployment token. The safe `webhook.trigger` requires
+UUID. One client may access several explicitly selected deployments with a developer
+credential (`pfd_` plus 64 lowercase hex characters). Existing `pfk_` validation
+and methods remain compatible; legacy `pkdev_` credentials are rejected.
+Token management and flow/deployment creation remain excluded.
+
+`client.deployments.list(query?, options?)` returns
+`ApiResponse<ListDeploymentsResponse>` with `DeploymentSummary[]` items
+(`id`, `flowName`, `network`) and nullable UUID `nextCursor`. Its optional
+`ListDeploymentsQuery` accepts `cursor` and integer `limit` (1–100; server default 20).
+The server returns eligible explicitly authorized deployments ordered by ID, including
+at most one for a deployment token. Discovery is a current authorization snapshot;
+selection edits, revocation or retirement can change subsequent results.
+`client.deployments.pages(query?, options?)` yields the same typed responses,
+stops at null, and rejects repeated, cyclic or backward cursors before yielding
+the malformed page. `DeploymentPagesOptions.maxPages` defaults to 100 (1–10,000).
+The final yielded cursor permits explicit continuation after the cap; completion
+at the cap does not prove the entire scope was read. Cancellation throws
+`PaiflowAbortError`; each request retains metadata and its own timeout, with no retries.
+Responses parse from unknown, tolerate additive fields and cap items at 100.
+These compatible additions are provided by SDK beta `0.2.0`; `0.1.0` does not
+contain them. They require a backend implementing OpenAPI revision `1.1.0`.
+Hosted support must be checked separately against the configured backend.
+
+Webhooks require a separate `webhookSecret` in each call’s options; it is
+never inherited from the client token. The safe `webhook.trigger` requires
 an explicit stable idempotency key; expose explicitly named `triggerUnkeyed` for
 legacy compatibility with no retries. Never invent a new key after uncertainty.
 No arbitrary header overrides or credential forwarding to redirected origins.

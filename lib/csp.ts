@@ -3,6 +3,16 @@
  * Node-only APIs — everything here uses Web Crypto.
  */
 
+// Approved framing parents for the Lantern Apps-tab request (#1021). CSP checks
+// every ancestor against these exact origins; other sites (including self) stay
+// blocked. Keep the static fallback and middleware policy identical.
+export const LANTERN_PARENT_ORIGINS = [
+  "https://android.golantern.xyz",
+  "chrome-extension://iflpkjgolcbleombhldiibhojohjpnmd",
+] as const;
+
+export const FRAME_ANCESTORS_CSP = `frame-ancestors ${LANTERN_PARENT_ORIGINS.join(" ")}`;
+
 export function makeNonce(): string {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
@@ -55,7 +65,7 @@ export function cspHeader(nonce: string, isDev: boolean): string {
     // on every page load; the pairing survives it, but the console fills with
     // violations and the origin never resolves as verified (#594).
     "frame-src": ["'self'", "https://verify.walletconnect.com", "https://verify.walletconnect.org"],
-    "frame-ancestors": ["'none'"],
+    "frame-ancestors": [...LANTERN_PARENT_ORIGINS],
     "base-uri": ["'self'"],
     "form-action": ["'self'"],
     "object-src": ["'none'"],

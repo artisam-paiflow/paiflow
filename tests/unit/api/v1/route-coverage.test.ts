@@ -12,7 +12,8 @@ vi.mock("@/lib/redis", () => ({ redis: () => null }));
 // Only imported, never called; the real module pulls in next-auth, which vitest cannot resolve.
 vi.mock("@/lib/auth", () => ({ requireSession: vi.fn() }));
 
-import { isV1Route } from "@/lib/api/v1/handler";
+import { V1_PERMISSIONS } from "@/lib/api/v1/permissions";
+import { isV1Route, v1RouteOperation } from "@/lib/api/v1/handler";
 
 const HTTP_METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"] as const;
 
@@ -53,9 +54,39 @@ describe("every /api/v1 handler is built by v1Route", () => {
           continue;
         }
         expect(isV1Route(mod[method]), `${key} must be built with v1Route`).toBe(true);
+        const suffix =
+          file === "deployments/route.ts"
+            ? "deployments"
+            : file
+                .replace("deployments/[id]/", "")
+                .replace("/route.ts", "")
+                .replace("[txHash]", ":txHash");
+        expect(v1RouteOperation(mod[method]), `${key} must declare its exact operation`).toBe(
+          `${method} ${suffix}`,
+        );
       }
     });
   }
+
+  it("publishes the complete permission matrix without stale declarations", async () => {
+    const operations: string[] = [];
+    for (const file of files) {
+      const mod = (await import(path.join(V1_DIR, file))) as Record<string, unknown>;
+      for (const method of HTTP_METHODS) {
+        const operation = v1RouteOperation(mod[method]);
+        if (operation) operations.push(operation);
+      }
+    }
+    expect(operations.sort()).toEqual(Object.keys(V1_PERMISSIONS).sort());
+    const doc = fs.readFileSync(
+      path.join(process.cwd(), "docs/api/developer-token-permissions.md"),
+      "utf8",
+    );
+    const rows = [...doc.matchAll(/\| `([^`]+)`\s*\| `(READ_ONLY|READ_OPERATE)`/g)];
+    expect(
+      Object.fromEntries(rows.map((row) => [row[1], row[2] === "READ_ONLY" ? "read" : "operate"])),
+    ).toEqual(V1_PERMISSIONS);
+  });
 
   it("has no stale allowlist entries", () => {
     for (const key of Object.keys(NOT_TOKEN_BOUND)) {
