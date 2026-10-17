@@ -40,6 +40,9 @@ AddressPicker keeps focus in the wallet field when opening contacts. Valid unsav
 show a Save contact button below the input and an inline name form; saved addresses show their
 contact name. Inline saves use `createOnly` to prevent replacement of an existing named contact,
 and saving does not change the selected wallet address.
+Typing a wallet must cancel contact navigation; Enter only selects an unrelated contact after
+explicit list navigation or entering search. Tab opens contact search, Shift+Tab returns to the
+wallet, and Escape dismisses the contacts popup without closing node settings.
 
 ## Testing
 

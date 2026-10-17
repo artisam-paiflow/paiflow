@@ -220,6 +220,7 @@ function EditableAddressPicker({
   const [mounted, setMounted] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const saveFormRef = useRef<HTMLElement>(null);
   const suppressFocusOpen = useRef(false);
   const saveInFlight = useRef(false);
@@ -308,6 +309,8 @@ function EditableAddressPicker({
   }, [text]);
 
   function handleTyped(raw: string) {
+    // Editing a destination cancels any previous list navigation.
+    setHighlightIndex(-1);
     const next = raw.trim();
     // No address starts with S, and a secret key must never reach the graph,
     // the autosave or the screen: the field keeps what it held and says why.
@@ -388,7 +391,14 @@ function EditableAddressPicker({
 
   useEffect(() => {
     if (!open) return;
-    setHighlightIndex(findInitialHighlightIndex(filtered, trimmedValue));
+    // Opening contacts must never arm Enter to replace a typed destination.
+    // Search is an explicit selection context; the wallet may only start with
+    // its exact match highlighted until the user navigates with arrow keys.
+    setHighlightIndex(
+      document.activeElement === searchRef.current
+        ? findInitialHighlightIndex(filtered, trimmedValue)
+        : filtered.findIndex((entry) => entry.address === trimmedValue),
+    );
   }, [open, query, addressBook, trimmedValue]);
 
   useEffect(() => {
@@ -416,6 +426,7 @@ function EditableAddressPicker({
   }
 
   function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.nativeEvent.isComposing) return;
     if (showSave) {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -448,15 +459,22 @@ function EditableAddressPicker({
     } else if (e.key === "Escape") {
       if (open) {
         e.preventDefault();
+        e.stopPropagation();
         setOpen(false);
         setShowSave(false);
       }
     } else if (e.key === "Tab") {
-      setOpen(false);
+      if (open && !e.shiftKey && searchRef.current) {
+        // The search is portalled to the end of body, so connect it to the
+        // wallet's logical tab order explicitly.
+        e.preventDefault();
+        searchRef.current.focus();
+      } else setOpen(false);
     }
   }
 
   function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.nativeEvent.isComposing) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setHighlightIndex((i) => nextHighlightIndex(i, "down", filtered.length));
@@ -468,8 +486,18 @@ function EditableAddressPicker({
       handleSelectHighlighted();
     } else if (e.key === "Escape") {
       e.preventDefault();
+      e.stopPropagation();
       setOpen(false);
       setShowSave(false);
+      focusWallet();
+    } else if (e.key === "Tab") {
+      focusWallet();
+      if (e.shiftKey) {
+        e.preventDefault();
+      } else {
+        // Let the browser continue from the wallet to the next form control.
+        setOpen(false);
+      }
     }
   }
 
@@ -582,7 +610,9 @@ function EditableAddressPicker({
         {addressBook.length > 0 && (
           <div className="border-outline-variant/20 border-b p-2">
             <input
+              ref={searchRef}
               value={query}
+              onFocus={() => setHighlightIndex(findInitialHighlightIndex(filtered, trimmedValue))}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
               placeholder="Search contacts…"
@@ -701,6 +731,7 @@ function EditableAddressPicker({
           value={text}
           onChange={(e) => handleTyped(e.target.value)}
           onFocus={() => {
+            setHighlightIndex(filtered.findIndex((entry) => entry.address === trimmedValue));
             if (!suppressFocusOpen.current && !showSave) setOpen(true);
           }}
           onClick={() => {

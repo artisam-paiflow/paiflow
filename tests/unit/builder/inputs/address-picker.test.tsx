@@ -212,15 +212,101 @@ describe("AddressPicker combobox ARIA", () => {
     const active = () =>
       document.getElementById(focused.getAttribute("aria-activedescendant") ?? "")?.textContent;
 
-    expect(active()).toMatch(/^Alice/);
+    expect(active()).toBeUndefined();
     await user.keyboard("{ArrowDown}");
-    expect(active()).toMatch(/^Bob/);
+    expect(active()).toMatch(/^Alice/);
     expect(input.getAttribute("aria-activedescendant")).toBe(
       focused.getAttribute("aria-activedescendant"),
     );
     await user.keyboard("{ArrowUp}");
-    expect(active()).toMatch(/^Alice/);
+    expect(active()).toMatch(/^Bob/);
     expect(await axeViolations()).toEqual([]);
+  });
+
+  it.each(["always", "valid"] as const)(
+    'commit="%s": paste then Enter keeps an unsaved wallet instead of picking a contact',
+    async (commit) => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      render(<Harness onChange={onChange} commit={commit} addressBook={[BOOK[0]!]} />);
+      const input = screen.getByRole("combobox", { name: "Recipient" }) as HTMLInputElement;
+      await user.click(input);
+      await user.paste(ACCOUNT_2);
+      await user.keyboard("{Enter}");
+      expect(input.value).toBe(ACCOUNT_2);
+      expect(input.getAttribute("aria-activedescendant")).toBeNull();
+      expect(onChange.mock.calls.map(([v]) => v)).toEqual([ACCOUNT_2]);
+      // A deliberate arrow-key choice still works.
+      await user.keyboard("{ArrowDown}{Enter}");
+      expect(input.value).toBe(ACCOUNT);
+      expect(onChange).toHaveBeenLastCalledWith(ACCOUNT);
+    },
+  );
+
+  it("typing after arrow navigation disarms the previously highlighted contact", async () => {
+    const user = userEvent.setup();
+    const onSelectEntry = vi.fn();
+    render(
+      <AddressPicker
+        label="Recipient"
+        value=""
+        onChange={() => {}}
+        onSelectEntry={onSelectEntry}
+        addressBook={BOOK}
+        commit="valid"
+      />,
+    );
+    const input = screen.getByRole("combobox", { name: "Recipient" });
+    await user.click(input);
+    await user.keyboard("{ArrowDown}");
+    await user.paste("GABC");
+    await user.keyboard("{Enter}");
+    expect(onSelectEntry).not.toHaveBeenCalled();
+    expect((input as HTMLInputElement).value).toBe("GABC");
+  });
+
+  it("Tab reaches contact search, Shift+Tab returns to the wallet, and Tab can leave the picker", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <Harness onChange={() => {}} initial={ACCOUNT_2} addressBook={[BOOK[0]!]} />
+        <button type="button">Next field</button>
+      </>,
+    );
+    const input = screen.getByRole("combobox", { name: "Recipient" });
+    await user.click(input);
+    await user.tab();
+    const search = screen.getByRole("combobox", { name: "Search contacts" });
+    expect(document.activeElement).toBe(search);
+    await user.type(search, "Alice");
+    await user.tab({ shift: true });
+    expect(document.activeElement).toBe(input);
+    await user.keyboard("{Enter}");
+    expect((input as HTMLInputElement).value).toBe(ACCOUNT_2);
+    await user.tab();
+    expect(document.activeElement).toBe(search);
+    await user.tab();
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Save contact" }));
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Next field" }));
+  });
+
+  it("contact search supports filtered Enter selection and Escape returns focus to the wallet", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<Harness onChange={onChange} addressBook={BOOK} />);
+    const input = screen.getByRole("combobox", { name: "Recipient" });
+    await user.click(input);
+    await user.tab();
+    await user.type(screen.getByRole("combobox", { name: "Search contacts" }), "Bob");
+    await user.keyboard("{Enter}");
+    expect(onChange).toHaveBeenLastCalledWith(ACCOUNT_2);
+    await user.click(input);
+    await user.tab();
+    await user.keyboard("{Escape}");
+    expect(document.activeElement).toBe(input);
+    expect(screen.queryByRole("listbox")).toBeNull();
   });
 
   it("reusable outside the swap: an account field with an address book and a picked entry", async () => {

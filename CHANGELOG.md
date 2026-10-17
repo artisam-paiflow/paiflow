@@ -5,6 +5,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve typed wallet destinations on Enter until contacts are deliberately navigated; make contact search reachable with Tab and return to the wallet with Shift+Tab or Escape.
+
 ### Added
 
 - Reproducible local app/API/packed-SDK developer-token verification, including live selection edits and financial recovery boundaries (#1034).

@@ -50,6 +50,52 @@ test.describe("Inline contact saving", () => {
     await expect(panel(page)).toHaveAccessibleName("Pay settings");
   }
 
+  test("wallet entry stays intact and contact search is reachable by keyboard", async ({
+    page,
+  }) => {
+    await page.route("**/api/address-book", (route) =>
+      route.fulfill({ json: { data: [{ label: "Bob", address: OTHER }] } }),
+    );
+    await open(page);
+    await wallet(page).fill("");
+    await wallet(page).fill(WALLET);
+    await wallet(page).press("Enter");
+    await expect(wallet(page)).toHaveValue(WALLET);
+    await expect(wallet(page)).not.toHaveAttribute("aria-activedescendant");
+
+    // Editing after list navigation must also cancel the pending selection.
+    await wallet(page).press("ArrowDown");
+    await wallet(page).fill(`${WALLET}X`);
+    await wallet(page).press("Enter");
+    await expect(wallet(page)).toHaveValue(`${WALLET}X`);
+    await wallet(page).fill(WALLET);
+
+    await wallet(page).press("Tab");
+    const search = page.getByRole("combobox", { name: "Search contacts" });
+    await expect(search).toBeFocused();
+    await search.press("Shift+Tab");
+    await expect(wallet(page)).toBeFocused();
+    await wallet(page).press("Enter");
+    await expect(wallet(page)).toHaveValue(WALLET);
+    await wallet(page).press("Tab");
+    await search.press("Tab");
+    await expect(save(page)).toBeFocused();
+    await expect(search).toHaveCount(0);
+
+    await wallet(page).focus();
+    await wallet(page).press("Tab");
+    await search.fill("Bob");
+    await search.press("Enter");
+    await expect(wallet(page)).toHaveValue(OTHER);
+
+    await wallet(page).click();
+    await wallet(page).press("Tab");
+    await search.press("Escape");
+    await expect(wallet(page)).toBeFocused();
+    await expect(search).toHaveCount(0);
+    await expect(panel(page)).toBeVisible();
+  });
+
   test("editing a wallet keeps the field and validation within the panel", async ({ page }) => {
     await page.route("**/api/address-book", (route) => route.fulfill({ json: { data: [] } }));
     await open(page);
