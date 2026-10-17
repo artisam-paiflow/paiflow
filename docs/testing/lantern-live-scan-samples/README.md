@@ -6,11 +6,17 @@ The user explicitly approved publication of this exact ten-file packet at
 `docs/lantern-live-scan-samples`. This documentation update does not change the
 approved samples, manifest, simulation evidence or validation tests.
 
-Repository publication does not establish delivery to Lantern's preferred scanner
-destination, scanner results or acceptance. Confirm the destination and format
-through [handoff #1021](https://github.com/webnxt-2030/pinkraft/issues/1021), and
-obtain any required approval for onward delivery. Expired inputs are for scanning,
-not signing or execution.
+PR #1022 is merged into `lantern-integration`. Lantern
+[posted scanner results for all five samples](https://github.com/webnxt-2030/pinkraft/issues/1021#issuecomment-6206961436).
+The maintainer subsequently
+[approved all five plus the retained splitter-distribute simulation](https://github.com/webnxt-2030/pinkraft/issues/1021#issuecomment-6210830894)
+for scanner-fixture retention in Lantern's development repository and publication
+in its public repository at release, with the public metadata and attribution
+described in that request. That exact onward delivery no longer needs approval.
+The latest reply relayed by the maintainer reports that the fixtures have been
+incorporated and scanner descriptions improved. This is scanner evidence, not
+external-connect or real-extension signing acceptance. Expired inputs are for
+scanning, not signing or execution.
 
 This package contains five **real, expired, unsigned** envelopes. Factory
 deployment and deposit were captured from the pinned Railway testing application
@@ -147,6 +153,6 @@ preflight and absence of an actual chain execution/charged fee. The tests use no
 network or database.
 
 This published packet contains **all five** requested real scan examples, including one expressly
-read-only actual-builder RPC sample. No external handoff/upload to Lantern occurred. Lantern scanner interpretation, risk labels,
-provider compatibility, real handset behavior and wallet-support acceptance remain
-unverified. Do not sign or submit these expired historical samples.
+read-only actual-builder RPC sample. Delivery and scanner results are recorded
+above; real provider compatibility, real handset behavior and joint wallet-support
+acceptance remain unverified. Do not sign or submit these expired historical samples.

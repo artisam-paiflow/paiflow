@@ -22,6 +22,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Record Lantern’s reported desktop API/build readiness, artifact and executable-fixture
+  gates, error/recovery acceptance, and completed scanner-fixture handoff; keep the
+  provisional adapter disabled until the real module and extension are verified (#1001).
+
 - Permit app framing only by Lantern's exact Android and Chrome-extension origins,
   with consistent CSP protection on middleware and static responses; embedded
   authentication and signing remain unverified (#1021).
