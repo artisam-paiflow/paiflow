@@ -22,6 +22,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Refresh the Paiflow Guide for the minimal SDK payment starter and regenerate the shared guide and event-primer template PDFs.
+
 - Make the SDK the default Node integration path in hackathon resources and shared AI context, with the payment-only SDK starter as an optional example; retain Campus Snacks as a domain sample for its planned SDK migration.
 
 - Align the builder's English preview to the far right of its desktop toolbar.

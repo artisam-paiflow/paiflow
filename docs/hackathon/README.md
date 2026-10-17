@@ -31,7 +31,7 @@ they are not extra participant handouts. No bulk archive deletion is required.
 
 Use the SDK as the default Node integration path. The [starter](https://github.com/artisam-paiflow/paiflow-hackathon-starter) demonstrates wallet connection, preparation, signing, submission, original-transaction status and browser recovery. It is a minimal example to adapt to an app, not a complete checkout or an independently verified payout receipt.
 
-[Campus Snacks](https://github.com/artisam-paiflow/paiflow-campus-snacks) remains the domain sample for server-priced USDC purchases and a 90/10 split. Its planned migration will use the SDK starter as its base; that migration is separate from these documentation changes. Preserve the menu, asset issuer, payout expectations and contribution jars.
+[Campus Snacks](https://github.com/artisam-paiflow/paiflow-campus-snacks) remains the domain sample for server-priced USDC purchases and a 90/10 split. Follow the sample's README for its USDC configuration, and use the SDK starter's payment pattern when adapting it. Preserve the menu, asset issuer, payout expectations and contribution jars.
 
 ## Files to keep in sync
 
@@ -69,7 +69,8 @@ Developer READMEs and AI context guides link to GitHub Markdown sources so reade
 The established [Paiflow Guide Drive PDF](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing) is a distribution copy. After source approval and requested PDF regeneration, check its revision and update it before distribution. Use the event's approved primer PDF alongside it. Stop distributing the old API quickstart PDF; GitHub READMEs replace its detailed reference role. Existing Drive/Google Docs copies and separate starter/sample repositories are not updated by a local repository edit.
 
 The Paiflow Guide Markdown and regenerated PDF contain two parts in one document:
-the Paiflow app tutorial, then app integration through the SDK. The primer template links to the SDK integration path and the minimal payment example. JRU and FEU sources/PDFs remain out of
+the Paiflow app tutorial, then app integration through the SDK. The guide and primer
+template include the SDK integration path and minimal payment example. JRU and FEU sources/PDFs remain out of
 scope. Existing shared Drive/Google Docs copies need their own distribution update.
 
 Participant-facing repository links use [`artisam-paiflow/paiflow` on `develop`](https://github.com/artisam-paiflow/paiflow/tree/develop/docs/hackathon). Keep the shared guides, PDFs and API resources aligned with that public copy. Before distributing the PDFs or updating starter/sample links, verify that every linked file exists on the public branch and contains the current revision.

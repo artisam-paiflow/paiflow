@@ -1,20 +1,20 @@
 # Paiflow Guide
 
-Updated Oct 16, 2026
+Updated Oct 17, 2026
 
 Build your first payment integration: a customer's XLM payment automatically splits 90% to a shop and 10% to a community fund. Start with a working flow, prove its payout, then connect your own app.
 
 ### Choose the right resource
 
-| Resource                                                                                                                      | Use it when you want to…                                                                                           |
-| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| This guide                                                                                                                    | Build and test an XLM flow in Paiflow, then connect your own app using the SDK.                                    |
-| [SDK README](https://github.com/artisam-paiflow/paiflow/blob/develop/packages/sdk/README.md)                                  | Build a custom Node integration with the published `@paiflow/sdk@0.2.0` beta.                                      |
-| [HTTP API README](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md)                                 | Look up endpoint schemas, errors, limits, pagination and advanced workflows.                                       |
-| [OpenAPI JSON](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json)                                 | Import the machine-readable API contract into development tools.                                                   |
-| [Postman collection](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) | Try API requests with your deployment UUID and token.                                                              |
-| [AI developer context (`llms.md`)](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/llms.md)            | Give your AI assistant product rules, API details and worked examples.                                             |
-| [Starter repository](https://github.com/artisam-paiflow/paiflow-hackathon-starter)                                            | Get working payment preparation, Freighter signing, submission and event reads without implementing them yourself. |
+| Resource                                                                                                                      | Use it when you want to…                                                                           |
+| ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| This guide                                                                                                                    | Build and test an XLM flow in Paiflow, then connect your own app using the SDK.                    |
+| [SDK README](https://github.com/artisam-paiflow/paiflow/blob/develop/packages/sdk/README.md)                                  | Build a custom Node integration with the published `@paiflow/sdk@0.2.0` beta.                      |
+| [HTTP API README](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md)                                 | Look up endpoint schemas, errors, limits, pagination and advanced workflows.                       |
+| [OpenAPI JSON](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json)                                 | Import the machine-readable API contract into development tools.                                   |
+| [Postman collection](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) | Try API requests with your deployment UUID and token.                                              |
+| [AI developer context (`llms.md`)](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/llms.md)            | Give your AI assistant product rules, API details and worked examples.                             |
+| [Starter repository](https://github.com/artisam-paiflow/paiflow-hackathon-starter)                                            | Run a minimal SDK payment example with Freighter signing, transaction status and browser recovery. |
 
 ### Contents
 
@@ -168,7 +168,7 @@ PAIFLOW_DEPLOYMENT_ID=YOUR_CONFIRMED_DEPLOYMENT_UUID
 PAIFLOW_API_TOKEN=YOUR_DEVELOPER_API_TOKEN
 ```
 
-Use the origin supplied for your environment, your deployment UUID and a token explicitly authorised for it. Keep the file ignored by git. Do not use `NEXT_PUBLIC_` or send the token to the browser. Restart your server after changing configuration. SDK configuration does not use the starter's `PAIFLOW_MODE` setting.
+Use the origin supplied for your environment, your deployment UUID and a token explicitly authorised for it. Keep the file ignored by git. Do not use `NEXT_PUBLIC_` or send the token to the browser. Restart your server after changing configuration. The SDK payment example uses these same server settings; complete configuration enables payments.
 
 ### Connect to your deployment
 
@@ -285,7 +285,9 @@ For detailed method shapes, SDK errors and advanced workflows, use the [SDK READ
 
 #### Optional: start from a ready-made app
 
-The [hackathon starter](https://github.com/artisam-paiflow/paiflow-hackathon-starter) and [Campus Snacks sample](https://github.com/artisam-paiflow/paiflow-campus-snacks) are optional working-app references. The current starter and Campus Snacks use their own HTTP clients and accept only single-deployment `pfk_` tokens; follow their READMEs if you choose that path. They do not yet accept developer `pfd_` tokens or discover multiple deployments. Installing the SDK does not migrate its routes automatically. Preserve the starter's mode guards and saved-transaction recovery if adapting it.
+The [SDK payment example](https://github.com/artisam-paiflow/paiflow-hackathon-starter) provides a runnable 1-XLM native-testnet payment with Freighter signing, original-transaction status and browser recovery. It accepts `pfd_` or `pfk_` credentials for one explicitly configured deployment. Follow its README; funding, Schedule, Subscription and activity panels are outside its minimal scope.
+
+[Campus Snacks](https://github.com/artisam-paiflow/paiflow-campus-snacks) is the sample for a server-priced USDC shop and 90/10 split. Follow its own asset and configuration instructions. Preserve the original-envelope recovery when adapting either example; neither supplies production authentication or order fulfilment.
 
 #### Optional: use USDC
 
