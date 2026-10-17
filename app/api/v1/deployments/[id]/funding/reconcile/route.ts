@@ -6,7 +6,7 @@ import { fundingBody } from "@/lib/api/v1/funding-body";
 import { FundingReconcileSchema } from "@/lib/api/v1/funding-schema";
 import { reconcileControlIntent } from "@/lib/api/v1/control-intent";
 export const POST = v1Route(
-  { rateLimit: V1_RATE_LIMITS.fundingSubmit },
+  { operation: "POST funding/reconcile", rateLimit: V1_RATE_LIMITS.fundingSubmit },
   async ({ req, deployment }) => {
     const input = FundingReconcileSchema.parse(await fundingBody(req));
     const intent = await reconcileControlIntent(input.intent, deployment.id, input.action);

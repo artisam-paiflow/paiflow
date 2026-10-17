@@ -36,6 +36,7 @@ const ENDPOINTS = [
   "transactions/:txHash",
 ] as const;
 export function requestEndpoint(path: string): string {
+  if (path === "/api/v1/deployments") return path;
   const suffix = path.split("/").slice(5).join("/");
   const normalized = suffix.startsWith("transactions/") ? "transactions/:txHash" : suffix;
   return ENDPOINTS.includes(normalized as (typeof ENDPOINTS)[number])
@@ -50,15 +51,17 @@ export const ApiRequestRecordSchema = z
     accountId: z.string().uuid().nullable(),
     tokenCreatorId: z.string().uuid().nullable(),
     apiTokenId: z.string().uuid().nullable(),
+    developerApiTokenId: z.string().uuid().nullable().default(null),
     deploymentId: z.string().uuid().nullable(),
     txHash: z
       .string()
       .regex(/^[0-9a-f]{64}$/)
       .nullable(),
     preparationRequestId: z.string().uuid().nullable(),
-    callerType: z.enum(["deployment_token", "unknown"]),
+    callerType: z.enum(["deployment_token", "developer_token", "unknown"]),
     method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]),
     endpoint: z.enum([
+      "/api/v1/deployments",
       "/api/v1/deployments/:id/:unknown",
       ...ENDPOINTS.map((e) => `/api/v1/deployments/:id/${e}`),
     ]),
@@ -85,7 +88,7 @@ export const ApiRequestRecordSchema = z
     trackingVersion: z.literal(API_HISTORY_VERSION),
   })
   .strict();
-export type ApiRequestRecord = z.infer<typeof ApiRequestRecordSchema>;
+export type ApiRequestRecord = z.input<typeof ApiRequestRecordSchema>;
 export const ApiRequestReportSchema = z
   .object({
     start: z.string().datetime({ offset: true }),

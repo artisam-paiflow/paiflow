@@ -5,11 +5,13 @@ import { getPartnerBalances } from "@/lib/stellar/partner-balances";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const GET = v1Route({ rateLimit: V1_RATE_LIMITS.balances }, async ({ deployment }) =>
-  NextResponse.json(
-    { data: await getPartnerBalances(deployment) },
-    {
-      headers: { "Cache-Control": "private, no-store" },
-    },
-  ),
+export const GET = v1Route(
+  { operation: "GET balances", rateLimit: V1_RATE_LIMITS.balances },
+  async ({ deployment }) =>
+    NextResponse.json(
+      { data: await getPartnerBalances(deployment) },
+      {
+        headers: { "Cache-Control": "private, no-store" },
+      },
+    ),
 );

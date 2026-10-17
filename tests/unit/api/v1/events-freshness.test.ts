@@ -29,7 +29,8 @@ const mocks = vi.hoisted(() => ({
   redisClient: null as null | { set: ReturnType<typeof vi.fn> },
 }));
 
-vi.mock("@/lib/api/v1/auth", () => ({
+vi.mock("@/lib/api/v1/auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/v1/auth")>()),
   requireDeploymentToken: mocks.requireDeploymentToken,
   bearerDeploymentToken: () => null,
 }));

@@ -1,4 +1,5 @@
 import "server-only";
+import { apiTokenKey, signedTokenAttribution, type ApiTokenType } from "@/lib/api/v1/auth";
 import type { Transaction } from "@stellar/stellar-sdk";
 import { rpc } from "@stellar/stellar-sdk";
 import {
@@ -43,6 +44,7 @@ export async function submitPreparedDeposit({
   tx,
   wait,
   tokenId,
+  tokenType,
   deploymentId,
   deployment,
   nodes,
@@ -53,6 +55,7 @@ export async function submitPreparedDeposit({
   tx: Transaction;
   wait: boolean;
   tokenId: string;
+  tokenType?: ApiTokenType;
   deploymentId: string;
   deployment: { network: string; ownerId: string };
   nodes: PipelineSnapshotNode[];
@@ -66,6 +69,7 @@ export async function submitPreparedDeposit({
   const record = {
     deploymentId: deploymentId,
     tokenId: tokenId,
+    tokenType: tokenType ?? "deployment_token",
     txHash,
     signerAddress: signer.ok ? signer.signerAddress : null,
   };
@@ -77,7 +81,7 @@ export async function submitPreparedDeposit({
     kind: "API_EXECUTE",
     network: deployment.network,
     userId: null,
-    apiTokenId: tokenId,
+    ...signedTokenAttribution({ tokenId, tokenType }),
     deploymentId: deploymentId,
     ip,
   });
@@ -132,7 +136,7 @@ export async function submitPreparedDeposit({
     if (!wait) return { txHash, status: "PENDING" };
     // The transaction is already sent, so a caller over its concurrent-wait cap gets the
     // `wait=false` answer rather than an error it might answer by preparing a new deposit.
-    const slot = await acquireWaitSlot(tokenId);
+    const slot = await acquireWaitSlot(apiTokenKey(tokenId, tokenType));
     if (!slot) {
       log.info(
         { deploymentId: deploymentId, tokenId: tokenId, txHash },

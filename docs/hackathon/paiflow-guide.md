@@ -1,22 +1,24 @@
 # Paiflow Guide
 
+For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](../api/developer-tokens.md). Support is on the `dev-token` integration branch; verify hosted availability separately. These SDK additions are Unreleased source and are not published by this work; do not assume registry 0.1.0 includes them. Existing deployment-only integrations remain supported.
+
 Updated Oct 12, 2026
 
 Build your first payment integration: a customer's XLM payment automatically splits 90% to a shop and 10% to a community fund. Start with a working flow, prove its payout, then connect your own app.
 
 ### Choose the right resource
 
-| Resource                                                                                                                             | Use it when you want to…                                                                                           |
-| ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| [Paiflow Guide](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing)                  | Set up wallets, build and deploy a flow, then configure and customise the ready-wired starter.                     |
-| [API quickstart](https://drive.google.com/file/d/1mTFaoICZwW2Ha3OttgJkp2q50o2H5siJ/view?usp=sharing)          | Integrate your own app without the starter, using a complete frontend/backend example.                             |
+| Resource                                                                                                                      | Use it when you want to…                                                                                           |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| [Paiflow Guide](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing)                           | Set up wallets, build and deploy a flow, then configure and customise the ready-wired starter.                     |
+| [API quickstart](https://drive.google.com/file/d/1mTFaoICZwW2Ha3OttgJkp2q50o2H5siJ/view?usp=sharing)                          | Integrate your own app without the starter, using a complete frontend/backend example.                             |
 | [Full API reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md)                              | Look up endpoint schemas, errors, limits, pagination and advanced workflows.                                       |
 | [OpenAPI JSON](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json)                                 | Import the machine-readable API contract into development tools.                                                   |
 | [Postman collection](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) | Try API requests with your deployment UUID and token.                                                              |
-| [AI developer context (`llms.md`)](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/llms.md)                   | Give your AI assistant product rules, API details and worked examples.                                             |
-| [Starter repository](https://github.com/artisam-paiflow/paiflow-hackathon-starter)                                                   | Get working payment preparation, Freighter signing, submission and event reads without implementing them yourself. |
-| [Freighter Testnet setup (video)](https://youtu.be/OBFtQsRe4b0)                                | Create a wallet, select Testnet and obtain testnet XLM.                                                            |
-| [Stellar Expert Testnet](https://stellar.expert/explorer/testnet)                                                                    | Inspect transaction evidence and verify actual payouts.                                                            |
+| [AI developer context (`llms.md`)](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/llms.md)            | Give your AI assistant product rules, API details and worked examples.                                             |
+| [Starter repository](https://github.com/artisam-paiflow/paiflow-hackathon-starter)                                            | Get working payment preparation, Freighter signing, submission and event reads without implementing them yourself. |
+| [Freighter Testnet setup (video)](https://youtu.be/OBFtQsRe4b0)                                                               | Create a wallet, select Testnet and obtain testnet XLM.                                                            |
+| [Stellar Expert Testnet](https://stellar.expert/explorer/testnet)                                                             | Inspect transaction evidence and verify actual payouts.                                                            |
 
 Follow your participant brief for event rules, preparation permissions, deadlines and submissions.
 
@@ -45,7 +47,7 @@ Paiflow is the money logic behind your app. Your app handles who pays and why; a
 
 | You need                                | Purpose                                          |
 | --------------------------------------- | ------------------------------------------------ |
-| [Paiflow](https://beta.app.paiflow.xyz)     | Build, deploy and inspect your payment flow      |
+| [Paiflow](https://beta.app.paiflow.xyz) | Build, deploy and inspect your payment flow      |
 | A full/team Paiflow account             | Create your own deployment API token             |
 | [Freighter](https://www.freighter.app/) | Connect wallets and approve testnet transactions |
 | Dedicated testnet wallets               | Deploy, pay and receive the split                |
@@ -105,6 +107,8 @@ For this example, the payment should route **0.9 XLM to the shop and 0.1 XLM to 
 **Checkpoint:** save the payment transaction hash and verify its expected payouts. A slow live feed is not proof of failure; check the existing transaction before paying again. You can look up the hash on [Stellar Expert Testnet](https://stellar.expert/explorer/testnet).
 
 ## Create your deployment API token
+
+The separate starter setup below keeps one deployment and its `pfk_` token. This repository does not certify that external starter validation accepts `pfd_` or multiple IDs. For a custom server on a supporting build, follow the developer-token guide above instead.
 
 1. Return to your deployment page while signed in as its owner.
 2. Open **API access**, create a token and copy it immediately. The full token is shown once.
@@ -223,8 +227,8 @@ For subscriptions, schedules, escrow, webhooks or changing recipients per paymen
 
 | Symptom                                   | What to check                                                                                               |
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Wrong Node version or unsupported engine | Run `node --version`; select Node 22, reopen your terminal and retry `pnpm install`                         |
-| `pnpm` missing or wrong version          | Run `npm install --global pnpm@10.4.1`; verify `pnpm --version` prints `10.4.1`                |
+| Wrong Node version or unsupported engine  | Run `node --version`; select Node 22, reopen your terminal and retry `pnpm install`                         |
+| `pnpm` missing or wrong version           | Run `npm install --global pnpm@10.4.1`; verify `pnpm --version` prints `10.4.1`                             |
 | Freighter missing or not connecting       | Install/unlock it in this browser; approve this site's access; check the active account and Testnet network |
 | No payment controls or `PREPARATION_MODE` | Set server-only `PAIFLOW_MODE=team` when permitted; restart the app                                         |
 | Configuration error, `401` or `404`       | Check the origin, confirmed deployment UUID and active token belonging to that deployment                   |

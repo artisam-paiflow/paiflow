@@ -1,8 +1,10 @@
 # Paiflow API quickstart
 
+For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](../api/developer-tokens.md). SDK `0.2.0` supports developer credentials and scoped discovery with a backend implementing OpenAPI revision `1.1.0`; SDK `0.1.0` does not include these additions. Existing deployment-only integrations remain supported. See the [SDK release record](../sdk/release-checklist.md) for registry availability.
+
 Updated Oct 12, 2026
 
-For the unpublished TypeScript Node SDK and local tarball examples, see the
+For TypeScript Node SDK source and local tarball examples, see the
 [SDK quickstart](../sdk/quickstart.md). The HTTP API remains available.
 
 Connect your own app to a deployed Paiflow flow without using the hackathon starter. This example shows the complete payment path: your server prepares a payment, the customer signs in Freighter, your server submits it, and your app checks the outcome and payout events.
@@ -29,7 +31,7 @@ Starter users can follow the [Paiflow Guide](https://drive.google.com/file/d/1ab
 
 **Dev mode will stay disabled for the duration of the hackathon.** Configure recipients and required values before deploying. Per-payment recipients, **Fill value via API** and **Dev values** are unavailable; standard Pay and Split flows remain available. `PAIFLOW_MODE=team` and `pnpm dev` do not enable flow Dev mode.
 
-Build and deploy a standard **On Receive XLM → percentage Split XLM** flow: 90% to a shop and 10% to a community fund. Keep **Dev mode off** for this example and use two distinct funded Testnet recipient addresses. Wait for **CONFIRMED**, then create a deployment token in **API access** and copy its UUID.
+Build and deploy a standard **On Receive XLM → percentage Split XLM** flow: 90% to a shop and 10% to a community fund. Keep **Dev mode off** for this example and use two distinct funded Testnet recipient addresses. Wait for **CONFIRMED**, then create a deployment token in **API access**, or select it in a Read and operate developer credential at `/account/developer` on a supporting build, and copy its UUID.
 
 Use a full/team Paiflow account at [beta.paiflow.xyz](https://beta.app.paiflow.xyz). Sandbox accounts cannot create tokens or use their deployments through the partner API. API access requires an **ACTIVE** deployment and active owner; retiring/retired deployments and revoked/expired tokens are refused.
 
@@ -107,7 +109,7 @@ async function upstream(path, options = {}, preparationRequestId = null) {
     origin.search ||
     origin.hash ||
     !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id || "") ||
-    !/^pfk_[a-f0-9]{64}$/.test(token || "")
+    !/^(?:pfk|pfd)_[a-f0-9]{64}$/.test(token || "")
   ) {
     throw new Error("Invalid server configuration");
   }

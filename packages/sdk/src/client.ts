@@ -17,12 +17,24 @@ import {
   parseQuote,
   parseTransaction,
   parseEvents,
+  parseDeployments,
   parseActivity,
   parsePublicSchedule,
   parseDemo,
   parseOpenApi,
 } from "./read-parsers.js";
-import type { PublicEmbedActivity, ListEventsResponse } from "./read-parsers.js";
+import type {
+  PublicEmbedActivity,
+  ListEventsResponse,
+  ListDeploymentsResponse,
+} from "./read-parsers.js";
+export interface ListDeploymentsQuery {
+  cursor?: string;
+  limit?: number;
+}
+export interface DeploymentPagesOptions extends RequestOptions {
+  maxPages?: number;
+}
 export interface ListEventsQuery {
   cursor?: string;
   limit?: number;
@@ -57,11 +69,52 @@ const eventsQuery = (query: ListEventsQuery): Record<string, string> =>
       result.txHash = hash(pattern(query.txHash, /^[a-f0-9]{64}$/i).toLowerCase());
     return result;
   });
+const deploymentsQuery = (query: ListDeploymentsQuery): Record<string, string> =>
+  input(() => ({
+    ...(query.cursor === undefined ? {} : { cursor: uuid(query.cursor).toLowerCase() }),
+    ...(query.limit === undefined ? {} : { limit: String(integer(query.limit, 1, 100)) }),
+  }));
 /** Node-only client. Construction never requests a demo token or opens a connection. */
 export class Paiflow {
   readonly transport: PaiflowTransport;
+  readonly deployments;
   constructor(options: PaiflowOptions) {
     this.transport = new PaiflowTransport(options);
+    const transport = this.transport;
+    const list = (query: ListDeploymentsQuery = {}, options?: RequestOptions) =>
+      transport.request(
+        {
+          path: "/api/v1/deployments",
+          method: "GET",
+          auth: { kind: "token" },
+          query: deploymentsQuery(query),
+          parse: parseDeployments,
+        },
+        options,
+      );
+    this.deployments = {
+      list,
+      pages: async function* (
+        query: ListDeploymentsQuery = {},
+        options: DeploymentPagesOptions = {},
+      ): AsyncGenerator<ApiResponse<ListDeploymentsResponse>> {
+        const initial = deploymentsQuery(query);
+        const cap = input(() => integer(options.maxPages ?? 100, 1, 10000));
+        let cursor = initial.cursor;
+        const cursors = new Set<string>(cursor === undefined ? [] : [cursor]);
+        for (let page = 0; page < cap; page++) {
+          if (options.signal?.aborted) throw new PaiflowAbortError();
+          const response = await list({ ...query, cursor }, options);
+          const next = response.data.nextCursor?.toLowerCase();
+          if (next !== undefined && (cursors.has(next) || (cursor !== undefined && next <= cursor)))
+            throw new PaiflowMalformedResponseError(response.metadata);
+          yield response;
+          if (next === undefined) return;
+          cursor = next;
+          cursors.add(cursor);
+        }
+      },
+    };
   }
   deployment(deploymentId: string): PaiflowDeployment {
     return new PaiflowDeployment(

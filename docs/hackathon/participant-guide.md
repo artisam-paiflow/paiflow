@@ -1,22 +1,24 @@
 # Paiflow Hackathon Mechanics
 
+For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](../api/developer-tokens.md). Support is on the `dev-token` integration branch; verify hosted availability separately. These SDK additions are Unreleased source and are not published by this work; do not assume registry 0.1.0 includes them. Existing deployment-only integrations remain supported.
+
 Updated Oct 12, 2026
 
 Build an app that solves a real problem with automated payments. Choose your idea and start building now. You may deploy, integrate Paiflow and test payments before the event once your team credentials are available.
 
 ## At a glance
 
-|                     |                                                                             |
-| ------------------- | --------------------------------------------------------------------------- |
-| What                | One-day, in-person hackathon to build apps that move crypto through Paiflow |
-| Who                 | Students                                                                    |
-| Teams               | 10 teams of 1–4 people                                                      |
-| Event starts        | October 14, 2026, 10:30 AM PHT                                              |
-| Event development time    | 4 hours on October 14 to finish your app and prepare the demo                    |
-| Prize pool          | PHP 10,000 across five awards                                               |
-| Network             | Stellar testnet                                                             |
-| Online onboarding   | October 12, 2026, 9:00 PM                                                   |
-| Registration closes | October 11, 2026, 12:59 PM                                                  |
+|                        |                                                                             |
+| ---------------------- | --------------------------------------------------------------------------- |
+| What                   | One-day, in-person hackathon to build apps that move crypto through Paiflow |
+| Who                    | Students                                                                    |
+| Teams                  | 10 teams of 1–4 people                                                      |
+| Event starts           | October 14, 2026, 10:30 AM PHT                                              |
+| Event development time | 4 hours on October 14 to finish your app and prepare the demo               |
+| Prize pool             | PHP 10,000 across five awards                                               |
+| Network                | Stellar testnet                                                             |
+| Online onboarding      | October 12, 2026, 9:00 PM                                                   |
+| Registration closes    | October 11, 2026, 12:59 PM                                                  |
 
 ## Registration and resources
 
@@ -142,7 +144,6 @@ predictions. `meetsMinimumAtQuote` only compares current estimates. A quote does
 submit funds, authorize payment or replace final transaction simulation. See the
 [API reference](../api/README.md#deployment-specific-swap-estimates) for freshness,
 limits and error handling.
-
 
 ## Before the event
 

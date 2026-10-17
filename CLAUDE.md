@@ -190,7 +190,7 @@ the cursor directly**.
 - **Dev mode** — per-flow `devMode` swaps nodes for `_DEV` on-chain-mutable variants, filled after
   deploy via `/api/deployments/[id]/dev-*` (auth: `DevApiToken`). See
   `docs/design/2026-06-24-dev-mode-mutable-flows.md`.
-- **Partner API** — `/api/v1`, machine callers with a `DeploymentApiToken` bound to one deployment
+- **Partner API** — `/api/v1`, machine callers with a deployment-bound `DeploymentApiToken` or explicitly selected-deployment `DeveloperApiToken`
   ([§5](#5-authentication)). The older payroll and `dev-*` routes keep `requireDevAuth`.
 
 ### Sandbox sessions
@@ -286,9 +286,10 @@ no-cache, no-transform`, `Connection: keep-alive`, a 25s heartbeat, and an `Abor
 - Compare a presented secret with `timingSafeEqualString()` (`lib/auth/timing-safe.ts`), never
   `===`, and don't hand-roll another.
 - `/api/v1/deployments/:id/*` handlers are `v1Route({ rateLimit }, fn)` (`lib/api/v1/handler.ts`):
-  error handling, UUID check, `Bearer pfk_…` token auth with one generic `UNAUTHENTICATED`, and a
+  error handling, UUID check, `Bearer pfk_…` or `pfd_…` token auth with one generic `UNAUTHENTICATED`, and a
   per-token rate limit. `/api/v1` is in `PUBLIC_PATHS`, so the wrapper is the only guard. Tokens are
   hashed with `hashApiToken()` (`lib/auth/api-token.ts`).
+- Developer credentials use explicit owned CONFIRMED ACTIVE deployment grants and immutable read/operate permissions. Owner-session management at `/api/developer-tokens` refuses sandbox sessions; bearer credentials cannot manage tokens. Follow [developer-token guidance](docs/api/developer-tokens.md) and the exhaustive [permission matrix](docs/api/developer-token-permissions.md). Keep rate allowances shared across selected deployments and retain financial evidence after access removal.
 - Passkey registration needs only a live session, no password re-check ([§19](#19-known-gaps)).
 
 ---

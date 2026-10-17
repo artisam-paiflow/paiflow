@@ -13,8 +13,8 @@ import { parseReleaseBody, releaseTimelockBranchBefore } from "@/lib/timelock-ea
  * authorisation; the token's deployment is the only one it can reach.
  */
 export const POST = v1Route(
-  { rateLimit: V1_RATE_LIMITS.releaseBefore },
-  async ({ req, params, token, deployment }) => {
+  { operation: "POST release-early", rateLimit: V1_RATE_LIMITS.releaseBefore },
+  async ({ req, params, token, tokenType, deployment }) => {
     const input = await parseReleaseBody(req);
     const released = await releaseTimelockBranchBefore(deployment, input.nodeId);
 
@@ -26,6 +26,7 @@ export const POST = v1Route(
       metadata: {
         deploymentId: params.id,
         tokenId: token.id,
+        tokenType,
         nodeId: released.nodeId,
         txHash: released.txHash,
       },

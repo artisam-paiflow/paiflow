@@ -233,6 +233,17 @@ export const parseEvents = (value: unknown) => {
     hasMore: boolean(data.hasMore),
   };
 };
+export const parseDeploymentSummary = (value: unknown) => {
+  const data = object(value);
+  return { id: uuid(data.id), flowName: text(data.flowName), network: network(data.network) };
+};
+export const parseDeployments = (value: unknown) => {
+  const data = object(value);
+  return {
+    items: array(data.items, parseDeploymentSummary, 100),
+    nextCursor: nullable(data.nextCursor, uuid),
+  };
+};
 export const parsePublicEvent = (value: unknown) => {
   const data = object(value);
   return {
@@ -290,6 +301,8 @@ export type SwapQuote = ReturnType<typeof parseQuote>;
 export type TransactionStatus = ReturnType<typeof parseTransaction>;
 export type ContractEventItem = ReturnType<typeof parseEvent>;
 export type ListEventsResponse = ReturnType<typeof parseEvents>;
+export type DeploymentSummary = ReturnType<typeof parseDeploymentSummary>;
+export type ListDeploymentsResponse = ReturnType<typeof parseDeployments>;
 export type PublicEmbedEvent = ReturnType<typeof parsePublicEvent>;
 export type PublicEmbedActivity = ReturnType<typeof parseActivity>;
 export type PublicScheduleState = ReturnType<typeof parsePublicSchedule>;

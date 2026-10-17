@@ -29,6 +29,9 @@ describe("redactString", () => {
 
   it("removes the credentials this app mints", () => {
     const hex64 = "0123456789abcdef".repeat(4);
+    expect(redactString(`Authorization: Bearer pfd_${hex64}`)).toBe(
+      "Authorization: Bearer <token>",
+    );
     expect(redactString(`Authorization: Bearer pfk_${hex64}"`)).toBe(
       'Authorization: Bearer <token>"',
     );

@@ -8,7 +8,7 @@ import { subscriptionAllowanceState } from "@/lib/subscription/state";
 export const dynamic = "force-dynamic";
 
 export const GET = v1Route(
-  { rateLimit: V1_RATE_LIMITS.subscriptionState },
+  { operation: "GET subscription/state", rateLimit: V1_RATE_LIMITS.subscriptionState },
   async ({ deployment }) => {
     if (deploymentCapabilities(deployment).operations.subscriptionState.status === "unsupported")
       throw new AppError("VALIDATION", "Deployment is not a supported subscription");

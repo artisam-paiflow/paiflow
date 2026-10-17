@@ -49,6 +49,7 @@ const bearer = (token: string) => req({ authorization: `Bearer ${token}` });
 function tokenRow(
   overrides: {
     revokedAt?: Date | null;
+    lastUsedAt?: Date | null;
     expiresAt?: Date | null;
     deploymentId?: string;
     owner?: { isActive: boolean; role: "USER" | "ADMIN" | "SANDBOX" };
@@ -63,7 +64,7 @@ function tokenRow(
     tokenPrefix: PLAINTEXT.slice(0, 12),
     label: "partner",
     createdAt: new Date("2026-09-01T00:00:00Z"),
-    lastUsedAt: null,
+    lastUsedAt: overrides.lastUsedAt ?? null,
     expiresAt: overrides.expiresAt ?? null,
     revokedAt: overrides.revokedAt ?? null,
     deployment: {
@@ -98,6 +99,44 @@ beforeEach(() => {
 });
 
 describe("requireDeploymentToken", () => {
+  it.each([
+    [null, true],
+    [299_999, false],
+    [300_000, true],
+    [300_001, true],
+  ])("throttles activity stamps for age %s ms", async (age, shouldWrite) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-15T00:00:00Z"));
+    try {
+      const lastUsedAt = age === null ? null : new Date(Date.now() - age);
+      mockDb.deploymentApiToken.findUnique.mockResolvedValue(tokenRow({ lastUsedAt }));
+      await requireDeploymentToken(bearer(PLAINTEXT), DEPLOYMENT_A);
+      expect(mockDb.deploymentApiToken.findUnique).toHaveBeenCalledTimes(1);
+      expect(mockDb.deploymentApiToken.update).toHaveBeenCalledTimes(shouldWrite ? 1 : 0);
+      if (shouldWrite) {
+        expect(mockDb.deploymentApiToken.update).toHaveBeenCalledWith({
+          where: {
+            id: expect.any(String),
+            OR: [{ lastUsedAt: null }, { lastUsedAt: { lte: new Date(Date.now() - 300_000) } }],
+          },
+          data: { lastUsedAt: new Date() },
+        });
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("checks revocation even for a recently used token", async () => {
+    mockDb.deploymentApiToken.findUnique.mockResolvedValue(
+      tokenRow({ lastUsedAt: new Date(), revokedAt: new Date() }),
+    );
+    await expect(requireDeploymentToken(bearer(PLAINTEXT), DEPLOYMENT_A)).rejects.toBeInstanceOf(
+      AppError,
+    );
+    expect(mockDb.deploymentApiToken.update).not.toHaveBeenCalled();
+  });
+
   it.each(["RETIRING", "RETIRED"])(
     "refuses %s deployment service with the generic token error",
     async (state) => {
@@ -123,7 +162,10 @@ describe("requireDeploymentToken", () => {
     expect(token).not.toHaveProperty("tokenHash");
     expect(deployment).toEqual({ id: DEPLOYMENT_A, status: "CONFIRMED", serviceState: "ACTIVE" });
     expect(mockDb.deploymentApiToken.update).toHaveBeenCalledWith({
-      where: { id: TOKEN_ID },
+      where: {
+        id: TOKEN_ID,
+        OR: [{ lastUsedAt: null }, { lastUsedAt: { lte: expect.any(Date) } }],
+      },
       data: { lastUsedAt: expect.any(Date) },
     });
   });

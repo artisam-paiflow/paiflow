@@ -179,8 +179,8 @@ it holds the funds and the release time picks the side. Released strictly before
 funds go to the "before" step; released at or after it, to the "after" step. `time_before` names
 the before side as True and the after side as False; `time_after` the other way round. Before the
 deadline the before side can be chosen by the deploying wallet, and the contract also lets the
-relayer release it on an authorised request (the owner's session or a deployment API token; that
-request is not built yet, #751). The scheduled auto-release always asks
+relayer release it on an authorised request (the owner's session, deployment API token or Read and operate developer token; that
+request uses the supported early-release API). The scheduled auto-release always asks
 for the after side, which the contract only allows at or after the deadline ("pay the freelancer on
 delivery, refund the client after the deadline"). A release that names the wrong side for the
 ledger time is refused, never redirected.
@@ -334,6 +334,19 @@ read this section as a claim that blanket CSRF coverage exists today.
 
 Username `admin`, password from `ADMIN_SEED_PASSWORD` (required, no default; the seed exits non-zero
 if it is missing or shorter than 12 characters).
+
+### 4.6 Developer integration credentials
+
+An authenticated non-sandbox owner can create a server-side developer credential for
+1–100 explicitly selected existing CONFIRMED ACTIVE deployments they own at
+`/account/developer`. Future deployments never inherit access. Immutable Read only
+or Read and operate permission applies across all selections; replacing the
+credential changes permission, label or expiry. Selection editing may suspend all
+access; revocation retains transaction history and never cancels submitted work.
+Existing deployment-only tokens keep their behavior. Neither credential creates
+flows/deployments or replaces wallet consent/webhook secrets. Per-endpoint rate
+allowances are shared across selections. Full lifecycle, limits and API contract:
+[developer tokens](docs/api/developer-tokens.md).
 
 ---
 

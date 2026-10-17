@@ -9,7 +9,7 @@ import Google from "next-auth/providers/google";
 import { z } from "zod";
 import { captureServer } from "@/lib/analytics/server";
 import { audit } from "@/lib/audit";
-import { hashApiToken } from "@/lib/auth/api-token";
+import { hashApiToken, tokenUsageStamp } from "@/lib/auth/api-token";
 import {
   googleAdapter,
   resolveGoogleUser,
@@ -385,10 +385,20 @@ export async function requireDevApiToken(req: NextRequest): Promise<SessionUser>
       if (token.user.role === Role.SANDBOX) {
         throw new AppError("FORBIDDEN", "Not available in the sandbox");
       }
-      // Best-effort last-used stamp; never block the request on it.
-      db.devApiToken
-        .update({ where: { id: token.id }, data: { lastUsedAt: new Date() } })
-        .catch(() => {});
+      // Best-effort activity stamp, at most once per five minutes. The database
+      // predicate also prevents overlapping requests from writing the same interval.
+      const stamp = tokenUsageStamp(token.lastUsedAt);
+      if (stamp) {
+        db.devApiToken
+          .update({
+            where: {
+              id: token.id,
+              OR: [{ lastUsedAt: null }, { lastUsedAt: { lte: stamp.cutoff } }],
+            },
+            data: { lastUsedAt: stamp.now },
+          })
+          .catch(() => {});
+      }
       return { id: token.user.id, username: token.user.username, role: token.user.role };
     }
   }
