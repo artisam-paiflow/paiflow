@@ -29,6 +29,13 @@ Supported runtime: Node `>=22.22.2 <23`. Output is ESM with TypeScript declarati
 CommonJS consumers can use dynamic import. There are no runtime dependencies.
 Package versions advance independently of the app and API versions.
 
+For the end-to-end wallet, flow deployment and app integration walkthrough, use the
+[Paiflow Guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/paiflow-guide.md).
+For a runnable native-XLM testnet payment example, use the
+[minimal SDK starter](https://github.com/artisam-paiflow/paiflow-hackathon-starter).
+This README is the detailed SDK reference; direct HTTP integrations use the
+[HTTP API README](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md).
+
 Start with the [quickstart and migration guide](https://github.com/webnxt-2030/pinkraft/blob/sdk-js-v0.2.0/docs/sdk/quickstart.md).
 The [beta validation/publication checklist](https://github.com/webnxt-2030/pinkraft/blob/sdk-js-v0.2.0/docs/sdk/release-checklist.md) records local coverage and outstanding live checks.
 

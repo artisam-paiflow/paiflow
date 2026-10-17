@@ -13,7 +13,7 @@ User decisions: TypeScript, Node first, existing deployments, a separate package
 in this repository named `@paiflow/sdk`. Release-preparation PRs target `develop`
 under the current workflow. The `@paiflow` npm scope exists; registry publishing,
 SDK tagging and backend promotion remain distinct release steps.
-Sources are the [quickstart](../hackathon/developer-api-quickstart.md),
+Sources are the [HTTP API README](../api/README.md),
 [developer context](../hackathon/llms.md), [API reference](../api/README.md), and
 actual handlers. The original contract used `testing` baseline `e803520c`
 (2026-10-13); the current matrix includes developer-token work merged into `develop`.

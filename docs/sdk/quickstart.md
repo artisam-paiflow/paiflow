@@ -19,7 +19,10 @@ Some controls remain in the manual verification queue; see the linked
 [API docs](../api/README.md) and operator deployment capabilities before integration.
 This SDK does not create/deploy flows, manage dashboard sessions or expose legacy
 Dev setters. Hackathon Dev mode remains disabled as documented in the
-[API quickstart](../hackathon/developer-api-quickstart.md).
+[hackathon feature policy](../hackathon/README.md#hackathon-feature-availability).
+
+The [SDK README](../../packages/sdk/README.md) is the main detailed SDK entry point;
+this page provides supplementary quickstart and migration examples.
 
 ## Install
 
@@ -58,7 +61,7 @@ The repo checks it against its existing version; no new root dependency is added
 ## First server read
 
 Configure a fixed trusted HTTPS Paiflow origin, confirmed deployment UUID and
-its `pfk_…` token on your Node server. The [API access instructions](../hackathon/developer-api-quickstart.md)
+its `pfk_…` token on your Node server. The [API access instructions](../api/README.md#deployment-api-tokens)
 explain token creation and active deployment requirements. Do not use a browser
 request to select your API origin, deployment, token, price or payout destination.
 

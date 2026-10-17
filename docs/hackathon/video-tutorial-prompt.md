@@ -5,7 +5,8 @@ Create a beginner-friendly video tutorial introducing Paiflow to hackathon parti
 First, inspect the repository and relevant documentation:
 
 - docs/hackathon/llms.md
-- docs/hackathon/developer-api-quickstart.md
+- packages/sdk/README.md
+- docs/api/README.md
 - docs/hackathon/participant-guide.md
 
 The developer context guide is event-neutral; some supporting files contain event-specific instructions. Extract the shared product guidance without carrying event logistics into the video. Verify product behavior against the current app and code. Flag anything uncertain instead of inventing features.

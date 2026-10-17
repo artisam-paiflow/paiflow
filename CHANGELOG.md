@@ -22,12 +22,23 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Make the SDK the default Node integration path in hackathon resources and shared AI context, with the payment-only SDK starter as an optional example; retain Campus Snacks as a domain sample for its planned SDK migration.
+
 - Align the builder's English preview to the far right of its desktop toolbar.
 
 - Simplify deployment API access into Quickstart, Credentials and Reference tabs,
   with flow-specific examples, grouped operations and separate token history.
   Condense Developer API guidance into a server-storage reminder and expandable
   permission and access details.
+
+- Make the Paiflow guide a two-part end-to-end walkthrough for the app and SDK,
+  including Google signup, access codes, per-step videos, developer-token setup,
+  SDK 0.2.0 installation, payout verification and original-transaction recovery.
+
+- Consolidate participant PDFs into the event primer and Paiflow Guide; move the
+  standalone HTTP checkout example into the API README and retire the API
+  quickstart Markdown, PDF and dedicated renderer. Keep detailed SDK/API
+  references on GitHub and document both supported API credential families.
 
 - Limit developer and deployment API token last-used timestamp writes to once per
   five minutes per token, while retaining authentication checks on every request.
@@ -38,8 +49,11 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 - Add an optional total relayer transaction fee ceiling before envelope signing;
   configuring it also refuses automatic restoration in the invocation builder.
 
-- Prepare the first `@paiflow/sdk@0.1.0` beta release metadata and documentation;
-  publication and the release tag remain pending separate approval.
+- Publish the first `@paiflow/sdk@0.1.0` beta under the separately approved release
+  and annotated `sdk-js-v0.1.0` tag on 15 October 2026.
+
+- Reconcile SDK installation/release status and API/hackathon verification guidance
+  with the dated testnet evidence, retaining fee-blocked payout tests and environment limits.
 
 - Record the successful bounded testnet Swap rehearsal, exact USDC receipt and
   measured storage-rent fees, closing the deferred execution evidence gap (#982).
@@ -48,6 +62,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
   scheduler and release-readiness limits, with links to the live evidence (#964).
 
 ### Added
+
+- A reusable hackathon event primer template and PDF, with embedded resource links
+  and organiser notes for event decisions, schedule checks and documentation structure.
 
 - Include API request totals, endpoint/method counts and deltas in analytics
   snapshots by default, with compatible API baselines and `--no-api` opt-out.

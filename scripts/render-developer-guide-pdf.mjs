@@ -20,14 +20,24 @@ const escape = (s) =>
     .replace(/"/g, "&quot;");
 const block = (n) => {
   if (n.type === "code") return `<pre><code>${escape(n.value)}</code></pre>`;
+  if (n.type === "paragraph" && plain(n).startsWith("Video walkthrough:")) {
+    return `<div class="video-walkthrough"><svg aria-hidden="true" width="20" height="14" viewBox="0 0 28 20"><rect width="28" height="20" rx="5" fill="#ff0000"/><path d="M11 5l8 5-8 5z" fill="#fff"/></svg>${render(n)}</div>`;
+  }
   if (n.type === "paragraph" && plain(n).startsWith("Keep wallet secrets in Freighter.")) {
     return `<aside class="warning" role="note">${render(n)}</aside>`;
+  }
+  if (n.type === "paragraph" && plain(n).startsWith("The signup access code is different")) {
+    return `<aside class="access-code-notice" role="note">${render(n)}</aside>`;
   }
   return render(n);
 };
 const body = (items) => items.map(block).join("");
-const starts = nodes.flatMap((n, i) => (n.type === "heading" && n.depth === 2 ? [i] : []));
-if (starts.length !== 12) throw new Error("Expected twelve walkthrough sections");
+const parts = nodes.flatMap((n, i) => (n.type === "heading" && n.depth === 2 ? [i] : []));
+const starts = nodes.flatMap((n, i) =>
+  n.type === "heading" && n.depth === 3 && i > parts[0] ? [i] : [],
+);
+if (parts.length !== 2 || starts.length !== 14)
+  throw new Error("Expected two guide parts with fourteen walkthrough sections");
 const title = plain(nodes[0]);
 const contentsStart = nodes.findIndex(
   (n) => n.type === "heading" && n.depth === 3 && plain(n) === "Contents",
@@ -36,25 +46,37 @@ const resourcesStart = nodes.findIndex(
   (n) => n.type === "heading" && n.depth === 3 && plain(n) === "Choose the right resource",
 );
 const introEnd =
-  resourcesStart >= 0 ? resourcesStart : contentsStart < 0 ? starts[0] : contentsStart;
+  resourcesStart >= 0 ? resourcesStart : contentsStart < 0 ? parts[0] : contentsStart;
 const resources =
   resourcesStart < 0
     ? ""
-    : `<div class="resources">${body(nodes.slice(resourcesStart, contentsStart < 0 ? starts[0] : contentsStart))}</div>`;
+    : `<div class="resources">${body(nodes.slice(resourcesStart, contentsStart < 0 ? parts[0] : contentsStart))}</div>`;
 const contents =
   contentsStart < 0
     ? ""
-    : `<nav class="contents" aria-label="Table of contents">${body(nodes.slice(contentsStart, starts[0]))}</nav>`;
+    : `<nav class="contents" aria-label="Table of contents">${body(nodes.slice(contentsStart, parts[0]))}</nav>`;
 const slug = (text) =>
   text
     .toLowerCase()
     .replace(/[^\p{L}\p{N}_\s-]/gu, "")
     .replace(/\s/g, "-");
-const groups = starts.map(
-  (start, i) =>
-    `<section class="section" id="${escape(slug(plain(nodes[start])))}"><div class="section-heading"><span class="number">${String(i + 1).padStart(2, "0")}</span>${render(nodes[start])}</div>${body(nodes.slice(start + 1, starts[i + 1] ?? nodes.length))}</section>`,
+const groups = starts.map((start, i) => {
+  const end = Math.min(
+    starts[i + 1] ?? nodes.length,
+    parts.find((part) => part > start) ?? nodes.length,
+  );
+  return `<section class="section" id="${escape(slug(plain(nodes[start])))}"><div class="section-heading"><span class="number">${String(i + 1).padStart(2, "0")}</span>${render(nodes[start])}</div>${body(nodes.slice(start + 1, end))}</section>`;
+});
+const partHeaders = new Map(
+  parts.map((part) => {
+    const firstSection = starts.findIndex((start) => start > part);
+    return [
+      firstSection,
+      `<header class="part-heading" id="${escape(slug(plain(nodes[part])))}">${body(nodes.slice(part, starts[firstSection]))}</header>`,
+    ];
+  }),
 );
-const pageGroups = [[0], [1], [2, 3], [4, 5], [6], [7], [8], [9], [10, 11]];
+const pageGroups = [[0], [1], [2, 3], [4], [5], [6], [7], [8], [9], [10], [11], [12], [13]];
 if (resourcesStart >= 0) pageGroups.unshift([]);
 const count = pageGroups.length;
 const footer = (i) =>
@@ -62,10 +84,14 @@ const footer = (i) =>
 const sheets = Array.from(
   { length: count },
   (_, i) =>
-    `<article class="sheet">${i === 0 ? `<header class="hero">${render(nodes[0])}<div class="updated">${body(nodes.slice(1, 2))}</div><div class="intro">${body(nodes.slice(2, introEnd))}</div></header>${resources}${contents}` : ""}${pageGroups[i].map((index) => groups[index]).join("")}${footer(i + 1)}</article>`,
+    `<article class="sheet">${i === 0 ? `<header class="hero">${render(nodes[0])}<div class="updated">${body(nodes.slice(1, 2))}</div><div class="intro">${body(nodes.slice(2, introEnd))}</div></header>${resources}${contents}` : ""}${pageGroups[i].map((index) => `${partHeaders.get(index) ?? ""}${groups[index]}`).join("")}${footer(i + 1)}</article>`,
 ).join("");
 const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escape(title)}</title><style>
 ${guideTheme}
+.part-heading{margin-bottom:18pt}.part-heading h2{font-size:20pt;margin-bottom:8pt}
+.section-heading h3{font-size:19pt;line-height:1.1;margin:0}
+.access-code-notice{background:#fee2e2;border-left:3pt solid #dc2626;padding:9pt 10pt;margin:10pt 0 12pt;border-radius:0 6pt 6pt 0;color:#7f1d1d}.access-code-notice p{margin:0}
+.video-walkthrough{display:flex;align-items:center;gap:6pt;background:#f3f4f6;border:0.5pt solid #e5e7eb;border-radius:4pt;padding:7pt 9pt;margin:0 0 12pt;color:#374151;font-size:9pt}.video-walkthrough p{margin:0}.video-walkthrough svg{flex-shrink:0}
 </style></head><body>${sheets}</body></html>`;
 const browser = await chromium.launch();
 try {
