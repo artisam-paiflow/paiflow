@@ -10,6 +10,7 @@ Build your first payment integration: a customer's XLM payment automatically spl
 | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | This guide                                                                                                                    | Build and test an XLM flow in Paiflow, then connect your own app using the SDK.                    |
 | [SDK README](https://github.com/artisam-paiflow/paiflow/blob/develop/packages/sdk/README.md)                                  | Build a custom Node integration with the published `@paiflow/sdk@0.2.0` beta.                      |
+| [SDK method and type reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/sdk/reference/README.md)         | Look up SDK methods, parameters, return types and exported types.                                  |
 | [HTTP API README](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md)                                 | Look up endpoint schemas, errors, limits, pagination and advanced workflows.                       |
 | [OpenAPI JSON](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json)                                 | Import the machine-readable API contract into development tools.                                   |
 | [Postman collection](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) | Try API requests with your deployment UUID and token.                                              |
@@ -27,6 +28,11 @@ Build your first payment integration: a customer's XLM payment automatically spl
 5. [Make a payment through the hosted page](#make-a-payment-through-the-hosted-page)
 
 **[Part 2 — Connect Your App with the SDK](#part-2--connect-your-app-with-the-sdk)**
+
+- [2.a Recommended video tutorial using the starter](#2a-recommended-video-tutorial-using-the-starter)
+- [2.b Start from a fresh repository](#2b-start-from-a-fresh-repository)
+
+The written steps below belong to **2.b**.
 
 6. [Create your developer token](#create-your-developer-token)
 7. [Install and configure the SDK](#install-and-configure-the-sdk)
@@ -71,7 +77,7 @@ Keep wallet secrets in Freighter. Never paste a secret key or recovery phrase in
 4. Submit the form to continue with Google and complete signup. If Google asks you to choose an account again, use the intended account and finish the flow.
 5. When you return to Paiflow, confirm you are signed in before creating your flow. On later visits, an already linked Google account signs in without a new access code.
 
-**Access code:** `[ACCESS_CODE]`
+**Access code:** `529e6c8e5fcd8eed4932779307aa1065`
 
 The signup access code is different from the developer API token created in Part 2. Do not put the access code into your app configuration. Google sign-in opens your Paiflow account; Freighter separately authorises your blockchain transactions.
 
@@ -125,9 +131,19 @@ For this example, the payment should route **0.9 XLM to the shop and 0.1 XLM to 
 
 ## Part 2 — Connect Your App with the SDK
 
+### 2.a Recommended video tutorial using the starter
+
+**We recommend this path.** The tutorial is in the video below and uses the Paiflow starter repository, which already includes the payment integration. Follow the video to set up the working example, then adapt it to your app.
+
+**Video walkthrough:** [Connect your app using the starter repository](https://youtu.be/8RSSMZehMNY).
+
+### 2.b Start from a fresh repository
+
+**Follow the written steps below if you are starting from a fresh repository.** This path shows you how to add the Paiflow SDK and build the payment integration yourself. It does not use the starter repository.
+
 Connect the deployment from Part 1 to your own app. The Node SDK runs on your server; the customer's wallet signs in the browser. The browser talks to your app's server, which keeps the developer token private.
 
-### Create your developer token
+#### Create your developer token
 
 1. Sign in as the owner of your confirmed deployment and open [**Developer API**](https://beta.app.paiflow.xyz/account/developer).
 2. Under **Create developer token**, enter an optional label and choose an expiry that covers your integration work.
@@ -146,7 +162,7 @@ Connect the deployment from Part 1 to your own app. The Node SDK runs on your se
 
 See the [developer-token guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/developer-tokens.md) for permissions and management. Changing a token's label, permission or expiry requires a replacement token; deployment selections can be edited.
 
-### Install and configure the SDK
+#### Install and configure the SDK
 
 Use an existing Node/TypeScript app with **Node `>=22.22.2 <23`**, the runtime supported by `@paiflow/sdk@0.2.0`. The SDK uses ESM; a plain Node app needs `"type": "module"`, and TypeScript consumers use `NodeNext` module resolution. Your framework can provide its own compatible server setup.
 
@@ -170,7 +186,7 @@ PAIFLOW_API_TOKEN=YOUR_DEVELOPER_API_TOKEN
 
 Use the origin supplied for your environment, your deployment UUID and a token explicitly authorised for it. Keep the file ignored by git. Do not use `NEXT_PUBLIC_` or send the token to the browser. Restart your server after changing configuration. The SDK payment example uses these same server settings; complete configuration enables payments.
 
-### Connect to your deployment
+#### Connect to your deployment
 
 Keep SDK imports in a server-only module. Read `paiflowOrigin`, `developerToken` and `deploymentId` from the trusted configuration above, not from browser input:
 
@@ -202,7 +218,7 @@ Check `capabilities.operations.execute` for your Receive flow, then use preparat
 
 **Checkpoint:** your backend can read the intended testnet deployment without sending its token to the browser.
 
-### Prepare and sign a payment
+#### Prepare and sign a payment
 
 Use the [server example](https://github.com/artisam-paiflow/paiflow/blob/develop/packages/sdk/examples/payment-server.ts) and [browser example](https://github.com/artisam-paiflow/paiflow/blob/develop/packages/sdk/examples/payment-browser.ts) as adapters for your own app. They are framework-neutral building blocks, not a ready-to-run checkout. Bind the server handlers to your own `/checkout/prepare` and `/checkout/submit` routes, and mount the browser adapter on your payment UI.
 
@@ -225,7 +241,7 @@ const prepared = await deployment.execute.prepare({
 
 An ordinary preparation lasts approximately **180 seconds**. Unlock Freighter before paying. Expiry, cancellation or an interrupted signing response must retain the original record for recovery; do not silently prepare a replacement. The SDK's optional signing helper does not itself parse or bind the signed transaction body.
 
-### Submit and verify the payment
+#### Submit and verify the payment
 
 Your submit handler rechecks the authenticated order owner, deployment, network and original preparation. Persist the original signed envelope and its transaction hash in access-restricted storage **before** sending it. For the same order, never replace an already saved submission with a different envelope.
 
@@ -257,7 +273,7 @@ Mark the order paid only after that verification. Show success, pending or a saf
 
 **Checkpoint:** your app has made a 1 XLM payment through the SDK and verified both expected payouts.
 
-### Recover an interrupted payment
+#### Recover an interrupted payment
 
 The SDK does not automatically retry writes, poll finality or reconnect your payment UI. Implement a **Check payment** action backed by your server's saved order, preparation, envelope and hash. Protect recovery endpoints with the same user/ownership checks as checkout.
 
@@ -275,7 +291,7 @@ The published execute API cannot prove ledger-covered noninclusion from expiry o
 
 Keep recovery state on the server so reloading the browser does not lose the payment. A signing response can be lost even when a wallet has acted, so absence of a saved signature is not proof that nothing happened. Never log tokens, wallet secrets or signed envelopes. Ask support using the deployment UUID, hash and request ID, not the signed transaction.
 
-### Customise your integration
+#### Customise your integration
 
 Keep preparation, wallet consent, submission and receipt verification intact while replacing the customer interface with your checkout, dues, donation or other app. Associate events by transaction hash and deduplicate by `eventId`. Authorise business actions in your app; a API token alone is not permission for any visitor to release funds.
 
@@ -283,13 +299,13 @@ The SDK and API use integer stroop strings. Convert decimal UI amounts using big
 
 For detailed method shapes, SDK errors and advanced workflows, use the [SDK README](https://github.com/artisam-paiflow/paiflow/blob/develop/packages/sdk/README.md). Direct HTTP integrations can use the [API README](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md). Schedules, subscriptions, escrow and callbacks have different funding, consent and execution requirements; confirm the actual deployment's capabilities and live state before choosing one.
 
-#### Optional: start from a ready-made app
+##### Optional: start from a ready-made app
 
 The [SDK payment example](https://github.com/artisam-paiflow/paiflow-hackathon-starter) provides a runnable 1-XLM native-testnet payment with Freighter signing, original-transaction status and browser recovery. It accepts `pfd_` or `pfk_` credentials for one explicitly configured deployment. Follow its README; funding, Schedule, Subscription and activity panels are outside its minimal scope.
 
 [Campus Snacks](https://github.com/artisam-paiflow/paiflow-campus-snacks) is the sample for a server-priced USDC shop and 90/10 split. Follow its own asset and configuration instructions. Preserve the original-envelope recovery when adapting either example; neither supplies production authentication or order fulfilment.
 
-#### Optional: use USDC
+##### Optional: use USDC
 
 Finish the XLM exercise first. A USDC flow needs a new deployment configured for that asset; the XLM deployment above does not switch assets when you change an app amount field.
 
@@ -300,7 +316,7 @@ Finish the XLM exercise first. A USDC flow needs a new deployment configured for
 
 Never use mainnet funds for this exercise. If simulation reports a missing trustline, fix the recipient's trustline for the exact issuer; do not substitute an unrelated token named USDC.
 
-### Troubleshoot your integration
+#### Troubleshoot your integration
 
 | Symptom                                      | What to check                                                                                               |
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -321,7 +337,7 @@ Never use mainnet funds for this exercise. If simulation reports a missing trust
 
 When asking for help, include the deployment UUID, transaction hash, safe error code/message and request ID if available. Omit credentials and signed envelopes.
 
-### Check your result
+#### Check your result
 
 The developer-token hosted report verifies native payments and replacement-token recovery; it does not certify this exact 90/10 Split walkthrough in your target environment. Complete the checks below in your target environment.
 

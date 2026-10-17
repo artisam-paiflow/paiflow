@@ -56,6 +56,8 @@ Paths below are relative to this folder unless stated otherwise.
 
 ## Early integration
 
+The [Aklan event primer](aklan/event-primer.md) covers the October 20, 2026 hackathon. Its schedule and early-building permission are event-specific; outstanding planning details are tracked in the internal [organiser notes](aklan/organiser-notes.md).
+
 Teams may deploy, integrate Paiflow and test payments before the event once credentials are available. Use the SDK in your own Node app or start from the minimal SDK payment example. The example enables payments once its server origin, explicit deployment ID and token are configured; without complete configuration, payment actions stay disabled. Event schedules describe time to finish and demonstrate integration. Retain published payout qualification and submission rules, including FEU's event-day qualifying payout. Keep participant briefs, starter guidance, AI context and tutorial scripts aligned.
 
 ## Hackathon feature availability

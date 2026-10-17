@@ -19,6 +19,9 @@ const escape = (s) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 const block = (n) => {
+  if (n.type === "heading" && n.depth === 3 && /^2\.[ab] /.test(plain(n))) {
+    return `<h3 id="${escape(slug(plain(n)))}">${escape(plain(n))}</h3>`;
+  }
   if (n.type === "code") return `<pre><code>${escape(n.value)}</code></pre>`;
   if (n.type === "paragraph" && plain(n).startsWith("Video walkthrough:")) {
     return `<div class="video-walkthrough"><svg aria-hidden="true" width="20" height="14" viewBox="0 0 28 20"><rect width="28" height="20" rx="5" fill="#ff0000"/><path d="M11 5l8 5-8 5z" fill="#fff"/></svg>${render(n)}</div>`;
@@ -33,8 +36,17 @@ const block = (n) => {
 };
 const body = (items) => items.map(block).join("");
 const parts = nodes.flatMap((n, i) => (n.type === "heading" && n.depth === 2 ? [i] : []));
+const freshRepository = nodes.findIndex(
+  (n) => n.type === "heading" && plain(n) === "2.b Start from a fresh repository",
+);
 const starts = nodes.flatMap((n, i) =>
-  n.type === "heading" && n.depth === 3 && i > parts[0] ? [i] : [],
+  n.type === "heading" &&
+  i > parts[0] &&
+  (freshRepository >= 0 && i > freshRepository
+    ? n.depth === 4
+    : n.depth === 3 && !/^2\.[ab] /.test(plain(n)))
+    ? [i]
+    : [],
 );
 if (parts.length !== 2 || starts.length !== 14)
   throw new Error("Expected two guide parts with fourteen walkthrough sections");
@@ -89,7 +101,11 @@ const sheets = Array.from(
 const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escape(title)}</title><style>
 ${guideTheme}
 .part-heading{margin-bottom:18pt}.part-heading h2{font-size:20pt;margin-bottom:8pt}
-.section-heading h3{font-size:19pt;line-height:1.1;margin:0}
+.part-heading>p:has(>strong:first-child){background:#fff0f5;border-left:3pt solid #e0005f;padding:9pt 10pt;margin:10pt 0;border-radius:0 6pt 6pt 0;break-inside:avoid}
+.part-heading>p:has(>strong:first-child)>strong:first-child{display:block;margin-bottom:4pt;color:#831843}
+.section-heading h3,.section-heading h4{font-size:19pt;line-height:1.1;margin:0}
+.part-heading h3{font-size:14pt;margin:12pt 0 8pt}
+.section h5{font-family:"Space Grotesk",sans-serif;font-size:11pt;margin:12pt 0 7pt}
 .access-code-notice{background:#fee2e2;border-left:3pt solid #dc2626;padding:9pt 10pt;margin:10pt 0 12pt;border-radius:0 6pt 6pt 0;color:#7f1d1d}.access-code-notice p{margin:0}
 .video-walkthrough{display:flex;align-items:center;gap:6pt;background:#f3f4f6;border:0.5pt solid #e5e7eb;border-radius:4pt;padding:7pt 9pt;margin:0 0 12pt;color:#374151;font-size:9pt}.video-walkthrough p{margin:0}.video-walkthrough svg{flex-shrink:0}
 </style></head><body>${sheets}</body></html>`;
