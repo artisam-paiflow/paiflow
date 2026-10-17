@@ -301,33 +301,54 @@ export default function DeveloperTokenPanel() {
         Deployment API tokens in each deployment’s API access panel remain limited to that single
         deployment.
       </p>
-      <div className="glass-panel space-y-2 rounded-xl p-4 text-sm">
-        <p>
-          Keep tokens on your server in an environment variable or secret manager. Never embed them
-          in a frontend, mobile app, URL or public repository.
+      <div className="glass-panel rounded-xl p-4 text-sm">
+        <p className="text-on-surface">
+          Keep tokens on your server. Never expose them in client apps, URLs or public repositories.
         </p>
-        <p>
-          Read only permits discovery, balances, events, transaction status, quotes and supported
-          schedule, subscription and funding reads. Read and operate also permits supported payment,
-          funding, payout and control operations, including relayer early releases.
-        </p>
-        <p>
-          Required wallet signatures, subscriber consent and webhook secrets remain separate. Tokens
-          cannot create flows or deployments. Per-endpoint rate allowances are shared across
-          selected deployments.
-        </p>
-        <p>
-          Revoking a token or removing a deployment blocks subsequent requests. Already submitted
-          blockchain transactions may still complete.
-        </p>
-        <a
-          className="text-primary inline-block min-h-11 py-3 underline"
-          href="/api/v1/openapi.json"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          API reference (OpenAPI)
-        </a>
+        <details className="mt-3">
+          <summary className="text-on-surface-variant hover:text-on-surface cursor-pointer py-2">
+            Permissions, storage and access limits
+          </summary>
+          <dl className="text-on-surface-variant mt-3 grid gap-4 sm:grid-cols-2">
+            <div>
+              <dt className="text-on-surface font-semibold">Read only</dt>
+              <dd className="mt-1">
+                Discover selected deployments and read balances, events, transaction status, quotes,
+                and supported schedule, subscription and funding data.
+              </dd>
+            </div>
+            <div>
+              <dt className="text-on-surface font-semibold">Read and operate</dt>
+              <dd className="mt-1">
+                Adds supported payment, funding, payout and control operations, including relayer
+                early releases.
+              </dd>
+            </div>
+            <div>
+              <dt className="text-on-surface font-semibold">Storage and consent</dt>
+              <dd className="mt-1">
+                Store tokens in a server environment variable or secret manager. Wallet signatures,
+                subscriber consent and webhook secrets are still required where applicable.
+              </dd>
+            </div>
+            <div>
+              <dt className="text-on-surface font-semibold">Scope and revocation</dt>
+              <dd className="mt-1">
+                Tokens cannot create flows or deployments. Per-endpoint rate limits are shared
+                across selected deployments. Revoking a token or removing a deployment blocks
+                subsequent requests; submitted transactions may still complete.
+              </dd>
+            </div>
+          </dl>
+          <a
+            className="text-primary mt-3 inline-block min-h-11 py-3 underline"
+            href="/api/v1/openapi.json"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            API reference (OpenAPI)
+          </a>
+        </details>
       </div>
       {revealed ? (
         <section

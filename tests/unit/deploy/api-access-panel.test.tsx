@@ -1,4 +1,5 @@
-import { render, screen, within, waitFor } from "@testing-library/react";
+import axe from "axe-core";
+import { act, render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ApiAccessPanel from "@/components/deploy/api-access-panel";
@@ -22,6 +23,7 @@ describe("deployment integration instructions", () => {
         webhookSecret={null}
       />,
     );
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Reference" }));
     expect(screen.getByText(/Read contract balances/).textContent).toContain(
       "Requires eligibility checks",
     );
@@ -29,7 +31,6 @@ describe("deployment integration instructions", () => {
     expect(screen.getByText(/unknown balances are not zero/).textContent).toContain(
       "not Schedule payout availability",
     );
-    await screen.findByText("NO API TOKENS YET.");
   });
   it("shows deposit instructions before minting a token and includes a request body", async () => {
     render(
@@ -39,6 +40,7 @@ describe("deployment integration instructions", () => {
         webhookSecret={null}
       />,
     );
+    await userEvent.setup().selectOptions(screen.getByLabelText("Example"), "payment");
     const example = screen.getByText(/curl -X POST/).textContent!;
     expect(example).toContain(`/${DEPLOYMENT_ID}/execute`);
     expect(example).toContain('"from":"G_PAYING_WALLET_ADDRESS"');
@@ -47,7 +49,7 @@ describe("deployment integration instructions", () => {
     expect(screen.queryByText(/Prepare a payment with a recipient/)).toBeNull();
     expect(screen.queryByText(/Release a timelock early/)).toBeNull();
     expect(screen.queryByTestId("api-token-reveal")).toBeNull();
-    await screen.findByText("NO API TOKENS YET.");
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1));
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
   });
 
@@ -64,23 +66,27 @@ describe("deployment integration instructions", () => {
       expect(screen.getByText(/curl '.*\/events'/).textContent).toContain("YOUR_API_TOKEN");
       expect(screen.queryByText(/\/execute/)).toBeNull();
       expect(screen.queryByText(/Prepare and submit a payment/)).toBeNull();
-      expect(screen.getByText(/Check transaction status/)).toBeTruthy();
+
+      const user = userEvent.setup();
       if (trigger === "subscription") {
+        await user.selectOptions(screen.getByLabelText("Example"), "subscription");
         expect(
           screen
             .getByRole("link", { name: "Open subscriber allowance approval" })
             .getAttribute("href"),
         ).toBe(`/allowance/${DEPLOYMENT_ID}`);
-        expect(screen.getByText(/Approve a subscription allowance/).textContent).toContain(
-          "Subscriber wallet",
-        );
       } else {
         expect(
           screen.queryByRole("link", { name: "Open subscriber allowance approval" }),
         ).toBeNull();
       }
       if (trigger !== "webhook") expect(screen.queryByTestId("webhook-secret")).toBeNull();
-      await screen.findByText("NO API TOKENS YET.");
+      await user.click(screen.getByRole("tab", { name: "Reference" }));
+      expect(screen.getByText(/Check transaction status/)).toBeTruthy();
+      if (trigger === "subscription")
+        expect(screen.getByText(/Approve a subscription allowance/).textContent).toContain(
+          "Subscriber wallet",
+        );
     },
   );
 
@@ -94,6 +100,8 @@ describe("deployment integration instructions", () => {
         webhookSecret="synthetic-secret"
       />,
     );
+    expect(screen.queryByTestId("webhook-secret")).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "Credentials" }));
     const secret = screen.getByTestId("webhook-secret");
     expect(secret.className).toContain("ph-no-capture");
     expect(secret.textContent).not.toContain("synthetic-secret");
@@ -107,6 +115,8 @@ describe("deployment integration instructions", () => {
     expect(writeText).toHaveBeenLastCalledWith(
       `${window.location.origin}/api/webhooks/${DEPLOYMENT_ID}`,
     );
+    await user.click(screen.getByRole("tab", { name: "Quickstart" }));
+    await user.selectOptions(screen.getByLabelText("Example"), "webhook");
     await user.click(screen.getByRole("button", { name: "Copy escrow reward callback example" }));
     const callback = writeText.mock.calls.at(-1)![0];
     expect(callback).toContain("x-webhook-secret: YOUR_WEBHOOK_SECRET");
@@ -139,6 +149,7 @@ describe("deployment integration instructions", () => {
     render(
       <ApiAccessPanel deploymentId={DEPLOYMENT_ID} capabilities={data} webhookSecret={null} />,
     );
+    await user.click(screen.getByRole("tab", { name: "Reference" }));
     const summary = screen.getByText(/Prepare a payment with a recipient/);
     expect(summary.textContent).toContain("Requires eligibility checks");
     await user.click(summary);
@@ -185,25 +196,24 @@ describe("deployment integration instructions", () => {
         webhookSecret="synthetic-secret"
       />,
     );
-    await screen.findByText("NO API TOKENS YET.");
+    await user.click(screen.getByRole("tab", { name: "Credentials" }));
+    await screen.findByText("No active deployment tokens.");
+    await user.click(screen.getByRole("button", { name: "Create deployment token" }));
     await user.type(screen.getByLabelText("Label (optional)"), "Rewards backend");
     await user.selectOptions(screen.getByLabelText("Expires"), "30");
-    await user.click(screen.getByRole("button", { name: /CREATE TOKEN/ }));
+    await user.click(screen.getByRole("button", { name: "Create token" }));
     const reveal = await screen.findByTestId("api-token-reveal");
     expect(reveal.className).toContain("ph-no-capture");
-    expect(screen.getByTestId("api-token-curl").textContent).toContain(
-      `/api/v1/deployments/${DEPLOYMENT_ID}/events`,
-    );
-    expect(screen.getByTestId("api-token-curl").textContent).not.toContain("/execute");
     expect(vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === "POST")?.[1]?.body).toBe(
       JSON.stringify({ label: "Rewards backend", expiresInDays: 30 }),
     );
     await user.click(screen.getByRole("button", { name: "Copy token" }));
     expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith("pfk_synthetic");
-    await user.click(screen.getByRole("button", { name: "DONE" }));
+    await user.click(screen.getByRole("button", { name: "Done" }));
     expect(screen.queryByTestId("api-token-plaintext")).toBeNull();
-    await user.click(screen.getByRole("button", { name: /REVOKE/ }));
-    await waitFor(() => expect(screen.queryByRole("button", { name: /REVOKE/ })).toBeNull());
+    await user.click(screen.getByRole("button", { name: "Revoke" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Revoke" })).toBeNull());
+    await user.click(screen.getByText("Token history"));
     expect(screen.getByText("REVOKED")).toBeTruthy();
     vi.mocked(window.confirm).mockRestore();
   });
@@ -219,7 +229,8 @@ describe("deployment integration instructions", () => {
     expect(screen.getByText(/different network/)).toBeTruthy();
     expect(screen.queryByTestId("webhook-secret")).toBeNull();
     expect(screen.queryByText(/curl /)).toBeNull();
-    await screen.findByText("NO API TOKENS YET.");
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Credentials" }));
+    await screen.findByText("No active deployment tokens.");
   });
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -227,7 +238,7 @@ afterEach(() => vi.unstubAllGlobals());
 // #553: an owner who has just revealed a token had no way to find the guide,
 // the spec or the collection from the panel.
 describe("ApiAccessPanel docs links", () => {
-  it("links the guide, the served spec and the collection, each in a new tab", () => {
+  it("links the guide, the served spec and the collection from Reference", async () => {
     render(
       <ApiAccessPanel
         deploymentId="00000000-0000-4000-8000-000000000000"
@@ -235,6 +246,7 @@ describe("ApiAccessPanel docs links", () => {
         webhookSecret={null}
       />,
     );
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Reference" }));
     const links = within(screen.getByTestId("api-docs-links")).getAllByRole("link");
 
     expect(links.map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
@@ -249,5 +261,149 @@ describe("ApiAccessPanel docs links", () => {
       expect(a.getAttribute("target")).toBe("_blank");
       expect(a.getAttribute("rel")).toBe("noopener noreferrer");
     }
+  });
+});
+
+describe("API access navigation", () => {
+  it("starts with a read-only example and copies connection details", async () => {
+    const user = userEvent.setup();
+    const write = vi.spyOn(navigator.clipboard, "writeText");
+    render(
+      <ApiAccessPanel
+        deploymentId={DEPLOYMENT_ID}
+        capabilities={capabilities("deposit")}
+        webhookSecret={null}
+      />,
+    );
+    expect(screen.getByRole("tab", { name: "Quickstart" }).getAttribute("aria-selected")).toBe(
+      "true",
+    );
+    expect(
+      screen.getByRole("region", { name: "Read payment events command" }).textContent,
+    ).toContain(`/${DEPLOYMENT_ID}/events`);
+    expect(screen.queryByLabelText("Label (optional)")).toBeNull();
+    expect(screen.queryByText("Available operations")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Copy Deployment ID" }));
+    expect(write).toHaveBeenLastCalledWith(DEPLOYMENT_ID);
+    await user.click(screen.getByRole("button", { name: "Copy API base URL" }));
+    expect(write).toHaveBeenLastCalledWith(
+      `${window.location.origin}/api/v1/deployments/${DEPLOYMENT_ID}`,
+    );
+    await user.click(screen.getByRole("button", { name: "Manage credentials" }));
+    expect(
+      screen.getByRole("link", { name: "Manage developer credentials" }).getAttribute("href"),
+    ).toBe("/account/developer");
+  });
+
+  it("supports keyboard tabs and accessible panels", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <ApiAccessPanel
+        deploymentId={DEPLOYMENT_ID}
+        capabilities={capabilities("webhook")}
+        webhookSecret="synthetic-secret"
+      />,
+    );
+    const quickstart = screen.getByRole("tab", { name: "Quickstart" });
+    quickstart.focus();
+    await user.keyboard("{ArrowRight}");
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Credentials" }));
+    expect(screen.getByRole("tabpanel", { name: "Credentials" })).toBeTruthy();
+    expect((await axe.run(container)).violations).toEqual([]);
+    await user.keyboard("{End}");
+    expect(screen.getByRole("tabpanel", { name: "Reference" })).toBeTruthy();
+    expect((await axe.run(container)).violations).toEqual([]);
+    await user.keyboard("{ArrowRight}");
+    expect(document.activeElement).toBe(quickstart);
+    expect((await axe.run(container)).violations).toEqual([]);
+    await user.keyboard("{ArrowLeft}{Home}");
+    expect(document.activeElement).toBe(quickstart);
+  });
+
+  it("keeps inactive tokens in history and active tokens visible", async () => {
+    const user = userEvent.setup();
+    const metadata = {
+      createdAt: "2026-01-01T00:00:00Z",
+      expiresAt: null,
+      revokedAt: null,
+      lastUsedAt: null,
+    };
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [
+            { ...metadata, id: "active", tokenPrefix: "pfk_active", label: "Production" },
+            {
+              ...metadata,
+              id: "expired",
+              tokenPrefix: "pfk_expired",
+              label: "Old integration",
+              expiresAt: "2020-01-01T00:00:00Z",
+            },
+            {
+              ...metadata,
+              id: "revoked",
+              tokenPrefix: "pfk_revoked",
+              label: "Retired integration",
+              revokedAt: "2020-01-01T00:00:00Z",
+            },
+          ],
+        }),
+      ),
+    );
+    render(
+      <ApiAccessPanel
+        deploymentId={DEPLOYMENT_ID}
+        capabilities={capabilities("deposit")}
+        webhookSecret={null}
+      />,
+    );
+    await user.click(screen.getByRole("tab", { name: "Credentials" }));
+    expect(
+      await within(screen.getByRole("list", { name: "Active deployment tokens" })).findByText(
+        "Production",
+      ),
+    ).toBeTruthy();
+    expect(
+      within(screen.getByRole("list", { name: "Active deployment tokens" })).queryByText(
+        "Old integration",
+      ),
+    ).toBeNull();
+    const history = screen.getByText("Token history").closest("details")!;
+    expect(history.open).toBe(false);
+    await user.click(screen.getByText("Token history"));
+    expect(history.open).toBe(true);
+    expect(screen.getByRole("list", { name: "Token history" }).textContent).toContain(
+      "Old integration",
+    );
+  });
+
+  it("does not reveal a token whose creation finishes after leaving Credentials", async () => {
+    const user = userEvent.setup();
+    let finish!: (response: Response) => void;
+    vi.mocked(fetch).mockImplementation(async (_url, init) =>
+      init?.method === "POST"
+        ? new Promise<Response>((resolve) => {
+            finish = resolve;
+          })
+        : new Response(JSON.stringify({ data: [] })),
+    );
+    render(
+      <ApiAccessPanel
+        deploymentId={DEPLOYMENT_ID}
+        capabilities={capabilities("deposit")}
+        webhookSecret={null}
+      />,
+    );
+    await user.click(screen.getByRole("tab", { name: "Credentials" }));
+    await user.click(screen.getByRole("button", { name: "Create deployment token" }));
+    await user.click(screen.getByRole("button", { name: "Create token" }));
+    await user.click(screen.getByRole("tab", { name: "Reference" }));
+    await act(async () =>
+      finish(new Response(JSON.stringify({ data: { id: "token-id", token: "pfk_synthetic" } }))),
+    );
+    await user.click(screen.getByRole("tab", { name: "Credentials" }));
+    expect(screen.queryByTestId("api-token-reveal")).toBeNull();
+    expect(screen.queryByText("pfk_synthetic")).toBeNull();
   });
 });

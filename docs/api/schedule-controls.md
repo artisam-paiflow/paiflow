@@ -2,13 +2,18 @@
 
 The deployment-token API reads a deployed Schedule and prepares controller-wallet
 pause, resume and permitted retrieval without a Paiflow login. These routes are
-implemented for standard `STREAMER` contracts. Hosted testnet consent/finality and
-retrieval recipient/amount verification remain pending before participant availability
-is claimed. Existing signed-in controls and public Schedule funding remain available.
+implemented for standard `STREAMER` contracts. Controller consent, pause/resume finality
+and retrieval recipient/amount were verified in the October 14–15, 2026 SDK rehearsal
+on hosted testing/testnet. See the [verification summary](README.md#hosted-testnet-verification)
+for evidence and environment limits. The later published-package first due Schedule
+claim remained fee-blocked; unattended scheduling is unverified. Existing signed-in
+controls and public Schedule funding remain available.
 Funding is a separate workflow: a controller control does not top up or pay recipients.
 
-All calls use `Authorization: Bearer pfk_…` for the selected deployment and require
-active deployment service. The token grants API access, not controller wallet consent.
+All calls use a deployment-bound `pfk_…` bearer token or a developer `pfd_…` token
+explicitly selecting the deployment, and require active deployment service. Developer Read only
+permits state and transaction-status reads; preparation, submission and reconciliation require
+Read and operate. The token grants API access, not controller wallet consent.
 Private keys stay in the wallet. The environment selects the network; verify the
 returned network against the wallet before signing. See the canonical network model
 in [CLAUDE.md §7.5](../../CLAUDE.md#75-networks).
@@ -64,7 +69,8 @@ const token = process.env.PAIFLOW_API_TOKEN!;
 const origin = process.env.PAIFLOW_BASE_URL!;
 
 export async function scheduleUpstream(path: string, body?: unknown) {
-  const allowed = /^\/(?:schedule\/(?:state|(?:pause|resume|retrieve)(?:\/(?:submit|reconcile))?)|transactions\/[a-f0-9]{64})(?:\?nodeId=[A-Za-z0-9_-]+)?$/;
+  const allowed =
+    /^\/(?:schedule\/(?:state|(?:pause|resume|retrieve)(?:\/(?:submit|reconcile))?)|transactions\/[a-f0-9]{64})(?:\?nodeId=[A-Za-z0-9_-]+)?$/;
   if (!allowed.test(path)) throw new Error("Unsupported Schedule API path");
   const response = await fetch(`${origin}/api/v1/deployments/${deploymentId}${path}`, {
     method: body === undefined ? "GET" : "POST",
@@ -153,9 +159,18 @@ covered historical NOT_FOUND evidence. Lagging RPC/history gaps retain reservati
 See [wallet-control recovery](wallet-controls.md) for the full durable protocol.
 Retirement refuses unresolved controls; developer tokens do not reopen retired service.
 
-## Verification gate
+## Verification evidence and retesting
 
-Before announcing hosted participant support, record the deployed version, consenting
+The [initial SDK report](../testing/2026-10-14-sdk-live-verification.md#public-route-fix-and-resumed-schedule-batch)
+records successful funding, controller-signed pause/resume and retrieval of the full
+1 XLM to the controller, original-intent reconciliation and zero final balance.
+The [published-package follow-up](../testing/2026-10-15-sdk-broader-testing.md#schedule-funded-and-refunded-first-claim-refused-on-fees)
+separately records 0.2 XLM funding and a full refund through direct contract cancellation;
+that refund is distinct from the pause/resume/retrieve API checks. Its first due
+Schedule claim stopped at an unsigned 27.2468293 XLM estimate above the 1 XLM cap.
+No successful due Schedule payout or unattended scheduler is established by these reports.
+
+When verifying another build or deployment, record the deployed version, consenting
 controller wallet, prepared intent/hash, pause and resume ledger finality/state, and
 permitted retrieval's actual token, controller recipient and amount. Verify balance
 change and remaining vested entitlement. Wallet secrets and signed XDR are excluded

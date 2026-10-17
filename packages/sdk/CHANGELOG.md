@@ -1,9 +1,21 @@
 # Changelog
 
 SDK versions are independent of the app and API. Follow the repository release
-[release policy](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/releasing.md).
+[release policy](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/releasing.md).
 
 ## [Unreleased]
+
+- Point package repository metadata and the release-policy link to the public
+  source mirror. This applies to the next published SDK artifact; the existing
+  npm `0.2.0` artifact retains its original metadata.
+
+## [0.2.0] - 2026-10-16
+
+Beta release for selected-deployment developer credentials and scoped
+API v1 discovery. Requires a backend implementing OpenAPI revision `1.1.0`;
+SDK `0.1.0` does not include these additions. Existing deployment-token integrations,
+Node `>=22.22.2 <23`, ESM/declaration exports and zero runtime dependencies remain
+supported. No consumer migration is required for existing `pfk_` integrations.
 
 ### Added
 

@@ -1,11 +1,13 @@
 "use client";
 
+import { inputClass } from "../inputs/styles";
 import { Field } from "../inputs/field";
 
 type IntervalUnit = "minute" | "hour" | "day" | "week" | "month";
 
 /** Each part has its own name and validation message within the interval group. */
 export function IntervalField({
+  shared = false,
   amount,
   unit,
   amountError,
@@ -13,6 +15,8 @@ export function IntervalField({
   onAmountChange,
   onUnitChange,
 }: {
+  /** Use shared styling in migrated forms; Payroll retains its existing presentation. */
+  shared?: boolean;
   amount: number;
   unit: IntervalUnit;
   amountError?: string | null;
@@ -27,7 +31,7 @@ export function IntervalField({
           {(control) => (
             <input
               {...control}
-              className="input text-right"
+              className={shared ? inputClass : "input text-right"}
               type="number"
               min={1}
               value={amount}
@@ -39,7 +43,7 @@ export function IntervalField({
           {(control) => (
             <select
               {...control}
-              className="input"
+              className={shared ? inputClass : "input"}
               value={unit}
               onChange={(e) => onUnitChange(e.target.value as IntervalUnit)}
             >

@@ -1,12 +1,12 @@
 # One credential for selected existing deployments
 
-Developer-token support is implemented on the `dev-token` integration branch (#1028),
-including **Unreleased** changes in the local `@paiflow/sdk` 0.1.0 source.
-This work does not publish those changes; registry 0.1.0 support must not be assumed. OpenAPI revision
-1.1.0 describes this compatible addition to API v1. These files do not establish
-hosted availability, npm publication or upgrades to external starter repositories.
-Check the deployed service's specification and panel before relying on support.
-The [release policy](../releasing.md) governs publication separately.
+SDK beta `0.2.0` supports developer credentials and scoped deployment discovery
+(#1028); SDK `0.1.0` does not include these additions. OpenAPI revision `1.1.0`
+describes this compatible
+addition to API v1. Check the deployed service's specification and panel before
+relying on support. A package release does not upgrade a backend or external
+starter repository. The [release policy](../releasing.md) and
+[SDK checklist](../sdk/release-checklist.md) govern publication separately.
 
 ## Choose and create a credential
 

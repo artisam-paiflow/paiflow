@@ -104,3 +104,16 @@ describe("notification settings dialog", () => {
     }
   });
 });
+
+it("connects recipient email errors through the shared field without changing optional clearing", async () => {
+  const user = userEvent.setup();
+  const onChange = vi.fn();
+  render(<RecipientEmailField shared value="wrong" onChange={onChange} />);
+  const input = screen.getByRole("textbox", { name: "Recipient email (optional)" });
+  expect(input.getAttribute("aria-invalid")).toBe("true");
+  expect(document.getElementById(input.getAttribute("aria-describedby")!)?.textContent).toContain(
+    "valid email",
+  );
+  await user.clear(input);
+  expect(onChange).toHaveBeenLastCalledWith("");
+});

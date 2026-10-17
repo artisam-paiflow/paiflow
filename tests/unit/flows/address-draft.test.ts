@@ -257,22 +257,25 @@ describe("validateFlow refuses a draft address (#588)", () => {
   it("asks for an address when the field is empty", () => {
     const [issue] = errorsOf(payFlow("")).filter((e) => e.path === "nodes.p.config.recipient");
     expect(issue!.friendlyMessage).toBe(
-      "Enter the Pay step's recipient: a Stellar wallet address (G…, 56 characters), or PENDING:<name> to fill it in when you deploy.",
+      "Enter a complete wallet address (G…, 56 characters) for the Pay step's recipient.",
     );
     expect(issue!.nodeId).toBe("p");
     expect(issue!.field).toBe("recipient");
   });
 
-  it("quotes a half-typed address back exactly as typed", () => {
+  it("gives a concise correction without repeating the typed address", () => {
     const [issue] = errorsOf(payFlow("GABC")).filter((e) => e.path === "nodes.p.config.recipient");
-    expect(issue!.friendlyMessage).toContain('"GABC" is not a complete Stellar address');
+    expect(issue!.friendlyMessage).toBe(
+      "Enter a complete wallet address (G…, 56 characters) for the Pay step's recipient.",
+    );
+    expect(issue!.friendlyMessage).not.toContain("GABC");
   });
 
   it("says a lower-case address is lower case, without committing the upper-case one", () => {
     const lower = ADDR_A.toLowerCase();
     const [issue] = errorsOf(payFlow(lower)).filter((e) => e.path === "nodes.p.config.recipient");
     expect(issue!.friendlyMessage).toContain("lower case");
-    expect(issue!.friendlyMessage).toContain(lower);
+    expect(issue!.friendlyMessage).not.toContain(lower);
     expect(issue!.friendlyMessage).not.toContain(ADDR_A);
   });
 
@@ -280,14 +283,14 @@ describe("validateFlow refuses a draft address (#588)", () => {
     const [issue] = errorsOf(payFlow(` ${ADDR_A}`)).filter(
       (e) => e.path === "nodes.p.config.recipient",
     );
-    expect(issue!.friendlyMessage).toContain("spaces around it");
+    expect(issue!.friendlyMessage).toContain("Remove the spaces around the address");
   });
 
   it("says a contract address can't go in a wallet-only field", () => {
     const [issue] = errorsOf(payFlow(CONTRACT)).filter(
       (e) => e.path === "nodes.p.config.recipient",
     );
-    expect(issue!.friendlyMessage).toContain("must be a wallet address (G…)");
+    expect(issue!.friendlyMessage).toContain("needs a wallet address (G…)");
   });
 
   it("names a split recipient by label, or by position", () => {

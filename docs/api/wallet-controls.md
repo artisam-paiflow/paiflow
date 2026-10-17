@@ -104,4 +104,10 @@ configured subscriber signs; an integration token never supplies that consent. E
 claimed retries and explicit reconciliation use durable intent evidence even after successful
 cancellation changed eligibility. Existing Dev cancellation continues when Dev mode is disabled; Dev reactivation
 requires the feature enabled. New Dev creation and configuration gates are unchanged.
-Hosted testnet verification remains pending in the action acceptance record below.
+Bounded ordinary Subscription cancellation/reactivation passed in the October 14–15,
+2026 SDK rehearsal on hosted testing/testnet, with original-intent reconciliation,
+confirmed finality and zero allowance after cancellation and reactivation. See the
+[verification summary](README.md#hosted-testnet-verification) and
+[action acceptance record](../subscription-controls-testnet.md) for evidence,
+remaining acceptance cases and the later fee-blocked charge test. These results do
+not certify other environments or Dev contract variants.

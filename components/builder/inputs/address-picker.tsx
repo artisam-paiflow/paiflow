@@ -9,6 +9,7 @@ import type { AddressEntry } from "@/lib/address-book.types";
 import { stellarExpertContractUrl, type StellarNetwork } from "@/lib/stellar/explorer";
 import { isAccountId, isContractId } from "@/lib/stellar/strkey";
 import { apiError } from "@/lib/friendly-error";
+import { CreateAddressContactSchema } from "@/lib/address-book/schema";
 import { looksLikeSecretSeed, SECRET_SEED_MESSAGE } from "@/lib/flows/secret-seed";
 import {
   filterAddressBook,
@@ -34,6 +35,8 @@ export function isAcceptedAddress(value: string, accept: AddressKind): boolean {
     }
   }
 }
+
+const EMPTY_ADDRESS_BOOK: AddressEntry[] = [];
 
 const KIND_PLACEHOLDER: Record<AddressKind, string> = {
   account: "G...",
@@ -189,7 +192,7 @@ function EditableAddressPicker({
   label,
   hint,
   error,
-  addressBook = [],
+  addressBook = EMPTY_ADDRESS_BOOK,
   addressBookLoading,
   addressBookError,
   onAddressBookChange,
@@ -201,17 +204,13 @@ function EditableAddressPicker({
   const pendingBadgeId = useId();
   const secretNoteId = useId();
   const [secretRefused, setSecretRefused] = useState(false);
-  const saveLabelId = useId();
+  const saveAddressId = useId();
+  const saveHeadingId = useId();
   const [draft, setDraft] = useState(value);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const [showSave, setShowSave] = useState(false);
-  // The bookmark button opens the dropdown and the save form in one click, but
-  // the `[open]` effect below clears transient state whenever the dropdown
-  // opens, so without this the form is wiped in the same render and the first
-  // click appears to do nothing (#661).
-  const openingToSave = useRef(false);
   const [saveLabel, setSaveLabel] = useState("");
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -220,6 +219,13 @@ function EditableAddressPicker({
   );
   const [mounted, setMounted] = useState(false);
 
+  const inputRef = useRef<HTMLInputElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const saveFormRef = useRef<HTMLElement>(null);
+  const suppressFocusOpen = useRef(false);
+  const saveInFlight = useRef(false);
+  const active = useRef(false);
+  const [justSaved, setJustSaved] = useState<AddressEntry | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -232,9 +238,52 @@ function EditableAddressPicker({
   const uncommitted = commit === "valid" && trimmedValue !== value.trim();
   const invalid = Boolean(error) || uncommitted;
   // The address book stores G… accounts only (`/api/address-book`).
-  const canSave = isAccountId(trimmedValue);
+  const canSave = isValid && isAccountId(trimmedValue);
+  const currentAddress = useRef(trimmedValue);
+  currentAddress.current = trimmedValue;
+  const savedEntry =
+    addressBook.find((e) => e.address === trimmedValue) ??
+    (justSaved?.address === trimmedValue ? justSaved : null);
+  const isSaved = savedEntry !== null;
 
-  const isSaved = addressBook.some((e) => e.address === trimmedValue);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    setJustSaved(null);
+  }, [addressBook]);
+
+  useEffect(() => {
+    const form = saveFormRef.current;
+    if (!showSave || !form) return;
+    // Scroll only the nearest scrolling body. scrollIntoView also scrolls the
+    // sheet's overflow-hidden shell, which can push its fixed header out of view.
+    for (let parent = form.parentElement; parent; parent = parent.parentElement) {
+      if (!["auto", "scroll"].includes(getComputedStyle(parent).overflowY)) continue;
+      const bounds = form.getBoundingClientRect();
+      const viewport = parent.getBoundingClientRect();
+      if (bounds.bottom > viewport.bottom) parent.scrollTop += bounds.bottom - viewport.bottom + 8;
+      else if (bounds.top < viewport.top) parent.scrollTop -= viewport.top - bounds.top;
+      break;
+    }
+  }, [showSave, saveError]);
+
+  function focusWallet() {
+    suppressFocusOpen.current = true;
+    inputRef.current?.focus();
+    suppressFocusOpen.current = false;
+  }
+
+  function cancelSave() {
+    setShowSave(false);
+    setSaveLabel("");
+    setSaveError(null);
+    focusWallet();
+  }
 
   const filtered = useMemo(
     () =>
@@ -260,6 +309,8 @@ function EditableAddressPicker({
   }, [text]);
 
   function handleTyped(raw: string) {
+    // Editing a destination cancels any previous list navigation.
+    setHighlightIndex(-1);
     const next = raw.trim();
     // No address starts with S, and a secret key must never reach the graph,
     // the autosave or the screen: the field keeps what it held and says why.
@@ -286,12 +337,9 @@ function EditableAddressPicker({
   useEffect(() => {
     if (!open) {
       setPosition(null);
-      openingToSave.current = false;
       return;
     }
     setQuery("");
-    if (openingToSave.current) openingToSave.current = false;
-    else setShowSave(false);
 
     function updatePosition() {
       if (!containerRef.current) return;
@@ -305,9 +353,13 @@ function EditableAddressPicker({
     }
 
     updatePosition();
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updatePosition);
+    if (containerRef.current) observer?.observe(containerRef.current);
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
     return () => {
+      observer?.disconnect();
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
@@ -321,7 +373,6 @@ function EditableAddressPicker({
         return;
       }
       setOpen(false);
-      setShowSave(false);
     }
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
@@ -332,7 +383,6 @@ function EditableAddressPicker({
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         setOpen(false);
-        setShowSave(false);
       }
     }
     document.addEventListener("keydown", onKeyDown);
@@ -341,7 +391,14 @@ function EditableAddressPicker({
 
   useEffect(() => {
     if (!open) return;
-    setHighlightIndex(findInitialHighlightIndex(filtered, trimmedValue));
+    // Opening contacts must never arm Enter to replace a typed destination.
+    // Search is an explicit selection context; the wallet may only start with
+    // its exact match highlighted until the user navigates with arrow keys.
+    setHighlightIndex(
+      document.activeElement === searchRef.current
+        ? findInitialHighlightIndex(filtered, trimmedValue)
+        : filtered.findIndex((entry) => entry.address === trimmedValue),
+    );
   }, [open, query, addressBook, trimmedValue]);
 
   useEffect(() => {
@@ -369,6 +426,15 @@ function EditableAddressPicker({
   }
 
   function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.nativeEvent.isComposing) return;
+    if (showSave) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!saveBusy) cancelSave();
+      }
+      return;
+    }
     if (e.key === "ArrowDown") {
       e.preventDefault();
       if (!open) {
@@ -393,16 +459,22 @@ function EditableAddressPicker({
     } else if (e.key === "Escape") {
       if (open) {
         e.preventDefault();
+        e.stopPropagation();
         setOpen(false);
         setShowSave(false);
       }
     } else if (e.key === "Tab") {
-      setOpen(false);
-      setShowSave(false);
+      if (open && !e.shiftKey && searchRef.current) {
+        // The search is portalled to the end of body, so connect it to the
+        // wallet's logical tab order explicitly.
+        e.preventDefault();
+        searchRef.current.focus();
+      } else setOpen(false);
     }
   }
 
   function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.nativeEvent.isComposing) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setHighlightIndex((i) => nextHighlightIndex(i, "down", filtered.length));
@@ -414,48 +486,72 @@ function EditableAddressPicker({
       handleSelectHighlighted();
     } else if (e.key === "Escape") {
       e.preventDefault();
+      e.stopPropagation();
       setOpen(false);
       setShowSave(false);
+      focusWallet();
+    } else if (e.key === "Tab") {
+      focusWallet();
+      if (e.shiftKey) {
+        e.preventDefault();
+      } else {
+        // Let the browser continue from the wallet to the next form control.
+        setOpen(false);
+      }
     }
   }
 
   async function saveToAddressBook() {
-    const address = trimmedValue;
-    const label = saveLabel.trim();
-    if (!label) {
-      setSaveError("Label is required");
+    if (saveInFlight.current) return;
+    const parsed = CreateAddressContactSchema.safeParse({
+      label: saveLabel,
+      address: trimmedValue,
+      createOnly: true,
+    });
+    if (!parsed.success) {
+      setSaveError(parsed.error.issues[0]?.message ?? "Check the contact details");
       return;
     }
-    if (!isAccountId(address)) {
-      setSaveError("Invalid Stellar address");
-      return;
-    }
-    const existing = addressBook.find((e) => e.address === address);
+    const { label, address } = parsed.data;
+    const existing = addressBook.find((entry) => entry.address === address);
     if (existing) {
       setSaveError(`This address is already saved as "${existing.label}".`);
       return;
     }
+    if (addressBook.some((entry) => entry.label === label)) {
+      setSaveError("A contact with this name already exists. Choose a different name.");
+      return;
+    }
+    saveInFlight.current = true;
     setSaveBusy(true);
     setSaveError(null);
     try {
-      const r = await fetch("/api/address-book", {
+      const response = await fetch("/api/address-book", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ label, address }),
+        body: JSON.stringify(parsed.data),
       });
-      if (!r.ok) {
-        const b = await r.json().catch(() => ({}));
-        throw apiError(b, "Failed to save contact");
+      if (!response.ok) {
+        const body: unknown = await response.json().catch(() => ({}));
+        throw apiError(body, "Failed to save contact");
       }
       toast.success("Contact saved to address book.");
-      setShowSave(false);
-      setSaveLabel("");
       onAddressBookChange?.();
-      selectEntry({ address, label });
+      if (active.current) {
+        setJustSaved({ address, label });
+        if (currentAddress.current === address) {
+          setShowSave(false);
+          setSaveLabel("");
+          focusWallet();
+        }
+      }
     } catch (err) {
-      setSaveError((err as Error).message ?? "Failed");
+      if (active.current && currentAddress.current === address) {
+        setSaveError(err instanceof Error ? err.message : "Failed to save contact");
+      }
     } finally {
-      setSaveBusy(false);
+      saveInFlight.current = false;
+      if (active.current) setSaveBusy(false);
     }
   }
 
@@ -509,68 +605,18 @@ function EditableAddressPicker({
       );
     }
 
-    if (showSave) {
-      return (
-        <div className="p-3">
-          <div className="text-label-sm text-on-surface-variant mb-1.5 font-mono uppercase">
-            Save to address book
-          </div>
-          {/* The heading names the action; the field holds a contact label, and an aria-label
-              that disagreed with a visible <label> would fail WCAG 2.5.3. */}
-          <label
-            htmlFor={saveLabelId}
-            className="text-label-sm text-on-surface-variant mb-1 block font-mono uppercase"
-          >
-            Label
-          </label>
-          <input
-            id={saveLabelId}
-            value={saveLabel}
-            onChange={(e) => setSaveLabel(e.target.value)}
-            placeholder="e.g. Alice"
-            className={inputClass}
-            autoFocus
-          />
-          {saveError && (
-            <div className="text-label-sm text-error mt-1.5 font-mono">{saveError}</div>
-          )}
-          <div className="mt-2 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setShowSave(false);
-                setSaveLabel("");
-                setSaveError(null);
-              }}
-              disabled={saveBusy}
-              className="border-outline-variant/40 text-label-sm text-on-surface-variant hover:bg-surface-container-high/40 shrink-0 rounded-lg border px-2.5 py-1.5 font-mono transition-colors disabled:cursor-not-allowed disabled:opacity-50 pointer-coarse:min-h-11"
-            >
-              CANCEL
-            </button>
-            <button
-              type="button"
-              onClick={() => void saveToAddressBook()}
-              disabled={saveBusy || !saveLabel.trim() || !canSave}
-              className="bg-primary text-label-sm text-on-primary inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 font-mono font-bold transition-all hover:-translate-y-px active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 pointer-coarse:min-h-11"
-            >
-              {saveBusy ? "SAVING…" : "SAVE"}
-            </button>
-          </div>
-        </div>
-      );
-    }
-
     return (
       <div className="flex flex-col">
         {addressBook.length > 0 && (
           <div className="border-outline-variant/20 border-b p-2">
             <input
+              ref={searchRef}
               value={query}
+              onFocus={() => setHighlightIndex(findInitialHighlightIndex(filtered, trimmedValue))}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
               placeholder="Search contacts…"
               className={inputClass}
-              autoFocus
               aria-label="Search contacts"
               {...comboboxProps}
             />
@@ -652,18 +698,11 @@ function EditableAddressPicker({
             <div className="border-outline-variant/30 text-label-sm text-on-surface-variant rounded-lg border border-dashed p-3 font-mono">
               {query ? <>No contacts match “{query}”.</> : <>NO SAVED CONTACTS.</>}
             </div>
-            {canSave && !isSaved && (
-              <button
-                type="button"
-                onClick={() => setShowSave(true)}
-                className="text-label-sm text-secondary hover:text-secondary-fixed mt-2 font-mono transition-colors"
-              >
-                Save this address to your address book
-              </button>
-            )}
             {!isValid && (
               <div className="text-label-sm text-on-surface-variant mt-2 font-mono">
-                Type or paste a Stellar address, or add contacts in Address Book.
+                {accept === "contract"
+                  ? "Type or paste a Stellar contract address."
+                  : "Type or paste a wallet address, or choose a saved contact."}
               </div>
             )}
           </div>
@@ -684,20 +723,23 @@ function EditableAddressPicker({
       .join(" ") || undefined;
 
   const picker = (control?: FieldControlProps) => (
-    <div ref={containerRef} className="relative">
-      <div className="relative flex items-center">
+    <div ref={containerRef} className="relative min-w-0">
+      <div className="relative flex min-w-0 items-center">
         <input
           {...control}
+          ref={inputRef}
           value={text}
           onChange={(e) => handleTyped(e.target.value)}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            setHighlightIndex(filtered.findIndex((entry) => entry.address === trimmedValue));
+            if (!suppressFocusOpen.current && !showSave) setOpen(true);
+          }}
+          onClick={() => {
+            if (!showSave) setOpen(true);
+          }}
           onKeyDown={handleInputKeyDown}
           placeholder={placeholder}
-          className={cn(
-            inputClass,
-            "pr-10 pointer-coarse:pr-14",
-            pending && "ring-tertiary-container ring-1",
-          )}
+          className={cn(inputClass, pending && "ring-tertiary-container ring-1")}
           autoComplete="off"
           {...comboboxProps}
           aria-haspopup="listbox"
@@ -714,26 +756,103 @@ function EditableAddressPicker({
             needs address
           </span>
         )}
-        {canSave && !isSaved && (
-          <button
-            type="button"
-            onClick={() => {
-              // Only the click that opens the dropdown may suppress the [open] effect's reset;
-              // armed while already open, the mark would outlive this click.
-              openingToSave.current = !open && !showSave;
-              setOpen(true);
-              setShowSave((v) => !v);
-            }}
-            aria-label="Save to address book"
-            title="Save to address book"
-            className="text-on-surface-variant hover:text-primary absolute inset-y-0 right-2 my-auto inline-flex items-center justify-center transition-colors pointer-coarse:min-h-11 pointer-coarse:min-w-11"
-          >
-            <span aria-hidden="true" className="material-symbols-outlined text-[18px]">
-              bookmark_add
-            </span>
-          </button>
-        )}
       </div>
+
+      {savedEntry && !showSave && (
+        <p
+          role="status"
+          className="text-label-sm text-on-surface-variant mt-2 flex items-center gap-1.5"
+        >
+          <span aria-hidden className="material-symbols-outlined text-primary text-[16px]">
+            check_circle
+          </span>
+          Saved as {savedEntry.label}
+        </p>
+      )}
+      {canSave && !isSaved && !showSave && (
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            setShowSave(true);
+            setSaveError(null);
+          }}
+          className="border-outline-variant/60 bg-surface-container text-label-sm text-on-surface hover:border-primary hover:bg-surface-container-high focus-visible:outline-primary mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-3 py-2 font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
+        >
+          <span aria-hidden className="material-symbols-outlined text-[18px]">
+            person_add
+          </span>
+          Save contact
+        </button>
+      )}
+      {showSave && (
+        <section
+          ref={saveFormRef}
+          aria-labelledby={saveHeadingId}
+          className="border-outline-variant/50 bg-surface-container mt-3 grid gap-3 rounded-lg border p-3"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!saveBusy) cancelSave();
+            } else if (
+              e.key === "Enter" &&
+              e.target instanceof HTMLInputElement &&
+              !e.nativeEvent.isComposing
+            ) {
+              e.preventDefault();
+              e.stopPropagation();
+              void saveToAddressBook();
+            }
+          }}
+        >
+          <h3 id={saveHeadingId} className="text-label-sm text-on-surface font-medium">
+            Save contact
+          </h3>
+          <div id={saveAddressId} className="grid gap-1">
+            <span className="text-label-sm text-on-surface-muted">Wallet address</span>
+            <code className="text-label-sm text-on-surface-variant break-all">{trimmedValue}</code>
+          </div>
+          <Field label="Contact name" error={saveError}>
+            {(nameControl) => (
+              <input
+                {...nameControl}
+                aria-describedby={[saveAddressId, nameControl["aria-describedby"]]
+                  .filter(Boolean)
+                  .join(" ")}
+                className={inputClass}
+                value={saveLabel}
+                onChange={(e) => {
+                  setSaveLabel(e.target.value);
+                  setSaveError(null);
+                }}
+                maxLength={64}
+                placeholder="e.g. Alice"
+                autoFocus
+                disabled={saveBusy}
+              />
+            )}
+          </Field>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={cancelSave}
+              disabled={saveBusy}
+              className="border-outline-variant/50 text-label-sm text-on-surface-variant hover:bg-surface-container-high min-h-11 rounded-lg border px-3 py-2 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void saveToAddressBook()}
+              disabled={saveBusy || !saveLabel.trim() || !canSave}
+              className="bg-primary text-on-primary text-label-sm min-h-11 rounded-lg px-3 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {saveBusy ? "Saving…" : "Save contact"}
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* Always mounted and polite, so the refusal is announced once. */}
       <span

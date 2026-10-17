@@ -1,21 +1,24 @@
 # Node SDK contract and endpoint coverage
 
-Implementation contract originating in [#954](https://github.com/webnxt-2030/pinkraft/issues/954), under
-[#953](https://github.com/webnxt-2030/pinkraft/issues/953). The Node package implements this surface; it is not published and hosted
-availability has not been established by local SDK tests. See the
+The Node package implements the existing-deployment surface below. Beta `0.2.0` provides
+developer credentials and scoped deployment discovery; see the
+[release record](release-checklist.md) for registry availability.
+Local SDK tests do not establish hosted availability. See the
 [quickstart and migration guide](quickstart.md) for compiled examples.
 
 ## Scope and packaging
 
 User decisions: TypeScript, Node first, existing deployments, a separate package
-in this repository named `@paiflow/sdk`, with branches and PRs targeting `testing`.
-The npm scope needs to be created; publishing is separately authorized.
-Sources are the [quickstart](../hackathon/developer-api-quickstart.md),
+in this repository named `@paiflow/sdk`. Release-preparation PRs target `develop`
+under the current workflow. The `@paiflow` npm scope exists; registry publishing,
+SDK tagging and backend promotion remain distinct release steps.
+Sources are the [HTTP API README](../api/README.md),
 [developer context](../hackathon/llms.md), [API reference](../api/README.md), and
-actual handlers at `testing` baseline `e803520c` (2026-10-13).
+actual handlers. The original contract used `testing` baseline `e803520c`
+(2026-10-13); the current matrix includes developer-token work merged into `develop`.
 
 Use `packages/sdk`, with independent package metadata, declarations, exports,
-build configuration, changelog and tests. Prepare the first beta as `0.1.0` under
+build configuration, changelog and tests. SDK beta `0.2.0` follows the
 [release policy](../releasing.md); SDK versions do not match app versions. Declare
 compatibility with API v1 and the explicitly listed unversioned routes.
 
@@ -164,8 +167,9 @@ The final yielded cursor permits explicit continuation after the cap; completion
 at the cap does not prove the entire scope was read. Cancellation throws
 `PaiflowAbortError`; each request retains metadata and its own timeout, with no retries.
 Responses parse from unknown, tolerate additive fields and cap items at 100.
-These additions are unreleased and locally verified; package version remains
-0.1.0 pending a separately authorized release.
+These compatible additions are provided by SDK beta `0.2.0`; `0.1.0` does not
+contain them. They require a backend implementing OpenAPI revision `1.1.0`.
+Hosted support must be checked separately against the configured backend.
 
 Webhooks require a separate `webhookSecret` in each call’s options; it is
 never inherited from the client token. The safe `webhook.trigger` requires

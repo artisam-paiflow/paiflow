@@ -123,16 +123,37 @@ const controlSigned = (body: SignedSubmission) =>
   input(() => ({ signedXdr: pattern(body.signedXdr, /^[\s\S]{1,100000}$/) }));
 const allowanceSigned = (body: SignedSubmission) =>
   input(() => ({ signedXdr: pattern(body.signedXdr, /^[\s\S]{10,200000}$/) }));
+/** Token-authenticated subscriber configuration, cancellation and allowance state.
+ * @useDeclaredType
+ */
 export type SubscriptionState = ReturnType<typeof parseState>;
+/** Original wallet-control evidence. Preserve the intent and server replacement permission.
+ * @useDeclaredType
+ */
 export type SubscriptionPrepared<A extends SubscriptionAction = SubscriptionAction> = ReturnType<
   typeof parsePrepared<A>
 >;
+/** Subscription control transaction status; inspect status explicitly.
+ * @useDeclaredType
+ */
 export type SubscriptionSubmitted = ReturnType<typeof parseTransaction>;
+/** Original wallet-control evidence. Preserve the intent and server replacement permission.
+ * @useDeclaredType
+ */
 export type SubscriptionReconciled<A extends SubscriptionAction = SubscriptionAction> = ReturnType<
   typeof parseReconciled<A>
 >;
+/** Public subscriber state snapshot; no snapshot guarantees current eligibility.
+ * @useDeclaredType
+ */
 export type AllowanceState = ReturnType<typeof parsePublicState>;
+/** Public unsigned approval with opaque intent; keep both through uncertain submission.
+ * @useDeclaredType
+ */
 export type AllowancePrepared = ReturnType<typeof parseAllowancePrepared>;
+/** Original public approval status. PENDING does not permit replacement.
+ * @useDeclaredType
+ */
 export type AllowanceStatus = ReturnType<typeof parseAllowanceStatus>;
 /** Explicit subscriber consent. No implicit charge, allowance, replacement or retries. */
 export function subscriptionMethods(transport: PaiflowTransport, id: string) {
@@ -141,6 +162,12 @@ export function subscriptionMethods(transport: PaiflowTransport, id: string) {
   const controls = <A extends SubscriptionAction>(action: A) => {
     const route = `${path}/${action === "subscription.cancel" ? "cancel" : "reactivate"}`;
     return {
+      /**
+       * Reserve and prepare one wallet-authorized operation. Persist this preparation before signing.
+       * @param body - Explicit node/wallet or subscriber inputs; a token supplies no wallet consent.
+       * @param options - Timeout, cancellation and request correlation.
+       * @returns Original intent, transaction and unsigned envelope; no submission occurs.
+       */
       prepare: (body: SubscriptionPrepareInput, options?: RequestOptions) =>
         transport.request(
           {
@@ -152,6 +179,12 @@ export function subscriptionMethods(transport: PaiflowTransport, id: string) {
           },
           options,
         ),
+      /**
+       * Submit the unchanged signed envelope for the original reserved intent. Never retried.
+       * @param body - Original intent and wallet-signed XDR; do not rebuild after uncertainty.
+       * @param options - Request options; retain the original preparationRequestId.
+       * @returns Submission status; HTTP success alone is not financial success.
+       */
       submit: (body: SubscriptionSubmitInput, options?: RequestOptions) =>
         transport.request(
           {
@@ -163,6 +196,12 @@ export function subscriptionMethods(transport: PaiflowTransport, id: string) {
           },
           options,
         ),
+      /**
+       * Reconcile the original reserved operation explicitly, without creating a replacement.
+       * @param body - The original intent (and funding action where required).
+       * @param options - Timeout, cancellation and correlation.
+       * @returns Server finality/reservation evidence; elapsed time never permits replacement.
+       */
       reconcile: (body: SubscriptionReconcileInput, options?: RequestOptions) =>
         transport.request(
           {
@@ -174,6 +213,13 @@ export function subscriptionMethods(transport: PaiflowTransport, id: string) {
           },
           options,
         ),
+      /**
+       * Ask the wallet to sign once; never submits, retries or checks finality.
+       * @param prepared - Saved original preparation response, including history metadata.
+       * @param signer - Application callback signing the unchanged envelope with the supplied passphrase.
+       * @param options - Expected wallet/network, cancellation and signing deadline.
+       * @returns Preserved preparation and explicit submission arguments/history options.
+       */
       signPrepared: async (
         prepared: ApiResponse<SubscriptionPrepared<A>>,
         signer: PreparedSigner,
@@ -199,6 +245,12 @@ export function subscriptionMethods(transport: PaiflowTransport, id: string) {
           { path: pub, method: "GET", auth: { kind: "public" }, parse: parsePublicState },
           options,
         ),
+      /**
+       * Reserve and prepare one wallet-authorized operation. Persist this preparation before signing.
+       * @param body - Explicit node/wallet or subscriber inputs; a token supplies no wallet consent.
+       * @param options - Timeout, cancellation and request correlation.
+       * @returns Original intent, transaction and unsigned envelope; no submission occurs.
+       */
       prepare: (body: AllowancePrepareInput, options?: RequestOptions) =>
         transport.request(
           {
@@ -213,6 +265,12 @@ export function subscriptionMethods(transport: PaiflowTransport, id: string) {
           },
           options,
         ),
+      /**
+       * Submit the unchanged signed envelope for the original reserved intent. Never retried.
+       * @param body - Original intent and wallet-signed XDR; do not rebuild after uncertainty.
+       * @param options - Request options; retain the original preparationRequestId.
+       * @returns Submission status; HTTP success alone is not financial success.
+       */
       submit: (body: AllowanceSubmitInput, options?: RequestOptions) =>
         transport.request(
           {
@@ -236,6 +294,13 @@ export function subscriptionMethods(transport: PaiflowTransport, id: string) {
           options,
         ),
       /** State is explicitly supplied because preparation does not expose subscriber identity. */
+      /**
+       * Ask the wallet to sign once; never submits, retries or checks finality.
+       * @param prepared - Saved original preparation response, including history metadata.
+       * @param signer - Application callback signing the unchanged envelope with the supplied passphrase.
+       * @param options - Expected wallet/network, cancellation and signing deadline.
+       * @returns Preserved preparation and explicit submission arguments/history options.
+       */
       signPrepared: async (
         prepared: ApiResponse<AllowancePrepared>,
         state: ApiResponse<AllowanceState>,

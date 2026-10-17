@@ -49,7 +49,6 @@ import { apiError } from "@/lib/friendly-error";
 import { track } from "@/lib/analytics/client";
 import { IN_SCOPE_NODE_TYPES } from "@/lib/analytics/events";
 import { useValidationTracking } from "@/lib/analytics/validation-tracking";
-import { NARROW_VIEWPORT_QUERY, useMediaQuery } from "@/lib/hooks/use-media-query";
 import type { FeatureFlags } from "@/lib/feature-flags";
 
 const nodeTypes = {
@@ -277,9 +276,6 @@ function Builder({
   // a click the same way, as `select` changes, so the canvas remembers which
   // kind of input came last.
   const lastInputRef = useRef<"keyboard" | "pointer">("pointer");
-  const narrow = useMediaQuery(NARROW_VIEWPORT_QUERY);
-  const narrowRef = useRef(narrow);
-  narrowRef.current = narrow;
 
   useEffect(() => {
     track("builder_opened", {
@@ -500,9 +496,8 @@ function Builder({
     selectedIdRef.current = id;
     setSelectedId(id);
     setOpenedBy(via);
-    // Below md the panel is a bottom sheet and the chat is full-width, so only
-    // one of them is shown at a time.
-    if (narrowRef.current) setChatCollapsed(true);
+    // Settings and AI chat share the right side; opening either closes the other.
+    setChatCollapsed(true);
   }, []);
 
   // Close and Escape hand focus back to the node the panel belongs to.
@@ -950,7 +945,7 @@ function Builder({
           <div
             ref={canvasRef}
             tabIndex={-1}
-            className="relative min-h-0 focus:outline-none"
+            className="relative flex min-h-0 min-w-0 focus:outline-none"
             onKeyDownCapture={() => {
               lastInputRef.current = "keyboard";
             }}
@@ -958,72 +953,71 @@ function Builder({
               lastInputRef.current = "pointer";
             }}
           >
-            <ReactFlow
-              nodes={rfNodes.map((n) => {
-                const fn = flowNodes.find((f) => f.id === n.id);
-                return {
-                  ...n,
-                  data: {
-                    ...n.data,
-                    label: nodeLabel(fn),
-                    node: fn ?? n.data.node,
-                    isMutable: features.devMode && devMode && isMutableInDevMode(fn),
-                  },
-                  selected: n.id === selectedId,
-                };
-              })}
-              edges={rfEdges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onNodeClick={(_, n) => selectNode(n.id, "pointer")}
-              onPaneClick={() => {
-                setSelectedId(null);
-                if (!chatCollapsed) setChatCollapsed(true);
-              }}
-              nodeTypes={nodeTypes}
-              edgeTypes={edgeTypes}
-              deleteKeyCode={["Backspace", "Delete"]}
-              fitView
-            >
-              <Background gap={16} size={1} color="#27272a" />
-              <Controls position="top-left" className="!top-3 !left-3" />
-              <MiniMap
-                position="bottom-right"
-                pannable
-                zoomable
-                bgColor="#09090b"
-                maskColor="rgba(9, 9, 11, 0.6)"
-                nodeComponent={MinimapNode}
-                // The minimap renders above the config panel (docked sheet or
-                // floating card) and would swallow clicks on it, so it steps
-                // aside while a panel is open. On a phone it would cover a
-                // node's worth of canvas and the Ask AI button, so it's off.
-                className={cn("!border !border-zinc-800 max-md:!hidden", selectedId && "!hidden")}
-              />
-              {selectedId && selectedNode && (
-                <CanvasConfigPanel
-                  selectedId={selectedId}
-                  node={selectedNode}
-                  graph={graph}
-                  errors={errors}
-                  network={network}
-                  routerContractId={routerContractId}
-                  features={features}
-                  sandbox={sandbox}
-                  onChange={updateNode}
-                  onDelete={deleteNode}
-                  addressBook={addressBook}
-                  refreshAddressBook={refreshAddressBook}
-                  addressBookLoading={addressBookLoading}
-                  addressBookError={addressBookError}
-                  chatCollapsed={chatCollapsed}
-                  canvasRef={canvasRef}
-                  onClose={closePanel}
-                  focusOnOpen={openedBy === "keyboard"}
+            <div className="min-h-0 min-w-0 flex-1">
+              <ReactFlow
+                nodes={rfNodes.map((n) => {
+                  const fn = flowNodes.find((f) => f.id === n.id);
+                  return {
+                    ...n,
+                    data: {
+                      ...n.data,
+                      label: nodeLabel(fn),
+                      node: fn ?? n.data.node,
+                      isMutable: features.devMode && devMode && isMutableInDevMode(fn),
+                    },
+                    selected: n.id === selectedId,
+                  };
+                })}
+                edges={rfEdges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onNodeClick={(_, n) => selectNode(n.id, "pointer")}
+                onPaneClick={() => {
+                  selectedIdRef.current = null;
+                  setSelectedId(null);
+                  if (!chatCollapsed) setChatCollapsed(true);
+                }}
+                nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
+                deleteKeyCode={["Backspace", "Delete"]}
+                fitView
+              >
+                <Background gap={16} size={1} color="#27272a" />
+                <Controls position="top-left" className="!top-3 !left-3" />
+                <MiniMap
+                  position="bottom-right"
+                  pannable
+                  zoomable
+                  bgColor="#09090b"
+                  maskColor="rgba(9, 9, 11, 0.6)"
+                  nodeComponent={MinimapNode}
+                  // Keep the reduced canvas clear while editing node settings.
+                  // On phones the minimap also competes with the bottom sheet.
+                  className={cn("!border !border-zinc-800 max-md:!hidden", selectedId && "!hidden")}
                 />
-              )}
-            </ReactFlow>
+              </ReactFlow>
+            </div>
+            {selectedId && selectedNode && (
+              <CanvasConfigPanel
+                selectedId={selectedId}
+                node={selectedNode}
+                graph={graph}
+                errors={errors}
+                network={network}
+                routerContractId={routerContractId}
+                features={features}
+                sandbox={sandbox}
+                onChange={updateNode}
+                onDelete={deleteNode}
+                addressBook={addressBook}
+                refreshAddressBook={refreshAddressBook}
+                addressBookLoading={addressBookLoading}
+                addressBookError={addressBookError}
+                onClose={closePanel}
+                focusOnOpen={openedBy === "keyboard"}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -1038,12 +1032,14 @@ function Builder({
           onResolveAddress={handleResolveAddress}
           onSkipAddresses={handleSkipAddresses}
           collapsed={chatCollapsed}
-          // Below md the docked sheet sits over the tab's corner; hiding it keeps
-          // it out of the tab order instead of focusable but unseen.
-          hideTab={narrow && !!selectedId && !!selectedNode}
+          // Settings cover the chat tab; hide it rather than leave an obscured control.
+          hideTab={!!selectedId && !!selectedNode}
           onToggleCollapse={() => {
-            // Opening the chat below md dismisses the docked panel (see selectNode).
-            if (chatCollapsed && narrow) setSelectedId(null);
+            // Opening chat dismisses settings on every screen size.
+            if (chatCollapsed) {
+              selectedIdRef.current = null;
+              setSelectedId(null);
+            }
             setChatCollapsed((v) => !v);
           }}
         />

@@ -1,10 +1,10 @@
 # Developer API
 
-For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](developer-tokens.md). Support is on the `dev-token` integration branch; verify hosted availability separately. These SDK additions are Unreleased source and are not published by this work; do not assume registry 0.1.0 includes them. Existing deployment-only integrations remain supported.
+For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](developer-tokens.md). SDK `0.2.0` supports developer credentials and scoped discovery with a backend implementing OpenAPI revision `1.1.0`; SDK `0.1.0` does not include these additions. Existing deployment-only integrations remain supported. See the [SDK release record](../sdk/release-checklist.md) for registry availability.
 
-For typed Node integrations with existing deployments, see the [local SDK quickstart](../sdk/quickstart.md).
+For typed Node integrations with existing deployments, use the [SDK README](../../packages/sdk/README.md) for the published `@paiflow/sdk@0.2.0` Node beta (October 16, 2026).
 
-For a complete frontend/backend integration without the starter, follow the [API quickstart](../hackathon/developer-api-quickstart.md). For wallet setup, flow deployment and the ready-wired starter, use the [Paiflow Guide](../hackathon/paiflow-guide.md). Both guides are event-neutral; this reference provides the detailed API contract.
+This README is the detailed HTTP API reference, including a [custom browser/server example](#custom-browser-and-server-integration). For the main end-to-end wallet, flow, deployment and SDK integration walkthrough, use the [Paiflow Guide](../hackathon/paiflow-guide.md). Event rules and resource links belong in the event primer. The primer and Paiflow Guide are the two participant PDF resources; SDK and API details are maintained as GitHub Markdown.
 
 Paiflow's `/api/v1` lets your backend run a deployed **deposit-triggered flow** (Pay, Split, condition or swap) and watch what it did on
 chain, with no browser and no wallet integration on Paiflow's side. You send the deposit, the flow
@@ -14,6 +14,7 @@ runs (paying, splitting, routing or swapping on a real DEX) and you poll the eve
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | OpenAPI 3.1 specification | Served at [`https://beta.app.paiflow.xyz/api/v1/openapi.json`](https://beta.app.paiflow.xyz/api/v1/openapi.json); source [`docs/api/openapi.json`](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json)                                                                   |
 | Postman collection        | [`paiflow-api-v1.postman_collection.json`](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) (import by link: [raw file](https://raw.githubusercontent.com/artisam-paiflow/paiflow/develop/docs/api/paiflow-api-v1.postman_collection.json)) |
+| SDK method/type reference | [Generated Node SDK reference](../sdk/reference/README.md)                                                                                                                                                                                                                                          |
 | This guide                | [paiflow.gitbook.io/paiflow-docs/reference/api](https://paiflow.gitbook.io/paiflow-docs/reference/api); source `docs/api/README.md`                                                                                                                                                                 |
 
 {% hint style="warning" %}
@@ -22,6 +23,38 @@ account, asset and amount in this guide is a testnet one.
 {% endhint %}
 
 Use `https://beta.app.paiflow.xyz` as the app and API origin. `https://paiflow.xyz` also serves the API, but its app pages redirect to the beta app. `https://beta.paiflow.xyz` is the marketing homepage and does not serve `/api/v1`. The source OpenAPI specification and Postman defaults use the beta app origin; the live specification changes when the source update is deployed.
+
+## Hosted testnet verification
+
+The October 14–15, 2026 SDK rehearsals ran against `https://pinkraft.xyz` in the
+Railway **testing** environment on Stellar **testnet**. The dated reports record
+the exact hosted revisions, deployed contracts, wallet consent, transaction hashes
+and independent ledger results. They do not establish current availability at the
+beta origin above, staging or mainnet; check the target build, deployment
+capabilities, contract revision and live state before integration.
+
+| Workflow          | Recorded live result                                                                                                                                                                                                                                     |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Funding           | Schedule top-up and Webhook pool funding confirmed on-chain.                                                                                                                                                                                             |
+| Schedule controls | Controller-signed pause, resume and permitted retrieval confirmed; the initial 1 XLM funding was retrieved with matching recipient/amount and zero remaining balance.                                                                                    |
+| Subscription      | Public wallet allowance approval, a manually invoked cron charge with matching 0.1 XLM payout, and subscriber-signed cancellation/reactivation confirmed on the fresh current-WASM fixture. Cancellation left zero allowance; reactivation granted none. |
+
+These results are in the [initial SDK report](../testing/2026-10-14-sdk-live-verification.md).
+The [published-package follow-up](../testing/2026-10-15-sdk-broader-testing.md)
+also confirmed Schedule funding/full cancellation refund and Subscription
+cancellation preventing an unpaid first charge. Its **additional positive
+Subscription charge and first due Schedule claim remained fee-blocked**:
+unsigned estimates of **42.6086882 XLM** and **27.2468293 XLM**, respectively,
+exceeded the **1 XLM** ceiling, so neither positive payout attempt reached cron
+POST, signing or submission. [Issue #990](https://github.com/webnxt-2030/pinkraft/issues/990)
+tracks that remaining work. The earlier successful Subscription charge does not
+complete these later tests. Unattended scheduling was not configured or verified.
+The earlier report's retired lost-wallet fixture retains its separately documented
+allowance limitation; fresh-fixture cleanup does not resolve that historical state.
+
+The [SDK release record](../sdk/release-checklist.md) confirms that the published
+beta's runtime/declarations match the live-tested candidate. Package publication
+and local tests do not establish universal hosted or on-chain support.
 
 ## How it works
 
@@ -284,13 +317,19 @@ PREPARATION_REQUEST_ID=$(awk 'tolower($1)=="x-history-request-id:" {gsub("\r", "
 
 The simulation runs before anything comes back. If the deposit would fail (an unfunded `from`, a
 missing trustline, no liquidity), you get a `422` explaining why, and nothing is signed or spent.
-Sign and submit before `expiresAt`, which is about three minutes after preparing; after that the
-network refuses the envelope and you prepare again.
+Sign and submit before `expiresAt`, which is about three minutes after preparing.
+After expiry, do not sign the stale envelope. Before preparing a replacement,
+establish the original transaction outcome: the wallet may already have broadcast
+it. Elapsed time, `UNKNOWN`, `NOT_FOUND`, missing history or absent events do not
+prove failure or safe replacement. Retain the original preparation/hash and any
+signed envelope privately, and use [transaction recovery](#recover-a-pending-transaction)
+or platform support when the outcome remains uncertain.
 
 {% hint style="warning" %}
 `expiresAt` is about three minutes out, so stage the signing step before you call prepare: have the
-`stellar tx sign` command ready to paste into, or hold the key in an SDK script. If the envelope
-expires, call prepare again — nothing is spent and the old envelope simply stops being accepted.
+`stellar tx sign` command ready to paste into, or have your local signer ready. If the
+envelope expires, retain its recovery record and establish its outcome before
+preparing another payment. Expiry does not cancel a transaction already broadcast.
 {% endhint %}
 
 ### 2. Sign
@@ -821,7 +860,9 @@ live state and successful simulation. Ordinary subscriptions are supported by th
 implementation. Existing Dev cancellation continues with `FEATURE_DEV_MODE_ENABLED=false`;
 Dev reactivation requires the feature enabled. New Dev deployments remain disabled for the
 hackathon. Payroll, unsupported variants and ambiguous snapshots are refused.
-Hosted testnet verification is pending; confirm deployed availability before rehearsal.
+Bounded hosted testnet cancellation/reactivation and zero-allowance checks passed;
+see the [verification summary](#hosted-testnet-verification) for dated evidence,
+the later fee-blocked charge test and target-environment limits.
 
 Both actions expose three POST routes below `/api/v1/deployments/{id}`:
 
@@ -928,7 +969,7 @@ and at most five pool/router calls. Back off on errors and honor `Retry-After` o
 
 ### Deployment funding (#916)
 
-Schedule top-ups and Webhook pool deposits use deployment-token GET/POST `/api/v1/deployments/{id}/funding`, `/funding/submit` and `/funding/reconcile`. Any consenting funding wallet may sign; a token alone cannot move funds. Funding adds funds only and does not execute payouts or callbacks. One unresolved intent per node blocks replacements until confirmed finality or ledger-proven expiry; UNKNOWN never permits another deposit. Public `/trigger`, `/submit-trigger` and hosted funding remain available. Webhook callbacks separately require `x-webhook-secret`. See the [complete signing and recovery example](funding.md). Hosted testnet verification remains pending.
+Schedule top-ups and Webhook pool deposits use deployment-token GET/POST `/api/v1/deployments/{id}/funding`, `/funding/submit` and `/funding/reconcile`. Any consenting funding wallet may sign; a token alone cannot move funds. Funding adds funds only and does not execute payouts or callbacks. One unresolved intent per node blocks replacements until confirmed finality or ledger-proven expiry; UNKNOWN never permits another deposit. Public `/trigger`, `/submit-trigger` and hosted funding remain available. Webhook callbacks separately require `x-webhook-secret`. See the [complete signing and recovery example](funding.md). Bounded Schedule/Webhook funding passed on hosted testing/testnet; see the [verification summary](#hosted-testnet-verification) for evidence and remaining payout/environment limits.
 
 ### Schedule state and controller wallet actions
 
@@ -940,6 +981,412 @@ the unchanged controller-wallet-signed envelope and intent. Each `/reconcile` ro
 recovers the corresponding intent using durable finality evidence. Retrieval returns
 only permitted unvested funds to the deployed controller; it never pays recipients.
 See [Schedule controls](schedule-controls.md) for complete wallet/recovery examples,
-amount semantics and the pending hosted testnet verification gate. Discovery exposes
+amount semantics, completed testing/testnet checks and remaining payout/environment limits. Discovery exposes
 `scheduleState` and conditional `scheduleControls`; a token alone does not authorize
 controls. Funding remains a separate operation.
+
+## Custom browser and server integration
+
+This independent Next.js example shows a fixed-price checkout without the starter.
+For the end-to-end wallet, flow and SDK app-integration walkthrough, use the
+[Paiflow Guide](../hackathon/paiflow-guide.md). For a typed Node backend, use the
+[SDK README](../../packages/sdk/README.md); the SDK remains server-side and your
+browser wallet still signs the unchanged preparation.
+
+The HTTP example below is a teaching example, not a production checkout. It keeps
+retry state only in tab memory; the starter has persisted recovery. Add your own
+authentication, order checks and durable recovery before using this pattern in a real app.
+Do not copy these replacement routes into the starter.
+
+### 1 Prepare a deployment and app
+
+Use a standard flow with recipients and required values configured before deployment. Follow your event primer for preparation permissions and feature availability; this example uses neither flow Dev mode nor per-payment recipients.
+
+Build and deploy a standard **On Receive XLM → percentage Split XLM** flow: 90% to a shop and 10% to a community fund. Keep **Dev mode off** for this example and use two distinct funded Testnet recipient addresses. Wait for **CONFIRMED**, then copy its deployment UUID. Create a single-deployment token in **API access**, or a developer token with **Read and operate** that explicitly selects this deployment.
+
+Use a full/team Paiflow account at [beta.app.paiflow.xyz](https://beta.app.paiflow.xyz). Sandbox accounts cannot create tokens or use their deployments through the partner API. API access requires an **ACTIVE** deployment and active owner; retiring/retired deployments and revoked/expired tokens are refused.
+
+The example charges **1 XLM**, so expect **0.9 XLM and 0.1 XLM** in payouts. The customer needs Testnet XLM for the payment and fees. One deployment serves all customers with the same configured rules.
+
+This example uses a **Next.js App Router app with JavaScript**. The same server/browser boundary applies to other stacks.
+
+#### Install development tools
+
+For this JavaScript example, use **Node.js 22 and pnpm 10.4.1**, matching the supplied starter's tools. On the [Node.js download page](https://nodejs.org/en/download), select **22.x**, install it and reopen your terminal. On macOS/Linux, you can instead install [nvm](https://github.com/nvm-sh/nvm#installing-and-updating), then run `nvm install 22` and `nvm use 22`. Install pnpm with npm, which comes with Node.js:
+
+```bash
+node --version
+npm install --global pnpm@10.4.1
+pnpm --version
+```
+
+Check that Node starts with `v22.` and pnpm prints `10.4.1`. Downloads need an internet connection. If both tools already match, skip installation. These tools run this example app; Paiflow's API can also be used from other languages and frameworks.
+
+#### Create an app and install integration packages
+
+**Starting a new app:** run the app generator:
+
+```bash
+pnpm create next-app@latest paiflow-api-example
+```
+
+When asked whether to use the recommended defaults, choose **No, customize settings**. Select:
+
+- **TypeScript:** No, so the app uses JavaScript and `app/page.js`.
+- **React Compiler:** No for this example.
+- **`src/` directory:** No, so `app/` is at the project root.
+- **App Router:** Yes.
+- **Cache Components:** No for this example, if prompted.
+
+Keep the other settings at their defaults. Then enter the new project folder and install the two integration packages:
+
+```bash
+cd paiflow-api-example
+pnpm add @stellar/freighter-api server-only
+```
+
+**Using an existing Next.js app:** open a terminal in its project folder and run `pnpm add @stellar/freighter-api server-only`. Skip creating a new project. If your app uses a `src/` directory, put the example files under `src/app/` instead of `app/`.
+
+The packages have separate roles: `@stellar/freighter-api` connects to the browser wallet and requests signatures; `server-only` prevents the backend module from being imported into browser code.
+
+In section 2, create `app/api/payment/route.js` using the server-route code. In section 3, replace the contents of `app/page.js` with the checkout-page code. Keep the existing `app/layout.js` file; it provides the page's required layout.
+
+Create or edit `.env.local` in your project root. Set these server-only values, replace both placeholders with your deployment UUID and token, and restart the dev server if it is running:
+
+```dotenv
+PAIFLOW_BASE_URL=https://beta.app.paiflow.xyz
+PAIFLOW_DEPLOYMENT_ID=YOUR_CONFIRMED_DEPLOYMENT_UUID
+PAIFLOW_API_TOKEN=YOUR_AUTHORISED_API_TOKEN
+```
+
+Never prefix the token with `NEXT_PUBLIC_`, send it to the browser or commit `.env.local`. This independent example has no starter mode setting; follow your event primer for when integration and test payments are permitted. No wallet secret keys belong in your app.
+
+### 2 Add the server route
+
+Create `app/api/payment/route.js`. It exposes only preparation, submission, transaction lookup and payment events for your configured deployment. The browser supplies a public customer address; the server sets the price. Clients cannot choose an upstream URL, deployment or payment amount.
+
+```javascript
+import "server-only";
+
+async function upstream(path, options = {}, preparationRequestId = null) {
+  const origin = new URL(process.env.PAIFLOW_BASE_URL);
+  const id = process.env.PAIFLOW_DEPLOYMENT_ID;
+  const token = process.env.PAIFLOW_API_TOKEN;
+  if (
+    origin.protocol !== "https:" ||
+    origin.pathname !== "/" ||
+    origin.username ||
+    origin.password ||
+    origin.search ||
+    origin.hash ||
+    !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id || "") ||
+    !/^(?:pfk|pfd)_[a-f0-9]{64}$/.test(token || "")
+  ) {
+    throw new Error("Invalid server configuration");
+  }
+  const response = await fetch(new URL(`/api/v1/deployments/${id}/${path}`, origin), {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...(preparationRequestId ? { "x-preparation-request-id": preparationRequestId } : {}),
+    },
+    cache: "no-store",
+    signal: AbortSignal.timeout(35000),
+  });
+  const headers = { "Cache-Control": "no-store" };
+  for (const name of ["Retry-After", "x-request-id", "x-history-request-id"]) {
+    const value = response.headers.get(name);
+    if (value) headers[name] = value;
+  }
+  return Response.json(await response.json(), {
+    status: response.status,
+    headers,
+  });
+}
+
+function invalid() {
+  return Response.json(
+    { error: { code: "VALIDATION", message: "Invalid payment request" } },
+    { status: 422 },
+  );
+}
+
+function unavailable() {
+  return Response.json(
+    {
+      error: {
+        code: "UNAVAILABLE",
+        message: "Request uncertain. Check the original payment before trying a new one.",
+      },
+    },
+    { status: 502 },
+  );
+}
+
+export async function POST(request) {
+  try {
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== "object" || Array.isArray(body)) return invalid();
+    if (
+      body.action === "prepare" &&
+      Object.keys(body).length === 2 &&
+      typeof body.from === "string" &&
+      /^G[A-Z2-7]{55}$/.test(body.from)
+    ) {
+      return await upstream("execute", {
+        method: "POST",
+        body: JSON.stringify({ from: body.from, amount: "10000000" }),
+      });
+    }
+    if (
+      body.action === "submit" &&
+      Object.keys(body).every((key) =>
+        ["action", "signedXdr", "preparationRequestId"].includes(key),
+      ) &&
+      (body.preparationRequestId == null ||
+        (typeof body.preparationRequestId === "string" &&
+          /^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(body.preparationRequestId))) &&
+      typeof body.signedXdr === "string" &&
+      body.signedXdr.length >= 10 &&
+      body.signedXdr.length <= 200000
+    ) {
+      return await upstream(
+        "execute/submit",
+        {
+          method: "POST",
+          body: JSON.stringify({ signedXdr: body.signedXdr }),
+        },
+        body.preparationRequestId,
+      );
+    }
+    return invalid();
+  } catch {
+    return unavailable();
+  }
+}
+
+export async function GET(request) {
+  try {
+    const query = new URL(request.url).searchParams;
+    const hash = query.get("txHash") || "";
+    if (!/^[a-f0-9]{64}$/i.test(hash)) return invalid();
+    if (query.get("kind") === "status") {
+      return await upstream(`transactions/${hash}`);
+    }
+    if (query.get("kind") === "events") {
+      return await upstream(`events?txHash=${hash}&limit=100`);
+    }
+    return invalid();
+  } catch {
+    return unavailable();
+  }
+}
+```
+
+The API validates the address checksum and transaction contents; the local route also restricts the accepted shape. `amount` is an integer string in the input asset's smallest units: **1 XLM = `"10000000"`**. For a real checkout, calculate the price from your server's order data with exact arithmetic, rather than trusting a browser-supplied total.
+
+The route forwards `x-history-request-id` from preparation. The browser keeps that non-secret ID with the signed envelope and sends it back on every submit/retry; the route forwards it as `x-preparation-request-id`. It is analytics metadata, not wallet authorization. A new preparation gets a new ID. Older deployments without the header still work, but those submissions remain unlinked in analytics.
+
+### 3 Connect Freighter, sign and submit
+
+Replace `app/page.js` with this browser page. Install/unlock the [Freighter extension](https://www.freighter.app/), select Testnet and use a funded customer account. The payment button requests access to your local app; access granted to Paiflow is separate.
+
+```jsx
+"use client";
+
+import { useRef, useState } from "react";
+import {
+  requestAccess,
+  getAddress,
+  getNetworkDetails,
+  signTransaction,
+} from "@stellar/freighter-api";
+
+const TESTNET = "Test SDF Network ; September 2015";
+
+async function api(url, body) {
+  const response = await fetch(url, {
+    ...(body
+      ? {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }
+      : {}),
+    cache: "no-store",
+  });
+  const result = await response.json();
+  if (!response.ok || result.error) {
+    const error = new Error(result.error?.message || `HTTP ${response.status}`);
+    error.retryAfter = response.headers.get("Retry-After");
+    error.requestId = response.headers.get("x-request-id");
+    throw error;
+  }
+  if (body?.action === "prepare") {
+    return { ...result.data, preparationRequestId: response.headers.get("x-history-request-id") };
+  }
+  return result.data;
+}
+
+export default function Checkout() {
+  const envelope = useRef(null);
+  const working = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const [uncertain, setUncertain] = useState(false);
+  const [result, setResult] = useState(null);
+  const [events, setEvents] = useState(null);
+  const [message, setMessage] = useState("");
+
+  async function run(action) {
+    if (working.current) return;
+    working.current = true;
+    setBusy(true);
+    setMessage("");
+    try {
+      await action();
+    } catch (error) {
+      setMessage(
+        [
+          error.message,
+          error.retryAfter && `Wait ${error.retryAfter} before retrying.`,
+          error.requestId && `Request ID: ${error.requestId}`,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
+    } finally {
+      working.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function submit() {
+    const data = await api("/api/payment", {
+      action: "submit",
+      ...envelope.current,
+    });
+    setResult(data);
+    if (data.status === "SUCCESS" || data.status === "FAILED") {
+      envelope.current = null;
+      setUncertain(false);
+    }
+  }
+
+  async function pay() {
+    if (envelope.current) throw new Error("Check the existing payment first.");
+    const access = await requestAccess();
+    if (access.error || !access.address) throw new Error("Allow Freighter access.");
+    const from = access.address;
+    const network = await getNetworkDetails();
+    if (network.error || network.networkPassphrase !== TESTNET) {
+      throw new Error("Switch Freighter to Testnet.");
+    }
+    setResult(null);
+    setEvents(null);
+    const prepared = await api("/api/payment", { action: "prepare", from });
+    const expiry = Date.parse(prepared.expiresAt);
+    if (
+      prepared.network !== "testnet" ||
+      prepared.networkPassphrase !== TESTNET ||
+      !Number.isFinite(expiry) ||
+      Date.now() >= expiry
+    ) {
+      throw new Error("Check the preparation network and expiry.");
+    }
+    const current = await getAddress();
+    if (current.error || current.address !== from) throw new Error("Wallet changed. Start again.");
+    const signed = await signTransaction(prepared.xdr, {
+      networkPassphrase: TESTNET,
+      address: from,
+    });
+    if (signed.error || !signed.signedTxXdr || signed.signerAddress !== from) {
+      throw new Error("Payment was not signed by the expected customer.");
+    }
+    envelope.current = {
+      signedXdr: signed.signedTxXdr,
+      preparationRequestId: prepared.preparationRequestId,
+    };
+    setUncertain(true); // Save before submit, including timeout/error cases.
+    await submit();
+  }
+
+  async function inspect(kind) {
+    const data = await api(`/api/payment?kind=${kind}&txHash=${result.txHash}`);
+    if (kind === "events") {
+      setEvents(data);
+    } else {
+      setResult(data);
+      if (data.status === "SUCCESS" || data.status === "FAILED") {
+        envelope.current = null;
+        setUncertain(false);
+      }
+    }
+  }
+
+  return (
+    <main>
+      <h1>Testnet checkout: 1 XLM</h1>
+      <p>
+        Expected payout: 0.9 XLM to the shop and 0.1 XLM to the community fund. Fees are additional.
+      </p>
+      <button disabled={busy || uncertain} onClick={() => run(pay)}>
+        Pay 1 XLM
+      </button>
+      <button disabled={busy || !uncertain} onClick={() => run(submit)}>
+        Check again
+      </button>
+      <button disabled={busy || !result?.txHash} onClick={() => run(() => inspect("status"))}>
+        Look up status
+      </button>
+      <button disabled={busy || !result?.txHash} onClick={() => run(() => inspect("events"))}>
+        Read payout events
+      </button>
+      {busy && <p>Waiting for the wallet or network…</p>}
+      {message && <p role="alert">{message}</p>}
+      {result && <pre>{JSON.stringify(result, null, 2)}</pre>}
+      {events && <pre>{JSON.stringify(events, null, 2)}</pre>}
+    </main>
+  );
+}
+```
+
+Run `pnpm dev` and open `http://localhost:3000`. Review the asset, amount, network and account in Freighter before confirming. Preparation lasts approximately **180 seconds**; have the wallet ready. Signing stays inside Freighter; the bearer token stays on your server. The browser receives only unsigned preparation data and payment results.
+
+### 4 Verify the payment and payouts
+
+Select **Pay 1 XLM**, sign in Freighter, and inspect the returned `status` and `txHash`. HTTP 200 alone is not payment confirmation.
+
+| Result                                 | What to do                                                                                                               |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `SUCCESS`                              | Payment confirmed. Select Read payout events and verify the expected two recipients and amounts.                         |
+| `FAILED`                               | Submission rejected or transaction failed. Read the error and check transaction status before preparing another payment. |
+| `PENDING` or an uncertain submit error | Keep the tab open. Check again submits the same signed envelope; it does not create a second payment.                    |
+
+**Look up status** checks `GET /api/v1/deployments/{id}/transactions/{txHash}` without resubmitting. It may also return `REJECTED` (submission refusal, not on-chain failure) or `UNKNOWN` (insufficient evidence). Neither `UNKNOWN`, a `404`, nor a timeout proves failure or authorises a replacement payment. Keep checking the original transaction; create a replacement only after confirmed failure or verified expiry without inclusion on-chain.
+
+**Read payout events** calls `GET /api/v1/deployments/{id}/events?txHash=…&limit=100`. Check `items`, `nextCursor` and `hasMore`. For this two-recipient example, verify **0.9 XLM to the shop and 0.1 XLM to the community fund**, using the event data and the transaction on [Stellar Expert Testnet](https://stellar.expert/explorer/testnet). A percentage Split event can describe shares rather than literal transfer amounts; use transaction evidence to verify the actual transfers.
+
+A delayed feed is not proof of failure. This example reads one event page on demand. For continuous feeds, follow `nextCursor` while `hasMore` is true, deduplicate by `eventId`, associate activity by `txHash`, and back off between polls. The [API reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md) explains event shapes and pagination.
+
+### 5 Adapt it to your app
+
+Keep the payment sequence intact while replacing the fixed price and UI with your idea. Use server-side order totals and exact integer amounts. Your deployment sets its shared recipients and rules; the API executes that deployment, rather than creating a flow for every customer.
+
+The example preserves signed envelopes only in tab memory. Reloading loses that retry state. Before starting another payment after a reload, investigate the original transaction through your wallet/explorer and platform support. Elapsed `expiresAt`, a missing saved signature, `UNKNOWN`, `NOT_FOUND` or absent events do not establish that replacement is safe. The execute API cannot prove safe replacement from expiry or missing history alone. A real app needs a durable payment record with its transaction hash, clear pending states, and its own authentication and order-to-transaction checks. Avoid logging signed envelopes or credentials.
+
+Changing settings or closing the page does not cancel a submitted transaction. A token authenticates your backend to Paiflow; it does not replace customer signing or your app's own authorisation. This sample does not implement subscriptions, schedules, webhooks, early release or a continuous feed.
+
+For other flow types, first inspect `GET /api/v1/deployments/{id}/capabilities` with the same bearer token. Supported paths still require live checks for balances, consent and configuration. Use the reference for those integrations instead of treating them as ordinary On Receive payments.
+
+For advanced flows, discover capabilities first and use the corresponding reference:
+[balances](#deployment-contract-balances), [Swap estimates](#deployment-specific-swap-estimates),
+[funding](funding.md), [Schedule controls](schedule-controls.md),
+[Subscription wallet controls](wallet-controls.md), and
+[webhook retry safety](#retry-webhook-rewards-safely).
+These paths have distinct wallet consent and recovery requirements; they are not ordinary Execute payments.
+See [hosted verification](#hosted-testnet-verification) for dated evidence and fee-blocked tests.
+
+When requesting support, include the deployment UUID, transaction hash, error
+message and request ID when available. Keep tokens, wallet secrets and signed
+envelopes out of support messages.

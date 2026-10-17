@@ -45,10 +45,14 @@ const prizes = find("Prizes");
 const coordination = nodes.findIndex(
   (n) => n.type === "heading" && plain(n) === "Event support and coordination",
 );
+const timelineFirst = preparation < program;
 const pageCount = coordination < 0 ? 3 : 4;
 const title = plain(nodes[0]);
 const renderBlock = (node) => {
-  if (node.type === "paragraph" && plain(node).startsWith("Prize pool: PHP 10,000, for qualifying teams only.")) {
+  if (
+    node.type === "paragraph" &&
+    plain(node).startsWith("Prize pool: PHP 10,000, for qualifying teams only.")
+  ) {
     return `<aside class="prize-banner" aria-label="Prize pool"><div class="prize-banner-label">Prize pool</div><div class="prize-banner-amount">PHP 10,000</div><div class="prize-banner-details">${render(node).replace(/Prize pool: PHP 10,000, for qualifying teams only\./, "For qualifying teams only.")}</div></aside>`;
   }
   return render(node);
@@ -106,6 +110,7 @@ tr:nth-child(even){background:#f7f5f6}tr{break-inside:avoid}thead{display:table-
 .workshop{background:#f7f5f6;border:1px solid #ece6e9;border-radius:7pt;padding:11pt 13pt;margin:0 0 20pt}
 .workshop h3{margin:0 0 7pt}.workshop p{margin:0 0 5pt}.workshop p:last-child{margin:0}
 .preparation p{border-left:2pt solid #ffb1c4;padding:0 0 0 10pt;margin-bottom:12pt;font-size:9.4pt}
+.overview-page .preparation p{margin-bottom:10pt}
 .preparation p:last-child{background:#fff0f5;border-left-color:#e0005f;padding:9pt 11pt;border-radius:0 5pt 5pt 0}
 .challenge-page{font-size:8.9pt;line-height:1.35;padding-top:14mm;padding-left:15mm;padding-right:15mm}
 .challenge-page .section-heading{padding-bottom:6pt;margin-bottom:7pt}
@@ -134,8 +139,8 @@ tr:nth-child(even){background:#f7f5f6}tr{break-inside:avoid}thead{display:table-
 footer{position:absolute;bottom:10mm;left:17mm;right:17mm;padding-top:7pt;border-top:1px solid #d9d0d5;display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:6.5pt;letter-spacing:.06em;text-transform:uppercase;color:#65545e}
 footer .slash{color:#e0005f;margin:0 5pt}
 </style></head><body>
-<article class="sheet overview-page"><header class="hero">${render(nodes[0])}<div class="updated">${body(nodes.slice(1, 2))}</div><div class="intro">${body(nodes.slice(2, glance))}</div></header>${section(glance, program, "01", "overview")}${section(program, hackathon, "02", "program")}${footer(1)}</article>
-<article class="sheet"><section class="hackathon"><div class="track-heading"><span class="number" aria-hidden="true">02</span>${render(nodes[hackathon])}</div>${body(nodes.slice(hackathon + 1, workshop < 0 ? preparation : workshop))}</section>${workshop < 0 ? "" : `<section class="workshop">${body(nodes.slice(workshop, preparation))}</section>`}${section(preparation, challenge, "03", "preparation")}${footer(2)}</article>
+<article class="sheet overview-page"><header class="hero">${render(nodes[0])}<div class="updated">${body(nodes.slice(1, 2))}</div><div class="intro">${body(nodes.slice(2, glance))}</div></header>${section(glance, timelineFirst ? preparation : program, "01", "overview")}${timelineFirst ? section(preparation, program, "02", "preparation") : section(program, hackathon, "02", "program")}${footer(1)}</article>
+<article class="sheet">${timelineFirst ? section(program, hackathon, "03", "program") : ""}<section class="hackathon"><div class="track-heading">${timelineFirst ? "" : '<span class="number" aria-hidden="true">02</span>'}${render(nodes[hackathon])}</div>${body(nodes.slice(hackathon + 1, workshop < 0 ? (timelineFirst ? challenge : preparation) : workshop))}</section>${workshop < 0 ? "" : `<section class="workshop">${body(nodes.slice(workshop, preparation))}</section>`}${timelineFirst ? "" : section(preparation, challenge, "03", "preparation")}${footer(2)}</article>
 <article class="sheet challenge-page">${challengeHtml}${coordination < 0 ? section(prizes, nodes.length, "05", "prizes") : ""}${footer(3)}</article>
 ${coordination < 0 ? "" : `<article class="sheet coordination-page">${section(prizes, coordination, "05", "prizes")}${section(coordination, nodes.length, "06", "coordination")}${footer(4)}</article>`}
 </body></html>`;

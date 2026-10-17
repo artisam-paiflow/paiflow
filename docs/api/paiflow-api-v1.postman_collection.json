@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Paiflow API v1",
-    "description": "API v1 supports server-side pfd_ developer credentials across explicit existing owned deployment selections, or existing deployment-only pfk_ tokens. Set apiToken privately; do not export credentials or signed envelopes. READ_OPERATE is required for prepare/submit/reconcile/early release; READ_ONLY permits reads. Wallet consent and webhook secrets remain separate. Owner-session developer-token management requests explicitly disable inherited bearer auth and require a signed-in owner cookie jar; do not supply a token as management auth. Support is on the dev-token integration branch; verify hosted availability. Developer-token/discovery SDK additions are Unreleased source and are not published by this work; registry 0.1.0 support must not be assumed. See docs/api/developer-tokens.md and developer-token-permissions.md.",
+    "description": "API v1 supports server-side pfd_ developer credentials across explicit existing owned deployment selections, or existing deployment-only pfk_ tokens. Set apiToken privately; do not export credentials or signed envelopes. READ_OPERATE is required for prepare/submit/reconcile/early release; READ_ONLY permits reads. Wallet consent and webhook secrets remain separate. Owner-session developer-token management requests explicitly disable inherited bearer auth and require a signed-in owner cookie jar; do not supply a token as management auth. SDK 0.2.0 is published under the npm beta tag with developer-token and scoped-discovery support; SDK 0.1.0 lacks these additions. Verify the target environment implements API specification revision 1.1.0 or a compatible later revision and supports the required deployment capabilities. See docs/api/developer-tokens.md and developer-token-permissions.md.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -253,7 +253,7 @@
           "host": ["{{baseUrl}}"],
           "path": ["api", "v1", "deployments", "{{deploymentId}}", "balances"]
         },
-        "description": "Display current contract token balances, with read timestamps and partial/completeness information. Poll at most every 10 seconds. Not Schedule payout availability or payment success. Hosted testnet verification pending. Developer token minimum permission: READ_ONLY. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
+        "description": "Display current contract token balances, with read timestamps and partial/completeness information. Poll at most every 10 seconds. Not Schedule payout availability or payment success. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_ONLY. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": [
         {
@@ -266,7 +266,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "deployments", "{{deploymentId}}", "balances"]
             },
-            "description": "Display current contract token balances, with read timestamps and partial/completeness information. Poll at most every 10 seconds. Not Schedule payout availability or payment success. Hosted testnet verification pending."
+            "description": "Display current contract token balances, with read timestamps and partial/completeness information. Poll at most every 10 seconds. Not Schedule payout availability or payment success. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established."
           },
           "status": "OK",
           "code": 200,
@@ -952,7 +952,7 @@
             "prepare"
           ]
         },
-        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": [],
       "event": [
@@ -999,7 +999,7 @@
             "submit"
           ]
         },
-        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": []
     },
@@ -1035,7 +1035,7 @@
             "reconcile"
           ]
         },
-        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": []
     },
@@ -1071,7 +1071,7 @@
             "prepare"
           ]
         },
-        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": [],
       "event": [
@@ -1118,7 +1118,7 @@
             "submit"
           ]
         },
-        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": []
     },
@@ -1154,7 +1154,7 @@
             "reconcile"
           ]
         },
-        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": []
     },
@@ -1179,7 +1179,7 @@
             }
           ]
         },
-        "description": "Estimate the selected deployed Swap node, not the entire flow or guaranteed output. Enable nodeId for multiple Swap nodes. Assets/router/slippage come from live getters. Hosted verification pending. Developer token minimum permission: READ_ONLY. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
+        "description": "Estimate the selected deployed Swap node, not the entire flow or guaranteed output. Enable nodeId for multiple Swap nodes. Assets/router/slippage come from live getters. A bounded testnet Swap execution was verified on October 15, 2026; see https://github.com/artisam-paiflow/paiflow/blob/develop/docs/testing/2026-10-15-sdk-swap-execution-982.md. It consumed a one-attempt high-fee authorization, not a future fee guarantee. Verify configuration, capabilities and fees in the target environment. Developer token minimum permission: READ_ONLY. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": [
         {
@@ -1203,7 +1203,7 @@
                 }
               ]
             },
-            "description": "Estimate the selected deployed Swap node, not the entire flow or guaranteed output. Enable nodeId for multiple Swap nodes. Assets/router/slippage come from live getters. Hosted verification pending."
+            "description": "Estimate the selected deployed Swap node, not the entire flow or guaranteed output. Enable nodeId for multiple Swap nodes. Assets/router/slippage come from live getters. A bounded testnet Swap execution was verified on October 15, 2026; see https://github.com/artisam-paiflow/paiflow/blob/develop/docs/testing/2026-10-15-sdk-swap-execution-982.md. It consumed a one-attempt high-fee authorization, not a future fee guarantee. Verify configuration, capabilities and fees in the target environment."
           },
           "status": "OK",
           "code": 200,
@@ -1568,7 +1568,7 @@
           "host": ["{{baseUrl}}"],
           "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding"]
         },
-        "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending. Developer token minimum permission: READ_ONLY. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
+        "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_ONLY. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": [
         {
@@ -1581,7 +1581,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding"]
             },
-            "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending."
+            "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established."
           },
           "status": "OK",
           "code": 200,
@@ -1610,7 +1610,7 @@
           "host": ["{{baseUrl}}"],
           "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding"]
         },
-        "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate.",
+        "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate.",
         "body": {
           "mode": "raw",
           "raw": "{\n  \"nodeId\": \"{{fundingNodeId}}\",\n  \"fromAddress\": \"{{from}}\",\n  \"tokenContractAddress\": \"{{fundingAsset}}\",\n  \"amountStroops\": \"{{amount}}\"\n}",
@@ -1649,7 +1649,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding"]
             },
-            "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending.",
+            "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nodeId\": \"{{fundingNodeId}}\",\n  \"fromAddress\": \"{{from}}\",\n  \"tokenContractAddress\": \"{{fundingAsset}}\",\n  \"amountStroops\": \"{{amount}}\"\n}",
@@ -1687,7 +1687,7 @@
           "host": ["{{baseUrl}}"],
           "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding", "submit"]
         },
-        "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate.",
+        "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate.",
         "body": {
           "mode": "raw",
           "raw": "{\n  \"action\": \"{{fundingAction}}\",\n  \"intent\": \"{{fundingIntent}}\",\n  \"signedXdr\": \"{{fundingSignedXdr}}\"\n}",
@@ -1714,7 +1714,7 @@
           "host": ["{{baseUrl}}"],
           "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding", "reconcile"]
         },
-        "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate.",
+        "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate.",
         "body": {
           "mode": "raw",
           "raw": "{\n  \"action\": \"{{fundingAction}}\",\n  \"intent\": \"{{fundingIntent}}\"\n}",
@@ -1741,7 +1741,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "deployments", "{{deploymentId}}", "funding", "reconcile"]
             },
-            "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending.",
+            "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"action\": \"{{fundingAction}}\",\n  \"intent\": \"{{fundingIntent}}\"\n}",

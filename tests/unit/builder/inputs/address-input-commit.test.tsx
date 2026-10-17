@@ -117,7 +117,7 @@ describe("panel address field commits (#588)", () => {
     await user.clear(field());
     expect(onCommit).toHaveBeenLastCalledWith("");
     const [issue] = issuesFor("");
-    expect(issue!.friendlyMessage).toMatch(/^Enter the Pay step's recipient/);
+    expect(issue!.friendlyMessage).toMatch(/^Enter a complete wallet address/);
   });
 
   it("a lower-case address is committed as typed, never upper-cased into a valid one", async () => {
@@ -138,7 +138,7 @@ describe("panel address field commits (#588)", () => {
     await user.click(field());
     await user.paste(CONTRACT);
     expect(onCommit).toHaveBeenLastCalledWith(CONTRACT);
-    expect(issuesFor(CONTRACT)[0]!.friendlyMessage).toContain("must be a wallet address (G…)");
+    expect(issuesFor(CONTRACT)[0]!.friendlyMessage).toContain("needs a wallet address (G…)");
   });
 
   it("a bad checksum is committed as typed and refused", async () => {

@@ -117,9 +117,21 @@ const parseReconciled = (value: unknown) => {
     expiresAt: timestamp(d.expiresAt),
   };
 };
+/** Eligible deployed funding nodes and assets; choose the node explicitly.
+ * @useDeclaredType
+ */
 export type FundingDiscovery = ReturnType<typeof parseDiscovery>;
+/** Reserved funding intent and unsigned original envelope, retained through recovery.
+ * @useDeclaredType
+ */
 export type FundingPrepared = ReturnType<typeof parsePrepared>;
+/** Funding transaction status, including unresolved UNKNOWN/REJECTED outcomes.
+ * @useDeclaredType
+ */
 export type FundingSubmitted = ReturnType<typeof parseTransaction>;
+/** Original funding reservation state; only terminal ledger evidence releases it.
+ * @useDeclaredType
+ */
 export type FundingReconciled = ReturnType<typeof parseReconciled>;
 
 /** Explicit funding only: never pays, triggers callbacks, retries or replaces an intent. */
@@ -136,6 +148,12 @@ export function fundingMethods(transport: PaiflowTransport, id: string) {
         },
         options,
       ),
+    /**
+     * Reserve and prepare one wallet-authorized operation. Persist this preparation before signing.
+     * @param body - Explicit node/wallet or subscriber inputs; a token supplies no wallet consent.
+     * @param options - Timeout, cancellation and request correlation.
+     * @returns Original intent, transaction and unsigned envelope; no submission occurs.
+     */
     prepare: (body: FundingPrepareInput, options?: RequestOptions) =>
       transport.request(
         {
@@ -147,6 +165,12 @@ export function fundingMethods(transport: PaiflowTransport, id: string) {
         },
         options,
       ),
+    /**
+     * Submit the unchanged signed envelope for the original reserved intent. Never retried.
+     * @param body - Original intent and wallet-signed XDR; do not rebuild after uncertainty.
+     * @param options - Request options; retain the original preparationRequestId.
+     * @returns Submission status; HTTP success alone is not financial success.
+     */
     submit: (body: FundingSubmitInput, options?: RequestOptions) =>
       transport.request(
         {
@@ -158,6 +182,12 @@ export function fundingMethods(transport: PaiflowTransport, id: string) {
         },
         options,
       ),
+    /**
+     * Reconcile the original reserved operation explicitly, without creating a replacement.
+     * @param body - The original intent (and funding action where required).
+     * @param options - Timeout, cancellation and correlation.
+     * @returns Server finality/reservation evidence; elapsed time never permits replacement.
+     */
     reconcile: (body: FundingReconcileInput, options?: RequestOptions) =>
       transport.request(
         {
@@ -169,6 +199,13 @@ export function fundingMethods(transport: PaiflowTransport, id: string) {
         },
         options,
       ),
+    /**
+     * Ask the wallet to sign once; never submits, retries or checks finality.
+     * @param prepared - Saved original preparation response, including history metadata.
+     * @param signer - Application callback signing the unchanged envelope with the supplied passphrase.
+     * @param options - Expected wallet/network, cancellation and signing deadline.
+     * @returns Preserved preparation and explicit submission arguments/history options.
+     */
     signPrepared: async (
       prepared: ApiResponse<FundingPrepared>,
       signer: PreparedSigner,

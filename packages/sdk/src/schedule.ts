@@ -130,8 +130,17 @@ const parseReconciled = <A extends ScheduleAction>(value: unknown, expected: A) 
 };
 const signedBody = (body: SignedSubmission) =>
   input(() => ({ signedXdr: pattern(body.signedXdr, /^[\s\S]{1,100000}$/) }));
+/** Schedule controller, eligibility, holdings and entitlement as separate values.
+ * @useDeclaredType
+ */
 export type ScheduleState = ReturnType<typeof parseState>;
+/** Schedule control transaction status, not an automatic payout guarantee.
+ * @useDeclaredType
+ */
 export type ScheduleSubmitted = ReturnType<typeof parseTransaction>;
+/** Original wallet-control evidence. Preserve the intent and server replacement permission.
+ * @useDeclaredType
+ */
 export type ScheduleReconciled<A extends ScheduleAction = ScheduleAction> = ReturnType<
   typeof parseReconciled<A>
 >;
@@ -139,6 +148,12 @@ export type ScheduleReconciled<A extends ScheduleAction = ScheduleAction> = Retu
 export function scheduleMethods(transport: PaiflowTransport, id: string) {
   const path = `/api/v1/deployments/${id}/schedule`;
   const controls = <A extends ScheduleAction>(action: A) => ({
+    /**
+     * Reserve and prepare one wallet-authorized operation. Persist this preparation before signing.
+     * @param body - Explicit node/wallet or subscriber inputs; a token supplies no wallet consent.
+     * @param options - Timeout, cancellation and request correlation.
+     * @returns Original intent, transaction and unsigned envelope; no submission occurs.
+     */
     prepare: (body: SchedulePrepareInput, options?: RequestOptions) =>
       transport.request(
         {
@@ -153,6 +168,12 @@ export function scheduleMethods(transport: PaiflowTransport, id: string) {
         },
         options,
       ),
+    /**
+     * Submit the unchanged signed envelope for the original reserved intent. Never retried.
+     * @param body - Original intent and wallet-signed XDR; do not rebuild after uncertainty.
+     * @param options - Request options; retain the original preparationRequestId.
+     * @returns Submission status; HTTP success alone is not financial success.
+     */
     submit: (body: ScheduleSubmitInput, options?: RequestOptions) =>
       transport.request(
         {
@@ -164,6 +185,12 @@ export function scheduleMethods(transport: PaiflowTransport, id: string) {
         },
         options,
       ),
+    /**
+     * Reconcile the original reserved operation explicitly, without creating a replacement.
+     * @param body - The original intent (and funding action where required).
+     * @param options - Timeout, cancellation and correlation.
+     * @returns Server finality/reservation evidence; elapsed time never permits replacement.
+     */
     reconcile: (body: ScheduleReconcileInput, options?: RequestOptions) =>
       transport.request(
         {
@@ -175,6 +202,13 @@ export function scheduleMethods(transport: PaiflowTransport, id: string) {
         },
         options,
       ),
+    /**
+     * Ask the wallet to sign once; never submits, retries or checks finality.
+     * @param prepared - Saved original preparation response, including history metadata.
+     * @param signer - Application callback signing the unchanged envelope with the supplied passphrase.
+     * @param options - Expected wallet/network, cancellation and signing deadline.
+     * @returns Preserved preparation and explicit submission arguments/history options.
+     */
     signPrepared: async (
       prepared: ApiResponse<SchedulePrepared<A>>,
       signer: PreparedSigner,

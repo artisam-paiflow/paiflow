@@ -70,8 +70,12 @@ export function render(n) {
       return /^https?:\/\/|^mailto:|^#.+/i.test(n.url)
         ? `<a href="${escape(n.url)}">${children()}</a>`
         : children();
-    case "list":
-      return `<${n.ordered ? "ol" : "ul"}>${children()}</${n.ordered ? "ol" : "ul"}>`;
+    case "list": {
+      const tag = n.ordered ? "ol" : "ul";
+      const start =
+        n.ordered && Number.isInteger(n.start) && n.start !== 1 ? ` start="${n.start}"` : "";
+      return `<${tag}${start}>${children()}</${tag}>`;
+    }
     case "listItem": {
       let content = children();
       if (n.checked !== null && n.checked !== undefined) content = content.replace("<p>", "<p>☐ ");
@@ -97,18 +101,13 @@ export function render(n) {
   }
 }
 async function main() {
-  if (path.basename(input) === "developer-api-quickstart.md") {
-    const { renderApiQuickstart } = await import("./render-api-quickstart-pdf.mjs");
-    await renderApiQuickstart(input);
-    return;
-  }
   const ast = await parser.parse(fs.readFileSync(input, "utf8"));
   const title =
     ast.children
       .find((n) => n.type === "heading" && n.depth === 1)
       ?.children.map((n) => n.value ?? "")
       .join("") || "Paiflow Hackathon Mechanics";
-  const footer = /Event Primer$|API quick\s?start/.test(title)
+  const footer = /Event Primer$/.test(title)
     ? title.toUpperCase()
     : title.replace(/\s+Hackathon Mechanics$/, "").toUpperCase() + " HACKATHON · Mechanics";
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escape(title)}</title><style>

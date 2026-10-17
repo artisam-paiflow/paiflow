@@ -259,6 +259,57 @@ import "@paiflow/sdk/dist/index.js";
     await mkdir(dirname(target), { recursive: true });
     await symlink(resolve(packageRoot, source), target);
   }
+  // Compile the exact onboarding/error snippets from the package README against
+  // the installed tarball, and run the first read with a local response fixture.
+  const readme = await readFile(join(packageRoot, "README.md"), "utf8");
+  const firstRead = readme.match(/```js\n([\s\S]*?)```/)?.[1];
+  const typedErrors = readme.match(/```ts\n([\s\S]*?)```/)?.[1];
+  assert.ok(firstRead && typedErrors, "README onboarding snippets must exist");
+  await writeFile(join(consumer, "first-read.mjs"), firstRead);
+  await writeFile(join(consumer, "readme-errors.ts"), typedErrors);
+  await writeFile(
+    join(consumer, "check-readme.mjs"),
+    `
+import assert from "node:assert/strict";
+process.env.PAIFLOW_BASE_URL = "https://paiflow.example";
+process.env.PAIFLOW_API_TOKEN = "pfd_" + "a".repeat(64);
+process.env.PAIFLOW_DEPLOYMENT_ID = "11111111-1111-4111-8111-111111111111";
+let calls = 0;
+const operation = {status: "supported", authentication: "deployment_token", requirements: [], nodeIds: []};
+globalThis.fetch = async (url, options) => {
+ calls++;
+ assert.equal(String(url), "https://paiflow.example/api/v1/deployments/11111111-1111-4111-8111-111111111111/capabilities");
+ assert.equal(options.method, "GET");
+ assert.equal(options.headers.get("Authorization"), "Bearer " + process.env.PAIFLOW_API_TOKEN);
+ return new Response(JSON.stringify({data: {
+ deploymentId: process.env.PAIFLOW_DEPLOYMENT_ID, network: "testnet",
+ configurationSource: "deployment_snapshot", triggerType: "deposit", inputAsset: {kind: "native"},
+ operations: Object.fromEntries(["execute", "funding", "balances", "events", "transactions", "releaseEarly", "payouts", "webhook", "swapQuote", "scheduleState", "scheduleControls", "subscriptionState", "subscriptionCancel", "subscriptionReactivate", "subscriptionAllowance"].map(key => [key, operation])),
+ }}), {headers: {"x-request-id": "readme-fixture"}});
+};
+await import("./first-read.mjs");
+assert.equal(calls, 1, "README first read makes exactly one explicit request");
+`,
+  );
+  run(
+    process.execPath,
+    [
+      compiler,
+      "--noEmit",
+      "--strict",
+      "--skipLibCheck",
+      "false",
+      "--module",
+      "NodeNext",
+      "--moduleResolution",
+      "NodeNext",
+      "--target",
+      "ES2022",
+      "readme-errors.ts",
+    ],
+    consumer,
+  );
+  process.stdout.write(run(process.execPath, ["check-readme.mjs"], consumer));
   const examples = join(consumer, "examples");
   await cp(join(packageRoot, "examples"), examples, { recursive: true });
   // Stellar SDK currently lacks js-xdr declarations; skip dependency internals

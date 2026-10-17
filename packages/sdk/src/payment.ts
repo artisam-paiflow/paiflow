@@ -12,18 +12,24 @@ import {
 } from "./read-parsers.js";
 import { PaiflowAbortError, PaiflowTimeoutError } from "./transport.js";
 import type { ApiResponse, PaiflowTransport, RequestOptions } from "./transport.js";
+/** Prepare a caller-signed deposit into this existing deployment. */
 export interface ExecutePrepareInput {
+  /** Positive integer stroop string bounded to i128, never a floating-point amount. */
   amount: string;
   from: string;
 }
 export interface PublicPaymentPrepareInput {
+  /** Positive integer stroop string bounded to i128, never a floating-point amount. */
   amount: string;
   userAddress: string;
 }
+/** Exact original wallet-signed envelope. Persist securely before explicit submission. */
 export interface SignedSubmission {
   signedXdr: string;
 }
+/** Request options plus explicit server waiting policy; neither setting enables SDK polling. */
 export interface ExecuteSubmitOptions extends RequestOptions {
+  /** Omit for server default; false returns without requesting server finality waiting. */
   wait?: boolean;
 }
 const passphrases = {
@@ -77,10 +83,25 @@ const parsePublicStatus = (value: unknown) => {
     ...(d.errorMessage === undefined ? {} : { errorMessage: text(d.errorMessage) }),
   };
 };
+/** Unsigned execute preparation. Persist data and history metadata before signing.
+ * @useDeclaredType
+ */
 export type ExecutePrepared = ReturnType<typeof parseExecutePrepared>;
+/** Execute submission result; inspect status rather than relying on HTTP success.
+ * @useDeclaredType
+ */
 export type ExecuteSubmitted = ReturnType<typeof parseExecuteSubmitted>;
+/** Public preparation with XDR/passphrase only; no receipt or replacement-safety claim.
+ * @useDeclaredType
+ */
 export type PublicPaymentPrepared = ReturnType<typeof parsePublicPrepared>;
+/** Public submission hash; an accepted submission is not finality.
+ * @useDeclaredType
+ */
 export type PublicPaymentSubmitted = ReturnType<typeof parsePublicSubmitted>;
+/** Global chain lookup; SUCCESS alone does not bind this deployment or an order.
+ * @useDeclaredType
+ */
 export type PublicPaymentStatus = ReturnType<typeof parsePublicStatus>;
 const submission = (body: SignedSubmission) =>
   input(() => ({ signedXdr: pattern(body.signedXdr, /^[\s\S]{10,200000}$/) }));
@@ -159,6 +180,7 @@ export function paymentMethods(transport: PaiflowTransport, id: string) {
     },
   };
 }
+/** Supplied to the application wallet callback. No private keys are accepted. */
 export interface SignRequest {
   xdr: string;
   networkPassphrase: string;
@@ -168,12 +190,14 @@ export interface SignRequest {
 /** Callback must sign the unchanged envelope; SDK does not verify XDR operations. */
 export type SignTransaction = (request: SignRequest) => Promise<SignedSubmission>;
 export type PreparedSigner = SignTransaction;
+/** Wallet identity/network guard and bounded local signing lifetime. */
 export interface SignOptions {
   walletAddress: string;
   expectedNetwork?: "testnet" | "mainnet";
   signal?: AbortSignal;
   timeoutMs?: number;
 }
+/** Wallet callback rejected or returned an invalid result; original preparation remains required. */
 export class PaiflowSigningError extends Error {
   constructor() {
     super("Wallet signing failed");
@@ -189,6 +213,14 @@ export interface PreparedEnvelope {
   expiresAt?: string;
   walletAddress?: string;
 }
+/**
+ * Sign a saved execute/public-payment preparation once, without submitting.
+ * @param prepared - Original API response, retained with its history metadata.
+ * @param signer - Wallet callback that signs the unchanged original envelope.
+ * @param options - Wallet/network checks, cancellation and a signing deadline.
+ * @returns Original preparation plus signed submission and preparation-history correlation.
+ * @remarks This helper does not parse XDR or prove order price, recipients or finality.
+ */
 export function signPrepared<T extends PreparedEnvelope>(
   prepared: ApiResponse<T>,
   signer: PreparedSigner,

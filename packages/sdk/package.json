@@ -1,6 +1,6 @@
 {
   "name": "@paiflow/sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Node SDK for existing Paiflow deployments",
   "license": "MIT",
   "type": "module",
@@ -28,7 +28,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/webnxt-2030/pinkraft.git",
+    "url": "git+https://github.com/artisam-paiflow/paiflow.git",
     "directory": "packages/sdk"
   },
   "scripts": {
