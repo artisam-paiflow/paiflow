@@ -1,8 +1,7 @@
 /**
  * Instawards D3 (#613) evidence: the config panel container around the Swapper
  * panel — opened, walked and closed from the keyboard, scanned with axe, and
- * docked as a bottom sheet on a phone — with the desktop mouse behaviour
- * asserted unchanged. Writes PNGs into docs/instawards/evidence/d3/.
+ * docked on the right on desktop and as a bottom sheet on a phone. Writes PNGs into docs/instawards/evidence/d3/.
  *
  * Also measures the editable AddressPicker's controls on the Pay panel (#661):
  * the Swapper renders the pinned branch only, so the 44×44 scan below would
@@ -108,34 +107,11 @@ async function openAdvanced(page: Page) {
   await expect(advanced.getByTestId("swap-router")).toBeVisible();
 }
 
-/**
- * The floating panel opens with its foot below the viewport, which would cut
- * the bottom off a shot. Its header drags it (asserted in the mouse suite
- * below), so lift it by exactly what the foot needs — measured, not a fixed
- * amount a taller panel would outgrow, and no further, because the builder's
- * own header strip paints over the top of the canvas.
- */
-async function liftIntoView(page: Page) {
-  const panel = container(page);
-  const vh = page.viewportSize()!.height;
-  const card = (await panel.boundingBox())!;
-  const lift = Math.max(0, Math.min(card.y, card.y + card.height + 24 - vh));
-  const header = panel.getByRole("heading", { name: / settings$/ });
-  const h = (await header.boundingBox())!;
-  const x = h.x + h.width / 2;
-  const y = h.y + h.height / 2;
-  await page.mouse.move(x, y);
-  await page.mouse.down();
-  await page.mouse.move(x, y - lift, { steps: 8 });
-  await page.mouse.up();
-  // The drag's whole purpose: the card ends up entirely in frame. A panel
-  // too tall for the viewport fails here rather than clipping the PNG.
-  await expect
-    .poll(async () => {
-      const b = (await panel.boundingBox())!;
-      return b.y >= 0 && b.y + b.height <= vh;
-    })
-    .toBe(true);
+/** Docked settings must stay entirely inside the screen. */
+async function assertPanelInViewport(page: Page) {
+  const b = (await container(page).boundingBox())!;
+  expect(b.y).toBeGreaterThanOrEqual(0);
+  expect(b.y + b.height).toBeLessThanOrEqual(page.viewportSize()!.height);
 }
 
 async function axeViolations(page: Page) {
@@ -252,12 +228,15 @@ test.describe("Config panel container (Instawards D3)", () => {
     // Advanced (router, deadline) opens from the keyboard too.
     const advanced = panel.locator("summary", { hasText: "Advanced" });
     await advanced.focus();
+    // Missing local router configuration opens Advanced automatically.
+    if (await advanced.evaluate((el) => (el.parentElement as HTMLDetailsElement).open)) {
+      await page.keyboard.press("Enter");
+    }
     await page.keyboard.press("Enter");
     await expect(panel.getByLabel(/Deadline/)).toBeVisible();
     await expect(panel.getByTestId("swap-router")).toBeVisible();
-    // Advanced open pushes the card's foot out of frame; lift it before the
-    // error shot below. The steps after this refocus their own fields.
-    if (!isMobile) await liftIntoView(page);
+    // Opening Advanced must keep the dock inside the viewport.
+    if (!isMobile) await assertPanelInViewport(page);
 
     // Edit slippage from the keyboard; the draft commits on blur.
     const slippage = panel.getByLabel(/Max slippage/);
@@ -265,7 +244,8 @@ test.describe("Config panel container (Instawards D3)", () => {
     await page.keyboard.press("ControlOrMeta+a");
     await page.keyboard.type("2");
     await page.keyboard.press("Tab");
-    await expect(page.getByText(/up to 2% slippage/)).toBeVisible();
+    // Mobile intentionally collapses the English preview, but its content updates.
+    await expect(page.getByTestId("english-preview-text")).toContainText("up to 2% slippage");
 
     // Trigger a validation error: Asset Out onto the same asset as Asset In
     // (the catalogue lists USDC, then XLM).
@@ -301,6 +281,54 @@ test.describe("Config panel container (Instawards D3)", () => {
     await panel.getByRole("button", { name: "Close Swap settings" }).press("Enter");
     await expect(panel).toHaveCount(0);
     await expect(swapNode(page)).toBeFocused();
+  });
+
+  test("settings scroll with a fixed header, switch nodes, and close on blank canvas", async ({
+    page,
+    isMobile,
+  }) => {
+    if (!isMobile) await page.setViewportSize({ width: 1440, height: 700 });
+    await gotoBuilder(page, flowId);
+    await swapNode(page).click();
+    const panel = container(page);
+    await openAdvanced(page);
+    const heading = panel.getByRole("heading", { name: "Swap settings" });
+    const before = (await heading.boundingBox())!;
+    const body = panel.locator(".overflow-y-auto").first();
+    expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+    await body.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    await expect(panel.getByLabel(/Deadline/)).toBeInViewport();
+    expect((await heading.boundingBox())!.y).toBeCloseTo(before.y, 0);
+    await heading.click();
+    await expect(panel).toBeVisible();
+
+    // A different node updates the existing dock, rather than dismissing it.
+    const trigger = page.locator('.react-flow__node[data-id="t"]');
+    if (isMobile) {
+      // The bottom sheet can cover nodes; keyboard selection still switches settings.
+      await trigger.focus();
+      await page.keyboard.press("Enter");
+    } else {
+      await trigger.click();
+    }
+    await expect(panel).toHaveAccessibleName("On Receive settings");
+    if (isMobile)
+      await expect(panel.getByRole("heading", { name: "On Receive settings" })).toBeFocused();
+    const pane = page.locator(".react-flow__pane");
+    const blank = await pane.evaluate((el) => {
+      const b = el.getBoundingClientRect();
+      for (let y = b.top + 60; y < b.bottom - 10; y += 25) {
+        for (let x = b.left + 60; x < b.right - 10; x += 25) {
+          if (document.elementFromPoint(x, y) === el) return { x, y };
+        }
+      }
+      throw new Error("No blank canvas point found");
+    });
+    if (isMobile) await page.touchscreen.tap(blank.x, blank.y);
+    else await page.mouse.click(blank.x, blank.y);
+    await expect(panel).toHaveCount(0);
   });
 
   test("axe finds no violations in the panel", async ({ page }) => {
@@ -353,26 +381,21 @@ test.describe("Config panel container (Instawards D3)", () => {
     );
     expect(described).toMatch(/pool fee is 0\.3%/);
 
-    if (!isMobile) await liftIntoView(page);
+    if (!isMobile) await assertPanelInViewport(page);
 
     const message = panel.getByText(/makes every swap revert/);
     await expect(message).toBeVisible();
-    // The docked sheet cannot be dragged; it scrolls instead.
+    // Scroll the mobile sheet to reveal the message.
     if (isMobile) await message.scrollIntoViewIfNeeded();
 
-    // The docked sheet captures cleanly on its own. The desktop card cannot:
-    // it lives under React Flow's transformed viewport, where an element
-    // capture lands on the untransformed rect, so the page is the shot, as
-    // for 04.
+    // Keep the desktop page context in the historical evidence capture.
     const shot = { path: `${OUT}/15-slippage-error-${sfx}.png`, animations: "disabled" } as const;
     await (isMobile ? panel.screenshot(shot) : page.screenshot(shot));
 
     expect(await axeViolations(page)).toEqual([]);
   });
 
-  // The #637 after-shots (and 06). The desktop card is clipped from the page by
-  // its bounding box rather than captured as an element, for the transformed-
-  // viewport reason given at 15 above.
+  // Retain the existing framing for historical evidence captures.
   async function panelShot(page: Page, isMobile: boolean, path: string) {
     const panel = container(page);
     if (isMobile) return panel.screenshot({ path, animations: "disabled" });
@@ -401,7 +424,7 @@ test.describe("Config panel container (Instawards D3)", () => {
     // The live Soroswap quote, so the ticket is not an empty skeleton.
     await expect(panel.getByTestId("swap-quote")).not.toHaveAttribute("aria-busy", "true");
     if (isMobile) await panel.getByLabel(/Deadline/).scrollIntoViewIfNeeded();
-    else await liftIntoView(page);
+    else await assertPanelInViewport(page);
     await panelShot(page, isMobile, `${OUT}/16-swap-panel-advanced-after-${sfx}.png`);
   });
 
@@ -421,8 +444,8 @@ test.describe("Config panel container (Instawards D3)", () => {
     await swapNode(page).click();
     const panel = container(page);
     await expect(panel).toBeVisible();
-    // Desktop animates the chat-shift on the card; the docked sheet has none.
-    const target = isMobile ? panel : panel.locator(".config-panel-card");
+    // Docked settings do not animate with the canvas or AI chat.
+    const target = panel;
     const transition = () =>
       target.evaluate((el) => {
         const cs = getComputedStyle(el);
@@ -441,15 +464,12 @@ test.describe("Config panel container (Instawards D3)", () => {
     // And the rules are what remove it: without the preference it animates.
     await page.emulateMedia({ reducedMotion: "no-preference" });
     expect(await packetAnimation()).toBe("flow-dash");
-    if (!isMobile) {
-      expect((await transition()).property).toMatch(/transform/);
-    }
   });
 
-  test.describe("desktop mouse behaviour is unchanged", () => {
-    test.skip(({ isMobile }) => isMobile, "the floating panel is the desktop layout");
+  test.describe("desktop docked settings", () => {
+    test.skip(({ isMobile }) => isMobile, "the right panel is the desktop layout");
 
-    test("a click opens the floating panel without taking focus; arrows move and Delete removes the node", async ({
+    test("a click opens docked settings without taking focus; zoom preserves their size", async ({
       page,
     }) => {
       await gotoBuilder(page, flowId);
@@ -461,29 +481,20 @@ test.describe("Config panel container (Instawards D3)", () => {
       await expect(page.getByTestId("config-panel")).toBeVisible();
       await expect(panel.getByTestId("swap-quote")).not.toHaveAttribute("aria-busy", "true");
 
-      // Still in flow space: inside the viewport, and it zooms with the canvas.
-      expect(await panel.evaluate((el) => !!el.closest(".react-flow__viewport"))).toBe(true);
-      await page.screenshot({ path: `${OUT}/05-builder-after.png`, animations: "disabled" });
-      await liftIntoView(page);
-      await panelShot(page, false, `${OUT}/06-swap-panel-after.png`);
-
+      expect(await panel.evaluate((el) => !!el.closest(".react-flow"))).toBe(false);
+      await assertPanelInViewport(page);
       const before = (await panel.boundingBox())!;
       await page.locator(".react-flow__controls-zoomin").click();
-      await expect
-        .poll(async () => (await panel.boundingBox())!.width)
-        .toBeGreaterThan(before.width + 1);
-
-      // The header still drags it.
-      const header = panel.getByRole("heading", { name: "Swap settings" });
-      const start = (await panel.boundingBox())!;
-      const h = (await header.boundingBox())!;
-      await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
-      await page.mouse.down();
-      await page.mouse.move(h.x + h.width / 2 + 120, h.y + h.height / 2 + 60, { steps: 8 });
-      await page.mouse.up();
-      const moved = (await panel.boundingBox())!;
-      expect(moved.x - start.x).toBeGreaterThan(100);
-      expect(moved.y - start.y).toBeGreaterThan(40);
+      const after = (await panel.boundingBox())!;
+      expect(after.width).toBeCloseTo(before.width, 0);
+      expect(after.x).toBeCloseTo(before.x, 0);
+      const canvas = (await page.locator(".react-flow").boundingBox())!;
+      expect(canvas.x + canvas.width).toBeCloseTo(page.viewportSize()!.width, 0);
+      expect(before.y).toBe(64);
+      expect(before.y + before.height).toBeCloseTo(page.viewportSize()!.height, 0);
+      const preview = (await page.getByTestId("english-preview-text").boundingBox())!;
+      expect(before.y).toBeLessThan(preview.y);
+      expect(before.x).toBeLessThan(preview.x + preview.width);
 
       // Arrow keys move the clicked node, and Delete removes it.
       await node.click();
@@ -493,6 +504,22 @@ test.describe("Config panel container (Instawards D3)", () => {
       await page.keyboard.press("Delete");
       await expect(node).toHaveCount(0);
       await expect(panel).toHaveCount(0);
+    });
+
+    test("AI chat and settings share the right side", async ({ page }) => {
+      await gotoBuilder(page, flowId);
+      const openChat = page.getByTitle("Open AI chat");
+      await openChat.click();
+      await expect(page.locator("#ai-panel")).not.toHaveClass(/translate-x-full/);
+      await swapNode(page).focus();
+      await page.keyboard.press("Enter");
+      await expect(container(page)).toBeVisible();
+      await expect(page.locator("#ai-panel")).toHaveClass(/translate-x-full/);
+      await expect(openChat).toHaveCount(0);
+      await container(page).getByRole("button", { name: "Close Swap settings" }).click();
+      await openChat.click();
+      await expect(container(page)).toHaveCount(0);
+      await expect(page.locator("#ai-panel")).not.toHaveClass(/translate-x-full/);
     });
 
     test("dragging a node neither opens its panel nor closes an open one", async ({ page }) => {

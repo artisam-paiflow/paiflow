@@ -26,6 +26,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 - Make the SDK the default Node integration path in hackathon resources and shared AI context, with the payment-only SDK starter as an optional example; retain Campus Snacks as a domain sample for its planned SDK migration.
 
+- Dock builder node settings over the right side, including the English preview, with a full-height scrolling form; clicking blank canvas closes settings, and AI chat shares the same space. Mobile keeps its bottom sheet.
+
 - Align the builder's English preview to the far right of its desktop toolbar.
 
 - Simplify deployment API access into Quickstart, Credentials and Reference tabs,

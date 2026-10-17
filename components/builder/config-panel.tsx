@@ -127,8 +127,8 @@ type Props = {
   /** The Soroswap router this environment resolves to; `undefined` when unset. */
   routerContractId?: string;
   /**
-   * Hide the internal node-type label + Delete header row. Set when the floating
-   * wrapper renders its own draggable header with the title and Delete control,
+   * Hide the internal node-type label + Delete header row. Set when the docked
+   * wrapper renders its own fixed header with the title and Delete control,
    * so the title isn't duplicated.
    */
   hideHeader?: boolean;
@@ -254,9 +254,7 @@ export default function ConfigPanel({
     <aside
       data-testid="config-panel"
       className={cn(
-        // Render at natural full height (no internal scrollbar / height cap):
-        // a tall panel (e.g. the splitter) is brought into view by panning the
-        // canvas or dragging the panel header, not by scrolling inside it.
+        // The docked container owns scrolling; fields keep their natural height.
         "space-y-4 border-l border-zinc-800 bg-zinc-950 p-4 text-sm",
         className,
       )}
