@@ -5,7 +5,13 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+### Security
+
+- Update the Rust contract workspace's transitive `serde_with` and `serde_with_macros` dependencies to 3.21.0 to fix the KeyValueMap serialization panic ([GHSA-7gcf-g7xr-8hxj](https://github.com/advisories/GHSA-7gcf-g7xr-8hxj)).
+
 ### Fixed
+
+- Preserve uncertain payment submissions with original-hash recovery guidance, and catch up indexed events after successful status recovery without changing confirmed financial outcomes.
 
 - Preserve optional parameter defaults and inline return fields in the generated SDK reference; align validation assertions with the current address guidance.
 
@@ -14,6 +20,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 - Preserve typed wallet destinations on Enter until contacts are deliberately navigated; make contact search reachable with Tab and return to the wallet with Shift+Tab or Escape.
 
 ### Added
+
+- Add the October 20 Aklan hackathon primer and PDF with the event schedule, pitch deck requirements and linked Paiflow Guide; refresh the guide access code and SDK reference links.
 
 - Complete the SDK onboarding README and generated Markdown method/type reference with CI drift checks; align OpenAPI/Postman guidance with the published beta and bounded testnet evidence (API specification correction 1.1.1).
 
@@ -31,6 +39,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 - Owner-managed developer token lifecycle APIs with explicit deployment grants, immutable read/operate permissions, expiry and revocation. API v1 credential acceptance follows separately ([#1029](https://github.com/webnxt-2030/pinkraft/issues/1029)).
 
 ### Changed
+
+- Split Part 2 of the Paiflow Guide into the recommended starter video tutorial (2.a) and written instructions for a fresh repository (2.b), with highlighted guidance for choosing a path.
 
 - Refresh the Paiflow Guide for the minimal SDK payment starter and regenerate the shared guide and event-primer template PDFs.
 

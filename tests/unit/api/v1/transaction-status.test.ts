@@ -38,7 +38,9 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   outcome: vi.fn(),
   budget: vi.fn(),
+  refresh: vi.fn(),
 }));
+vi.mock("@/lib/api/v1/events-freshness", () => ({ refreshEventsIfStale: mocks.refresh }));
 vi.mock("@/lib/db", () => ({
   db: {
     signedTransaction: { findFirst: mocks.signed },
@@ -84,8 +86,31 @@ beforeEach(() => {
   mocks.outcome.mockResolvedValue(false);
   mocks.budget.mockResolvedValue({ ok: true, shared: true });
   mocks.updateToken.mockResolvedValue({});
+  mocks.refresh.mockResolvedValue(undefined);
 });
 describe("deployment transaction lookup", () => {
+  it("catches up the confirmed ledger after original-hash RPC recovery", async () => {
+    mocks.signed.mockResolvedValue({ ...received, outcome: "UNRESOLVED" });
+    mocks.rpc.mockResolvedValue({ status: "SUCCESS", ledger: 5252516 });
+    expect((await getTransactionStatus(deployment, hash)).status).toBe("SUCCESS");
+    expect(mocks.refresh).toHaveBeenCalledWith(id, 5252516);
+  });
+
+  it("retries missing event coverage for stored confirmations without another RPC lookup", async () => {
+    mocks.signed.mockResolvedValue({ ...received, outcome: "CONFIRMED", ledger: 5252516 });
+    expect((await getTransactionStatus(deployment, hash)).status).toBe("SUCCESS");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.refresh).toHaveBeenCalledWith(id, 5252516);
+  });
+
+  it("does not downgrade confirmed financial success when event catch-up fails", async () => {
+    mocks.rpc.mockResolvedValue({ status: "SUCCESS", ledger: 5252516 });
+    mocks.refresh.mockRejectedValue(new Error("Event RPC unavailable"));
+    await expect(getTransactionStatus(deployment, hash)).resolves.toMatchObject({
+      status: "SUCCESS",
+      ledger: 5252516,
+    });
+  });
   it("attributes keyed webhooks without audit records and preserves their hash", async () => {
     mocks.signed.mockResolvedValue(null);
     mocks.attempt.mockResolvedValue({ id: "attempt", status: "PENDING", acceptedAt: new Date() });

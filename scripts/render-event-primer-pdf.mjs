@@ -64,7 +64,12 @@ const footer = (number) =>
   `<footer><span>${escape(title)}</span><span>${String(number).padStart(2, "0")} <span class="slash">/</span> ${String(pageCount).padStart(2, "0")}</span></footer>`;
 const examples = nodes.findIndex((n, i) => i > challenge && i < prizes && n.type === "table");
 if (examples < 0) throw new Error("Challenge examples table missing");
-const challengeHtml = `<section class="section challenge"><div class="section-heading"><span class="number" aria-hidden="true">04</span>${render(nodes[challenge])}</div>${body(nodes.slice(challenge + 1, examples + 1))}<div class="challenge-notes"><div>${body(nodes.slice(examples + 1, examples + 5))}</div><div>${body(nodes.slice(examples + 5, prizes))}</div></div></section>`;
+// Use a single reading column when the challenge includes another major section.
+const challengeSubsection = nodes.findIndex(
+  (n, i) => i > examples && i < prizes && n.type === "heading" && n.depth === 2,
+);
+const notesSplit = challengeSubsection < 0 ? examples + 5 : challengeSubsection;
+const challengeHtml = `<section class="section challenge"><div class="section-heading"><span class="number" aria-hidden="true">04</span>${render(nodes[challenge])}</div>${body(nodes.slice(challenge + 1, examples + 1))}<div class="challenge-notes${challengeSubsection < 0 ? "" : " challenge-notes-stacked"}"><div>${body(nodes.slice(examples + 1, notesSplit))}</div><div>${body(nodes.slice(notesSplit, prizes))}</div></div></section>`;
 const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escape(title)}</title><style>
 ${font("Space Grotesk", "space-grotesk-latin.woff2", "300 700")}
 ${font("Geist", "geist-latin.woff2", "100 900")}
@@ -118,6 +123,12 @@ tr:nth-child(even){background:#f7f5f6}tr{break-inside:avoid}thead{display:table-
 .challenge p{margin-bottom:5pt}
 .challenge-notes{display:grid;grid-template-columns:1fr 1fr;gap:10pt;margin-top:7pt;font-size:8.7pt}
 .challenge-notes>div:last-child{border-left:1px solid #ece6e9;padding-left:10pt}
+.challenge-notes-stacked{display:block}
+.challenge-notes-stacked>div:last-child{border-left:0;padding-left:0;margin-top:13pt}
+.challenge-notes-stacked h2{font-size:17pt;margin-bottom:8pt}
+.challenge-notes-stacked ol{margin:7pt 0;padding-left:19pt}
+.challenge-notes-stacked li{padding-left:3pt}
+.challenge-notes-stacked li p{background:none!important;border-left:0!important;padding:0!important;margin-bottom:6pt}
 .challenge table{font-size:8pt!important;line-height:1.3;margin:7pt 0}
 .challenge table th,.challenge table td{padding:4.5pt 6pt!important}
 .challenge table td:first-child{width:22%;font-weight:650}
