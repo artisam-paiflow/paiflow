@@ -50,6 +50,7 @@ import {
   EVENTS_STALE_AFTER_MS,
   refreshEventsIfStale,
 } from "@/lib/api/v1/events-freshness";
+import { withInteractiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
 import { GET } from "@/app/api/v1/deployments/[id]/events/route";
 
 const NOW = new Date("2026-09-29T00:00:00Z").getTime();
@@ -267,6 +268,25 @@ describe("refreshEventsIfStale", () => {
     await vi.advanceTimersByTimeAsync(EVENTS_STALE_AFTER_MS);
     await refreshEventsIfStale(id);
     expect(mocks.pollEventsFor).toHaveBeenCalledTimes(2);
+  });
+
+  it("caps an interactive join by its own budget without cancelling another caller's worker", async () => {
+    cursorAgedMs(EVENTS_STALE_AFTER_MS + 1);
+    let finish!: () => void;
+    mocks.pollEventsFor.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const first = refreshEventsIfStale(id);
+    await vi.advanceTimersByTimeAsync(0);
+    const joined = withInteractiveRpcBudget(() => refreshEventsIfStale(id), 1_000);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await joined;
+    expect(mocks.pollEventsFor).toHaveBeenCalledTimes(1);
+    finish();
+    await first;
   });
 
   it("makes a caller that joins a running poll wait only for what is left of the deadline", async () => {

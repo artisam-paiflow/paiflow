@@ -17,6 +17,7 @@ import { explainFailedTx, ingestEventsBounded, waitForFinal } from "@/lib/api/v1
 import type { ExecuteSubmitted } from "@/lib/api/v1/schema";
 import type { PipelineSnapshotNode } from "@/lib/pipeline-snapshot";
 import { recordSignedTransaction } from "@/lib/signed-tx";
+import { interactiveRpcBudgetExpired } from "./interactive-rpc-budget";
 import { sorobanRpc } from "./client";
 import { signerFromTransaction } from "./signer";
 
@@ -39,6 +40,8 @@ async function viaRpc<T>(
   try {
     return await fn();
   } catch (err) {
+    // Optional confirmation exhausted its shared budget after positive acceptance.
+    if (stage === "confirmation" && interactiveRpcBudgetExpired()) throw err;
     if (txHash)
       await recordTransactionOutcome(txHash, "UNRESOLVED", {
         failureCode: "RPC_UNAVAILABLE",
@@ -156,7 +159,7 @@ export async function submitPreparedDeposit({
       });
     }
 
-    if (!wait) return { txHash, status: "PENDING" };
+    if (!wait || interactiveRpcBudgetExpired()) return { txHash, status: "PENDING" };
     // The transaction is already sent, so a caller over its concurrent-wait cap gets the
     // `wait=false` answer rather than an error it might answer by preparing a new deposit.
     const slot = await acquireWaitSlot(apiTokenKey(tokenId, tokenType));
@@ -169,7 +172,12 @@ export async function submitPreparedDeposit({
     }
     try {
       const observation = await transactionObservation(txHash);
-      got = await viaRpc(() => waitForFinal(txHash), txHash, { observation }, "confirmation");
+      try {
+        got = await viaRpc(() => waitForFinal(txHash), txHash, { observation }, "confirmation");
+      } catch (err) {
+        if (interactiveRpcBudgetExpired()) return { txHash, status: "PENDING" };
+        throw err;
+      }
     } finally {
       await slot.release();
     }

@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { z } from "zod";
 import QRCode from "qrcode";
 import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
@@ -9,7 +10,7 @@ import { buildPipelineErrorHint } from "@/lib/stellar/pipeline-error-hint";
 import { FlowGraphSchema, isTrigger, migrateFlowGraph } from "@/lib/flows/schema";
 import { inboundRequirement } from "@/lib/flows/inbound-amount";
 import { formatStroops } from "@/lib/utils";
-import { z } from "zod";
+import { withInteractiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
 
 const Query = z.object({
   size: z.coerce.number().int().min(64).max(1024).default(256),
@@ -159,4 +160,7 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
   });
 }
 
-export const GET = deploymentServiceRoute(GETHandler, "owner");
+export const GET = deploymentServiceRoute(
+  (req, ctx) => withInteractiveRpcBudget(() => GETHandler(req, ctx)),
+  "owner",
+);

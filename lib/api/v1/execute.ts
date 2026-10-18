@@ -13,6 +13,11 @@ import { AppError } from "@/lib/errors";
 import { stellarPassphrase } from "@/lib/env";
 import { log } from "@/lib/log";
 import type { PipelineSnapshotNode } from "@/lib/pipeline-snapshot";
+import {
+  InteractiveRpcDeadlineError,
+  remainingInteractiveRpcMs,
+  withIndependentEventRpcBudget,
+} from "@/lib/stellar/interactive-rpc-budget";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { pollEventsFor } from "@/lib/stellar/events";
 import { buildPipelineErrorHint } from "@/lib/stellar/pipeline-error-hint";
@@ -158,8 +163,8 @@ export function envelopeExpiresAt(unsignedXdr: string): string {
   return new Date(max * 1000).toISOString();
 }
 
-// The SDK sets no HTTP timeout, so the route owns its budget: under a typical
-// 30 s proxy limit, with room left for the bounded ingest below.
+// Standalone callers retain the confirmation cap. Interactive routes share one
+// operation budget across preflight, send, confirmation and event ingestion.
 export const CONFIRM_DEADLINE_MS = 25_000;
 export const CONFIRM_POLL_INTERVAL_MS = 1_500;
 // Best-effort, as in `tx-status`: the cron poller re-runs whatever this cuts short.
@@ -174,10 +179,16 @@ export async function waitForFinal(
   opts: { deadlineMs?: number; intervalMs?: number } = {},
 ): Promise<rpc.Api.GetTransactionResponse> {
   const server = sorobanRpc();
-  const deadline = Date.now() + (opts.deadlineMs ?? CONFIRM_DEADLINE_MS);
+  const deadline = Date.now() + remainingInteractiveRpcMs(opts.deadlineMs ?? CONFIRM_DEADLINE_MS);
   const interval = opts.intervalMs ?? CONFIRM_POLL_INTERVAL_MS;
+  let last: rpc.Api.GetTransactionResponse | undefined;
   for (;;) {
+    if (Date.now() >= deadline) {
+      if (last) return last;
+      throw new InteractiveRpcDeadlineError();
+    }
     const got = await server.getTransaction(txHash);
+    last = got;
     // getTransaction has no PENDING status: a sent transaction not yet in a
     // ledger reads NOT_FOUND, so anything else is SUCCESS or FAILED.
     if (got.status !== rpc.Api.GetTransactionStatus.NOT_FOUND) return got;
@@ -192,7 +203,9 @@ export async function waitForFinal(
  * than `EVENT_INGEST_DEADLINE_MS` for it.
  */
 export async function ingestEventsBounded(deploymentId: string, txHash: string): Promise<void> {
-  const ingested = pollEventsFor(deploymentId).then(
+  const remaining = remainingInteractiveRpcMs(EVENT_INGEST_DEADLINE_MS);
+  if (remaining <= 0) return;
+  const ingested = withIndependentEventRpcBudget(() => pollEventsFor(deploymentId)).then(
     () => undefined,
     // Caught on the poll itself, so a rejection after the deadline is handled too.
     (err: unknown) => {
@@ -206,7 +219,7 @@ export async function ingestEventsBounded(deploymentId: string, txHash: string):
       timer = setTimeout(() => {
         log.warn({ deploymentId, txHash }, "v1 execute: event ingestion deadline hit");
         resolve();
-      }, EVENT_INGEST_DEADLINE_MS);
+      }, remaining);
     }),
   ]);
   clearTimeout(timer);

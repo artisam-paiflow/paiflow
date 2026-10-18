@@ -4,11 +4,19 @@ import { beforeServiceSubmission, observeServiceTransaction } from "@/lib/deploy
 import { stellarHorizonUrl, stellarRpcUrl, stellarRelayerAddress } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 
+import {
+  interactiveRpcBudget,
+  INTERACTIVE_RPC_BUDGET_MS,
+  InteractiveRpcDeadlineError,
+  withoutInteractiveRpcBudget,
+} from "./interactive-rpc-budget";
+
 const MAX_SAFE_SEQ = BigInt(Number.MAX_SAFE_INTEGER);
 
 const g = globalThis as unknown as {
   __sorobanRpc?: rpc.Server;
   __horizon?: Horizon.Server;
+  __interactiveRpcServers?: WeakMap<object, rpc.Server>;
   __relayerValidated?: boolean;
   __relayerPendingBarrier?: () => Promise<void>;
 };
@@ -49,32 +57,52 @@ export const STELLAR_HTTP_TIMEOUT_MS = 10_000;
 // charge that landed on-chain as failed.
 export const TENANT_RELAYER_TIMEOUT_MS = 45_000;
 
+function createRpcServer(): rpc.Server {
+  const server = new rpc.Server(stellarRpcUrl(), { allowHttp: false });
+  // SDK 16.3.1 ignores rpc.Server's timeout constructor option.
+  server.httpClient.defaults.timeout = STELLAR_HTTP_TIMEOUT_MS;
+  const send = server.sendTransaction.bind(server);
+  server.sendTransaction = async (transaction) => {
+    const hash = transaction.hash().toString("hex");
+    await beforeServiceSubmission(hash, "rpc");
+    const result = await send(transaction);
+    if (result.status === "ERROR" || result.status === "TRY_AGAIN_LATER")
+      await observeServiceTransaction(hash, "REJECTED");
+    return result;
+  };
+  const get = server.getTransaction.bind(server);
+  server.getTransaction = async (hash) => {
+    const result = await get(hash);
+    if (result.status === "SUCCESS" || result.status === "FAILED")
+      await observeServiceTransaction(hash, result.status, result.ledger);
+    return result;
+  };
+  return server;
+}
+
 export function sorobanRpc(): rpc.Server {
   if (!g.__sorobanRpc) {
-    g.__sorobanRpc = new rpc.Server(stellarRpcUrl(), { allowHttp: false });
-    // Set on the HTTP client: SDK 16.3.1 still ignores rpc.Server's timeout option.
-    g.__sorobanRpc.httpClient.defaults.timeout = STELLAR_HTTP_TIMEOUT_MS;
-    const server = g.__sorobanRpc;
-    const send = server.sendTransaction.bind(server);
-    server.sendTransaction = async (transaction) => {
-      const hash = transaction.hash().toString("hex");
-      await beforeServiceSubmission(hash, "rpc");
-      const result = await send(transaction);
-      if (result.status === "ERROR" || result.status === "TRY_AGAIN_LATER")
-        await observeServiceTransaction(hash, "REJECTED");
-      return result;
-    };
-    const get = server.getTransaction.bind(server);
-    server.getTransaction = async (hash) => {
-      const result = await get(hash);
-      if (result.status === "SUCCESS" || result.status === "FAILED")
-        await observeServiceTransaction(hash, result.status, result.ledger);
-      return result;
-    };
-    // Validate in background; don't block startup.
-    validateRelayerSequence(g.__sorobanRpc).catch(() => {});
+    g.__sorobanRpc = createRpcServer();
+    // Startup validation belongs to the shared background client, not the first request.
+    withoutInteractiveRpcBudget(() => validateRelayerSequence(g.__sorobanRpc!)).catch(() => {});
   }
-  return g.__sorobanRpc;
+  const budget = interactiveRpcBudget();
+  if (!budget) return g.__sorobanRpc;
+  const clients = (g.__interactiveRpcServers ??= new WeakMap());
+  let server = clients.get(budget);
+  if (!server) {
+    server = createRpcServer();
+    server.httpClient.defaults.timeout = INTERACTIVE_RPC_BUDGET_MS;
+    server.httpClient.interceptors.request.use((config) => {
+      const remaining = budget.deadlineAt - Date.now();
+      if (remaining <= 0 || budget.signal.aborted) throw new InteractiveRpcDeadlineError();
+      // SDK16's fetch client accepts signal at runtime but omits it from its config type.
+      // Each dispatch gets only the remaining time, including response/body cancellation.
+      return Object.assign(config, { timeout: remaining, signal: budget.signal });
+    });
+    clients.set(budget, server);
+  }
+  return server;
 }
 
 export function horizon(): Horizon.Server {
