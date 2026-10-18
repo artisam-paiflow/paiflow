@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { log } from "@/lib/log";
 import { redis } from "@/lib/redis";
@@ -7,10 +8,10 @@ import { pollEventsFor } from "@/lib/stellar/events";
 /**
  * A deployment whose event cursor was stamped less than this long ago is served from the database
  * as it stands; an older one is polled from RPC first. This is a recent-progress throttle,
- * not proof the scan reached the tip: partial coverage also stamps the cursor. It is also the least
- * time between the end of one on-demand poll of a deployment and the start of the next, whatever the poll found, so it is
- * the throttle that keeps a busy caller (or many callers sharing a demo deployment) from driving
- * RPC traffic.
+ * not proof the scan reached the tip: partial coverage also stamps the cursor. Ordinary event
+ * reads and retries for the same confirmed ledger wait at least this long after a poll ends.
+ * A newly confirmed higher ledger may bypass a completed cooldown when coverage is still behind;
+ * it never bypasses a running poll's lease.
  */
 export const EVENTS_STALE_AFTER_MS = 10_000;
 
@@ -31,81 +32,157 @@ export const EVENTS_REFRESH_DEADLINE_MS = 5_000;
  */
 export const EVENTS_REFRESH_LEASE_MS = 60_000;
 
-type Run = { done: Promise<void>; deadlineAt: number };
+type Run = { done: Promise<void>; deadlineAt: number; throughLedger?: number };
 
 // Callers in this process that arrive while a refresh runs wait on it rather than starting another.
 const inflight = new Map<string, Run>();
 
 // Without Redis, the claim falls back to this process's memory, as `lib/rate-limit.ts` does.
-const localClaims = new Map<string, number>();
+const localClaims = new Map<string, { value: string; until: number }>();
 const LOCAL_CLAIMS_PRUNE_AT = 1_000;
 
 const claimKey = (deploymentId: string) => `v1:events-refresh:${deploymentId}`;
 
-type Claim = "redis" | "local" | null;
+type Claim = { kind: "redis" | "local"; token: string };
 
-function claimLocally(deploymentId: string, now: number): Claim {
-  const until = localClaims.get(deploymentId);
-  if (until !== undefined && until > now) return null;
+// Only a completed poll's cooldown can be bypassed for a newly confirmed ledger.
+// A running poll (including an older version's "1" claim) retains its lease.
+const CLAIM_NEW_LEDGER = `
+local value = redis.call('GET', KEYS[1])
+local previous = value and string.match(value, '^cooldown:(%d+)$')
+if not previous or tonumber(previous) >= tonumber(ARGV[1]) then return 0 end
+redis.call('SET', KEYS[1], ARGV[2], 'PX', ARGV[3])
+return 1
+`;
+const FINISH_CLAIM = `
+if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
+redis.call('SET', KEYS[1], ARGV[2], 'PX', ARGV[3])
+return 1
+`;
+
+function claimLocally(
+  deploymentId: string,
+  now: number,
+  token: string,
+  throughLedger?: number,
+): Claim | null {
+  const previous = localClaims.get(deploymentId);
+  const attempted = previous?.value.match(/^cooldown:(\d+)$/)?.[1];
+  if (
+    previous &&
+    previous.until > now &&
+    !(throughLedger !== undefined && attempted !== undefined && throughLedger > Number(attempted))
+  )
+    return null;
   if (localClaims.size >= LOCAL_CLAIMS_PRUNE_AT) {
-    for (const [id, expiry] of localClaims) if (expiry <= now) localClaims.delete(id);
+    for (const [id, claim] of localClaims) if (claim.until <= now) localClaims.delete(id);
   }
-  localClaims.set(deploymentId, now + EVENTS_REFRESH_LEASE_MS);
-  return "local";
+  localClaims.set(deploymentId, { value: token, until: now + EVENTS_REFRESH_LEASE_MS });
+  return { kind: "local", token };
 }
 
 /** One claim per deployment, shared across replicas through Redis. */
-async function claimRefresh(deploymentId: string): Promise<Claim> {
+async function claimRefresh(deploymentId: string, throughLedger?: number): Promise<Claim | null> {
   const now = Date.now();
+  const token = `running:${randomUUID()}`;
   const client = redis();
   if (client) {
     try {
-      const ok = await client.set(claimKey(deploymentId), "1", "PX", EVENTS_REFRESH_LEASE_MS, "NX");
-      return ok === "OK" ? "redis" : null;
+      const ok = await client.set(
+        claimKey(deploymentId),
+        token,
+        "PX",
+        EVENTS_REFRESH_LEASE_MS,
+        "NX",
+      );
+      if (ok === "OK") return { kind: "redis", token };
+      if (
+        throughLedger !== undefined &&
+        (await client.eval(
+          CLAIM_NEW_LEDGER,
+          1,
+          claimKey(deploymentId),
+          throughLedger,
+          token,
+          EVENTS_REFRESH_LEASE_MS,
+        )) === 1
+      )
+        return { kind: "redis", token };
+      return null;
     } catch (err) {
       log.warn({ err, deploymentId }, "v1 events: refresh claim failed, claiming in-process");
     }
   }
-  return claimLocally(deploymentId, now);
+  return claimLocally(deploymentId, now, token, throughLedger);
 }
 
 /**
  * The claim is never released, only shortened: it lapses `EVENTS_STALE_AFTER_MS` after the poll
- * ends, so an RPC failure, or a poll that left the cursor unstamped, still holds off the next
- * attempt for the full window. The overwrite is unconditional because only the claim's holder
- * reaches here and nobody else can take the key while it lives.
+ * ends. The same target ledger is held off even on failure. A newer confirmed ledger can bypass
+ * that cooldown; it cannot bypass a running poll. An expired owner cannot overwrite a new lease.
  */
-async function rearmClaim(deploymentId: string, claim: Exclude<Claim, null>): Promise<void> {
-  if (claim === "local") {
-    localClaims.set(deploymentId, Date.now() + EVENTS_STALE_AFTER_MS);
+async function rearmClaim(
+  deploymentId: string,
+  claim: Claim,
+  throughLedger?: number,
+): Promise<void> {
+  const value = `cooldown:${throughLedger ?? 0}`;
+  if (claim.kind === "local") {
+    if (localClaims.get(deploymentId)?.value === claim.token)
+      localClaims.set(deploymentId, { value, until: Date.now() + EVENTS_STALE_AFTER_MS });
     return;
   }
   try {
-    await redis()?.set(claimKey(deploymentId), "1", "PX", EVENTS_STALE_AFTER_MS);
+    await redis()?.eval(
+      FINISH_CLAIM,
+      1,
+      claimKey(deploymentId),
+      claim.token,
+      value,
+      EVENTS_STALE_AFTER_MS,
+    );
   } catch (err) {
     log.warn({ err, deploymentId }, "v1 events: could not shorten the refresh claim");
   }
 }
 
-async function refresh(deploymentId: string): Promise<void> {
-  const cursor = await db.eventCursor.findUnique({
-    where: { deploymentId },
-    select: { updatedAt: true },
-  });
-  if (cursor && Date.now() - cursor.updatedAt.getTime() < EVENTS_STALE_AFTER_MS) return;
-  const claim = await claimRefresh(deploymentId);
-  if (!claim) return;
+async function refresh(deploymentId: string, run: Run): Promise<void> {
   try {
-    await pollEventsFor(deploymentId);
+    // A newer confirmation can join a scan whose RPC response stopped at an older tip.
+    // Allow one follow-up, sharing the original caller deadline. Further goals remain eligible
+    // on the next status read rather than creating an unbounded chain of background polls.
+    for (let pass = 0; pass < 2; pass++) {
+      const cursor = await db.eventCursor.findUnique({
+        where: { deploymentId },
+        select: { updatedAt: true, lastLedger: true },
+      });
+      const throughLedger = run.throughLedger;
+      if (throughLedger !== undefined) {
+        if (cursor && cursor.lastLedger >= throughLedger) return;
+      } else if (cursor && Date.now() - cursor.updatedAt.getTime() < EVENTS_STALE_AFTER_MS) return;
+      const claim = await claimRefresh(deploymentId, throughLedger);
+      if (!claim) return;
+      try {
+        // This helper owns durable deployment-service admission, including when a caller's
+        // five-second wait ends before the poll completes.
+        await pollEventsFor(deploymentId);
+      } finally {
+        await rearmClaim(deploymentId, claim, throughLedger);
+      }
+      if ((run.throughLedger ?? 0) <= (throughLedger ?? 0)) return;
+    }
   } finally {
-    await rearmClaim(deploymentId, claim);
+    // Stop accepting joins before this worker resolves: deferred promise cleanup would
+    // let a newer confirmation attach to a finished worker with nobody left to scan it.
+    if (inflight.get(deploymentId) === run) inflight.delete(deploymentId);
   }
 }
 
 /**
  * Before a `GET /api/v1/deployments/{id}/events` read, pull the deployment's new events from RPC
  * when its cursor is older than `EVENTS_STALE_AFTER_MS`, so a payment Paiflow did not submit shows
- * within seconds instead of on the next `cron/poll-events` run.
+ * within seconds instead of on the next `cron/poll-events` run. A known successful ledger
+ * also catches up stored confirmations: recent cursor timestamps never substitute for coverage.
  *
  * Best-effort, like `ingestEventsBounded`: it never throws and never waits past
  * `EVENTS_REFRESH_DEADLINE_MS` from the poll's start; a poll cut short carries on in the background
@@ -114,17 +191,25 @@ async function refresh(deploymentId: string): Promise<void> {
  * range, which is safe: rows are idempotent on `ContractEvent.eventId` and the cursor only moves
  * forward (`advanceEventCursor`).
  */
-export async function refreshEventsIfStale(deploymentId: string): Promise<void> {
+export async function refreshEventsIfStale(
+  deploymentId: string,
+  throughLedger?: number,
+): Promise<void> {
   let run = inflight.get(deploymentId);
   const started = !run;
   if (!run) {
-    const done = refresh(deploymentId)
-      .catch((err: unknown) => {
-        log.warn({ err, deploymentId }, "v1 events: on-demand ingest failed");
-      })
-      .finally(() => inflight.delete(deploymentId));
-    run = { done, deadlineAt: Date.now() + EVENTS_REFRESH_DEADLINE_MS };
+    run = {
+      done: Promise.resolve(),
+      deadlineAt: Date.now() + EVENTS_REFRESH_DEADLINE_MS,
+      throughLedger,
+    };
+    // Register before starting so even a synchronous cursor error is cleaned up by the worker.
     inflight.set(deploymentId, run);
+    run.done = refresh(deploymentId, run).catch((err: unknown) => {
+      log.warn({ err, deploymentId }, "v1 events: on-demand ingest failed");
+    });
+  } else if (throughLedger !== undefined) {
+    run.throughLedger = Math.max(run.throughLedger ?? 0, throughLedger);
   }
 
   const remaining = run.deadlineAt - Date.now();

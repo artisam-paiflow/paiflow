@@ -3,12 +3,14 @@ import type { Deployment } from "@prisma/client";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { AppError } from "@/lib/errors";
+import { log } from "@/lib/log";
 import { recordTransactionOutcome } from "@/lib/analytics/outcomes";
 import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { invokesPipeline } from "@/lib/stellar/transaction-attribution";
 import type { TransactionStatus } from "./schema";
 import { recordControlFinality, repairControlAdmission } from "./control-intent";
+import { refreshEventsIfStale } from "./events-freshness";
 
 const AUDIT_ACTIONS = [
   "DEPLOY_TRIGGER",
@@ -51,6 +53,20 @@ export async function getTransactionStatus(
   if (deployment.network !== network)
     throw new AppError("NOT_FOUND", "Transaction not available for this deployment");
   const base = { txHash, network };
+  const withEvents = async (result: TransactionStatus): Promise<TransactionStatus> => {
+    if (result.status === "SUCCESS" && result.ledger !== undefined) {
+      try {
+        await refreshEventsIfStale(deployment.id, result.ledger);
+      } catch {
+        // Event availability never changes established financial finality.
+        log.warn(
+          { deploymentId: deployment.id, txHash },
+          "transaction status: event catch-up unavailable",
+        );
+      }
+    }
+    return result;
+  };
   const readControl = () =>
     db.walletControlIntent.findFirst({
       where: { deploymentId: deployment.id, network, txHash },
@@ -85,7 +101,7 @@ export async function getTransactionStatus(
   };
   const control = await readControl();
   const durableControl = await controlResult(control);
-  if (durableControl) return durableControl;
+  if (durableControl) return withEvents(durableControl);
 
   // Every record query is scoped before returning or mutating anything. DB errors propagate.
   const where = { deploymentId: deployment.id, network, txHash, kind: { not: "DEPLOY" as const } };
@@ -107,7 +123,7 @@ export async function getTransactionStatus(
         }
       : null;
   const durableAttempt = attemptFinal(attempt);
-  if (durableAttempt) return durableAttempt;
+  if (durableAttempt) return withEvents(durableAttempt);
   const row = await readSigned();
   const saved = terminal(row, base);
   if (saved) {
@@ -118,7 +134,7 @@ export async function getTransactionStatus(
         saved.status === "SUCCESS" ? "SUCCESS" : "FAILED",
         saved.ledger,
       );
-    return saved;
+    return withEvents(saved);
   }
   const [event, audit] = await Promise.all([
     db.contractEvent.findFirst({
@@ -139,7 +155,7 @@ export async function getTransactionStatus(
   // Ingested successful contract events survive RPC history expiry.
   if (event) {
     if (control) await recordControlFinality(deployment.id, txHash, "SUCCESS", event.ledger);
-    return { ...base, status: "SUCCESS", ledger: event.ledger };
+    return withEvents({ ...base, status: "SUCCESS", ledger: event.ledger });
   }
   const associated = Boolean(row || audit || attempt || control);
   const budget = await rateLimit(`v1:transaction-rpc:${deployment.id}`, 60, 60);
@@ -158,7 +174,7 @@ export async function getTransactionStatus(
       (await controlResult(await readControl())) ??
       terminal(await readSigned(), base) ??
       attemptFinal(await readAttempt());
-    if (latest) return latest;
+    if (latest) return withEvents(latest);
     throw new AppError(
       "UPSTREAM_RPC",
       "Transaction status unavailable; retry lookup without resubmitting",
@@ -189,14 +205,14 @@ export async function getTransactionStatus(
           errorCode: got.status === "FAILED" ? "ONCHAIN_FAILED" : null,
         },
       });
-    return {
+    return withEvents({
       ...base,
       status: got.status,
       ledger: got.ledger,
       ...(got.status === "FAILED"
         ? { error: { code: "ONCHAIN_FAILED", message: "Transaction failed on the network" } }
         : {}),
-    };
+    });
   }
   // Re-read after RPC to avoid answering uncertainty over a concurrent confirmation.
   const latest = await readSigned();
@@ -205,7 +221,7 @@ export async function getTransactionStatus(
     (await controlResult(await readControl())) ??
     terminal(latest, base) ??
     attemptFinal(latestAttempt);
-  if (final) return final;
+  if (final) return withEvents(final);
   const current = latest ?? row;
   const currentAttempt = latestAttempt ?? attempt;
   // Positive queue evidence takes precedence over an older submission refusal.

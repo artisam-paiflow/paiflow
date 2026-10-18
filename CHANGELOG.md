@@ -11,6 +11,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Preserve uncertain payment submissions with original-hash recovery guidance, and catch up indexed events after successful status recovery without changing confirmed financial outcomes.
+
 - Preserve optional parameter defaults and inline return fields in the generated SDK reference; align validation assertions with the current address guidance.
 
 - Point SDK package repository metadata to the public source mirror for future releases.

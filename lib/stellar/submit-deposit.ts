@@ -20,12 +20,21 @@ import { recordSignedTransaction } from "@/lib/signed-tx";
 import { sorobanRpc } from "./client";
 import { signerFromTransaction } from "./signer";
 
-const rpcFailed = () => new AppError("UPSTREAM_RPC", "The Soroban RPC request failed; try again");
+type RpcStage = "preflight" | "send" | "confirmation";
+
+const rpcFailed = (txHash: string | undefined, stage: RpcStage) =>
+  new AppError(
+    "UPSTREAM_RPC",
+    stage === "send"
+      ? `Submission acknowledgement was not received for transaction ${txHash}. Its outcome is unknown. Check this original transaction hash; do not prepare or sign another payment.`
+      : `Transaction status could not be checked${txHash ? ` for ${txHash}` : ""}. Retry the original transaction status lookup without preparing or signing another payment.`,
+  );
 
 async function viaRpc<T>(
   fn: () => Promise<T>,
   txHash?: string,
   evidence: { submissionAttempt?: number; observation?: TransactionObservation } = {},
+  stage: RpcStage = "preflight",
 ): Promise<T> {
   try {
     return await fn();
@@ -35,8 +44,17 @@ async function viaRpc<T>(
         failureCode: "RPC_UNAVAILABLE",
         ...evidence,
       });
-    log.warn({ err }, "v1 execute submit: RPC call failed");
-    throw rpcFailed();
+    // RPC errors can carry the signed envelope and credentials in their HTTP config.
+    const code =
+      typeof err === "object" &&
+      err !== null &&
+      "code" in err &&
+      typeof err.code === "string" &&
+      /^[A-Z0-9_]{1,40}$/.test(err.code)
+        ? err.code
+        : undefined;
+    log.warn({ txHash, stage, code }, "v1 execute submit: RPC call failed");
+    throw rpcFailed(txHash, stage);
   }
 }
 
@@ -99,7 +117,12 @@ export async function submitPreparedDeposit({
         "This payout no longer owns recipient protection; only final-status retries are allowed",
       );
     const submissionAttempt = await beginTransactionSubmission(txHash);
-    const send = await viaRpc(() => server.sendTransaction(tx), txHash, { submissionAttempt });
+    const send = await viaRpc(
+      () => server.sendTransaction(tx),
+      txHash,
+      { submissionAttempt },
+      "send",
+    );
 
     if (send.status === "ERROR") {
       await recordTransactionOutcome(txHash, "REJECTED", {
@@ -146,7 +169,7 @@ export async function submitPreparedDeposit({
     }
     try {
       const observation = await transactionObservation(txHash);
-      got = await viaRpc(() => waitForFinal(txHash), txHash, { observation });
+      got = await viaRpc(() => waitForFinal(txHash), txHash, { observation }, "confirmation");
     } finally {
       await slot.release();
     }
