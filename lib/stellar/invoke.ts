@@ -17,6 +17,7 @@ import { simulationFailure } from "./sim-error";
 import { depositSimulationFailure } from "./deposit-simulation-error";
 import { subscriptionChargeFailure } from "./subscription-charge-error";
 import { streamerRetrieveFailure } from "./streamer-retrieve-error";
+import { loadPaymentAccount } from "./load-payment-account";
 
 export type PreparedInvoke = {
   xdr: string;
@@ -32,7 +33,7 @@ export async function prepareDistributeInvocation(opts: {
   invokerAddress: string;
 }): Promise<PreparedInvoke> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.invokerAddress);
+  const sourceAcct = await loadPaymentAccount(server, opts.invokerAddress);
 
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
@@ -139,7 +140,7 @@ export async function prepareWebhookDepositInvocation(opts: {
   amount: string;
 }): Promise<PreparedInvokeTx> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.from);
+  const sourceAcct = await loadPaymentAccount(server, opts.from);
 
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
@@ -274,7 +275,7 @@ export async function prepareDepositInvocation(opts: {
   timeoutSeconds?: 60 | 180;
 }): Promise<PreparedInvoke> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.invokerAddress);
+  const sourceAcct = await loadPaymentAccount(server, opts.invokerAddress);
 
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
@@ -435,7 +436,7 @@ export async function prepareStreamerTopUpInvocation(opts: {
   invokerAddress: string;
 }): Promise<PreparedInvoke> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.invokerAddress);
+  const sourceAcct = await loadPaymentAccount(server, opts.invokerAddress);
 
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);

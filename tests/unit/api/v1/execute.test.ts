@@ -70,6 +70,7 @@ import { V1_WAIT_SLOTS } from "@/lib/api/v1/limits";
 import { acquireWaitSlot } from "@/lib/api/v1/wait-slots";
 import { AppError } from "@/lib/errors";
 import { SimulationError, simulationFailure } from "@/lib/stellar/sim-error";
+import { MissingPaymentAccountError } from "@/lib/stellar/load-payment-account";
 import { audit, wasTxConfirmedFor } from "@/lib/audit";
 import { recordSignedTransaction } from "@/lib/signed-tx";
 import { pollEventsFor } from "@/lib/stellar/events";
@@ -507,7 +508,7 @@ describe("POST …/execute (prepare)", () => {
   });
 
   it("402 when `from` does not exist on this network", async () => {
-    mockPrepareTriggerTx.mockRejectedValue(new Error(`Account not found: ${FROM}`));
+    mockPrepareTriggerTx.mockRejectedValue(new MissingPaymentAccountError());
     const res = await callPrepare();
     expect(res.status).toBe(402);
     expect((await res.json()).error.message).toContain("must be a funded account");
@@ -515,6 +516,13 @@ describe("POST …/execute (prepare)", () => {
 
   it("502 when the RPC itself fails", async () => {
     mockPrepareTriggerTx.mockRejectedValue(new Error("socket hang up"));
+    const res = await callPrepare();
+    expect(res.status).toBe(502);
+    expect((await res.json()).error.code).toBe("UPSTREAM_RPC");
+  });
+
+  it("does not infer a missing account from the SDK's catch-all error message", async () => {
+    mockPrepareTriggerTx.mockRejectedValue(new Error(`Account not found: ${FROM}`));
     const res = await callPrepare();
     expect(res.status).toBe(502);
     expect((await res.json()).error.code).toBe("UPSTREAM_RPC");

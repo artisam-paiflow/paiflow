@@ -1,6 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import {
-  Account,
   Address,
   xdr,
   Keypair,
@@ -12,20 +11,21 @@ import {
   nativeToScVal,
 } from "@stellar/stellar-sdk";
 
-const server = vi.hoisted(() => ({ getAccount: vi.fn(), simulateTransaction: vi.fn() }));
+const server = vi.hoisted(() => ({ _getLedgerEntries: vi.fn(), simulateTransaction: vi.fn() }));
 vi.mock("@/lib/stellar/client", () => ({
   sorobanRpc: () => server,
   decodeContractAddress: (address: string) => StrKey.decodeContract(address),
 }));
 import { SimulationError } from "@/lib/stellar/sim-error";
 import { prepareTriggerTx } from "@/lib/stellar/trigger";
+import { paymentAccountResponse } from "./payment-account-fixture";
 
 const from = Keypair.random().publicKey();
 const contract = StrKey.encodeContract(Buffer.alloc(32, 1));
 const now = 2000000000000;
 beforeEach(() => {
   vi.spyOn(Date, "now").mockReturnValue(now);
-  server.getAccount.mockImplementation(async () => new Account(from, "1"));
+  server._getLedgerEntries.mockResolvedValue(paymentAccountResponse(from, "1"));
   server.simulateTransaction.mockResolvedValue({
     _parsed: true,
     id: "1",
