@@ -11,6 +11,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Give interactive payment preparation, submission and original-hash status recovery one shared 25-second RPC budget; keep background workers at their existing timeout and preserve confirmed outcomes when optional event catch-up runs out of time.
+
 - Preserve uncertain payment submissions with original-hash recovery guidance, and catch up indexed events after successful status recovery without changing confirmed financial outcomes.
 
 - Preserve optional parameter defaults and inline return fields in the generated SDK reference; align validation assertions with the current address guidance.

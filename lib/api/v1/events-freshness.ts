@@ -3,6 +3,10 @@ import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { log } from "@/lib/log";
 import { redis } from "@/lib/redis";
+import {
+  remainingInteractiveRpcMs,
+  withIndependentEventRpcBudget,
+} from "@/lib/stellar/interactive-rpc-budget";
 import { pollEventsFor } from "@/lib/stellar/events";
 
 /**
@@ -18,9 +22,9 @@ export const EVENTS_STALE_AFTER_MS = 10_000;
 /**
  * How long a read waits for that poll before answering from the database anyway, counted from when
  * the poll started, so a caller that joins a running poll waits only for what is left of it.
- * Matches `EVENT_INGEST_DEADLINE_MS` in `lib/api/v1/execute.ts`: `sorobanRpc()` times each call out
- * at 10s and a poll is one `getEvents` per pipeline contract and page, so the poll itself is not
- * bounded.
+ * Matches `EVENT_INGEST_DEADLINE_MS` in `lib/api/v1/execute.ts`. A standalone poll has
+ * ten-second per-RPC timeouts; an interactive worker additionally shares its initiating deadline.
+ * Callers with less operation budget left wait only for that remainder.
  */
 export const EVENTS_REFRESH_DEADLINE_MS = 5_000;
 
@@ -185,9 +189,10 @@ async function refresh(deploymentId: string, run: Run): Promise<void> {
  * also catches up stored confirmations: recent cursor timestamps never substitute for coverage.
  *
  * Best-effort, like `ingestEventsBounded`: it never throws and never waits past
- * `EVENTS_REFRESH_DEADLINE_MS` from the poll's start; a poll cut short carries on in the background
- * and the cron picks up anything it missed. A caller on another replica while a poll runs does not
- * wait for it and reads what is stored. A cron run on the same deployment may overlap the chain
+ * `EVENTS_REFRESH_DEADLINE_MS` from the poll's start (or the caller's remaining RPC budget).
+ * A poll cut short carries on in its independently owned context, capped by the initiating
+ * interactive deadline when present; the cron picks up anything it missed. A caller on another
+ * replica while a poll runs does not wait for it and reads what is stored. A cron run on the same deployment may overlap the chain
  * range, which is safe: rows are idempotent on `ContractEvent.eventId` and the cursor only moves
  * forward (`advanceEventCursor`).
  */
@@ -195,6 +200,8 @@ export async function refreshEventsIfStale(
   deploymentId: string,
   throughLedger?: number,
 ): Promise<void> {
+  const callerBudget = remainingInteractiveRpcMs(EVENTS_REFRESH_DEADLINE_MS);
+  if (callerBudget <= 0) return;
   let run = inflight.get(deploymentId);
   const started = !run;
   if (!run) {
@@ -205,14 +212,16 @@ export async function refreshEventsIfStale(
     };
     // Register before starting so even a synchronous cursor error is cleaned up by the worker.
     inflight.set(deploymentId, run);
-    run.done = refresh(deploymentId, run).catch((err: unknown) => {
-      log.warn({ err, deploymentId }, "v1 events: on-demand ingest failed");
-    });
+    run.done = withIndependentEventRpcBudget(() => refresh(deploymentId, run!)).catch(
+      (err: unknown) => {
+        log.warn({ err, deploymentId }, "v1 events: on-demand ingest failed");
+      },
+    );
   } else if (throughLedger !== undefined) {
     run.throughLedger = Math.max(run.throughLedger ?? 0, throughLedger);
   }
 
-  const remaining = run.deadlineAt - Date.now();
+  const remaining = Math.min(callerBudget, run.deadlineAt - Date.now());
   if (remaining <= 0) return;
   let timer: ReturnType<typeof setTimeout> | undefined;
   await Promise.race([

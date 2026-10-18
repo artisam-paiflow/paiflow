@@ -152,6 +152,21 @@ for (const [name, POST, action] of routes) {
       });
     });
 
+    it("keeps a timed-out send unknown under its original hash without logging the HTTP payload", async () => {
+      const signed = signedEnvelope();
+      mockRpc.sendTransaction.mockRejectedValue(
+        Object.assign(new Error("timeout"), { config: { data: "PRIVATE_SIGNED_BODY" } }),
+      );
+      const res = await call(signed),
+        body = await res.json();
+      expect(res.status).toBe(502);
+      expect(body.error.code).toBe("UPSTREAM_RPC");
+      expect(body.error.message).toContain(hashOf(signed));
+      expect(body.error.message).toContain("outcome is unknown");
+      expect(mockRpc.sendTransaction).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(mockLog.error.mock.calls)).not.toContain("PRIVATE_SIGNED_BODY");
+    });
+
     it("an ERROR send is still a 502 in the shape clients parse, now logged", async () => {
       const signed = signedEnvelope();
       mockRpc.sendTransaction.mockResolvedValue({

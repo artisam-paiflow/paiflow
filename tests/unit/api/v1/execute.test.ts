@@ -25,7 +25,7 @@ vi.mock("@/lib/analytics/outcomes", () => ({
  * Auth runs for real against a mocked token table, so every refusal below goes
  * through `requireDeploymentToken` and `v1Route` as a partner's request would.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   Keypair,
   TransactionBuilder,
@@ -56,6 +56,8 @@ vi.mock("@/lib/audit", () => ({
 }));
 vi.mock("@/lib/signed-tx", () => ({ recordSignedTransaction: vi.fn(async () => undefined) }));
 
+import { interactiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
+import { recordTransactionOutcome } from "@/lib/analytics/outcomes";
 import { POST as prepare } from "@/app/api/v1/deployments/[id]/execute/route";
 import { POST as submit } from "@/app/api/v1/deployments/[id]/execute/submit/route";
 import {
@@ -981,4 +983,95 @@ describe("waitForFinal", () => {
       expect(mockRpc.getTransaction).toHaveBeenCalledTimes(3);
     },
   );
+});
+
+describe("shared interactive submit budget", () => {
+  function rpcAfter<T>(value: T, ms: number): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const signal = interactiveRpcBudget()?.signal;
+      const timer = setTimeout(() => resolve(value), ms);
+      signal?.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer);
+          reject(signal.reason);
+        },
+        { once: true },
+      );
+    });
+  }
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    mockRpc.getTransaction.mockReset();
+    mockRpc.sendTransaction.mockReset();
+    vi.mocked(pollEventsFor).mockReset().mockResolvedValue(1);
+  });
+
+  it("shares25 seconds across preflight, send and optional confirmation, returning accepted PENDING", async () => {
+    const signed = signedEnvelope(),
+      txHash = hashOf(signed);
+    mockRpc.getTransaction
+      .mockImplementationOnce(() => rpcAfter({ status: "NOT_FOUND" }, 8_000))
+      .mockImplementation(() => rpcAfter({ status: "NOT_FOUND" }, 50_000));
+    mockRpc.sendTransaction.mockImplementation(() =>
+      rpcAfter({ status: "PENDING", hash: txHash }, 8_000),
+    );
+    const start = Date.now(),
+      pending = callSubmit(signed);
+    await vi.advanceTimersByTimeAsync(25_000);
+    const response = await pending;
+    expect(Date.now() - start).toBe(25_000);
+    expect(await response.json()).toEqual({ data: { txHash, status: "PENDING" } });
+    expect(mockRpc.sendTransaction).toHaveBeenCalledTimes(1);
+    expect(mockRpc.getTransaction).toHaveBeenCalledTimes(2);
+    expect(recordTransactionOutcome).toHaveBeenCalledWith(txHash, "ACCEPTED", expect.any(Object));
+    expect(
+      vi
+        .mocked(recordTransactionOutcome)
+        .mock.calls.some(([, outcome]) => outcome === "UNRESOLVED"),
+    ).toBe(false);
+  });
+
+  it("retains the original hash as UNRESOLVED when send exhausts the remaining budget and never resends", async () => {
+    const signed = signedEnvelope(),
+      txHash = hashOf(signed);
+    mockRpc.getTransaction.mockImplementation(() => rpcAfter({ status: "NOT_FOUND" }, 8_000));
+    mockRpc.sendTransaction.mockImplementation(() =>
+      rpcAfter({ status: "PENDING", hash: txHash }, 50_000),
+    );
+    const pending = callSubmit(signed);
+    await vi.advanceTimersByTimeAsync(25_000);
+    const response = await pending,
+      body = await response.json();
+    expect(response.status).toBe(502);
+    expect(body.error.code).toBe("UPSTREAM_RPC");
+    expect(body.error.message).toContain(txHash);
+    expect(body.error.message).toContain("outcome is unknown");
+    expect(recordSignedTransaction).toHaveBeenCalledOnce();
+    expect(recordTransactionOutcome).toHaveBeenCalledWith(txHash, "UNRESOLVED", expect.any(Object));
+    expect(mockRpc.sendTransaction).toHaveBeenCalledTimes(1);
+    expect(mockRpc.getTransaction).toHaveBeenCalledTimes(1);
+    expect(pollEventsFor).not.toHaveBeenCalled();
+  });
+
+  it("persists known SUCCESS even when the last second is exhausted catching up events", async () => {
+    const signed = signedEnvelope(),
+      txHash = hashOf(signed);
+    mockRpc.getTransaction.mockImplementation(() =>
+      rpcAfter({ status: "SUCCESS", ledger: 4242 }, 24_000),
+    );
+    vi.mocked(pollEventsFor).mockImplementation(() => rpcAfter(1, 50_000));
+    const pending = callSubmit(signed);
+    await vi.advanceTimersByTimeAsync(25_000);
+    const response = await pending;
+    expect(await response.json()).toEqual({ data: { txHash, status: "SUCCESS", ledger: 4242 } });
+    expect(recordTransactionOutcome).toHaveBeenCalledWith(
+      txHash,
+      "CONFIRMED",
+      expect.objectContaining({ ledger: 4242 }),
+    );
+    expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+    expect(pollEventsFor).toHaveBeenCalledOnce();
+  });
 });
