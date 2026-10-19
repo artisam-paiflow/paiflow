@@ -13,7 +13,10 @@ import {
   readTokenAllowance,
 } from "@/lib/stellar/relayer";
 
-export async function readSubscriptionState(id: string, opts: { snapshotOnly?: boolean } = {}) {
+export async function readSubscriptionState(
+  id: string,
+  opts: { snapshotOnly?: boolean; classifyRpcFailures?: boolean } = {},
+) {
   const d = await db.deployment.findFirst({
     where: { id, status: "CONFIRMED" },
     select: {
@@ -57,9 +60,9 @@ export async function readSubscriptionState(id: string, opts: { snapshotOnly?: b
   if (!StrKey.isValidContract(node.contractAddress))
     throw new AppError("VALIDATION", "Invalid subscription contract address");
   const [subscriber, tokenContractAddress, isCancelled] = await Promise.all([
-    readSubscriptionSubscriberNullable(node.contractAddress),
-    readSubscriptionAsset(node.contractAddress),
-    readSubscriptionIsCancelled(node.contractAddress),
+    readSubscriptionSubscriberNullable(node.contractAddress, opts),
+    readSubscriptionAsset(node.contractAddress, opts),
+    readSubscriptionIsCancelled(node.contractAddress, opts),
   ]);
   if (
     (subscriber !== null && !StrKey.isValidEd25519PublicKey(subscriber)) ||
