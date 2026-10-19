@@ -1,5 +1,6 @@
 import { StrKey } from "@stellar/stellar-sdk";
 import { z } from "zod";
+import { I128_MAX } from "@/lib/flows/primitives";
 
 // Shared by the owner-session token routes and the "API access" panel. No
 // server-only import: the panel validates with the same schema before it posts.
@@ -43,6 +44,10 @@ export const ExecutePrepareSchema = z
       .regex(/^\d{1,39}$/, "Must be a whole number of stroops")
       // Zod still runs this after the regex fails, and BigInt("1.5") throws.
       .refine((s) => !/^\d{1,39}$/.test(s) || BigInt(s) > 0n, "Must be greater than zero")
+      .refine(
+        (s) => !/^\d{1,39}$/.test(s) || BigInt(s) <= I128_MAX,
+        "Amount exceeds the contract i128 range",
+      )
       .describe(
         "Amount to deposit into the flow's deposit trigger, in stroops of the flow's input asset. A terminal chain of fixed Pay steps requires the exact total. Fixed Pay steps before a variable step require at least their total; fixed Split supports partial batch deposits and retained residuals.",
       ),
@@ -188,10 +193,6 @@ export const DemoTokenSchema = z
 export type DemoToken = z.infer<typeof DemoTokenSchema>;
 
 export const PayoutPrepareSchema = ExecutePrepareSchema.extend({
-  amount: ExecutePrepareSchema.shape.amount.refine(
-    (s) => !/^\d{1,39}$/.test(s) || BigInt(s) <= (1n << 127n) - 1n,
-    "Amount exceeds the contract i128 range",
-  ),
   recipient: z
     .string()
     .refine(StrKey.isValidEd25519PublicKey, "Invalid Stellar recipient account")

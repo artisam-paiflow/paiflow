@@ -69,6 +69,7 @@ import {
 import { V1_WAIT_SLOTS } from "@/lib/api/v1/limits";
 import { acquireWaitSlot } from "@/lib/api/v1/wait-slots";
 import { AppError } from "@/lib/errors";
+import { I128_MAX } from "@/lib/flows/primitives";
 import { SimulationError, simulationFailure } from "@/lib/stellar/sim-error";
 import { MissingPaymentAccountError } from "@/lib/stellar/load-payment-account";
 import { audit, wasTxConfirmedFor } from "@/lib/audit";
@@ -432,6 +433,39 @@ describe("POST …/execute (prepare)", () => {
     expect(res.status).toBe(422);
     expect(mockPrepareTriggerTx).not.toHaveBeenCalled();
   });
+
+  it.each([(I128_MAX + 1n).toString(), "9".repeat(39)])(
+    "rejects an overflowing amount with 422 before preparation or financial side effects: %s",
+    async (amount) => {
+      const res = await callPrepare({ ...prepareBody, amount });
+
+      expect(res.status).toBe(422);
+      expect(await res.json()).toMatchObject({
+        error: {
+          code: "VALIDATION",
+          fields: { amount: ["Amount exceeds the contract i128 range"] },
+        },
+      });
+      expect(mockPrepareTriggerTx).not.toHaveBeenCalled();
+      expect(mockBuildHint).not.toHaveBeenCalled();
+      expect(mockRpc.getTransaction).not.toHaveBeenCalled();
+      expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+      expect(recordSignedTransaction).not.toHaveBeenCalled();
+      expect(audit).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([(I128_MAX - 1n).toString(), I128_MAX.toString()])(
+    "passes a representable boundary amount unchanged to preparation: %s",
+    async (amount) => {
+      mockPrepareTriggerTx.mockResolvedValue({ xdr: signedEnvelope() });
+
+      const res = await callPrepare({ ...prepareBody, amount });
+
+      expect(res.status).toBe(200);
+      expect(mockPrepareTriggerTx).toHaveBeenCalledWith(expect.objectContaining({ amount }));
+    },
+  );
 
   it("422 for a body that is not JSON", async () => {
     const res = await prepare(
