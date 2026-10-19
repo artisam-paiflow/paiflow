@@ -4,7 +4,7 @@ import { Address, Keypair, Networks, Transaction, nativeToScVal, xdr } from "@st
 const stub = vi.hoisted(() => ({
   source: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
   rpc: {
-    getLedgerEntries: vi.fn(),
+    _getLedgerEntries: vi.fn(),
     getAccount: vi.fn(),
     simulateTransaction: vi.fn(),
     sendTransaction: vi.fn(),
@@ -33,6 +33,7 @@ vi.mock("@/lib/contract-read-cache", () => ({
 }));
 
 import { simulateContractCall, simulateGetter } from "@/lib/stellar/contract-read";
+import { paymentAccountResponse } from "./payment-account-fixture";
 import { SimulationError } from "@/lib/stellar/sim-error";
 import { readSoroswapQuote } from "@/lib/stellar/soroswap";
 
@@ -48,24 +49,13 @@ const success = (retval: xdr.ScVal) => ({
 });
 
 function accountResponse() {
-  const id = Keypair.fromPublicKey(stub.source).xdrPublicKey();
-  return {
-    latestLedger: 42,
-    entries: [
-      {
-        key: xdr.LedgerKey.account(new xdr.LedgerKeyAccount({ accountId: id })),
-        val: {
-          account: () => ({ accountId: () => id, seqNum: () => xdr.Int64.fromString("123") }),
-        },
-      },
-    ],
-  };
+  return paymentAccountResponse(stub.source, "123");
 }
 
 beforeEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
-  stub.rpc.getLedgerEntries.mockReset().mockResolvedValue(accountResponse());
+  stub.rpc._getLedgerEntries.mockReset().mockResolvedValue(accountResponse());
   // Installed SDK would hide the underlying fault. This method must never run.
   stub.rpc.getAccount.mockRejectedValue(new Error(`Account not found: ${stub.source}`));
   stub.rpc.simulateTransaction
@@ -75,7 +65,7 @@ beforeEach(() => {
 
 describe("read-only contract RPC classification", () => {
   it("keeps an absent account as 402 only after a successful empty ledger response", async () => {
-    stub.rpc.getLedgerEntries.mockResolvedValue({ latestLedger: 42, entries: [] });
+    stub.rpc._getLedgerEntries.mockResolvedValue({ latestLedger: 42, entries: [] });
     await expect(simulateGetter(ROUTER, "get_factory", context)).rejects.toMatchObject({
       code: "INSUFFICIENT_FUNDS",
       status: 402,
@@ -93,7 +83,7 @@ describe("read-only contract RPC classification", () => {
   ])(
     "maps a rejected ledger read to sanitized 502 even with lossy SDK-style text (%#)",
     async (error) => {
-      stub.rpc.getLedgerEntries.mockRejectedValue(error);
+      stub.rpc._getLedgerEntries.mockRejectedValue(error);
       await expect(simulateGetter(ROUTER, "get_factory", context)).rejects.toMatchObject({
         code: "UPSTREAM_RPC",
         status: 502,
@@ -143,16 +133,16 @@ describe("read-only contract RPC classification", () => {
     expect(stub.rpc.sendTransaction).not.toHaveBeenCalled();
   });
 
-  it.each([undefined, [{ key: {}, val: {} }]])(
+  it.each([null, [{ key: {}, xdr: {} }]])(
     "maps malformed ledger entries to 502, never account absence (%#)",
     async (entries) => {
-      stub.rpc.getLedgerEntries.mockResolvedValue({ latestLedger: 42, entries });
+      stub.rpc._getLedgerEntries.mockResolvedValue({ latestLedger: 42, entries });
       await expect(simulateGetter(ROUTER, "get_factory", context)).rejects.toMatchObject({
         code: "UPSTREAM_RPC",
         status: 502,
       });
       expect(stub.log.error).toHaveBeenCalledWith(
-        expect.objectContaining({ category: "invalid_response" }),
+        expect.objectContaining({ category: "account_unavailable" }),
         expect.any(String),
       );
     },

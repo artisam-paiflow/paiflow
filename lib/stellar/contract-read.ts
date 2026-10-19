@@ -3,7 +3,6 @@ import {
   Account,
   BASE_FEE,
   Contract,
-  Keypair,
   TransactionBuilder,
   rpc,
   scValToNative,
@@ -13,6 +12,7 @@ import { sorobanRpc } from "./client";
 import { stellarPassphrase, stellarRelayerAddress } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { log } from "@/lib/log";
+import { loadPaymentAccount, MissingPaymentAccountError } from "./load-payment-account";
 import { simulationFailure } from "./sim-error";
 
 export type ContractReadContext = { requestId?: string };
@@ -27,6 +27,7 @@ function rpcErrorCategory(err: unknown): string {
     response?: { status?: unknown };
   } | null;
   const code = error?.code ?? error?.cause?.code;
+  if (code === "RPC_DEADLINE") return "deadline";
   if (error?.name === "TimeoutError" || code === "ETIMEDOUT" || code === "UND_ERR_CONNECT_TIMEOUT")
     return "timeout";
   if (error?.name === "AbortError") return "aborted";
@@ -76,67 +77,35 @@ export async function simulateContractCall(
   const source = stellarRelayerAddress();
   if (!source) throw new AppError("INTERNAL", "STELLAR_RELAYER_ADDRESS is not configured");
 
-  // SDK getAccount/getAccountEntry erase transport failures as "Account not found".
-  // Only a successful, empty ledger response establishes that an account is absent.
-  const key = xdr.LedgerKey.account(
-    new xdr.LedgerKeyAccount({
-      accountId: Keypair.fromPublicKey(source).xdrPublicKey(),
-    }),
-  );
+  // Read raw RPC entries: the SDK parsed reader normalizes malformed entries:null
+  // into an empty array, which cannot establish genuine account absence.
   const accountStartedAt = Date.now();
-  let response: rpc.Api.GetLedgerEntriesResponse;
-  try {
-    response = await server.getLedgerEntries(key);
-  } catch (err) {
-    throw readFailure(
-      "getLedgerEntries",
-      functionName,
-      accountStartedAt,
-      context,
-      rpcErrorCategory(err),
-    );
-  }
-  if (!response || !Number.isInteger(response.latestLedger) || !Array.isArray(response.entries)) {
-    throw readFailure(
-      "getLedgerEntries",
-      functionName,
-      accountStartedAt,
-      context,
-      "invalid_response",
-    );
-  }
-  if (response.entries.length === 0) {
-    log.warn(
-      {
-        operation: "getLedgerEntries",
-        functionName,
-        requestId: context.requestId,
-        category: "account_absent",
-        elapsedMs: Math.max(0, Date.now() - accountStartedAt),
-      },
-      "contract read source account absent",
-    );
-    throw new AppError(
-      "INSUFFICIENT_FUNDS",
-      `Relayer account ${source} is not funded or does not exist`,
-    );
-  }
   let sourceAccount: Account;
   try {
-    const entry = response.entries[0]!;
-    if (response.entries.length !== 1 || !entry.key.toXDR().equals(key.toXDR()))
-      throw new Error("Unexpected account entry");
-    const account = entry.val.account();
-    if (!account.accountId().toXDR().equals(Keypair.fromPublicKey(source).xdrPublicKey().toXDR()))
-      throw new Error("Unexpected account ID");
-    sourceAccount = new Account(source, account.seqNum().toString());
-  } catch {
+    sourceAccount = await loadPaymentAccount(server, source);
+  } catch (error) {
+    if (error instanceof MissingPaymentAccountError) {
+      log.warn(
+        {
+          operation: "getLedgerEntries",
+          functionName,
+          requestId: context.requestId,
+          category: "account_absent",
+          elapsedMs: Math.max(0, Date.now() - accountStartedAt),
+        },
+        "contract read source account absent",
+      );
+      throw new AppError(
+        "INSUFFICIENT_FUNDS",
+        `Relayer account ${source} is not funded or does not exist`,
+      );
+    }
     throw readFailure(
       "getLedgerEntries",
       functionName,
       accountStartedAt,
       context,
-      "invalid_response",
+      "account_unavailable",
     );
   }
 

@@ -5,6 +5,7 @@ import { AppError } from "@/lib/errors";
 import { env } from "@/lib/env";
 import { FlowGraphSchema, isTrigger, assetLabel } from "@/lib/flows/schema";
 import { findPipelineNode, pipelineNodesOfKind } from "@/lib/pipeline-snapshot";
+import { withInteractiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
 import { assetContractId } from "@/lib/stellar/assets";
 import {
   readSubscriptionAsset,
@@ -114,19 +115,25 @@ export function requireSubscriber(
   return state.subscriber;
 }
 
-/** Deployment-token allowance read reusing the public workflow's live state readers. */
+/** Interactive deployment-token read; public/background helpers keep their defaults. */
 export async function subscriptionAllowanceState(id: string) {
-  const state = await readSubscriptionState(id, { snapshotOnly: true });
-  if (!state.subscriber && state.templateKind !== "SUBSCRIPTION_DEV")
-    throw new AppError("UPSTREAM_RPC", "Ordinary subscription has no configured subscriber");
-  const allowance = state.subscriber
-    ? await readTokenAllowance({
-        tokenContractAddress: state.tokenContractAddress,
-        owner: state.subscriber,
-        spender: state.contractAddress,
-      })
-    : null;
-  if (allowance !== null && (allowance < 0n || allowance > (1n << 127n) - 1n))
-    throw new AppError("UPSTREAM_RPC", "Invalid allowance returned by the contract");
-  return { ...state, allowance: allowance?.toString() ?? "0", setupRequired: !state.subscriber };
+  return withInteractiveRpcBudget(async () => {
+    const state = await readSubscriptionState(id, {
+      snapshotOnly: true,
+      classifyRpcFailures: true,
+    });
+    if (!state.subscriber && state.templateKind !== "SUBSCRIPTION_DEV")
+      throw new AppError("UPSTREAM_RPC", "Ordinary subscription has no configured subscriber");
+    const allowance = state.subscriber
+      ? await readTokenAllowance({
+          tokenContractAddress: state.tokenContractAddress,
+          owner: state.subscriber,
+          spender: state.contractAddress,
+          classifyRpcFailures: true,
+        })
+      : null;
+    if (allowance !== null && (allowance < 0n || allowance > (1n << 127n) - 1n))
+      throw new AppError("UPSTREAM_RPC", "Invalid allowance returned by the contract");
+    return { ...state, allowance: allowance?.toString() ?? "0", setupRequired: !state.subscriber };
+  });
 }
