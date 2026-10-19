@@ -1,6 +1,7 @@
 import "server-only";
 import type { ApiTokenType } from "@/lib/api/v1/auth";
 import type { Deployment } from "@prisma/client";
+import { log } from "@/lib/log";
 import { AppError } from "@/lib/errors";
 import { stellarPassphrase } from "@/lib/env";
 import { clientIp } from "@/lib/rate-limit";
@@ -17,7 +18,12 @@ import {
 } from "@/lib/stellar/invoke";
 import { linkApiTransaction } from "@/lib/api/request-history/context";
 import { deploymentCapabilities } from "./capabilities";
-import { createControlIntent, readControlIntent, type WalletControlAction } from "./control-intent";
+import {
+  createControlIntent,
+  readControlIntent,
+  reconcileControlIntent,
+  type WalletControlAction,
+} from "./control-intent";
 import { submitControlIntent } from "./control-submission";
 
 export type SubscriptionControlAction = Extract<
@@ -145,10 +151,44 @@ export async function submitSubscriptionControl(input: {
   return submitControlIntent({
     ...input,
     ip: clientIp(input.req),
-    assertEligible: async () => {
-      const { node } = await eligible(input.deployment, input.action, intent.walletAddress);
-      if (node.nodeId !== intent.nodeId || node.contractAddress !== intent.contractAddress)
-        throw new AppError("VALIDATION", "Subscription control target changed since preparation");
-    },
+    // Only pre-send reads own this deadline. Close the budget before durable
+    // claiming/sending; an accepted transaction must keep its original finality.
+    assertEligible: () =>
+      withInteractiveRpcBudget(async () => {
+        const { node } = await eligible(input.deployment, input.action, intent.walletAddress, true);
+        if (node.nodeId !== intent.nodeId || node.contractAddress !== intent.contractAddress)
+          throw new AppError("VALIDATION", "Subscription control target changed since preparation");
+        if (interactiveRpcBudgetExpired())
+          throw new AppError(
+            "UPSTREAM_RPC",
+            "Subscription eligibility exceeded its RPC deadline; retry the original intent",
+          );
+      }),
+  });
+}
+
+/** Interactive recovery has one budget; background retirement retains its defaults. */
+export function reconcileSubscriptionControl(
+  id: string,
+  deploymentId: string,
+  action: SubscriptionControlAction,
+) {
+  const startedAt = Date.now();
+  return withInteractiveRpcBudget(async () => {
+    try {
+      return await reconcileControlIntent(id, deploymentId, action);
+    } catch (error) {
+      if (error instanceof AppError && error.code === "UPSTREAM_RPC")
+        log.warn(
+          {
+            operation: "subscription.reconcile",
+            deploymentId,
+            category: interactiveRpcBudgetExpired() ? "deadline" : "upstream",
+            elapsedMs: Math.max(0, Date.now() - startedAt),
+          },
+          "Subscription finality unavailable; reservation retained",
+        );
+      throw error;
+    }
   });
 }

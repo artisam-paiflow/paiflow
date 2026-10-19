@@ -11,6 +11,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Bound Subscription control submission checks, state reads and reconciliation to one interactive RPC deadline, and distinguish unavailable account/allowance reads from genuine missing accounts without changing transaction recovery.
+
+- Give deployment preparation one shared 25-second network budget across funding, account lookup and simulation; distinguish unavailable RPC services from unfunded accounts and allow safe preparation retries before signing.
+
 - Give Subscription cancellation and reactivation preparation one shared 25-second RPC budget; report source-account and simulation transport failures as upstream errors without reserving an intent when preparation fails.
 
 - Keep deployment submissions with uncertain RPC outcomes pending under their original transaction hash, including relayer deployments; resume the original unsigned preparation after a reload when it was never accepted, and permit deliberate replacement only after proving expiry.

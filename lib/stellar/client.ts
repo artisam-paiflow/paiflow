@@ -17,6 +17,7 @@ const g = globalThis as unknown as {
   __sorobanRpc?: rpc.Server;
   __horizon?: Horizon.Server;
   __interactiveRpcServers?: WeakMap<object, rpc.Server>;
+  __interactiveHorizonServers?: WeakMap<object, Horizon.Server>;
   __relayerValidated?: boolean;
   __relayerPendingBarrier?: () => Promise<void>;
 };
@@ -105,24 +106,39 @@ export function sorobanRpc(): rpc.Server {
   return server;
 }
 
+function createHorizonServer(): Horizon.Server {
+  const server = new Horizon.Server(stellarHorizonUrl(), { allowHttp: false });
+  const submit = server.submitTransaction.bind(server);
+  server.submitTransaction = async (transaction, options) => {
+    const hash = transaction.hash().toString("hex");
+    await beforeServiceSubmission(hash, "horizon");
+    // A thrown transport error is deliberately left PENDING.
+    const result = await submit(transaction, options);
+    await observeServiceTransaction(hash, "SUCCESS", result.ledger);
+    return result;
+  };
+  // submitTransaction's explicit timeout is overridden only in interactive work.
+  server.httpClient.defaults.timeout = STELLAR_HTTP_TIMEOUT_MS;
+  return server;
+}
+
 export function horizon(): Horizon.Server {
-  if (!g.__horizon) {
-    g.__horizon = new Horizon.Server(stellarHorizonUrl(), { allowHttp: false });
-    const server = g.__horizon;
-    const submit = server.submitTransaction.bind(server);
-    server.submitTransaction = async (transaction, options) => {
-      const hash = transaction.hash().toString("hex");
-      await beforeServiceSubmission(hash, "horizon");
-      // A thrown transport error is deliberately left PENDING.
-      const result = await submit(transaction, options);
-      await observeServiceTransaction(hash, "SUCCESS", result.ledger);
-      return result;
-    };
-    // Horizon.Server has no timeout option either. submitTransaction passes
-    // its own 60s per request, which overrides this default.
-    g.__horizon.httpClient.defaults.timeout = STELLAR_HTTP_TIMEOUT_MS;
+  const shared = (g.__horizon ??= createHorizonServer());
+  const budget = interactiveRpcBudget();
+  if (!budget) return shared;
+  const clients = (g.__interactiveHorizonServers ??= new WeakMap());
+  let server = clients.get(budget);
+  if (!server) {
+    server = createHorizonServer();
+    server.httpClient.defaults.timeout = INTERACTIVE_RPC_BUDGET_MS;
+    server.httpClient.interceptors.request.use((config) => {
+      const remaining = budget.deadlineAt - Date.now();
+      if (remaining <= 0 || budget.signal.aborted) throw new InteractiveRpcDeadlineError();
+      return Object.assign(config, { timeout: remaining, signal: budget.signal });
+    });
+    clients.set(budget, server);
   }
-  return g.__horizon;
+  return server;
 }
 
 export function decodeContractAddress(addr: string): Buffer {

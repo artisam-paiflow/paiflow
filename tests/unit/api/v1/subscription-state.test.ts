@@ -103,6 +103,7 @@ describe("deployment-token Subscription state", () => {
         tokenContractAddress: assetContractId({ kind: "native" }),
         owner: subscriber,
         spender: TRIGGER,
+        classifyRpcFailures: true,
       });
     },
   );
