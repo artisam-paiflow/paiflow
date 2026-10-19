@@ -11,11 +11,14 @@ import {
   contractCallPendingKey,
   readPendingContractCall,
   savePendingContractCall,
+  markPendingContractCallSubmitted,
+  rejectPendingContractCallSigning,
   withContractCallLock,
   type PendingContractCall,
 } from "@/lib/contract-call-pending";
 import { assertNoPendingDeploymentRequest } from "@/lib/deployment-request-pending";
 import { readAllowancePendingHash } from "@/lib/subscription/allowance-pending";
+import { signWithRecovery } from "@/lib/wallet-signing-recovery";
 import { getWalletKit } from "./wallet-kit";
 import { assertWalletAttemptActive, connectSelectedWallet } from "./selected-wallet-connection";
 
@@ -80,7 +83,11 @@ export default function ContractCallButton({
         setStatusMessage(
           "An approval is awaiting confirmation. Check its status on the allowance page before starting another action.",
         );
-      } else if (!saved) {
+      } else if (saved?.phase === "signing") {
+        setStatusMessage(
+          `Signing outcome is unknown for ${saved.txHash}. No submission is recorded. Check its status before another action.`,
+        );
+      } else {
         setStatusMessage(null);
       }
       setPending(saved);
@@ -124,7 +131,9 @@ export default function ContractCallButton({
     } catch {
       if (isCurrentView()) {
         setStatusMessage(
-          `Confirmation is still unknown for ${saved.txHash}. Check its status before starting another action.`,
+          saved.phase === "signing"
+            ? `Signing outcome is still unknown for ${saved.txHash}. No submission is recorded. Check its status before another action.`
+            : `Confirmation is still unknown for ${saved.txHash}. Check its status before starting another action.`,
         );
       }
     }
@@ -144,7 +153,9 @@ export default function ContractCallButton({
     } catch {
       if (isCurrent()) {
         setStatusMessage(
-          `Confirmation is still unknown for ${saved.txHash}. Check its status before starting another action.`,
+          saved.phase === "signing"
+            ? `Signing outcome is still unknown for ${saved.txHash}. No submission is recorded. Check its status before another action.`
+            : `Confirmation is still unknown for ${saved.txHash}. Check its status before starting another action.`,
         );
       }
     } finally {
@@ -251,20 +262,34 @@ export default function ContractCallButton({
           const { xdr, networkPassphrase } = await prepare(address);
           check();
 
-          const { assertWalletNetwork, signedWalletTransactionHash } =
-            await import("@/lib/stellar/wallet-signature");
-          check();
-          assertWalletNetwork(network, networkPassphrase);
           toast.info("Awaiting signature...");
-          const signed = await connection.signTransaction(xdr, { address, networkPassphrase });
-          check();
-          const txHash = signedWalletTransactionHash(
+          const signed = await signWithRecovery({
             network,
             xdr,
-            signed.signedTxXdr,
             address,
             networkPassphrase,
-          );
+            check,
+            save: (attempt) => {
+              assertNoPendingDeploymentRequest(deploymentId, network);
+              if (readAllowancePendingHash(deploymentId, network))
+                throw new Error(
+                  "An approval is awaiting confirmation. Check its status on the allowance page before starting another action.",
+                );
+              try {
+                savePendingContractCall(pendingKey, attempt);
+              } catch (error) {
+                setStorageBlocked(true);
+                setStatusMessage(
+                  "Transaction status could not be saved. No signature was requested.",
+                );
+                throw error;
+              }
+            },
+            read: () => readPendingContractCall(pendingKey),
+            clearRejected: (attempt) => rejectPendingContractCallSigning(pendingKey, attempt),
+            sign: () => connection.signTransaction(xdr, { address, networkPassphrase }),
+          });
+          check();
           // The allowance protocol owns its opaque intent and clearing proof.
           // Only read its public pending status, under the same admission lock.
           assertNoPendingDeploymentRequest(deploymentId, network);
@@ -273,19 +298,10 @@ export default function ContractCallButton({
               "An approval is awaiting confirmation. Check its status on the allowance page before starting another action.",
             );
           }
-          const saved = { txHash };
+          const saved = { ...signed.attempt, phase: "submitted" as const };
+          markPendingContractCallSubmitted(pendingKey, signed.attempt);
+          check();
           admitted = true;
-          try {
-            savePendingContractCall(pendingKey, saved);
-          } catch (error) {
-            if (isCurrent()) {
-              setStorageBlocked(true);
-              setStatusMessage(
-                "Transaction status could not be saved. No transaction was submitted.",
-              );
-            }
-            throw error;
-          }
           // Irreversible boundary: from here, view cancellation only suppresses
           // stale UI. Never retry a write or discard its outcome on navigation.
           toast.info("Submitting transaction...");
@@ -351,7 +367,9 @@ export default function ContractCallButton({
         <div className="text-on-surface-variant space-y-2 text-xs" role="status">
           <p>
             {statusMessage ??
-              `A transaction is awaiting confirmation: ${pending?.txHash}. Check its status before starting another action.`}
+              (pending?.phase === "signing"
+                ? `Signing outcome is unknown for ${pending.txHash}. No submission is recorded. Check its status before another action.`
+                : `A transaction is awaiting confirmation: ${pending?.txHash}. Check its status before starting another action.`)}
           </p>
           {pending && !storageBlocked && (
             <button

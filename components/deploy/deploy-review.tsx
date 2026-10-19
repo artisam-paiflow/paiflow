@@ -19,9 +19,12 @@ import {
   deployPendingKey,
   readPendingDeploy,
   savePendingDeploy,
+  markPendingDeploySubmitted,
+  rejectPendingDeploySigning,
   withDeployLock,
   type PendingDeploy,
 } from "@/lib/deploy-pending";
+import { signWithRecovery } from "@/lib/wallet-signing-recovery";
 import SwapQuotePreview from "@/components/builder/swap-quote-preview";
 import TrustlineWarnings from "@/components/deploy/trustline-warnings";
 import { connectSelectedWallet, assertWalletAttemptActive } from "./selected-wallet-connection";
@@ -137,7 +140,9 @@ export default function DeployReview({
     } catch {
       if (current())
         setStatusMessage(
-          `Confirmation is still unknown for ${saved.txHash}. Check this deployment before deploying again.`,
+          saved.phase === "signing"
+            ? `Signing outcome is still unknown for ${saved.txHash}. No submission is recorded. Check this deployment before deploying again.`
+            : `Confirmation is still unknown for ${saved.txHash}. Check this deployment before deploying again.`,
         );
     }
   }
@@ -256,35 +261,37 @@ export default function DeployReview({
             !prepData.data.networkPassphrase
           )
             throw new Error("Missing deployment transaction payload");
-          const { assertWalletNetwork, signedWalletTransactionHash } =
-            await import("@/lib/stellar/wallet-signature");
-          check();
-          assertWalletNetwork(network, prepData.data.networkPassphrase);
+          const preparedDeploymentId = deploymentId;
           stage = "sign";
-          const signed = await connection.signTransaction(prepData.data.xdr, {
+          const signed = await signWithRecovery({
+            network,
+            xdr: prepData.data.xdr,
             address,
             networkPassphrase: prepData.data.networkPassphrase,
+            check,
+            save: (attempt) => {
+              try {
+                savePendingDeploy(pendingKey, { ...attempt, deploymentId: preparedDeploymentId });
+              } catch (error) {
+                setStorageBlocked(true);
+                setStatusMessage(
+                  "Deployment status could not be saved. No signature was requested.",
+                );
+                throw error;
+              }
+            },
+            read: () => readPendingDeploy(pendingKey),
+            clearRejected: (attempt) => rejectPendingDeploySigning(pendingKey, attempt),
+            sign: () =>
+              connection.signTransaction(prepData.data.xdr, {
+                address,
+                networkPassphrase: prepData.data.networkPassphrase,
+              }),
           });
           check();
-          const txHash = signedWalletTransactionHash(
-            network,
-            prepData.data.xdr,
-            signed.signedTxXdr,
-            address,
-            prepData.data.networkPassphrase,
-          );
-          const saved = { deploymentId, txHash };
-          try {
-            savePendingDeploy(pendingKey, saved);
-          } catch (error) {
-            if (current()) {
-              setStorageBlocked(true);
-              setStatusMessage(
-                "Deployment status could not be saved. No transaction was submitted.",
-              );
-            }
-            throw error;
-          }
+          const saved = { ...signed.attempt, deploymentId, phase: "submitted" as const };
+          markPendingDeploySubmitted(pendingKey, signed.attempt);
+          check();
           dispatched = true;
           stage = "submit";
           try {
@@ -419,7 +426,9 @@ export default function DeployReview({
         <div role="status" className="text-on-surface-variant space-y-2 text-xs">
           <p>
             {statusMessage ??
-              `Deployment ${pending?.deploymentId} is awaiting confirmation. Check it before deploying again.`}
+              (pending?.phase === "signing"
+                ? `Signing outcome is unknown for ${pending.txHash}. No submission is recorded. Check this deployment before deploying again.`
+                : `Deployment ${pending?.deploymentId} is awaiting confirmation. Check it before deploying again.`)}
           </p>
           {pending && (
             <>

@@ -53,3 +53,23 @@ describe("public deployment recovery coordinates", () => {
     expect(readPendingDeploy(key)).toBeNull();
   });
 });
+
+describe("deployment signing reservation CAS", () => {
+  it("promotes only the matching signing attempt; cancellation never releases submitted or legacy records", async () => {
+    const { markPendingDeploySubmitted, rejectPendingDeploySigning } =
+      await import("@/lib/deploy-pending");
+    const attempt = { ...saved, phase: "signing" as const, attemptId: crypto.randomUUID() };
+    savePendingDeploy(key, attempt);
+    const stale = { ...attempt, attemptId: crypto.randomUUID() };
+    expect(() => markPendingDeploySubmitted(key, stale)).toThrow();
+    rejectPendingDeploySigning(key, stale);
+    expect(readPendingDeploy(key)).toEqual(attempt);
+    markPendingDeploySubmitted(key, attempt);
+    rejectPendingDeploySigning(key, attempt);
+    expect(readPendingDeploy(key)).toEqual({ ...attempt, phase: "submitted" });
+    clearPendingDeploy(key, saved);
+    savePendingDeploy(key, saved);
+    rejectPendingDeploySigning(key, attempt);
+    expect(readPendingDeploy(key)).toEqual(saved);
+  });
+});

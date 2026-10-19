@@ -42,6 +42,7 @@ vi.mock("@creit.tech/stellar-wallets-kit/modules/walletconnect.module", () => ({
 vi.mock("@/lib/stellar/wallet-signature", () => ({
   assertWalletNetwork: vi.fn(),
   assertSignedWalletTransaction: vi.fn(),
+  preparedWalletTransactionHash: () => "a".repeat(64),
   signedWalletTransactionHash: () => "a".repeat(64),
 }));
 const address = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";

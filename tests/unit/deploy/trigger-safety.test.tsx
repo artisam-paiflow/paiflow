@@ -23,6 +23,10 @@ vi.mock("@/components/deploy/selected-wallet-connection", () => ({
 }));
 vi.mock("@/lib/hooks/use-poll-tx-status", () => ({ usePollTxStatus: () => mocks.poll }));
 vi.mock("@/lib/stellar/wallet-signature", () => ({
+  preparedWalletTransactionHash: (...args: unknown[]) => {
+    mocks.assertNetwork(args[0], args[3]);
+    return "a".repeat(64);
+  },
   signedWalletTransactionHash: mocks.hash,
   assertWalletNetwork: mocks.assertNetwork,
 }));
@@ -160,7 +164,9 @@ describe("trigger dispatch admission and read-only recovery", () => {
     await waitFor(() => expect(mocks.poll).toHaveBeenCalledOnce());
     // Assert outside the submit mock: production deliberately catches transport
     // rejections, which would otherwise swallow a failed assertion in that mock.
-    expect(pendingAtDispatch).toEqual([JSON.stringify({ txHash: hash })]);
+    expect(pendingAtDispatch.map((raw) => JSON.parse(raw!))).toEqual([
+      expect.objectContaining({ txHash: hash, phase: "submitted", attemptId: expect.any(String) }),
+    ]);
     expect(mocks.hash).toHaveBeenCalledExactlyOnceWith(
       "testnet",
       "unsigned",
@@ -184,7 +190,11 @@ describe("trigger dispatch admission and read-only recovery", () => {
       await waitFor(() =>
         expect(screen.getByRole("status").textContent).toContain("still unknown"),
       );
-      expect(JSON.parse(localStorage.getItem(key)!)).toEqual({ txHash: hash });
+      expect(JSON.parse(localStorage.getItem(key)!)).toMatchObject({
+        txHash: hash,
+        phase: "submitted",
+        attemptId: expect.any(String),
+      });
       expect(button().disabled).toBe(true);
       expect(
         JSON.stringify(
@@ -241,7 +251,10 @@ describe("trigger dispatch admission and read-only recovery", () => {
     await waitFor(() => expect(mocks.error).toHaveBeenCalled());
     expect(mocks.fetch).toHaveBeenCalledOnce();
     expect(mocks.poll).not.toHaveBeenCalled();
-    expect(localStorage.getItem(key)).toBeNull();
+    expect(JSON.parse(localStorage.getItem(key)!)).toMatchObject({
+      txHash: hash,
+      phase: "signing",
+    });
   });
   it("fails closed if the public hash cannot be durably saved", async () => {
     await mount();
@@ -250,7 +263,7 @@ describe("trigger dispatch admission and read-only recovery", () => {
     });
     await click();
     await waitFor(() =>
-      expect(screen.getByRole("status").textContent).toContain("No transaction was submitted"),
+      expect(screen.getByRole("status").textContent).toContain("No signature was requested"),
     );
     expect(mocks.fetch).toHaveBeenCalledOnce();
     expect(mocks.poll).not.toHaveBeenCalled();
@@ -309,7 +322,10 @@ describe("trigger attempt lifetime", () => {
       expect(mocks.hash).not.toHaveBeenCalled();
       expect(mocks.poll).not.toHaveBeenCalled();
       expect(mocks.error).not.toHaveBeenCalled();
-      expect(localStorage.getItem(key)).toBeNull();
+      expect(JSON.parse(localStorage.getItem(key)!)).toMatchObject({
+        txHash: hash,
+        phase: "signing",
+      });
     },
   );
   it("ignores an old preparation response and releases its pre-dispatch lock", async () => {
@@ -337,7 +353,11 @@ describe("trigger attempt lifetime", () => {
     await waitFor(() => expect(mocks.poll).toHaveBeenCalledWith("deployment", hash));
     await act(async () => view.rerender(<TriggerButton {...base} amount="2000000" />));
     expect(button().disabled).toBe(true);
-    expect(JSON.parse(localStorage.getItem(key)!)).toEqual({ txHash: hash });
+    expect(JSON.parse(localStorage.getItem(key)!)).toMatchObject({
+      txHash: hash,
+      phase: "submitted",
+      attemptId: expect.any(String),
+    });
     await act(async () =>
       response.resolve({ ok: true, json: async () => ({ data: { txHash: otherHash } }) }),
     );
@@ -399,7 +419,7 @@ describe("public allowance keeps its established scoped protocol", () => {
     await mount({ mode: "allowance", templateKind: "SUBSCRIPTION" });
     await click();
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("still unknown"));
-    expect(JSON.parse(localStorage.getItem(allowanceKey)!)).toEqual({
+    expect(JSON.parse(localStorage.getItem(allowanceKey)!)).toMatchObject({
       txHash: hash,
       intent: "existing-private-intent",
     });
@@ -422,7 +442,7 @@ describe("public allowance keeps its established scoped protocol", () => {
     vi.useFakeTimers();
     await click();
     expect(mocks.poll).not.toHaveBeenCalled();
-    expect(JSON.parse(localStorage.getItem(allowanceKey)!)).toEqual({
+    expect(JSON.parse(localStorage.getItem(allowanceKey)!)).toMatchObject({
       txHash: hash,
       intent: "existing-private-intent",
     });
@@ -472,4 +492,54 @@ describe("public allowance keeps its established scoped protocol", () => {
     expect(JSON.parse(localStorage.getItem(allowanceKey)!).txHash).toBe(otherHash);
     expect(mocks.fetch).toHaveBeenCalledTimes(2);
   });
+});
+
+describe("trigger and scoped allowance identity before signing", () => {
+  it.each([{}, { mode: "allowance", templateKind: "SUBSCRIPTION" }] as const)(
+    "persists only the owning protocol before an unknown signing outcome: %j",
+    async (props) => {
+      const scoped = "mode" in props;
+      const storageKey = scoped ? allowanceKey : key;
+      mocks.sign.mockImplementation(async () => {
+        const value = JSON.parse(localStorage.getItem(storageKey)!);
+        expect(value).toMatchObject({
+          txHash: hash,
+          phase: "signing",
+          attemptId: expect.any(String),
+        });
+        if (scoped) expect(value.intent).toBe("existing-private-intent");
+        else expect(value.intent).toBeUndefined();
+        expect(localStorage.getItem(scoped ? key : allowanceKey)).toBeNull();
+        throw { code: -1, ext: "timeout" };
+      });
+      const view = await mount(props);
+      await click();
+      await waitFor(() => expect(mocks.error).toHaveBeenCalledOnce());
+      const recorded = localStorage.getItem(storageKey);
+      expect(recorded).not.toBeNull();
+      expect(mocks.fetch).toHaveBeenCalledOnce();
+      expect(button().disabled).toBe(true);
+      view.unmount();
+      mocks.poll.mockResolvedValue({ status: "NOT_FOUND" });
+      render(<TriggerButton {...base} {...props} />);
+      await waitFor(() => expect(mocks.poll).toHaveBeenCalled());
+      expect(localStorage.getItem(storageKey)).toBe(recorded);
+      expect(mocks.sign).toHaveBeenCalledOnce();
+      expect(mocks.fetch).toHaveBeenCalledOnce();
+    },
+  );
+  it.each([{}, { mode: "allowance", templateKind: "SUBSCRIPTION" }] as const)(
+    "allows ordinary explicit cancellation without a stranded reservation: %j",
+    async (props) => {
+      mocks.sign.mockRejectedValue({ code: -4, ext: "user_rejected" });
+      await mount(props);
+      await click();
+      await waitFor(() => expect(mocks.error).toHaveBeenCalledOnce());
+      expect(localStorage.getItem(key)).toBeNull();
+      expect(localStorage.getItem(allowanceKey)).toBeNull();
+      expect(button().disabled).toBe(false);
+      expect(mocks.poll).not.toHaveBeenCalled();
+      expect(mocks.fetch).toHaveBeenCalledOnce();
+    },
+  );
 });

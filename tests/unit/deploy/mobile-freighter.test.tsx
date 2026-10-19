@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/stellar/wallet-signature", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/stellar/wallet-signature")>()),
   assertSignedWalletTransaction: vi.fn(),
+  preparedWalletTransactionHash: () => "a".repeat(64),
   signedWalletTransactionHash: () => "a".repeat(64),
 }));
 const ADDRESS = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";

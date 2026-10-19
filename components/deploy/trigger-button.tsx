@@ -23,8 +23,17 @@ import {
   contractCallPendingKey,
   readPendingContractCall,
   savePendingContractCall,
+  markPendingContractCallSubmitted,
+  rejectPendingContractCallSigning,
   withContractCallLock,
 } from "@/lib/contract-call-pending";
+import {
+  signWithRecovery,
+  readSigningRecovery,
+  isSigningAttempt,
+  type SigningRecovery,
+  type SigningAttempt,
+} from "@/lib/wallet-signing-recovery";
 import { mobileWalletLink } from "./mobile-wallet-links";
 import { mobilePickerWallets } from "./mobile-wallet-registry";
 import { approvedMobileSession, type MobileWalletSession } from "./mobile-wallet-session";
@@ -57,7 +66,7 @@ type Attempt = {
   dispatched: boolean;
   handoffStarted: boolean;
 };
-type AllowancePending = { txHash: string; intent: string };
+type AllowancePending = SigningRecovery & { txHash: string; intent: string };
 type Pairing = {
   uri: string;
   approval: () => Promise<{ topic: string }>;
@@ -190,14 +199,34 @@ export function TriggerButton({
       !value.intent
     )
       throw new Error("Stored approval status is invalid. Resolve it before approving again.");
-    return { txHash: value.txHash, intent: value.intent };
+    return { txHash: value.txHash, intent: value.intent, ...readSigningRecovery(value) };
   }
   function saveAllowance(saved: AllowancePending) {
     if (readAllowance()) throw new Error("Resolve the pending approval before approving again.");
-    localStorage.setItem(allowanceStorageKey, JSON.stringify(saved));
+    localStorage.setItem(
+      allowanceStorageKey,
+      JSON.stringify({ txHash: saved.txHash, intent: saved.intent, ...readSigningRecovery(saved) }),
+    );
     const actual = readAllowance();
     if (actual?.txHash !== saved.txHash || actual.intent !== saved.intent)
       throw new Error("Approval status could not be saved; no transaction was submitted.");
+    window.dispatchEvent(new Event(CONTRACT_CALL_PENDING_EVENT));
+  }
+  function rejectAllowanceSigning(attempt: SigningAttempt) {
+    if (isSigningAttempt(readAllowance(), attempt)) localStorage.removeItem(allowanceStorageKey);
+    window.dispatchEvent(new Event(CONTRACT_CALL_PENDING_EVENT));
+  }
+  function markAllowanceSubmitted(attempt: SigningAttempt) {
+    const actual = readAllowance();
+    if (!isSigningAttempt(actual, attempt)) throw new Error("Signing attempt ended or changed.");
+    localStorage.setItem(allowanceStorageKey, JSON.stringify({ ...actual, phase: "submitted" }));
+    const saved = readAllowance();
+    if (
+      saved?.txHash !== attempt.txHash ||
+      saved.phase !== "submitted" ||
+      saved.attemptId !== attempt.attemptId
+    )
+      throw new Error("Approval status could not be saved. No transaction was submitted.");
     window.dispatchEvent(new Event(CONTRACT_CALL_PENDING_EVENT));
   }
   function clearAllowance(hash: string) {
@@ -223,7 +252,16 @@ export function TriggerButton({
         setStatusMessage(
           `Approval ${otherAllowance} is unresolved. Check its status on the allowance page before starting another action.`,
         );
-      if (!generic && !allowance && !otherAllowance && !request) setStatusMessage(null);
+      if (generic?.phase === "signing")
+        setStatusMessage(
+          `Signing outcome is unknown for ${generic.txHash}. No submission is recorded. Check its status before another action.`,
+        );
+      else if (!otherAllowance && !request) setStatusMessage(null);
+      if (allowance?.phase === "signing")
+        setAllowanceMessage(
+          `Signing outcome is unknown for ${allowance.txHash}. No submission is recorded. Check approval status before another action.`,
+        );
+      else setAllowanceMessage(null);
       return { generic, allowance };
     } catch {
       setStorageBlocked(true);
@@ -249,6 +287,7 @@ export function TriggerButton({
     current: () => boolean,
     onConfirmed?: () => void,
     onFailed?: (error: Error) => void,
+    phase?: SigningRecovery["phase"],
   ) {
     try {
       const outcome = await pollTxStatus(deploymentId, hash);
@@ -275,7 +314,9 @@ export function TriggerButton({
     } catch {
       if (current())
         setStatusMessage(
-          `Confirmation is still unknown for ${hash}. Check its status before starting another action.`,
+          phase === "signing"
+            ? `Signing outcome is still unknown for ${hash}. No submission is recorded. Check its status before another action.`
+            : `Confirmation is still unknown for ${hash}. Check its status before starting another action.`,
         );
     }
   }
@@ -308,7 +349,9 @@ export function TriggerButton({
     } catch {
       if (current())
         setAllowanceMessage(
-          `Confirmation is still unknown for ${saved.txHash}. Check its status before approving again.`,
+          saved.phase === "signing"
+            ? `Signing outcome is still unknown for ${saved.txHash}. No submission is recorded. Check approval status before another action.`
+            : `Confirmation is still unknown for ${saved.txHash}. Check its status before approving again.`,
         );
     }
   }
@@ -321,7 +364,14 @@ export function TriggerButton({
         const generic = readPendingContractCall(pendingKey);
         const allowance = isPublicAllowance ? readAllowance() : null;
         if (allowance) await reconcileAllowance(allowance, () => isCurrent(attempt));
-        if (generic) await reconcileHash(generic.txHash, () => isCurrent(attempt));
+        if (generic)
+          await reconcileHash(
+            generic.txHash,
+            () => isCurrent(attempt),
+            undefined,
+            undefined,
+            generic.phase,
+          );
       });
     } catch {
       if (isCurrent(attempt))
@@ -425,46 +475,66 @@ export function TriggerButton({
     } catch {
       /* No redirect hints are needed. */
     }
-    const { assertWalletNetwork, signedWalletTransactionHash } =
-      await import("@/lib/stellar/wallet-signature");
-    check(attempt);
-    assertWalletNetwork(network, passphrase);
+    // Verify the server's opaque allowance protocol before recording its signing attempt.
+    const intent = isPublicAllowance && "intent" in data ? data.intent : undefined;
+    const quotedHash = isPublicAllowance && "txHash" in data ? data.txHash : undefined;
+    if (
+      isPublicAllowance &&
+      (typeof intent !== "string" || !intent || typeof quotedHash !== "string")
+    )
+      throw new Error("Missing allowance approval intent.");
     onAwaitingSignature?.();
     attempt.stage = "sign";
     toast.info("Awaiting signature...");
-    const signed = await signer.signTransaction(xdr, { address, networkPassphrase: passphrase });
-    check(attempt);
-    const txHash = signedWalletTransactionHash(
+    const signed = await signWithRecovery({
       network,
       xdr,
-      signed.signedTxXdr,
       address,
-      passphrase,
-    );
+      networkPassphrase: passphrase,
+      check: () => check(attempt),
+      save: (signing) => {
+        assertNoPendingDeploymentRequest(deploymentId, network);
+        if (
+          isPublicAllowance
+            ? readPendingContractCall(pendingKey)
+            : readAllowancePendingHash(deploymentId, network)
+        )
+          throw new Error("Resolve the pending transaction before starting another action.");
+        try {
+          if (isPublicAllowance) {
+            if (quotedHash !== signing.txHash)
+              throw new Error("Mismatched allowance approval intent.");
+            saveAllowance({ ...signing, intent: intent as string });
+          } else savePendingContractCall(pendingKey, signing);
+        } catch (error) {
+          setStorageBlocked(true);
+          setStatusMessage("Transaction status could not be saved. No signature was requested.");
+          throw error;
+        }
+      },
+      read: () => (isPublicAllowance ? readAllowance() : readPendingContractCall(pendingKey)),
+      clearRejected: (signing) =>
+        isPublicAllowance
+          ? rejectAllowanceSigning(signing)
+          : rejectPendingContractCallSigning(pendingKey, signing),
+      sign: () => signer.signTransaction(xdr, { address, networkPassphrase: passphrase }),
+    });
+    check(attempt);
+    const { txHash } = signed.attempt;
     attempt.txHash = txHash;
     attempt.stage = "submit";
     assertNoPendingDeploymentRequest(deploymentId, network);
-    if (readPendingContractCall(pendingKey) || readAllowancePendingHash(deploymentId, network))
+    // The record written above is our own reservation; only the other protocol blocks it.
+    if (
+      isPublicAllowance
+        ? readPendingContractCall(pendingKey)
+        : readAllowancePendingHash(deploymentId, network)
+    )
       throw new Error("Resolve the pending transaction before starting another action.");
     if (isPublicAllowance) {
-      if (
-        !("txHash" in data) ||
-        data.txHash !== txHash ||
-        !("intent" in data) ||
-        typeof data.intent !== "string" ||
-        !data.intent
-      )
-        throw new Error("Missing or mismatched allowance approval intent.");
-      const saved = { txHash, intent: data.intent };
-      try {
-        saveAllowance(saved);
-      } catch (error) {
-        if (isCurrent(attempt)) {
-          setStorageBlocked(true);
-          setStatusMessage("Approval status could not be saved. No transaction was submitted.");
-        }
-        throw error;
-      }
+      const saved = { ...signed.attempt, intent: intent as string, phase: "submitted" as const };
+      markAllowanceSubmitted(signed.attempt);
+      check(attempt);
       attempt.dispatched = true;
       toast.info("Submitting transaction...");
       // This established protocol retains its scoped intent separately. A 4xx
@@ -511,15 +581,8 @@ export function TriggerButton({
       await reconciling;
       return;
     }
-    try {
-      savePendingContractCall(pendingKey, { txHash });
-    } catch (error) {
-      if (isCurrent(attempt)) {
-        setStorageBlocked(true);
-        setStatusMessage("Transaction status could not be saved. No transaction was submitted.");
-      }
-      throw error;
-    }
+    markPendingContractCallSubmitted(pendingKey, signed.attempt);
+    check(attempt);
     attempt.dispatched = true;
     toast.info("Submitting transaction...");
     // Only public hash state survives this boundary. Neither UI cancellation,

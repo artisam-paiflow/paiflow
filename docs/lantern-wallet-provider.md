@@ -205,6 +205,53 @@ does not generate a successful Lantern connection event in normal use.
 
 ## Paiflow preparation and acceptance
 
+### Signing recovery before submission (#1065)
+
+Deploy, public trigger, allowance and shared contract-call screens compute the
+prepared transaction's hash from the server-pinned network passphrase and verify
+its source account **before requesting a wallet signature**. Under the existing
+origin-wide action lock, they persist and read back a public `txHash`, a unique
+`attemptId`, and `phase: "signing"`. Deployment records also retain their existing
+public `deploymentId`. Storage failure prevents wallet access.
+
+A signing record is an admission hold, **not evidence that Paiflow submitted the
+transaction**. Wallet timeout, connection loss, an invalid signed response,
+navigation, or account/network change preserves it and exposes read-only status
+checks. `NOT_FOUND`, elapsed time and lack of a server submission record do not
+permit clearing, rebuilding, replaying or requesting another signature. This
+change deliberately adds no generic expiry release: a never-submitted unknown
+signing attempt can remain held until authoritative resolution is available.
+
+The returned envelope must still preserve the prepared body, existing signatures
+and connected account's signature. The shared selected connection rechecks the
+account without requesting access again, and reads its network after approval;
+WalletConnect revalidates its exact approved topic/account/network. Late results
+from an abandoned view cannot submit. Immediately before the one-shot dispatch,
+only the same hash/attempt in the signing phase can transition to `submitted`.
+A lost submit response retains that identity for reconciliation.
+
+Only structured explicit rejection (`-4`, WalletConnect `4001`, `user_rejected`,
+or the controlled provisional `LanternWalletError("LANTERN_REJECTED")`) releases
+its own still-signing attempt. An upstream semantic error such as `timeout` in
+`ext` overrides a generic numeric wrapper; error wording alone never releases a
+hold. Freighter's documented `FreighterApiDeclinedError` uses `-4`; its installed
+SWK adapter preserves that code. Existing legacy records without phase/attempt
+metadata retain their submitted recovery behavior and are not rewritten.
+
+Allowance approval retains its existing **scoped** `{ txHash, intent }` protocol,
+with the added public phase/attempt metadata. Its opaque intent is never copied
+into generic records. Existing intent-bound authoritative finality/expiry proofs
+and definite pre-send refusal handling remain in place. Generic actions release
+only on authoritative exact-hash `SUCCESS` or `FAILED`. Deployment recovery also
+requires matching authenticated owner bookkeeping: chain finality alone cannot
+turn an unsigned preparation into a confirmed deployment, and recovery never
+forwards an unsigned envelope to create a submission record.
+
+Tests use labelled in-memory wallets and mocked component transports; real
+cryptographic hash/source/network/signature checks run in node tests. These checks
+do not establish real Lantern extension or handset acceptance. Desktop module
+vendoring/enabling remains the separate #1001 implementation.
+
 ### Deprecated features in this integration
 
 Payroll and fiat off-ramp are excluded from current Lantern acceptance. Keep

@@ -35,7 +35,21 @@ export function assertSignedWalletTransaction(
   }
 }
 
-/** Compute the recovery hash only after binding every wallet's response. */
+/** Bind public recovery identity before opening a sign-only wallet. */
+export function preparedWalletTransactionHash(
+  network: "testnet" | "mainnet",
+  originalXdr: string,
+  address: string,
+  networkPassphrase: string,
+): string {
+  assertWalletNetwork(network, networkPassphrase);
+  const original = TransactionBuilder.fromXDR(originalXdr, networkPassphrase);
+  if (!(original instanceof Transaction) || original.source !== address)
+    throw new Error("Prepared transaction does not belong to the connected account.");
+  return original.hash().toString("hex");
+}
+
+/** Validate the signed response before any submission. */
 export function signedWalletTransactionHash(
   network: "testnet" | "mainnet",
   originalXdr: string,
