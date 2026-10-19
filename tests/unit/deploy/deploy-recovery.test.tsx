@@ -20,6 +20,10 @@ vi.mock("@/components/deploy/selected-wallet-connection", () => ({
   assertWalletAttemptActive: (signal: AbortSignal) => signal.throwIfAborted(),
 }));
 vi.mock("@/lib/stellar/wallet-signature", () => ({
+  preparedWalletTransactionHash: (...args: unknown[]) => {
+    mocks.network(args[0], args[3]);
+    return "a".repeat(64);
+  },
   signedWalletTransactionHash: mocks.hash,
   assertWalletNetwork: mocks.network,
 }));
@@ -106,7 +110,14 @@ describe("deployment submission recovery", () => {
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("still unknown"));
     expect(mocks.network).toHaveBeenCalledWith("testnet", PASSPHRASE);
     expect(mocks.hash).toHaveBeenCalledWith("testnet", "unsigned", "signed", ADDRESS, PASSPHRASE);
-    expect(savedAtDispatch).toEqual([JSON.stringify({ deploymentId: DEPLOYMENT, txHash: HASH })]);
+    expect(savedAtDispatch.map((raw) => JSON.parse(raw!))).toEqual([
+      expect.objectContaining({
+        deploymentId: DEPLOYMENT,
+        txHash: HASH,
+        phase: "submitted",
+        attemptId: expect.any(String),
+      }),
+    ]);
     expect(mocks.hash.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.fetch.mock.invocationCallOrder[1]!,
     );
@@ -126,7 +137,10 @@ describe("deployment submission recovery", () => {
     await click();
     await waitFor(() => expect(mocks.error).toHaveBeenCalledOnce());
     expect(mocks.fetch).toHaveBeenCalledOnce();
-    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(JSON.parse(localStorage.getItem(KEY)!)).toMatchObject({
+      txHash: HASH,
+      phase: "signing",
+    });
   });
   it("does not sign when the server network mismatches the pinned network", async () => {
     mocks.network.mockImplementation(() => {
@@ -194,19 +208,22 @@ describe("deployment submission recovery", () => {
     expect(mocks.fetch).toHaveBeenCalledTimes(3);
     response.resolve(prepared());
   });
-  it("releases an empty lock after pre-dispatch cancellation while ignoring a late signature", async () => {
+  it("retains a signing reservation across navigation and ignores a late signature", async () => {
     const signed = deferred<{ signedTxXdr: string }>();
     mocks.sign.mockReturnValueOnce(signed.promise);
     const view = render(<DeployReview {...props} />);
     await click();
     await waitFor(() => expect(mocks.sign).toHaveBeenCalledOnce());
+    const recorded = localStorage.getItem(KEY);
     await act(async () => view.unmount());
     render(<DeployReview {...props} />);
-    await click();
-    await waitFor(() => expect(mocks.sign).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("still unknown"));
+    expect(deploy().disabled).toBe(true);
     await act(async () => signed.resolve({ signedTxXdr: "old-signature" }));
-    expect(mocks.fetch).toHaveBeenCalledTimes(3);
-    expect(mocks.hash).toHaveBeenCalledOnce();
+    expect(mocks.fetch).toHaveBeenCalledOnce();
+    expect(mocks.sign).toHaveBeenCalledOnce();
+    expect(mocks.hash).not.toHaveBeenCalled();
+    expect(localStorage.getItem(KEY)).toBe(recorded);
   });
   it("accepts authoritative success during recovery without repeating a write", async () => {
     localStorage.setItem(KEY, JSON.stringify({ deploymentId: DEPLOYMENT, txHash: HASH }));
@@ -271,5 +288,62 @@ describe("deployment submission recovery", () => {
     expect(deploy().disabled).toBe(true);
     expect(mocks.fetch).not.toHaveBeenCalled();
     expect(localStorage.getItem(KEY)).toBe("corrupt");
+  });
+});
+
+describe("deployment identity before wallet response", () => {
+  it.each(["timeout", "connection_lost"])(
+    "holds the prepared identity after %s and reload without faking a server submission",
+    async (ext) => {
+      mocks.sign.mockImplementation(async () => {
+        expect(JSON.parse(localStorage.getItem(KEY)!)).toMatchObject({
+          deploymentId: DEPLOYMENT,
+          txHash: HASH,
+          phase: "signing",
+          attemptId: expect.any(String),
+        });
+        throw { code: -1, ext };
+      });
+      const view = render(<DeployReview {...props} />);
+      await click();
+      await waitFor(() => expect(mocks.error).toHaveBeenCalledOnce());
+      const recorded = localStorage.getItem(KEY);
+      expect(screen.getByRole("status").textContent).toContain("No submission is recorded");
+      view.unmount();
+      render(<DeployReview {...props} />);
+      await waitFor(() => expect(mocks.poll).toHaveBeenCalledWith(DEPLOYMENT, HASH));
+      expect(localStorage.getItem(KEY)).toBe(recorded);
+      expect(mocks.fetch).toHaveBeenCalledOnce();
+      expect(mocks.sign).toHaveBeenCalledOnce();
+      expect(deploy().disabled).toBe(true);
+    },
+  );
+  it("explicit rejection releases its own signing reservation without polling or submitting", async () => {
+    mocks.sign.mockRejectedValue({ code: -4, ext: "user_rejected" });
+    render(<DeployReview {...props} />);
+    await click();
+    await waitFor(() => expect(mocks.error).toHaveBeenCalledOnce());
+    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(mocks.fetch).toHaveBeenCalledOnce();
+    expect(mocks.poll).not.toHaveBeenCalled();
+    expect(deploy().disabled).toBe(false);
+  });
+  it("a signing marker with chain finality still holds until matching owner bookkeeping exists", async () => {
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({
+        deploymentId: DEPLOYMENT,
+        txHash: HASH,
+        phase: "signing",
+        attemptId: crypto.randomUUID(),
+      }),
+    );
+    mocks.poll.mockResolvedValue({ status: "SUCCESS" });
+    mocks.fetch.mockResolvedValue(ownerStatus("BUILDING", ""));
+    render(<DeployReview {...props} />);
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("still unknown"));
+    expect(localStorage.getItem(KEY)).not.toBeNull();
+    expect(mocks.sign).not.toHaveBeenCalled();
+    expect(mocks.fetch).toHaveBeenCalledExactlyOnceWith(`/api/deployments/${DEPLOYMENT}/status`);
   });
 });

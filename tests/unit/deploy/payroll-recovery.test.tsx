@@ -33,6 +33,7 @@ vi.mock("sonner", () => ({
 // Component tests exercise the validation boundary; the node wallet-signature
 // suite verifies real bodies, signatures, signer and network cryptographically.
 vi.mock("@/lib/stellar/wallet-signature", () => ({
+  preparedWalletTransactionHash: () => "b".repeat(64),
   signedWalletTransactionHash: mocks.hash,
   assertWalletNetwork: mocks.network,
 }));

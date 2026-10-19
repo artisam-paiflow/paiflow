@@ -1,3 +1,4 @@
+import { readSigningRecovery } from "@/lib/wallet-signing-recovery";
 /** Existing browser allowance protocol; expose only public hash for cross-surface gates. */
 export const allowancePendingKey = (deploymentId: string, network: string) =>
   `paiflow_allowance_pending:${deploymentId}:${network}`;
@@ -19,5 +20,6 @@ export function readAllowancePendingHash(deploymentId: string, network: string):
     throw new Error(
       "Stored approval status is invalid. Resolve it on the allowance page before starting another action.",
     );
+  readSigningRecovery(value);
   return value.txHash;
 }

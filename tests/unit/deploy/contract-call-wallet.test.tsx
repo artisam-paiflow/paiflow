@@ -30,6 +30,7 @@ vi.mock("sonner", () => ({
 vi.mock("@/lib/stellar/wallet-signature", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/stellar/wallet-signature")>()),
   assertSignedWalletTransaction: mocks.verifySigned,
+  preparedWalletTransactionHash: () => "a".repeat(64),
   signedWalletTransactionHash: mocks.signedHash,
 }));
 
@@ -89,6 +90,7 @@ beforeEach(() => {
         picker = options;
       },
       getAddress: mocks.getAddress,
+      getNetwork: async () => ({ networkPassphrase: TESTNET }),
       signTransaction: mocks.sign,
       setWallet: mocks.setWallet,
     },
@@ -243,7 +245,7 @@ describe("contract actions using the shared selected connection", () => {
   });
 
   it("signing rejection never submits and reports the existing transaction error", async () => {
-    const rejection = new Error("User declined access");
+    const rejection = { code: -4, ext: "user_rejected", message: "User rejected the request" };
     mocks.sign.mockRejectedValue(rejection);
     await open();
     await choose();
@@ -323,7 +325,11 @@ describe("contract action attempt ownership", () => {
     await choose();
     await waitFor(() => expect(mocks.poll).toHaveBeenCalledOnce());
     view.unmount();
-    expect(JSON.parse(localStorage.getItem(PENDING_KEY)!)).toEqual({ txHash: HASH });
+    expect(JSON.parse(localStorage.getItem(PENDING_KEY)!)).toMatchObject({
+      txHash: HASH,
+      phase: "submitted",
+      attemptId: expect.any(String),
+    });
     await act(async () => finality.resolve({ status: "SUCCESS" }));
     await waitFor(() => expect(localStorage.getItem(PENDING_KEY)).toBeNull());
     await act(async () => submitted.resolve({ txHash: HASH }));
@@ -364,32 +370,33 @@ describe("contract action attempt ownership", () => {
     expect(nextSubmit).not.toHaveBeenCalled();
   });
 
-  it("an old signature cannot submit or clear a newer argument-specific attempt", async () => {
+  it("an abandoned signature holds its identity and blocks a replacement action", async () => {
     const oldSignature = deferred<{ signedTxXdr: string }>();
-    const newSignature = deferred<{ signedTxXdr: string }>();
-    mocks.sign.mockReturnValueOnce(oldSignature.promise).mockReturnValueOnce(newSignature.promise);
+    mocks.sign.mockReturnValueOnce(oldSignature.promise);
     const view = await open();
     await choose();
-    await act(async () => {
-      view.rerender(<ContractCallButton {...props} actionKey="new-arguments" />);
-    });
-    fireEvent.click(screen.getByRole("button", { name: /charge now/i }));
-    await waitFor(() => expect(mocks.getWalletKit).toHaveBeenCalledTimes(2));
-    await choose();
+    const recorded = localStorage.getItem(PENDING_KEY);
+    await act(async () =>
+      view.rerender(<ContractCallButton {...props} actionKey="new-arguments" />),
+    );
+    const action = screen.getByRole("button", { name: /charge now/i }) as HTMLButtonElement;
+    expect(action.disabled).toBe(true);
+    fireEvent.click(action);
+    expect(mocks.getWalletKit).toHaveBeenCalledOnce();
     await act(async () => oldSignature.resolve({ signedTxXdr: "stale-signature" }));
     expect(submit).not.toHaveBeenCalled();
-    expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(true);
-    await act(async () => newSignature.resolve({ signedTxXdr: "current-signature" }));
-    await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce());
-    expect(submit).toHaveBeenCalledExactlyOnceWith("current-signature");
-    expect(onSuccess).toHaveBeenCalledOnce();
+    expect(localStorage.getItem(PENDING_KEY)).toBe(recorded);
   });
 });
 
 describe("contract action dispatch recovery", () => {
   it("saves only the computed hash before dispatch and never polls a substituted response hash", async () => {
     submit.mockImplementation(async () => {
-      expect(JSON.parse(localStorage.getItem(PENDING_KEY)!)).toEqual({ txHash: HASH });
+      expect(JSON.parse(localStorage.getItem(PENDING_KEY)!)).toMatchObject({
+        txHash: HASH,
+        phase: "submitted",
+        attemptId: expect.any(String),
+      });
       return { txHash: "b".repeat(64) };
     });
     await open();
@@ -413,7 +420,11 @@ describe("contract action dispatch recovery", () => {
     fireEvent.click(action);
     expect(prepare).toHaveBeenCalledOnce();
     expect(submit).toHaveBeenCalledOnce();
-    expect(JSON.parse(localStorage.getItem(PENDING_KEY)!)).toEqual({ txHash: HASH });
+    expect(JSON.parse(localStorage.getItem(PENDING_KEY)!)).toMatchObject({
+      txHash: HASH,
+      phase: "submitted",
+      attemptId: expect.any(String),
+    });
     await act(async () => finality.resolve({ status: "SUCCESS" }));
     await waitFor(() => expect(localStorage.getItem(PENDING_KEY)).toBeNull());
     expect(action.disabled).toBe(false);
@@ -439,7 +450,11 @@ describe("contract action dispatch recovery", () => {
       (screen.getByRole("button", { name: /charge now/i }) as HTMLButtonElement).disabled,
     ).toBe(true);
     await act(async () => unknown.resolve({ status: "PENDING" }));
-    expect(JSON.parse(localStorage.getItem(PENDING_KEY)!)).toEqual({ txHash: HASH });
+    expect(JSON.parse(localStorage.getItem(PENDING_KEY)!)).toMatchObject({
+      txHash: HASH,
+      phase: "submitted",
+      attemptId: expect.any(String),
+    });
     fireEvent.click(screen.getByRole("button", { name: /check transaction status/i }));
     await waitFor(() => expect(mocks.poll).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("still unknown"));
@@ -461,7 +476,11 @@ describe("contract action dispatch recovery", () => {
     await open();
     await choose();
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("still unknown"));
-    expect(JSON.parse(localStorage.getItem(PENDING_KEY)!)).toEqual({ txHash: HASH });
+    expect(JSON.parse(localStorage.getItem(PENDING_KEY)!)).toMatchObject({
+      txHash: HASH,
+      phase: "submitted",
+      attemptId: expect.any(String),
+    });
     fireEvent.click(screen.getByRole("button", { name: /charge now/i }));
     expect(submit).toHaveBeenCalledOnce();
     mocks.poll.mockResolvedValue({ status: "FAILED", errorMessage: "Failed on-chain" });
@@ -502,12 +521,12 @@ describe("contract action dispatch recovery", () => {
     await waitFor(() => expect(mocks.toastError).toHaveBeenCalledOnce());
     expect(submit).not.toHaveBeenCalled();
     expect(mocks.poll).not.toHaveBeenCalled();
-    expect(screen.getByRole("status").textContent).toContain("No transaction was submitted");
+    expect(screen.getByRole("status").textContent).toContain("No signature was requested");
     view.unmount();
     storage.mockRestore();
   });
 
-  it("rejects a desktop wallet's invalid envelope before saving or dispatching", async () => {
+  it("retains a signing HOLD when the desktop wallet returns an invalid envelope", async () => {
     mocks.signedHash.mockImplementation(() => {
       throw new Error("Wallet changed the prepared transaction.");
     });
@@ -515,7 +534,10 @@ describe("contract action dispatch recovery", () => {
     await choose();
     await waitFor(() => expect(mocks.toastError).toHaveBeenCalledOnce());
     expect(submit).not.toHaveBeenCalled();
-    expect(localStorage.getItem(PENDING_KEY)).toBeNull();
+    expect(JSON.parse(localStorage.getItem(PENDING_KEY)!)).toMatchObject({
+      txHash: HASH,
+      phase: "signing",
+    });
   });
 
   it("fails closed before wallet selection when Web Locks are unavailable", async () => {
@@ -645,7 +667,10 @@ describe("allowance protocol cross-surface admission", () => {
     await choose();
     await waitFor(() => expect(mocks.toastError).toHaveBeenCalled());
     expect(submit).not.toHaveBeenCalled();
-    expect(localStorage.getItem(PENDING_KEY)).toBeNull();
+    expect(JSON.parse(localStorage.getItem(PENDING_KEY)!)).toMatchObject({
+      txHash: HASH,
+      phase: "signing",
+    });
     expect(localStorage.getItem(key)).toContain("private-approval-intent");
   });
   it("fails closed on corrupt allowance state", async () => {

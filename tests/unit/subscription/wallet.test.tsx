@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({ sign: vi.fn(), poll: vi.fn(), fetch: vi.fn() }
 // envelope validation is covered by the node wallet-signature/connection suites.
 vi.mock("@/lib/stellar/wallet-signature", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/stellar/wallet-signature")>()),
+  preparedWalletTransactionHash: () => "a".repeat(64),
   signedWalletTransactionHash: () => "a".repeat(64),
 }));
 vi.mock("@/lib/analytics/client", () => ({ track: vi.fn() }));
@@ -26,6 +27,7 @@ vi.mock("@creit.tech/stellar-wallets-kit", () => ({
     getAddress = async () => ({
       address: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
     });
+    getNetwork = async () => ({ networkPassphrase: "Test SDF Network ; September 2015" });
     signTransaction = mocks.sign;
     setWallet() {}
     async openModal(opts: {
@@ -190,7 +192,7 @@ describe("wallet-only subscription browser flow", () => {
     ).toBe(false);
   });
   it("does not submit or save a pending hash after rejected wallet signing", async () => {
-    mocks.sign.mockRejectedValue(new Error("User rejected"));
+    mocks.sign.mockRejectedValue({ code: -4, message: "The user rejected this request." });
     mount();
     await approve();
     expect(mocks.fetch).toHaveBeenCalledOnce();

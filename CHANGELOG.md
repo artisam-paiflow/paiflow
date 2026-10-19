@@ -22,6 +22,11 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Persist the prepared transaction hash before wallet signing for deploys, triggers,
+  allowance approvals and shared contract calls. Preserve unknown signing outcomes
+  across reloads, release only matching explicit cancellations, and recheck account
+  and network before a single submission (#1065).
+
 - Record Lantern’s reported desktop API/build readiness, artifact and executable-fixture
   gates, error/recovery acceptance, and completed scanner-fixture handoff; keep the
   provisional adapter disabled until the real module and extension are verified (#1001).

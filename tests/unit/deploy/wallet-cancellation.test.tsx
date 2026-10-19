@@ -14,6 +14,13 @@ const { signTransaction, pollTxStatus } = vi.hoisted(() => ({
   pollTxStatus: vi.fn(),
 }));
 
+// jsdom and the SDK's Node Buffer have different Uint8Array realms. This UI
+// cancellation suite mocks only the prepared hash; node signing-recovery and
+// wallet-signature suites exercise real source/network/hash/signature binding.
+vi.mock("@/lib/stellar/wallet-signature", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stellar/wallet-signature")>()),
+  preparedWalletTransactionHash: () => "a".repeat(64),
+}));
 vi.mock("@/lib/analytics/client", () => ({ track: vi.fn() }));
 vi.mock("@/lib/wallet-tracking", () => ({ trackWalletConnection: vi.fn() }));
 vi.mock("@/lib/hooks/use-poll-tx-status", () => ({ usePollTxStatus: () => pollTxStatus }));
@@ -29,6 +36,7 @@ vi.mock("@creit.tech/stellar-wallets-kit/modules/walletconnect.module", () => ({
 vi.mock("@creit.tech/stellar-wallets-kit", () => ({
   StellarWalletsKit: class {
     getAddress = async () => ({ address: ADDRESS });
+    getNetwork = async () => ({ networkPassphrase: Networks.TESTNET });
     signTransaction = signTransaction;
     setWallet() {}
     async openModal(opts: {
@@ -73,11 +81,12 @@ describe("wallet signing cancellation analytics", () => {
   it.each(["deploy", "payment"] as const)(
     "classifies %s cancellation and never submits",
     async (surface) => {
-      // Shape emitted by the installed FreighterModule -> parseError adapter.
+      // FreighterApiDeclinedError from stellar/freighter shared extensionMessaging.ts;
+      // installed FreighterModule -> parseError preserves its explicit -4 code.
       signTransaction.mockRejectedValue({
-        code: -1,
-        message: "User declined access",
-        ext: { private: "wallet payload must not reach analytics" },
+        code: -4,
+        message: "The user rejected this request.",
+        private: "wallet payload must not reach analytics",
       });
       const unsignedXdr = new TransactionBuilder(new Account(ADDRESS, "1"), {
         fee: "100",
@@ -93,7 +102,7 @@ describe("wallet signing cancellation analytics", () => {
         ok: true,
         json: async () => ({
           data: {
-            deploymentId: "deployment-id",
+            deploymentId: "22222222-2222-2222-2222-222222222222",
             xdr: unsignedXdr,
             networkPassphrase: Networks.TESTNET,
           },
@@ -137,7 +146,8 @@ describe("wallet signing cancellation analytics", () => {
         surface === "deploy" ? "deploy_failed" : "trigger_failed",
         {
           ...(surface === "deploy" ? { flow_id: "flow-id" } : {}),
-          deployment_id: "deployment-id",
+          deployment_id:
+            surface === "deploy" ? "22222222-2222-2222-2222-222222222222" : "deployment-id",
           stage: "sign",
           error_class: "user_rejected",
           error_code: null,

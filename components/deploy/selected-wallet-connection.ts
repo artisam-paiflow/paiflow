@@ -41,7 +41,7 @@ export async function connectSelectedWallet(
     ) => {
       assertWalletAttemptActive(signal);
       shared.kit.setWallet(wallet.id);
-      const current = await shared.kit.getAddress();
+      const current = await shared.kit.getAddress({ skipRequestAccess: true });
       assertWalletAttemptActive(signal);
       if (current.address !== address || options.address !== address)
         throw new Error("Wallet account changed. Connect again to continue.");
@@ -50,6 +50,16 @@ export async function connectSelectedWallet(
       shared.kit.setWallet(wallet.id);
       const result = await shared.kit.signTransaction(xdr, options);
       assertWalletAttemptActive(signal);
+      shared.kit.setWallet(wallet.id);
+      const after = await shared.kit.getAddress({ skipRequestAccess: true });
+      assertWalletAttemptActive(signal);
+      if (after.address !== address)
+        throw new Error("Wallet account changed. Connect again to continue.");
+      shared.kit.setWallet(wallet.id);
+      const walletNetwork = await shared.kit.getNetwork();
+      assertWalletAttemptActive(signal);
+      if (walletNetwork.networkPassphrase !== options.networkPassphrase)
+        throw new Error("Wallet network changed. Connect again to continue.");
       return result;
     },
   };

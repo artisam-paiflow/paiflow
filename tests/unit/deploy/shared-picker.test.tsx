@@ -10,12 +10,14 @@ const mocks = vi.hoisted(() => ({
   warning: vi.fn(),
   signTransaction: vi.fn(),
   getAddress: vi.fn(),
+  getNetwork: vi.fn(),
   setWallet: vi.fn(),
   poll: vi.fn(),
 }));
 vi.mock("@/lib/hooks/use-poll-tx-status", () => ({ usePollTxStatus: () => mocks.poll }));
 vi.mock("@/lib/stellar/wallet-signature", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/stellar/wallet-signature")>()),
+  preparedWalletTransactionHash: () => "a".repeat(64),
   signedWalletTransactionHash: vi.fn(() => "a".repeat(64)),
 }));
 vi.mock("@/components/deploy/wallet-kit", () => ({ getWalletKit: mocks.getWalletKit }));
@@ -43,6 +45,7 @@ beforeEach(() => {
   });
   mocks.poll.mockRejectedValue(new Error("Finality unknown"));
   mocks.getAddress.mockResolvedValue({ address: ADDRESS });
+  mocks.getNetwork.mockResolvedValue({ networkPassphrase: "Test SDF Network ; September 2015" });
   mocks.signTransaction.mockResolvedValue({ signedTxXdr: "signed" });
   mocks.getWalletKit.mockResolvedValue({
     kit: {
@@ -50,6 +53,7 @@ beforeEach(() => {
         picker = options;
       }),
       getAddress: mocks.getAddress,
+      getNetwork: mocks.getNetwork,
       setWallet: mocks.setWallet,
       signTransaction: mocks.signTransaction,
     },
@@ -219,6 +223,12 @@ describe("EmployeeManager shared picker", () => {
   it.each(["testnet", "mainnet"] as const)(
     "passes the deployment's %s network and records the selected wallet",
     async (network) => {
+      mocks.getNetwork.mockResolvedValue({
+        networkPassphrase:
+          network === "testnet"
+            ? "Test SDF Network ; September 2015"
+            : "Public Global Stellar Network ; September 2015",
+      });
       const fetcher = vi.fn().mockImplementation(async (url: string) => {
         if (url.endsWith("/payroll-recipients"))
           return response({ recipients: [{ address: ADDRESS, amount: "1000000" }] });

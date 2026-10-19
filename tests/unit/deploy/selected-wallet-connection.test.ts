@@ -190,6 +190,7 @@ describe("desktop signer selection", () => {
     let selected = "freighter";
     const signedBy: string[] = [];
     const kit = {
+      getNetwork: async () => ({ networkPassphrase: Networks.TESTNET }),
       setWallet: (id: string) => {
         selected = id;
       },
@@ -214,4 +215,51 @@ describe("desktop signer selection", () => {
     });
     expect(signedBy).toEqual(["freighter"]);
   });
+});
+
+describe("desktop post-sign connection admission", () => {
+  it.each(["account", "network", "network-error", "abort-account", "abort-network"])(
+    "refuses a signed result after %s changes during wallet review",
+    async (change) => {
+      vi.mocked(selectWallet).mockResolvedValueOnce({ id: "freighter", name: "Freighter" });
+      const controller = new AbortController();
+      let signed = false;
+      const kit = {
+        setWallet: vi.fn(),
+        getAddress: vi.fn(async (options?: { skipRequestAccess?: boolean }) => {
+          if (signed) {
+            expect(options).toEqual({ skipRequestAccess: true });
+            if (change === "abort-account") controller.abort();
+          }
+          return {
+            address: signed && change === "account" ? other.publicKey() : wallet.publicKey(),
+          };
+        }),
+        signTransaction: vi.fn(async () => {
+          signed = true;
+          return { signedTxXdr: "signed" };
+        }),
+        getNetwork: vi.fn(async () => {
+          if (change === "abort-network") controller.abort();
+          if (change === "network-error") throw new Error("Connection lost reading network");
+          return { networkPassphrase: change === "network" ? Networks.PUBLIC : Networks.TESTNET };
+        }),
+      };
+      const connection = await connectSelectedWallet(
+        { kit, module: null, client: null } as unknown as WalletKit,
+        "testnet",
+        controller.signal,
+      );
+      if (!connection) throw new Error("Expected connection");
+      await expect(
+        connection.signTransaction("unsigned", {
+          address: wallet.publicKey(),
+          networkPassphrase: Networks.TESTNET,
+        }),
+      ).rejects.toThrow();
+      expect(kit.signTransaction).toHaveBeenCalledOnce();
+      if (change === "account" || change === "abort-account")
+        expect(kit.getNetwork).not.toHaveBeenCalled();
+    },
+  );
 });

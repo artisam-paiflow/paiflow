@@ -1,5 +1,11 @@
+import {
+  readSigningRecovery,
+  isSigningAttempt,
+  type SigningRecovery,
+  type SigningAttempt,
+} from "@/lib/wallet-signing-recovery";
 /** Browser recovery state contains public hashes only, never signed envelopes. */
-export type PendingContractCall = { txHash: string };
+export type PendingContractCall = SigningRecovery & { txHash: string };
 export const CONTRACT_CALL_PENDING_EVENT = "paiflow-contract-call-pending";
 export const contractCallPendingKey = (deploymentId: string, network: string) =>
   `paiflow_contract_call_pending:${deploymentId}:${network}`;
@@ -19,15 +25,18 @@ export function readPendingContractCall(key: string): PendingContractCall | null
       "Stored transaction status is invalid. Resolve it before starting another action.",
     );
   }
-  return { txHash: value.txHash };
+  return { txHash: value.txHash, ...readSigningRecovery(value) };
 }
 
 export function savePendingContractCall(key: string, pending: PendingContractCall): void {
   if (!/^[a-f0-9]{64}$/.test(pending.txHash) || readPendingContractCall(key)) {
     throw new Error("Resolve the pending transaction before starting another action.");
   }
-  // Serialize only the allowlisted public field, even if a caller passes extras.
-  localStorage.setItem(key, JSON.stringify({ txHash: pending.txHash }));
+  // Serialize only the allowlisted public fields, even if a caller passes extras.
+  localStorage.setItem(
+    key,
+    JSON.stringify({ txHash: pending.txHash, ...readSigningRecovery(pending) }),
+  );
   if (readPendingContractCall(key)?.txHash !== pending.txHash) {
     throw new Error("Transaction status could not be saved; transaction was not submitted.");
   }
@@ -61,4 +70,24 @@ export async function withContractCallLock(
   } finally {
     active.delete(key);
   }
+}
+
+/** CAS transition immediately before dispatch; never interpret a signing marker as a send. */
+export function markPendingContractCallSubmitted(key: string, attempt: SigningAttempt): void {
+  const actual = readPendingContractCall(key);
+  if (!isSigningAttempt(actual, attempt)) throw new Error("Signing attempt ended or changed.");
+  localStorage.setItem(key, JSON.stringify({ ...actual, phase: "submitted" }));
+  const saved = readPendingContractCall(key);
+  if (
+    saved?.txHash !== attempt.txHash ||
+    saved.phase !== "submitted" ||
+    saved.attemptId !== attempt.attemptId
+  )
+    throw new Error("Submission status could not be saved. No transaction was submitted.");
+  window.dispatchEvent(new Event(CONTRACT_CALL_PENDING_EVENT));
+}
+/** Explicit wallet rejection releases only its own still-signing reservation. */
+export function rejectPendingContractCallSigning(key: string, attempt: SigningAttempt): void {
+  if (isSigningAttempt(readPendingContractCall(key), attempt)) localStorage.removeItem(key);
+  window.dispatchEvent(new Event(CONTRACT_CALL_PENDING_EVENT));
 }

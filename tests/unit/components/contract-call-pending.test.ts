@@ -123,3 +123,34 @@ describe("contract action write exclusion", () => {
     expect(action).not.toHaveBeenCalled();
   });
 });
+
+describe("signing reservation CAS", () => {
+  it("promotes only its exact signing attempt and preserves only public fields", async () => {
+    const { markPendingContractCallSubmitted, rejectPendingContractCallSigning } =
+      await import("@/lib/contract-call-pending");
+    const attempt = { txHash: HASH, phase: "signing" as const, attemptId: crypto.randomUUID() };
+    savePendingContractCall(KEY, { ...attempt, signedXdr: "never copy" } as typeof attempt);
+    expect(readPendingContractCall(KEY)).toEqual(attempt);
+    const stale = { ...attempt, attemptId: crypto.randomUUID() };
+    expect(() => markPendingContractCallSubmitted(KEY, stale)).toThrow(/ended or changed/);
+    rejectPendingContractCallSigning(KEY, stale);
+    expect(readPendingContractCall(KEY)).toEqual(attempt);
+    markPendingContractCallSubmitted(KEY, attempt);
+    expect(readPendingContractCall(KEY)).toEqual({ ...attempt, phase: "submitted" });
+    rejectPendingContractCallSigning(KEY, attempt);
+    expect(readPendingContractCall(KEY)?.phase).toBe("submitted");
+    expect(values.get(KEY)).not.toContain("never copy");
+    expect(() => markPendingContractCallSubmitted(KEY, attempt)).toThrow();
+  });
+  it("does not cancel a legacy marker or a newer same-hash reservation", async () => {
+    const { rejectPendingContractCallSigning } = await import("@/lib/contract-call-pending");
+    const attempt = { txHash: HASH, phase: "signing" as const, attemptId: crypto.randomUUID() };
+    savePendingContractCall(KEY, { txHash: HASH });
+    rejectPendingContractCallSigning(KEY, attempt);
+    expect(readPendingContractCall(KEY)).toEqual({ txHash: HASH });
+    clearPendingContractCall(KEY, HASH);
+    savePendingContractCall(KEY, attempt);
+    rejectPendingContractCallSigning(KEY, attempt);
+    expect(readPendingContractCall(KEY)).toBeNull();
+  });
+});
