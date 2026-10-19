@@ -2,6 +2,7 @@ import { Account, Keypair, Networks, StrKey, TransactionBuilder } from "@stellar
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import { flowToPipeline } from "@/lib/flows/to-params";
+import { paymentAccountResponse } from "./payment-account-fixture";
 
 const {
   getAccount,
@@ -26,7 +27,7 @@ const {
 }));
 vi.mock("@/lib/stellar/client", () => ({
   sorobanRpc: () => ({
-    getAccount,
+    _getLedgerEntries: getAccount,
     simulateTransaction: simulate,
     sendTransaction: send,
     getTransaction,
@@ -78,7 +79,7 @@ const graph = FlowGraphSchema.parse({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  getAccount.mockResolvedValue(new Account(ACCOUNT, "1"));
+  getAccount.mockResolvedValue(paymentAccountResponse(ACCOUNT, "1"));
   simulate.mockResolvedValue({});
   assemble.mockImplementation((tx: TransactionBuilder) => ({ build: () => tx }));
 });

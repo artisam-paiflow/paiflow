@@ -17,6 +17,8 @@ import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
 import { preparePipelineDeployTx, checkAccountFunding } from "@/lib/stellar/deploy";
+import { withInteractiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
+import { assertDeploymentPreparationBudget } from "@/lib/stellar/deployment-preparation";
 import { getWasmHashes } from "@/lib/stellar/config";
 import { stellarRelayerAddress, offRampTreasuryAddress } from "@/lib/env";
 import { Role } from "@prisma/client";
@@ -141,58 +143,63 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    await checkAccountFunding(body.sourceAccount);
+    return withInteractiveRpcBudget(async () => {
+      await checkAccountFunding(body.sourceAccount);
 
-    const deployment = await db.deployment.create({
-      data: {
-        flowId: flow.id,
-        ownerId: user.id,
-        network,
-        status: "BUILDING",
-        graphSnapshot: graph as object,
-        paramsSnapshot: pipeline as object,
-        sourceAccount: body.sourceAccount,
-      },
-    });
-
-    try {
-      const prepared = await preparePipelineDeployTx({
-        sourceAccount: body.sourceAccount,
-        graph,
-        nodes: deployNodes,
-      });
-
-      // Use the trigger contract (first node) as the primary contract address.
-      const triggerNode = prepared.pipeline[0];
-
-      await db.deployment.update({
-        where: { id: deployment.id },
+      const deployment = await db.deployment.create({
         data: {
-          status: "PENDING_SIGNATURE",
-          unsignedXdr: prepared.xdr,
-          contractAddress: triggerNode?.contractAddress ?? null,
-          pipelineSnapshot: prepared.pipeline as object,
+          flowId: flow.id,
+          ownerId: user.id,
+          network,
+          status: "BUILDING",
+          graphSnapshot: graph as object,
+          paramsSnapshot: pipeline as object,
+          sourceAccount: body.sourceAccount,
         },
       });
-      await audit({
-        action: "DEPLOY_PREPARE",
-        userId: user.id,
-        metadata: { deploymentId: deployment.id, network },
-      });
-      return NextResponse.json({
-        data: {
+
+      try {
+        const prepared = await preparePipelineDeployTx({
+          sourceAccount: body.sourceAccount,
           deploymentId: deployment.id,
-          xdr: prepared.xdr,
-          expectedContractAddress: triggerNode?.contractAddress ?? null,
-          pipeline: prepared.pipeline,
-        },
-      });
-    } catch (err) {
-      await db.deployment.update({
-        where: { id: deployment.id },
-        data: { status: "FAILED", errorMessage: (err as Error).message },
-      });
-      throw err;
-    }
+          graph,
+          nodes: deployNodes,
+        });
+
+        assertDeploymentPreparationBudget(deployment.id);
+
+        // Use the trigger contract (first node) as the primary contract address.
+        const triggerNode = prepared.pipeline[0];
+
+        await db.deployment.update({
+          where: { id: deployment.id },
+          data: {
+            status: "PENDING_SIGNATURE",
+            unsignedXdr: prepared.xdr,
+            contractAddress: triggerNode?.contractAddress ?? null,
+            pipelineSnapshot: prepared.pipeline as object,
+          },
+        });
+        await audit({
+          action: "DEPLOY_PREPARE",
+          userId: user.id,
+          metadata: { deploymentId: deployment.id, network },
+        });
+        return NextResponse.json({
+          data: {
+            deploymentId: deployment.id,
+            xdr: prepared.xdr,
+            expectedContractAddress: triggerNode?.contractAddress ?? null,
+            pipeline: prepared.pipeline,
+          },
+        });
+      } catch (err) {
+        await db.deployment.update({
+          where: { id: deployment.id },
+          data: { status: "FAILED", errorMessage: (err as Error).message },
+        });
+        throw err;
+      }
+    });
   });
 }
