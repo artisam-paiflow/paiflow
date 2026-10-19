@@ -4,13 +4,14 @@ const mocks = vi.hoisted(() => ({
   config: vi.fn(),
   account: vi.fn(),
   sim: vi.fn(),
-  balance: vi.fn(),
 }));
 vi.mock("@/lib/stellar/streamer-config", () => ({ readStreamerConfig: mocks.config }));
 vi.mock("@/lib/stellar/client", () => ({
   sorobanRpc: () => ({ getAccount: mocks.account, simulateTransaction: mocks.sim }),
 }));
-vi.mock("@/lib/stellar/balance", () => ({ fetchTokenBalance: mocks.balance }));
+vi.mock("@/lib/stellar/load-payment-account", () => ({
+  loadPaymentAccount: (_server: unknown, address: string) => mocks.account(address),
+}));
 import { readScheduleState } from "@/lib/stellar/schedule-state";
 const contract = StrKey.encodeContract(Buffer.alloc(32, 1));
 const asset = StrKey.encodeContract(Buffer.alloc(32, 2));
@@ -24,10 +25,10 @@ beforeEach(() => {
     retrieve_allowed: true,
     available: 50n,
     claimed: 20n,
+    balance: 100n,
   };
   mocks.config.mockResolvedValue({ admin, asset });
   mocks.account.mockResolvedValue(new Account(admin, "123"));
-  mocks.balance.mockResolvedValue(100n);
   mocks.sim.mockImplementation(async (tx) => ({
     result: {
       retval: nativeToScVal(
@@ -37,6 +38,15 @@ beforeEach(() => {
   }));
 });
 describe("Schedule live state", () => {
+  it("fails closed on the observed post-end pause-offset state; never overstates retrieval", async () => {
+    values.available = -9000000n;
+    values.claimed = 9000000n;
+    values.is_paused = true;
+    await expect(readScheduleState(contract, admin)).rejects.toMatchObject({
+      code: "UPSTREAM_RPC",
+    });
+  });
+
   it("distinguishes holding funds, vested payout entitlement and actual retrievable amount", async () => {
     expect(await readScheduleState(contract, admin)).toMatchObject({
       balanceStroops: "100",
@@ -62,16 +72,18 @@ describe("Schedule live state", () => {
     });
   });
   it("retains precision above JS safe integer", async () => {
-    mocks.balance.mockResolvedValue(900719925474099300n);
+    values.balance = 900719925474099300n;
     expect((await readScheduleState(contract, admin)).unvestedStroops).toBe("900719925474099250");
   });
   it("uses live asset and a fresh read context without signing/submitting", async () => {
     await readScheduleState(contract, admin);
-    expect(mocks.balance).toHaveBeenCalledWith({
-      tokenAddress: asset,
-      holderAddress: contract,
-      sourceAccount: admin,
-    });
+    const balanceTx = mocks.sim.mock.calls
+      .map(([tx]) => tx)
+      .find((tx) => tx.operations[0].func.invokeContract().functionName().toString() === "balance");
+    expect(balanceTx.operations[0].func.invokeContract().contractAddress().contractId()).toEqual(
+      Buffer.alloc(32, 2),
+    );
+    expect(mocks.account).toHaveBeenCalledTimes(1);
     for (const [tx] of mocks.sim.mock.calls) {
       expect(tx.source).toBe(admin);
       expect(tx.sequence).toBe("124");
@@ -89,7 +101,7 @@ describe("Schedule live state", () => {
     },
   );
   it.each([-1n, 1n << 127n])("refuses invalid amount %s", async (amount) => {
-    mocks.balance.mockResolvedValue(amount);
+    values.balance = amount;
     await expect(readScheduleState(contract, admin)).rejects.toMatchObject({
       code: "UPSTREAM_RPC",
     });
