@@ -263,3 +263,97 @@ describe("desktop post-sign connection admission", () => {
     },
   );
 });
+
+describe("Lantern selected grant binding", () => {
+  it("does not let an old surface use a reconnected same-account grant", async () => {
+    vi.mocked(selectWallet).mockResolvedValueOnce({ id: "lantern", name: "Lantern" });
+    let generation = 1;
+    const lantern = {
+      get connectionGeneration() {
+        return generation;
+      },
+      assertConnectionGeneration: (expected: number) => {
+        if (expected !== generation) throw new Error("Lantern grant changed");
+      },
+    };
+    const kit = {
+      setWallet: vi.fn(),
+      getAddress: vi.fn(async () => ({ address: wallet.publicKey() })),
+      signTransaction: vi.fn(),
+      getNetwork: vi.fn(),
+    };
+    const connection = await connectSelectedWallet(
+      { kit, lantern } as unknown as WalletKit,
+      "testnet",
+      new AbortController().signal,
+    );
+    generation += 2; // switch away, then reconnect the same account
+    await expect(
+      connection!.signTransaction("unsigned", {
+        address: wallet.publicKey(),
+        networkPassphrase: Networks.TESTNET,
+      }),
+    ).rejects.toThrow("grant changed");
+    expect(kit.signTransaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("Lantern late signed result admission", () => {
+  it.each(["sign", "post-sign-address"])(
+    "refuses completion when a grant changes during %s",
+    async (boundary) => {
+      vi.mocked(selectWallet).mockResolvedValueOnce({ id: "lantern", name: "Lantern" });
+      let generation = 1;
+      let resolve!: () => void;
+      const waiting = new Promise<void>((done) => {
+        resolve = done;
+      });
+      let signed = false;
+      const reached = vi.fn();
+      const lantern = {
+        get connectionGeneration() {
+          return generation;
+        },
+        assertConnectionGeneration: (expected: number) => {
+          if (expected !== generation) throw new Error("Lantern grant changed");
+        },
+      };
+      const kit = {
+        setWallet: vi.fn(),
+        getAddress: vi.fn(async () => {
+          if (signed && boundary === "post-sign-address") {
+            reached();
+            await waiting;
+          }
+          return { address: wallet.publicKey() };
+        }),
+        signTransaction: vi.fn(async () => {
+          signed = true;
+          if (boundary === "sign") {
+            reached();
+            await waiting;
+          }
+          return { signedTxXdr: "signed" };
+        }),
+        getNetwork: vi.fn(async () => ({ networkPassphrase: Networks.TESTNET })),
+      };
+      const connection = await connectSelectedWallet(
+        { kit, lantern } as unknown as WalletKit,
+        "testnet",
+        new AbortController().signal,
+      );
+      const submitted = vi.fn();
+      const pending = connection!
+        .signTransaction("unsigned", {
+          address: wallet.publicKey(),
+          networkPassphrase: Networks.TESTNET,
+        })
+        .then(submitted);
+      await vi.waitFor(() => expect(reached).toHaveBeenCalledOnce());
+      generation++;
+      resolve();
+      await expect(pending).rejects.toThrow("grant changed");
+      expect(submitted).not.toHaveBeenCalled();
+    },
+  );
+});

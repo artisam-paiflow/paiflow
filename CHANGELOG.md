@@ -22,6 +22,11 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Enable the pinned Lantern desktop module in the Testnet wallet picker, with
+  synchronous account/network/revocation invalidation, sign-only validation and
+  controlled recovery errors. Mobile and mainnet Lantern remain unavailable;
+  real-extension joint acceptance is still pending (#1001).
+
 - Persist the prepared transaction hash before wallet signing for deploys, triggers,
   allowance approvals and shared contract calls. Preserve unknown signing outcomes
   across reloads, release only matching explicit cancellations, and recheck account
