@@ -11,6 +11,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Bound guarded Schedule state, funding and control reads to one interactive RPC deadline; distinguish unavailable and malformed upstream responses while preserving controller checks and original-hash recovery.
+
+- Reject execute amounts above the contract i128 maximum with a field-level validation error before RPC lookup or transaction preparation.
+
 - Bound Subscription control submission checks, state reads and reconciliation to one interactive RPC deadline, and distinguish unavailable account/allowance reads from genuine missing accounts without changing transaction recovery.
 
 - Give deployment preparation one shared 25-second network budget across funding, account lookup and simulation; distinguish unavailable RPC services from unfunded accounts and allow safe preparation retries before signing.

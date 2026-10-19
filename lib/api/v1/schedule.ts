@@ -8,6 +8,8 @@ import { AppError } from "@/lib/errors";
 import { BalancePipelineSnapshotSchema } from "@/lib/pipeline-snapshot";
 import { readScheduleState } from "@/lib/stellar/schedule-state";
 import { sorobanRpc } from "@/lib/stellar/client";
+import { withInteractiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
+import { assertScheduleRpcBudget, scheduleRpcRead } from "@/lib/stellar/schedule-rpc";
 import {
   prepareStreamerPauseInvocation,
   prepareStreamerUnpauseInvocation,
@@ -92,61 +94,64 @@ export async function prepareScheduleControl(
   action: ScheduleAction,
   body: z.infer<typeof SchedulePrepareSchema>,
 ) {
-  const node = scheduleNode(deployment, body.nodeId);
-  const state = await assertScheduleEligible(deployment, node.nodeId, body.walletAddress, action);
-  const preparationLedger = (
-    await sorobanRpc()
-      .getLatestLedger()
-      .catch(() => {
-        throw new AppError("UPSTREAM_RPC", "Schedule preparation ledger could not be read");
-      })
-  ).sequence;
-  const builders = {
-    pause: prepareStreamerPauseInvocation,
-    resume: prepareStreamerUnpauseInvocation,
-    retrieve: prepareStreamerRetrieveUnvestedInvocation,
-  };
-  const prepared = await builders[action]({
-    contractAddress: node.contractAddress,
-    invokerAddress: body.walletAddress,
-  }).catch((error: unknown) => {
-    if (error instanceof AppError) throw error;
-    throw new AppError("UPSTREAM_RPC", "Schedule control preparation could not be simulated");
-  });
-  const current = await assertScheduleEligible(deployment, node.nodeId, body.walletAddress, action);
-  if (
-    current.controller !== state.controller ||
-    current.tokenContractAddress !== state.tokenContractAddress
-  )
-    throw new AppError(
-      "CONFLICT",
-      "Schedule configuration changed during simulation; prepare again",
+  return withInteractiveRpcBudget(async () => {
+    const node = scheduleNode(deployment, body.nodeId);
+    const state = await assertScheduleEligible(deployment, node.nodeId, body.walletAddress, action);
+    const preparationLedger = (
+      await scheduleRpcRead("control.ledger", () => sorobanRpc().getLatestLedger())
+    ).sequence;
+    const builders = {
+      pause: prepareStreamerPauseInvocation,
+      resume: prepareStreamerUnpauseInvocation,
+      retrieve: prepareStreamerRetrieveUnvestedInvocation,
+    };
+    const prepared = await scheduleRpcRead("control.simulation", () =>
+      builders[action]({
+        contractAddress: node.contractAddress,
+        invokerAddress: body.walletAddress,
+      }),
     );
-  const intent = await createControlIntent({
-    deployment,
-    nodeId: node.nodeId,
-    action: controlAction(action),
-    walletAddress: body.walletAddress,
-    unsignedXdr: prepared.xdr,
-    preparationLedger,
+    const current = await assertScheduleEligible(
+      deployment,
+      node.nodeId,
+      body.walletAddress,
+      action,
+    );
+    if (
+      current.controller !== state.controller ||
+      current.tokenContractAddress !== state.tokenContractAddress
+    )
+      throw new AppError(
+        "CONFLICT",
+        "Schedule configuration changed during simulation; prepare again",
+      );
+    assertScheduleRpcBudget();
+    const intent = await createControlIntent({
+      deployment,
+      nodeId: node.nodeId,
+      action: controlAction(action),
+      walletAddress: body.walletAddress,
+      unsignedXdr: prepared.xdr,
+      preparationLedger,
+    });
+    linkApiTransaction(intent.txHash);
+    return {
+      ...intent,
+      unsignedXdr: prepared.xdr,
+      network: deployment.network,
+      action,
+      nodeId: node.nodeId,
+      contractAddress: node.contractAddress,
+      walletAddress: body.walletAddress,
+      ...(action === "retrieve"
+        ? {
+            recipient: current.controller,
+            estimatedAmountStroops: current.retrievableStroops,
+            tokenContractAddress: current.tokenContractAddress,
+          }
+        : {}),
+    };
   });
-  linkApiTransaction(intent.txHash);
-  return {
-    ...intent,
-    unsignedXdr: prepared.xdr,
-    network: deployment.network,
-    action,
-    nodeId: node.nodeId,
-    contractAddress: node.contractAddress,
-    walletAddress: body.walletAddress,
-    ...(action === "retrieve"
-      ? {
-          recipient: current.controller,
-          estimatedAmountStroops: current.retrievableStroops,
-          tokenContractAddress: current.tokenContractAddress,
-        }
-      : {}),
-  };
 }
 
 export async function submitScheduleControl(input: {
@@ -166,20 +171,22 @@ export async function submitScheduleControl(input: {
   return submitControlIntent({
     ...input,
     action: controlAction(input.action),
-    assertEligible: async () => {
-      const node = scheduleNode(input.deployment, intent.nodeId);
-      if (node.contractAddress !== intent.contractAddress)
-        throw new AppError(
-          "CONFLICT",
-          "Prepared Schedule no longer matches the deployment snapshot",
+    assertEligible: () =>
+      withInteractiveRpcBudget(async () => {
+        const node = scheduleNode(input.deployment, intent.nodeId);
+        if (node.contractAddress !== intent.contractAddress)
+          throw new AppError(
+            "CONFLICT",
+            "Prepared Schedule no longer matches the deployment snapshot",
+          );
+        await assertScheduleEligible(
+          input.deployment,
+          intent.nodeId,
+          intent.walletAddress,
+          input.action,
         );
-      await assertScheduleEligible(
-        input.deployment,
-        intent.nodeId,
-        intent.walletAddress,
-        input.action,
-      );
-    },
+        assertScheduleRpcBudget();
+      }),
   });
 }
 
@@ -188,16 +195,18 @@ export async function reconcileScheduleControl(
   action: ScheduleAction,
   intentId: string,
 ) {
-  const intent = await reconcileControlIntent(intentId, deployment.id, controlAction(action));
-  linkApiTransaction(intent.txHash);
-  return {
-    intent: intent.id,
-    txHash: intent.txHash,
-    network: intent.network,
-    action,
-    state: intent.state,
-    replacementAllowed: ["SUCCESS", "FAILED", "EXPIRED"].includes(intent.state),
-  };
+  return withInteractiveRpcBudget(async () => {
+    const intent = await reconcileControlIntent(intentId, deployment.id, controlAction(action));
+    linkApiTransaction(intent.txHash);
+    return {
+      intent: intent.id,
+      txHash: intent.txHash,
+      network: intent.network,
+      action,
+      state: intent.state,
+      replacementAllowed: ["SUCCESS", "FAILED", "EXPIRED"].includes(intent.state),
+    };
+  });
 }
 
 /** Malformed JSON is a client validation error, never an internal error. */
