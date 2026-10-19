@@ -11,6 +11,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Give Subscription cancellation and reactivation preparation one shared 25-second RPC budget; report source-account and simulation transport failures as upstream errors without reserving an intent when preparation fails.
+
 - Keep deployment submissions with uncertain RPC outcomes pending under their original transaction hash, including relayer deployments; resume the original unsigned preparation after a reload when it was never accepted, and permit deliberate replacement only after proving expiry.
 
 - Report payment source-account RPC failures as upstream errors instead of misleading unfunded-account errors; reserve funding guidance for a successful ledger read proving the account is absent.

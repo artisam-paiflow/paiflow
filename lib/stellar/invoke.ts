@@ -533,12 +533,25 @@ export async function prepareTokenApproveInvocation(opts: {
   return { xdr: assembled.toXDR(), tx: assembled };
 }
 
+/** Classify only the RPC dispatch, preserving contract simulation errors below. */
+async function simulateSubscriptionControl(server: rpc.Server, tx: Transaction) {
+  try {
+    return await server.simulateTransaction(tx);
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      "UPSTREAM_RPC",
+      "The Stellar RPC could not simulate this subscription control; try preparing again",
+    );
+  }
+}
+
 export async function prepareSubscriptionUnsubscribeInvocation(opts: {
   contractAddress: string;
   subscriberAddress: string;
 }): Promise<PreparedInvokeTx> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.subscriberAddress);
+  const sourceAcct = await loadPaymentAccount(server, opts.subscriberAddress);
 
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
@@ -561,7 +574,7 @@ export async function prepareSubscriptionUnsubscribeInvocation(opts: {
     .setTimeout(180)
     .build();
 
-  const sim = await server.simulateTransaction(tx);
+  const sim = await simulateSubscriptionControl(server, tx);
   if (rpc.Api.isSimulationError(sim)) {
     throw simulationFailure(sim.error, { contract: "subscription" });
   }
@@ -575,7 +588,7 @@ export async function prepareSubscriptionSubscribeInvocation(opts: {
   subscriberAddress: string;
 }): Promise<PreparedInvokeTx> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.subscriberAddress);
+  const sourceAcct = await loadPaymentAccount(server, opts.subscriberAddress);
 
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
@@ -598,7 +611,7 @@ export async function prepareSubscriptionSubscribeInvocation(opts: {
     .setTimeout(180)
     .build();
 
-  const sim = await server.simulateTransaction(tx);
+  const sim = await simulateSubscriptionControl(server, tx);
   if (rpc.Api.isSimulationError(sim)) {
     throw simulationFailure(sim.error, { contract: "subscription" });
   }
