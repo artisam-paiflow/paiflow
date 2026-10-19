@@ -180,9 +180,10 @@ describe("submitDeployTx", () => {
   it("leaves ambiguous send errors unresolved during the rehearsal", async () => {
     const signed = signedEnvelope();
     mockRpc.sendTransaction.mockRejectedValueOnce(new Error("RPC unavailable"));
-    await expect(submitDeployTx(signed, { confirmation: "reconcile" })).rejects.toThrow(
-      "RPC unavailable",
-    );
+    expect(await submitDeployTx(signed, { confirmation: "reconcile" })).toMatchObject({
+      txHash: hashOf(signed),
+      failureCode: "FINALITY_UNKNOWN",
+    });
     expect(recordTransactionOutcome).toHaveBeenCalledWith(
       hashOf(signed),
       "UNRESOLVED",
@@ -190,6 +191,38 @@ describe("submitDeployTx", () => {
     );
     expect(mockRpc.getTransaction).not.toHaveBeenCalled();
   });
+  it("keeps an unacknowledged send pending under the locally computed hash", async () => {
+    const signed = signedEnvelope();
+    mockRpc.sendTransaction.mockRejectedValueOnce(new Error("timeout after acceptance"));
+    expect(await submitDeployTx(signed)).toMatchObject({
+      txHash: hashOf(signed),
+      failureCode: "FINALITY_UNKNOWN",
+    });
+    expect(mockRpc.sendTransaction).toHaveBeenCalledOnce();
+    expect(mockRpc.getTransaction).not.toHaveBeenCalled();
+    expect(recordTransactionOutcome).not.toHaveBeenCalledWith(
+      hashOf(signed),
+      "REJECTED",
+      expect.anything(),
+    );
+  });
+
+  it("preserves accepted submissions when finality reads time out", async () => {
+    const signed = signedEnvelope();
+    mockRpc.sendTransaction.mockResolvedValueOnce({ status: "PENDING", hash: hashOf(signed) });
+    mockRpc.getTransaction.mockRejectedValueOnce(new Error("read timeout"));
+    expect(await submitDeployTx(signed)).toMatchObject({
+      txHash: hashOf(signed),
+      failureCode: "FINALITY_UNKNOWN",
+    });
+    expect(mockRpc.sendTransaction).toHaveBeenCalledOnce();
+    expect(recordTransactionOutcome).toHaveBeenCalledWith(
+      hashOf(signed),
+      "UNRESOLVED",
+      expect.objectContaining({ failureCode: "RPC_UNAVAILABLE" }),
+    );
+  });
+
   it("TRY_AGAIN_LATER answers NOT_ACCEPTED at once, without polling the unqueued hash", async () => {
     const signed = signedEnvelope();
     mockRpc.sendTransaction.mockResolvedValue({ status: "TRY_AGAIN_LATER", hash: hashOf(signed) });
