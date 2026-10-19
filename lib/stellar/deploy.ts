@@ -37,6 +37,8 @@ import { buildRelayerTx, withRelayerChannel, type RelayerChannel } from "./relay
 import { nodeBlueprint, pipelineNodeConstructorArgs } from "./scval";
 import { classifySend } from "./send-status";
 import { simulationFailure } from "./sim-error";
+import { loadPaymentAccount, MissingPaymentAccountError } from "./load-payment-account";
+import { deploymentPreparationRead } from "./deployment-preparation";
 import { contractKeyForTemplate, type ContractErrorKey } from "./soroban-errors";
 
 // 2 XLM covers: 1 XLM base reserve + ~0.5 XLM Soroban storage entries + ~0.5 XLM tx fee buffer
@@ -48,7 +50,7 @@ export async function checkAccountFunding(
 ): Promise<void> {
   let acct: Awaited<ReturnType<ReturnType<typeof horizon>["loadAccount"]>>;
   try {
-    acct = await horizon().loadAccount(sourceAccount);
+    acct = await deploymentPreparationRead("funding", () => horizon().loadAccount(sourceAccount));
   } catch (e) {
     if (e instanceof NotFoundError) {
       throw new AppError(
@@ -135,6 +137,7 @@ async function preparePipelineDeployTxFromPlan(
   plan: PipelinePlan,
   /** Set for a relayer deploy: it then builds and signs the whole envelope. */
   channel?: RelayerChannel,
+  deploymentId?: string,
 ): Promise<PreparedPipelineDeploy> {
   const server = sorobanRpc();
   const factoryAddress = await getFactoryAddress();
@@ -220,7 +223,22 @@ async function preparePipelineDeployTxFromPlan(
     return { xdr: signed.toXDR(), pipeline };
   }
 
-  const sourceAcct = await server.getAccount(sourceAccount);
+  const sourceAcct = await deploymentPreparationRead(
+    "account",
+    async () => {
+      try {
+        return await loadPaymentAccount(server, sourceAccount);
+      } catch (error) {
+        if (error instanceof MissingPaymentAccountError)
+          throw new AppError(
+            "INSUFFICIENT_FUNDS",
+            "The deploying account does not exist on this network. Fund it before preparing a deployment.",
+          );
+        throw error;
+      }
+    },
+    deploymentId,
+  );
   const tx = new TransactionBuilder(sourceAcct, {
     fee: BASE_FEE,
     networkPassphrase: stellarPassphrase(),
@@ -229,7 +247,11 @@ async function preparePipelineDeployTxFromPlan(
     .setTimeout(180)
     .build();
 
-  const sim = await server.simulateTransaction(tx);
+  const sim = await deploymentPreparationRead(
+    "simulation",
+    () => server.simulateTransaction(tx),
+    deploymentId,
+  );
   if (rpc.Api.isSimulationError(sim)) throw failure(sim.error);
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -238,6 +260,7 @@ async function preparePipelineDeployTxFromPlan(
 
 /** Build & simulate a pipeline deployment tx via the on-chain factory. */
 export async function preparePipelineDeployTx(opts: {
+  deploymentId?: string;
   sourceAccount: string;
   graph: FlowGraph;
   nodes: PipelineDeployNode[];
@@ -249,7 +272,7 @@ export async function preparePipelineDeployTx(opts: {
     opts.nodes.map((n) => n.templateKind),
   );
   const plan = buildPipelinePlan(opts.sourceAccount, opts.graph, opts.nodes);
-  return preparePipelineDeployTxFromPlan(opts.sourceAccount, plan);
+  return preparePipelineDeployTxFromPlan(opts.sourceAccount, plan, undefined, opts.deploymentId);
 }
 
 function computeContractAddress(sourceAccount: string, salt: Buffer): string {
