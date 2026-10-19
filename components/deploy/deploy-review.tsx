@@ -4,6 +4,10 @@ import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { TemplateKind } from "@prisma/client";
 import type { Asset } from "@/lib/flows/schema";
+import {
+  PreparedRecoverySchema,
+  type PreparedRecovery,
+} from "@/lib/deployments/prepared-recovery-schema";
 import type { TrustlineCheck } from "@/lib/stellar/trustline-check";
 import { toastError } from "@/lib/friendly-toast";
 import { implementationLabel } from "@/lib/flows/implementation";
@@ -67,18 +71,25 @@ export default function DeployReview({
   const [busy, setBusy] = useState(false);
   const [recoveryId, setRecoveryId] = useState<string | null>(null);
   const [recoveryLoaded, setRecoveryLoaded] = useState(false);
-  const [recoveryTerminal, setRecoveryTerminal] = useState<"CONFIRMED" | "FAILED" | null>(null);
+  const [recoveryTerminal, setRecoveryTerminal] = useState<
+    "CONFIRMED" | "FAILED" | "EXPIRED" | null
+  >(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [retrySubmission, setRetrySubmission] = useState<{
     deploymentId: string;
     signedXdr: string;
   } | null>(null);
+  const [resumePreparation, setResumePreparation] = useState<Extract<
+    PreparedRecovery,
+    { status: "RESUMABLE" }
+  > | null>(null);
   const recoveryKey = `paiflow-deploy-recovery:${network}:${flowId}`;
   useEffect(() => {
     let active = true;
     setRecoveryLoaded(false);
     setRecoveryTerminal(null);
     setRetrySubmission(null);
+    setResumePreparation(null);
     setSubmitError(null);
     setRecoveryId(null);
     try {
@@ -93,6 +104,31 @@ export default function DeployReview({
             const body = await response.json();
             if (active && (body.status === "CONFIRMED" || body.status === "FAILED")) {
               setRecoveryTerminal(body.status);
+            } else if (active && body.status === "PENDING_SIGNATURE") {
+              const owned = await fetch(`/api/deployments/${encodeURIComponent(savedId)}`);
+              if (!owned.ok) return;
+              const detail = (await owned.json()).data;
+              if (
+                !active ||
+                detail?.id !== savedId ||
+                detail.flowId !== flowId ||
+                detail.network !== network ||
+                detail.status !== "PENDING_SIGNATURE" ||
+                detail.serviceState !== "ACTIVE" ||
+                detail.deployTxHash
+              )
+                return;
+              const recovery = PreparedRecoverySchema.safeParse(detail.preparedRecovery);
+              if (!recovery.success) return;
+              if (
+                recovery.data.status === "RESUMABLE" &&
+                recovery.data.network === network &&
+                recovery.data.sourceAccount === detail.sourceAccount
+              ) {
+                setResumePreparation(recovery.data);
+              } else if (recovery.data.status === "EXPIRED") {
+                setRecoveryTerminal("EXPIRED");
+              }
             }
           })
           .catch(() => {});
@@ -143,7 +179,13 @@ export default function DeployReview({
   }, [trustlineCheck]);
 
   async function onDeploy() {
-    if (!checkSettled || !recoveryLoaded || (recoveryId && !retrySubmission) || busy) return;
+    if (
+      !checkSettled ||
+      !recoveryLoaded ||
+      (recoveryId && !retrySubmission && !resumePreparation) ||
+      busy
+    )
+      return;
     setBusy(true);
     track("deploy_started", { flow_id: flowId });
     let stage: "wallet" | "prepare" | "sign" | "submit" = "wallet";
@@ -153,6 +195,18 @@ export default function DeployReview({
       if (retrySubmission) {
         deploymentId = retrySubmission.deploymentId;
         signedXdr = retrySubmission.signedXdr;
+      } else if (resumePreparation && recoveryId) {
+        deploymentId = recoveryId;
+        stage = "sign";
+        const kit = await connectWallet(network);
+        const { address } = await kit.getAddress();
+        if (address !== resumePreparation.sourceAccount)
+          throw new Error("Connect the wallet that prepared this deployment.");
+        const signed = await kit.signTransaction(resumePreparation.unsignedXdr, {
+          address,
+          networkPassphrase: PASSPHRASE_BY_NETWORK[network],
+        });
+        signedXdr = signed.signedTxXdr;
       } else {
         const kit = await connectWallet(network);
         const { address } = await kit.getAddress();
@@ -182,6 +236,7 @@ export default function DeployReview({
         signedXdr = signed.signedTxXdr;
       }
       stage = "submit";
+      setResumePreparation(null);
       setRetrySubmission(null);
       setSubmitError(null);
       // Persist only the deployment identity, before attempting the send. A lost response
@@ -337,13 +392,16 @@ export default function DeployReview({
           }}
           className="text-primary underline"
         >
-          Deploy another
+          {recoveryTerminal === "EXPIRED" ? "Prepare another" : "Deploy another"}
         </button>
       )}
       <button
         onClick={onDeploy}
         disabled={
-          busy || !checkSettled || !recoveryLoaded || (recoveryId !== null && !retrySubmission)
+          busy ||
+          !checkSettled ||
+          !recoveryLoaded ||
+          (recoveryId !== null && !retrySubmission && !resumePreparation)
         }
         className="bg-primary px-md text-label-md text-on-primary inline-flex w-full items-center justify-center gap-2 rounded-lg py-3 font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_24px_rgba(255,177,196,0.55)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
       >
@@ -356,6 +414,8 @@ export default function DeployReview({
           </>
         ) : retrySubmission ? (
           "RETRY SUBMISSION"
+        ) : resumePreparation ? (
+          "RESUME DEPLOYMENT"
         ) : !checkSettled ? (
           <>
             <span className="material-symbols-outlined animate-spin text-[16px]">

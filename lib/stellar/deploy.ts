@@ -452,11 +452,21 @@ export async function deployPipelineByRelayer(opts: {
     // Attach every child address to the exact envelope identity. The SDK send
     // gate checkpoints both atomically with its durable admission before sending.
     // The request may die after finality but before its confirmation checkpoint.
-    const preparedHash = TransactionBuilder.fromXDR(prepared.xdr, stellarPassphrase())
-      .hash()
-      .toString("hex");
+    const preparedTx = TransactionBuilder.fromXDR(prepared.xdr, stellarPassphrase());
+    const preparedHash = preparedTx.hash().toString("hex");
     prepareServiceDeployment(preparedHash, prepared.pipeline);
+    channel.trackPending(
+      preparedHash,
+      "timeBounds" in preparedTx ? preparedTx.timeBounds?.maxTime : undefined,
+    );
     const result = await submitDeployTx(prepared.xdr);
+    if (
+      result.status === "SUCCESS" ||
+      result.status === "NOT_ACCEPTED" ||
+      result.failureCode !== "FINALITY_UNKNOWN"
+    ) {
+      channel.clearPending?.(preparedHash);
+    }
     if (result.status === "NOT_ACCEPTED") {
       // Nothing to resubmit here: the envelope lives only inside this lock, and
       // a retry re-prepares with a fresh sequence number. An empty hash is how
