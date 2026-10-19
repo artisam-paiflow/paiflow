@@ -11,6 +11,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Keep deployment submissions with uncertain RPC outcomes pending under their original transaction hash; recover the existing deployment after a lost response instead of preparing a duplicate.
+
 - Report payment source-account RPC failures as upstream errors instead of misleading unfunded-account errors; reserve funding guidance for a successful ledger read proving the account is absent.
 
 - Give interactive payment preparation, submission and original-hash status recovery one shared 25-second RPC budget; keep background workers at their existing timeout and preserve confirmed outcomes when optional event catch-up runs out of time.

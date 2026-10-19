@@ -1,3 +1,5 @@
+// Rate limiting has its own suite; isolate each domain test from shared request counters.
+vi.mock("@/lib/api/write-rate-limit", () => ({ enforceWriteRateLimit: vi.fn() }));
 // Admission/retirement is exercised with real PostgreSQL in retirement.test.ts.
 // This suite isolates its existing domain behavior from that service boundary.
 vi.mock("@/lib/deployments/service-route", () => ({
@@ -188,6 +190,32 @@ describe("deployments/[id]/submit", () => {
       username: "test-user",
       role: "USER",
     });
+  });
+
+  it("returns the original pending result for a same-hash retry without broadcasting", async () => {
+    mockDb.deployment.findFirst.mockResolvedValue(
+      makeDeployment({ status: "SUBMITTED", deployTxHash: TX_HASH }),
+    );
+    const response = await POST(
+      makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+      makeContext("dep-1"),
+    );
+    expect(response.status).toBe(200);
+    expect((await response.json()).data).toEqual({ status: "SUBMITTED", txHash: TX_HASH });
+    expect(mockDeploy.submitDeployTx).not.toHaveBeenCalled();
+    expect(mockDb.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("refuses a different envelope while the original deployment is submitted", async () => {
+    mockDb.deployment.findFirst.mockResolvedValue(
+      makeDeployment({ status: "SUBMITTED", deployTxHash: "different-hash" }),
+    );
+    const response = await POST(
+      makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+      makeContext("dep-1"),
+    );
+    expect(response.status).toBe(409);
+    expect(mockDeploy.submitDeployTx).not.toHaveBeenCalled();
   });
 
   it("returns accepted rehearsal submissions without confirmation/setup or failure events", async () => {

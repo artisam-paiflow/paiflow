@@ -65,6 +65,46 @@ export default function DeployReview({
   trustlineCheck?: Promise<TrustlineCheck[]>;
 }) {
   const [busy, setBusy] = useState(false);
+  const [recoveryId, setRecoveryId] = useState<string | null>(null);
+  const [recoveryLoaded, setRecoveryLoaded] = useState(false);
+  const [recoveryTerminal, setRecoveryTerminal] = useState<"CONFIRMED" | "FAILED" | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [retrySubmission, setRetrySubmission] = useState<{
+    deploymentId: string;
+    signedXdr: string;
+  } | null>(null);
+  const recoveryKey = `paiflow-deploy-recovery:${network}:${flowId}`;
+  useEffect(() => {
+    let active = true;
+    setRecoveryLoaded(false);
+    setRecoveryTerminal(null);
+    setRetrySubmission(null);
+    setSubmitError(null);
+    setRecoveryId(null);
+    try {
+      const savedId = sessionStorage.getItem(recoveryKey);
+      setRecoveryId(savedId);
+      if (savedId) {
+        // Offer an explicit new deployment only after the previous one has a known
+        // terminal status. Missing reads leave the original deployment guarded.
+        void fetch(`/api/deployments/${encodeURIComponent(savedId)}/status`)
+          .then(async (response) => {
+            if (!response.ok) return;
+            const body = await response.json();
+            if (active && (body.status === "CONFIRMED" || body.status === "FAILED")) {
+              setRecoveryTerminal(body.status);
+            }
+          })
+          .catch(() => {});
+      }
+    } catch {
+      // The in-memory guard still protects this review if browser storage is unavailable.
+    }
+    setRecoveryLoaded(true);
+    return () => {
+      active = false;
+    };
+  }, [recoveryKey]);
   const [pipeline, setPipeline] = useState<
     Array<{
       nodeId: string;
@@ -103,52 +143,85 @@ export default function DeployReview({
   }, [trustlineCheck]);
 
   async function onDeploy() {
-    if (!checkSettled) return;
+    if (!checkSettled || !recoveryLoaded || (recoveryId && !retrySubmission) || busy) return;
     setBusy(true);
     track("deploy_started", { flow_id: flowId });
     let stage: "wallet" | "prepare" | "sign" | "submit" = "wallet";
     let deploymentId: string | undefined;
+    let signedXdr: string;
     try {
-      const kit = await connectWallet(network);
-      const { address } = await kit.getAddress();
-      void trackWalletConnection({
-        address,
-        network,
-        walletId: "freighter",
-        surface: "deploy_review",
-      });
-      stage = "prepare";
-      const prep = await fetch("/api/deployments/prepare", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ flowId, sourceAccount: address }),
-      });
-      const prepData = await prep.json();
-      if (!prep.ok) throw apiError(prepData, "Prepare failed");
-      setPipeline(prepData.data.pipeline ?? []);
-      deploymentId = prepData.data.deploymentId;
+      if (retrySubmission) {
+        deploymentId = retrySubmission.deploymentId;
+        signedXdr = retrySubmission.signedXdr;
+      } else {
+        const kit = await connectWallet(network);
+        const { address } = await kit.getAddress();
+        void trackWalletConnection({
+          address,
+          network,
+          walletId: "freighter",
+          surface: "deploy_review",
+        });
+        stage = "prepare";
+        const prep = await fetch("/api/deployments/prepare", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ flowId, sourceAccount: address }),
+        });
+        const prepData = await prep.json();
+        if (!prep.ok) throw apiError(prepData, "Prepare failed");
+        setPipeline(prepData.data.pipeline ?? []);
+        deploymentId = prepData.data.deploymentId;
 
-      stage = "sign";
-      const signed = await kit.signTransaction(prepData.data.xdr, {
-        address,
-        networkPassphrase: PASSPHRASE_BY_NETWORK[network],
-      });
+        stage = "sign";
+        const signed = await kit.signTransaction(prepData.data.xdr, {
+          address,
+          networkPassphrase: PASSPHRASE_BY_NETWORK[network],
+        });
 
+        signedXdr = signed.signedTxXdr;
+      }
       stage = "submit";
-      const submit = await fetch(`/api/deployments/${prepData.data.deploymentId}/submit`, {
+      setRetrySubmission(null);
+      setSubmitError(null);
+      // Persist only the deployment identity, before attempting the send. A lost response
+      // (or a reload) must lead back to this deployment, never a fresh preparation.
+      setRecoveryId(deploymentId!);
+      try {
+        sessionStorage.setItem(recoveryKey, deploymentId!);
+      } catch {
+        // Keep the in-memory guard even when browser storage is unavailable.
+      }
+      const submit = await fetch(`/api/deployments/${deploymentId}/submit`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ signedXdr: signed.signedTxXdr }),
+        body: JSON.stringify({ signedXdr }),
       });
       const subData = await submit.json();
-      if (!submit.ok) throw apiError(subData, "Submit failed");
+      if (!submit.ok) {
+        const error = apiError(subData, "Submit failed");
+        setSubmitError(error.message);
+        // Only a positive refusal permits retrying the exact same signed envelope.
+        // Missing/failed acknowledgements remain guarded by the original identity.
+        if (subData.error?.submissionStatus === "NOT_ACCEPTED") {
+          setRetrySubmission({ deploymentId: deploymentId!, signedXdr });
+        }
+        throw error;
+      }
       toast.success(
         subData.data.status === "CONFIRMED"
           ? "Contract deployed."
           : "Transaction submitted; waiting for confirmation.",
       );
-      window.location.href = `/deployments/${prepData.data.deploymentId}`;
+      window.location.href = `/deployments/${deploymentId}`;
     } catch (err) {
+      if (stage === "submit" && deploymentId) {
+        toastError(err, "Submission status could not be checked.");
+        toast.info(
+          "Check the original deployment for its transaction status before deploying again.",
+        );
+        return;
+      }
       // deploy_confirmed and the chain-side failure are captured server-side;
       // this is the part only the browser sees: wallet, signing, refusals.
       const c = classifyError(err);
@@ -231,9 +304,47 @@ export default function DeployReview({
           </ul>
         </div>
       )}
+      {recoveryId && (
+        <p role="status" className="text-label-sm text-on-surface-variant font-mono">
+          {recoveryTerminal
+            ? `The original deployment is ${recoveryTerminal.toLowerCase()}.`
+            : "Check the original deployment for its transaction status."}{" "}
+          <a
+            className="text-primary underline"
+            href={`/deployments/${encodeURIComponent(recoveryId)}`}
+          >
+            View deployment
+          </a>
+        </p>
+      )}
+      {submitError && (
+        <p role="alert" className="text-label-sm text-error font-mono">
+          {submitError}
+        </p>
+      )}
+      {recoveryTerminal && (
+        <button
+          type="button"
+          onClick={() => {
+            try {
+              sessionStorage.removeItem(recoveryKey);
+            } catch {
+              return;
+            }
+            setRecoveryId(null);
+            setRecoveryTerminal(null);
+            setSubmitError(null);
+          }}
+          className="text-primary underline"
+        >
+          Deploy another
+        </button>
+      )}
       <button
         onClick={onDeploy}
-        disabled={busy || !checkSettled}
+        disabled={
+          busy || !checkSettled || !recoveryLoaded || (recoveryId !== null && !retrySubmission)
+        }
         className="bg-primary px-md text-label-md text-on-primary inline-flex w-full items-center justify-center gap-2 rounded-lg py-3 font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_24px_rgba(255,177,196,0.55)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
       >
         {busy ? (
@@ -243,6 +354,8 @@ export default function DeployReview({
             </span>
             DEPLOYING…
           </>
+        ) : retrySubmission ? (
+          "RETRY SUBMISSION"
         ) : !checkSettled ? (
           <>
             <span className="material-symbols-outlined animate-spin text-[16px]">

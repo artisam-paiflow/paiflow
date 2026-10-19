@@ -118,4 +118,122 @@ describe("wallet signing cancellation analytics", () => {
       expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(false);
     },
   );
+  it.each(["http500", "lost-response"])(
+    "recovers %s without another prepare or submit, including after reload",
+    async (failure) => {
+      signTransaction.mockResolvedValue({ signedTxXdr: "signed-envelope-private" });
+      const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+        if (url === "/api/deployments/prepare")
+          return {
+            ok: true,
+            json: async () => ({ data: { deploymentId: "deployment-id", xdr: "unsigned-xdr" } }),
+          };
+        if (url.endsWith("/status")) throw new Error("status read unavailable");
+        expect(sessionStorage.getItem("paiflow-deploy-recovery:testnet:flow-id")).toBe(
+          "deployment-id",
+        );
+        if (failure === "lost-response") throw new Error("Failed to fetch");
+        return {
+          ok: false,
+          json: async () => ({ error: { code: "INTERNAL", message: "Internal server error" } }),
+        };
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      const view = render(<DeployReview flowId="flow-id" network="testnet" />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /deploy to testnet/i }));
+      });
+      expect(screen.getByRole("link", { name: "View deployment" }).getAttribute("href")).toBe(
+        "/deployments/deployment-id",
+      );
+      expect(
+        (screen.getByRole("button", { name: /deploy to testnet/i }) as HTMLButtonElement).disabled,
+      ).toBe(true);
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /deploy to testnet/i }));
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      view.unmount();
+      await act(async () => {
+        render(<DeployReview flowId="flow-id" network="testnet" />);
+      });
+      expect(
+        (screen.getByRole("button", { name: /deploy to testnet/i }) as HTMLButtonElement).disabled,
+      ).toBe(true);
+      expect(
+        fetchMock.mock.calls.filter(([url]) => url === "/api/deployments/prepare"),
+      ).toHaveLength(1);
+      expect(
+        fetchMock.mock.calls.filter(([url]) => url === "/api/deployments/deployment-id/submit"),
+      ).toHaveLength(1);
+      expect(signTransaction).toHaveBeenCalledOnce();
+      expect(sessionStorage.getItem("paiflow-deploy-recovery:testnet:flow-id")).toBe(
+        "deployment-id",
+      );
+      expect(
+        JSON.stringify([...Object.values(sessionStorage), vi.mocked(track).mock.calls]),
+      ).not.toContain("signed-envelope-private");
+      expect(vi.mocked(track).mock.calls.some(([event]) => event === "deploy_failed")).toBe(false);
+    },
+  );
+
+  it("retries only the original envelope after an explicit network refusal", async () => {
+    signTransaction.mockResolvedValue({ signedTxXdr: "signed-envelope-private" });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { deploymentId: "deployment-id", xdr: "unsigned-xdr" } }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({
+          error: {
+            code: "UPSTREAM_RPC",
+            message: "The network is busy; submit the same envelope again",
+            submissionStatus: "NOT_ACCEPTED",
+          },
+        }),
+      })
+      .mockRejectedValueOnce(new Error("Failed to fetch"));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<DeployReview flowId="flow-id" network="testnet" />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /deploy to testnet/i }));
+    });
+    expect(screen.getByRole("alert").textContent).toContain("The network is busy");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /retry submission/i }));
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[1]).toEqual(fetchMock.mock.calls[2]);
+    expect(signTransaction).toHaveBeenCalledOnce();
+    expect(
+      (screen.getByRole("button", { name: /deploy to testnet/i }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+
+  it.each(["CONFIRMED", "FAILED"])(
+    "requires explicit consent to deploy another after %s",
+    async (status) => {
+      sessionStorage.setItem("paiflow-deploy-recovery:testnet:flow-id", "deployment-id");
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ status }) });
+      vi.stubGlobal("fetch", fetchMock);
+      await act(async () => {
+        render(<DeployReview flowId="flow-id" network="testnet" />);
+      });
+      expect(
+        (screen.getByRole("button", { name: /deploy to testnet/i }) as HTMLButtonElement).disabled,
+      ).toBe(true);
+      expect(fetchMock).toHaveBeenCalledOnce();
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Deploy another" }));
+      });
+      expect(
+        (screen.getByRole("button", { name: /deploy to testnet/i }) as HTMLButtonElement).disabled,
+      ).toBe(false);
+      expect(sessionStorage.getItem("paiflow-deploy-recovery:testnet:flow-id")).toBeNull();
+      expect(fetchMock).toHaveBeenCalledOnce();
+    },
+  );
 });
