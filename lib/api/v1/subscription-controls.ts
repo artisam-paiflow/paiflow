@@ -8,6 +8,10 @@ import { readSubscriptionState } from "@/lib/subscription/state";
 import { pipelineNodesOfKind } from "@/lib/pipeline-snapshot";
 import { sorobanRpc } from "@/lib/stellar/client";
 import {
+  interactiveRpcBudgetExpired,
+  withInteractiveRpcBudget,
+} from "@/lib/stellar/interactive-rpc-budget";
+import {
   prepareSubscriptionSubscribeInvocation,
   prepareSubscriptionUnsubscribeInvocation,
 } from "@/lib/stellar/invoke";
@@ -35,9 +39,13 @@ async function eligible(
   deployment: Deployment,
   action: SubscriptionControlAction,
   walletAddress: string,
+  classifyRpcFailures = false,
 ) {
   assertSupported(deployment, action);
-  const state = await readSubscriptionState(deployment.id, { snapshotOnly: true });
+  const state = await readSubscriptionState(deployment.id, {
+    snapshotOnly: true,
+    classifyRpcFailures,
+  });
   if (!state.subscriber)
     throw new AppError("VALIDATION", "Configure the Dev subscriber before using wallet controls");
   if (state.subscriber !== walletAddress)
@@ -63,51 +71,64 @@ export async function prepareSubscriptionControl(
   action: SubscriptionControlAction,
   walletAddress: string,
 ) {
-  const { state, node } = await eligible(deployment, action, walletAddress);
-  // Cover the full simulation/signing window when proving an abandoned intent expired.
-  let preparationLedger: number;
-  try {
-    preparationLedger = (await sorobanRpc().getLatestLedger()).sequence;
-  } catch {
-    throw new AppError("UPSTREAM_RPC", "Cannot establish the control preparation ledger");
-  }
-  const builder =
-    action === "subscription.cancel"
-      ? prepareSubscriptionUnsubscribeInvocation
-      : prepareSubscriptionSubscribeInvocation;
-  const { xdr } = await builder({
-    contractAddress: node.contractAddress,
-    subscriberAddress: walletAddress,
+  return withInteractiveRpcBudget(async () => {
+    const { state, node } = await eligible(deployment, action, walletAddress, true);
+    // Cover the full simulation/signing window when proving an abandoned intent expired.
+    let preparationLedger: number;
+    try {
+      preparationLedger = (await sorobanRpc().getLatestLedger()).sequence;
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      throw new AppError(
+        "UPSTREAM_RPC",
+        "Cannot establish the control preparation ledger; try again",
+      );
+    }
+    const builder =
+      action === "subscription.cancel"
+        ? prepareSubscriptionUnsubscribeInvocation
+        : prepareSubscriptionSubscribeInvocation;
+    const { xdr } = await builder({
+      contractAddress: node.contractAddress,
+      subscriberAddress: walletAddress,
+    });
+    // A Dev setter may change subscriber/token while the builder simulates. Do not
+    // return token metadata or reserve an intent for a different observed configuration.
+    const afterSimulation = await eligible(deployment, action, walletAddress, true);
+    if (
+      afterSimulation.state.tokenContractAddress !== state.tokenContractAddress ||
+      afterSimulation.node.nodeId !== node.nodeId ||
+      afterSimulation.node.contractAddress !== node.contractAddress
+    )
+      throw new AppError("CONFLICT", "Subscription configuration changed during preparation");
+    // Expired RPC work must not reserve a new intent. Once durable bookkeeping
+    // starts, let it finish rather than racing it against the RPC deadline.
+    if (interactiveRpcBudgetExpired())
+      throw new AppError(
+        "UPSTREAM_RPC",
+        "Subscription control preparation exceeded its RPC deadline; try preparing again",
+      );
+    const preparation = await createControlIntent({
+      deployment,
+      nodeId: node.nodeId,
+      action,
+      walletAddress,
+      unsignedXdr: xdr,
+      preparationLedger,
+    });
+    linkApiTransaction(preparation.txHash);
+    return {
+      ...preparation,
+      xdr,
+      network: state.network,
+      networkPassphrase: stellarPassphrase(),
+      action,
+      walletAddress,
+      nodeId: node.nodeId,
+      contractAddress: node.contractAddress,
+      tokenContractAddress: state.tokenContractAddress,
+    };
   });
-  // A Dev setter may change subscriber/token while the builder simulates. Do not
-  // return token metadata or reserve an intent for a different observed configuration.
-  const afterSimulation = await eligible(deployment, action, walletAddress);
-  if (
-    afterSimulation.state.tokenContractAddress !== state.tokenContractAddress ||
-    afterSimulation.node.nodeId !== node.nodeId ||
-    afterSimulation.node.contractAddress !== node.contractAddress
-  )
-    throw new AppError("CONFLICT", "Subscription configuration changed during preparation");
-  const preparation = await createControlIntent({
-    deployment,
-    nodeId: node.nodeId,
-    action,
-    walletAddress,
-    unsignedXdr: xdr,
-    preparationLedger,
-  });
-  linkApiTransaction(preparation.txHash);
-  return {
-    ...preparation,
-    xdr,
-    network: state.network,
-    networkPassphrase: stellarPassphrase(),
-    action,
-    walletAddress,
-    nodeId: node.nodeId,
-    contractAddress: node.contractAddress,
-    tokenContractAddress: state.tokenContractAddress,
-  };
 }
 
 export async function submitSubscriptionControl(input: {

@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { prepareSubscriptionUnsubscribeInvocation } from "@/lib/stellar/invoke";
 import { stellarPassphrase } from "@/lib/env";
+import { withInteractiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 import { FlowGraphSchema, isTrigger } from "@/lib/flows/schema";
 
@@ -56,10 +57,12 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
       throw new AppError("VALIDATION", "User address does not match the subscriber");
     }
 
-    const { xdr } = await prepareSubscriptionUnsubscribeInvocation({
-      contractAddress: subscriptionNode.contractAddress,
-      subscriberAddress: body.userAddress,
-    });
+    const { xdr } = await withInteractiveRpcBudget(() =>
+      prepareSubscriptionUnsubscribeInvocation({
+        contractAddress: subscriptionNode.contractAddress,
+        subscriberAddress: body.userAddress,
+      }),
+    );
 
     return NextResponse.json({
       data: { xdr, networkPassphrase: stellarPassphrase() },

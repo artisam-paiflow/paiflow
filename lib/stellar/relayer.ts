@@ -604,7 +604,18 @@ async function readSubscriptionValue<T>(
   return value as T;
 }
 
-export async function readSubscriptionIsCancelled(contractAddress: string): Promise<boolean> {
+type SubscriptionReadOptions = { classifyRpcFailures?: boolean };
+
+export async function readSubscriptionIsCancelled(
+  contractAddress: string,
+  opts: SubscriptionReadOptions = {},
+): Promise<boolean> {
+  if (opts.classifyRpcFailures) {
+    const value = await simulateGetter(contractAddress, "is_cancelled");
+    if (typeof value !== "boolean")
+      throw new AppError("UPSTREAM_RPC", "Unexpected subscription cancellation state");
+    return value;
+  }
   return readSubscriptionValue<boolean>(contractAddress, "is_cancelled", "boolean");
 }
 
@@ -630,7 +641,14 @@ export async function readSubscriptionSubscriber(contractAddress: string): Promi
 
 export async function readSubscriptionSubscriberNullable(
   contractAddress: string,
+  opts: SubscriptionReadOptions = {},
 ): Promise<string | null> {
+  if (opts.classifyRpcFailures) {
+    const value = await simulateGetter(contractAddress, "subscriber");
+    if (value !== null && typeof value !== "string")
+      throw new AppError("UPSTREAM_RPC", "Unexpected subscription subscriber");
+    return value;
+  }
   const server = sorobanRpc();
 
   const source = stellarRelayerAddress();
@@ -697,7 +715,16 @@ export async function readSubscriptionSubscriberNullable(
   }
 }
 
-export async function readSubscriptionAsset(contractAddress: string): Promise<string> {
+export async function readSubscriptionAsset(
+  contractAddress: string,
+  opts: SubscriptionReadOptions = {},
+): Promise<string> {
+  if (opts.classifyRpcFailures) {
+    const value = await simulateGetter(contractAddress, "asset");
+    if (typeof value !== "string")
+      throw new AppError("UPSTREAM_RPC", "Unexpected subscription asset");
+    return value;
+  }
   return readSubscriptionAddress(contractAddress, "asset");
 }
 
