@@ -1,17 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
-import {
-  Account,
-  Keypair,
-  SorobanDataBuilder,
-  StrKey,
-  TransactionBuilder,
-  xdr,
-} from "@stellar/stellar-sdk";
+import { Keypair, SorobanDataBuilder, StrKey, TransactionBuilder, xdr } from "@stellar/stellar-sdk";
 
 const mocks = vi.hoisted(() => ({
   findFirst: vi.fn(),
-  server: { getAccount: vi.fn(), simulateTransaction: vi.fn(), sendTransaction: vi.fn() },
+  server: { _getLedgerEntries: vi.fn(), simulateTransaction: vi.fn(), sendTransaction: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ db: { deployment: { findFirst: mocks.findFirst } } }));
 vi.mock("@/lib/deployments/service-route", () => ({
@@ -25,6 +18,7 @@ vi.mock("@/lib/stellar/client", () => ({
 
 import { POST } from "@/app/api/deployments/[id]/invoke/route";
 import { AppError } from "@/lib/errors";
+import { paymentAccountResponse } from "../stellar/payment-account-fixture";
 
 const streamer = StrKey.encodeContract(Buffer.alloc(32, 1));
 const nested = StrKey.encodeContract(Buffer.alloc(32, 2));
@@ -90,7 +84,7 @@ beforeEach(() => {
       },
     },
   });
-  mocks.server.getAccount.mockImplementation(async () => new Account(user, "1"));
+  mocks.server._getLedgerEntries.mockResolvedValue(paymentAccountResponse(user, "1"));
   mocks.server.simulateTransaction.mockResolvedValue(failure());
 });
 
@@ -109,6 +103,7 @@ describe("Schedule retrieve preparation (#882)", () => {
       "retrieve_unvested",
     );
     expect(tx.signatures).toHaveLength(0);
+    expect(mocks.server.simulateTransaction).toHaveBeenCalledTimes(1);
     expect(mocks.server.sendTransaction).not.toHaveBeenCalled();
   });
 
@@ -128,6 +123,7 @@ describe("Schedule retrieve preparation (#882)", () => {
     const tx = TransactionBuilder.fromXDR(data.xdr, data.networkPassphrase);
     expect(tx.operations).toHaveLength(1);
     expect(tx.signatures).toHaveLength(0);
+    expect(mocks.server.simulateTransaction).toHaveBeenCalledTimes(1);
     expect(mocks.server.sendTransaction).not.toHaveBeenCalled();
   });
 
@@ -149,10 +145,11 @@ describe("Schedule retrieve preparation (#882)", () => {
     const response = await call();
     expect(response.status).toBe(502);
     expect((await response.json()).error.code).toBe("UPSTREAM_RPC");
+    expect(mocks.server.simulateTransaction).toHaveBeenCalledTimes(1);
     expect(mocks.server.sendTransaction).not.toHaveBeenCalled();
   });
 
-  it.each(["getAccount", "simulateTransaction"] as const)(
+  it.each(["_getLedgerEntries", "simulateTransaction"] as const)(
     "maps rejected %s RPC to 502, excluding provider text",
     async (operation) => {
       mocks.server[operation].mockRejectedValue(new Error("socket hang up provider-secret"));
@@ -161,8 +158,9 @@ describe("Schedule retrieve preparation (#882)", () => {
       const body = await response.json();
       expect(body.error.code).toBe("UPSTREAM_RPC");
       expect(JSON.stringify(body)).not.toContain("provider-secret");
-      if (operation === "getAccount")
+      if (operation === "_getLedgerEntries")
         expect(mocks.server.simulateTransaction).not.toHaveBeenCalled();
+      else expect(mocks.server.simulateTransaction).toHaveBeenCalledTimes(1);
     },
   );
 
@@ -173,11 +171,13 @@ describe("Schedule retrieve preparation (#882)", () => {
     const response = await call();
     expect(response.status).toBe(429);
     expect(response.headers.get("Retry-After")).toBe("7");
+    expect(mocks.server.simulateTransaction).toHaveBeenCalledTimes(1);
   });
 
   it.each(["pause", "unpause"])("does not change %s simulation classification", async (method) => {
     const response = await call(method);
     expect(response.status).toBe(502);
     expect((await response.json()).error.code).toBe("UPSTREAM_RPC");
+    expect(mocks.server.simulateTransaction).toHaveBeenCalledTimes(1);
   });
 });
