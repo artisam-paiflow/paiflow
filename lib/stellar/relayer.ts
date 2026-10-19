@@ -15,7 +15,7 @@ import { stellarPassphrase, stellarRelayerAddress, stellarRelayerSecretKey } fro
 import { AppError } from "@/lib/errors";
 import { simulationFailure } from "./sim-error";
 import { timelockSideArg } from "./scval";
-import { simulateGetter } from "./contract-read";
+import { simulateContractCall, simulateGetter } from "./contract-read";
 export { simulateContractCall, simulateGetter } from "./contract-read";
 
 /** Which list a timelock_branch release intends to pay; absent for the old timelock. */
@@ -425,7 +425,17 @@ export async function readTokenAllowance(opts: {
   tokenContractAddress: string;
   owner: string;
   spender: string;
+  classifyRpcFailures?: boolean;
 }): Promise<bigint> {
+  if (opts.classifyRpcFailures) {
+    const value = await simulateContractCall(opts.tokenContractAddress, "allowance", [
+      new Address(opts.owner).toScVal(),
+      new Address(opts.spender).toScVal(),
+    ]);
+    if (typeof value !== "bigint")
+      throw new AppError("UPSTREAM_RPC", "Unexpected subscription token allowance");
+    return value;
+  }
   const server = sorobanRpc();
 
   const source = stellarRelayerAddress();

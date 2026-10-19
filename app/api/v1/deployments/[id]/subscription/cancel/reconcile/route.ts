@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { v1Route } from "@/lib/api/v1/handler";
 import { V1_RATE_LIMITS } from "@/lib/api/v1/limits";
 import { SubscriptionControlReconcileSchema } from "@/lib/api/v1/schema";
-import { reconcileControlIntent } from "@/lib/api/v1/control-intent";
+import { reconcileSubscriptionControl } from "@/lib/api/v1/subscription-controls";
 import { linkApiTransaction } from "@/lib/api/request-history/context";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,11 @@ export const POST = v1Route(
   },
   async ({ deployment, req }) => {
     const body = SubscriptionControlReconcileSchema.parse(await req.json());
-    const intent = await reconcileControlIntent(body.intent, deployment.id, "subscription.cancel");
+    const intent = await reconcileSubscriptionControl(
+      body.intent,
+      deployment.id,
+      "subscription.cancel",
+    );
     linkApiTransaction(intent.txHash);
     const data = {
       intent: intent.id,
