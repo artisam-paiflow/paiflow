@@ -32,6 +32,13 @@ export async function connectSelectedWallet(
   }
   const { address } = await shared.kit.getAddress();
   assertWalletAttemptActive(signal);
+  const lantern = wallet.id === "lantern" ? shared.lantern : undefined;
+  const generation = lantern?.connectionGeneration;
+  const check = () => {
+    assertWalletAttemptActive(signal);
+    if (lantern && generation !== undefined) lantern.assertConnectionGeneration(generation);
+  };
+  check();
   return {
     address,
     walletId: wallet.id,
@@ -39,25 +46,25 @@ export async function connectSelectedWallet(
       xdr: string,
       options: { address: string; networkPassphrase: string },
     ) => {
-      assertWalletAttemptActive(signal);
+      check();
       shared.kit.setWallet(wallet.id);
       const current = await shared.kit.getAddress({ skipRequestAccess: true });
-      assertWalletAttemptActive(signal);
+      check();
       if (current.address !== address || options.address !== address)
         throw new Error("Wallet account changed. Connect again to continue.");
       // SDK methods capture their module synchronously. Re-select after the
       // account await so another surface cannot change the signer in that gap.
       shared.kit.setWallet(wallet.id);
       const result = await shared.kit.signTransaction(xdr, options);
-      assertWalletAttemptActive(signal);
+      check();
       shared.kit.setWallet(wallet.id);
       const after = await shared.kit.getAddress({ skipRequestAccess: true });
-      assertWalletAttemptActive(signal);
+      check();
       if (after.address !== address)
         throw new Error("Wallet account changed. Connect again to continue.");
       shared.kit.setWallet(wallet.id);
       const walletNetwork = await shared.kit.getNetwork();
-      assertWalletAttemptActive(signal);
+      check();
       if (walletNetwork.networkPassphrase !== options.networkPassphrase)
         throw new Error("Wallet network changed. Connect again to continue.");
       return result;

@@ -1,35 +1,41 @@
 import { StrKey, Transaction, TransactionBuilder } from "@stellar/stellar-sdk";
 import { LanternWalletError } from "./lantern-wallet-error";
 
-/**
- * Paiflow's declared FAKE-PROVIDER contract, not an upstream Lantern API.
- * Browser activation stays disabled until upstream semantics are verified.
- * This marker and both response shapes are provisional test assumptions.
- */
-export const PROVISIONAL_LANTERN_API = "paiflow-provisional-v1";
-export type ProvisionalLanternProvider = {
-  apiVersion: typeof PROVISIONAL_LANTERN_API;
-  getAddress: (options: { networkPassphrase: string }) => Promise<unknown>;
-  signTransaction: (
-    transactionXdr: string,
-    options: { address: string; networkPassphrase: string; submit: false },
-  ) => Promise<unknown>;
+export type LanternProvider = {
+  isLantern: true;
+  apiVersion: 1;
+  isConnected(): Promise<{ isConnected: boolean; apiVersion?: number }>;
+  requestAccess(): Promise<{ address: string }>;
+  getAddress(): Promise<{ address: string }>;
+  getNetwork(): Promise<{ network: string; networkPassphrase: string }>;
+  signTransaction(
+    xdr: string,
+    options: { address: string; networkPassphrase: string },
+  ): Promise<unknown>;
+  on(event: "change", listener: (data: Record<string, unknown>) => void): void;
+  off(event: "change", listener: (data: Record<string, unknown>) => void): void;
 };
 
-export function provisionalLanternProvider(value: unknown): ProvisionalLanternProvider | null {
+/** Desktop extension only: the Apps-tab bridge is a separate integration. */
+export function desktopLanternProvider(): LanternProvider | null {
+  if (typeof window === "undefined" || window.top !== window.self) return null;
+  const value = (window as unknown as { lantern?: unknown }).lantern;
   if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  if (record.isLantern !== true || record.apiVersion !== 1) return null;
   if (
-    !("apiVersion" in value) ||
-    value.apiVersion !== PROVISIONAL_LANTERN_API ||
-    !("getAddress" in value) ||
-    typeof value.getAddress !== "function" ||
-    !("signTransaction" in value) ||
-    typeof value.signTransaction !== "function"
+    ![
+      "isConnected",
+      "requestAccess",
+      "getAddress",
+      "getNetwork",
+      "signTransaction",
+      "on",
+      "off",
+    ].every((key) => typeof record[key] === "function")
   )
     return null;
-  // Each return value is unknown and parsed before use. Method guards above
-  // establish callability, not that a real provider implements this contract.
-  return value as ProvisionalLanternProvider;
+  return value as LanternProvider;
 }
 
 export function lanternIdentity(
@@ -60,29 +66,24 @@ export function lanternIdentity(
 export function lanternSignedResponse(
   value: unknown,
   address: string,
-  passphrase: string,
 ): { signedTxXdr: string; signerAddress: string } {
   if (
     !value ||
     typeof value !== "object" ||
     !("signedTxXdr" in value) ||
-    !("signerAddress" in value) ||
-    !("networkPassphrase" in value)
+    !("signerAddress" in value)
   )
     throw new LanternWalletError("LANTERN_INVALID_RESPONSE");
   const signedTxXdr = value.signedTxXdr;
   const signerAddress = value.signerAddress;
-  const networkPassphrase = value.networkPassphrase;
   if (
     ("error" in value && value.error != null) ||
     typeof signedTxXdr !== "string" ||
     !signedTxXdr ||
-    typeof signerAddress !== "string" ||
-    typeof networkPassphrase !== "string"
+    typeof signerAddress !== "string"
   )
     throw new LanternWalletError("LANTERN_INVALID_RESPONSE");
   if (signerAddress !== address) throw new LanternWalletError("LANTERN_WRONG_ACCOUNT");
-  if (networkPassphrase !== passphrase) throw new LanternWalletError("LANTERN_WRONG_NETWORK");
   return { signedTxXdr, signerAddress };
 }
 

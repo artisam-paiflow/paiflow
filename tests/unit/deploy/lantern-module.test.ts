@@ -9,7 +9,6 @@ import {
 } from "@stellar/stellar-sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { friendlyError } from "@/lib/friendly-error";
-import { PROVISIONAL_LANTERN_API } from "@/lib/stellar/lantern-provider";
 import { LanternWalletError } from "@/lib/stellar/lantern-wallet-error";
 import { LanternModule } from "@/components/deploy/lantern-module";
 
@@ -34,25 +33,54 @@ function transaction(source = address, amount = 100n) {
 }
 const getAddress = vi.fn();
 const signTransaction = vi.fn();
-const provider = { apiVersion: PROVISIONAL_LANTERN_API, getAddress, signTransaction };
+const getNetwork = vi.fn();
+const isConnected = vi.fn();
+const requestAccess = vi.fn(() => getAddress());
+const listeners = new Set<(data: Record<string, unknown>) => void>();
+const provider = {
+  isLantern: true,
+  apiVersion: 1,
+  isConnected,
+  requestAccess,
+  getAddress,
+  getNetwork,
+  signTransaction,
+  on: vi.fn((_event, listener) => listeners.add(listener)),
+  off: vi.fn((_event, listener) => listeners.delete(listener)),
+};
+function install(value: unknown) {
+  (window as unknown as { lantern: unknown }).lantern = value;
+}
+function change(reason: string) {
+  for (const listener of listeners) listener({ reason });
+}
 let module: LanternModule;
 let unsignedXdr: string;
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  vi.clearAllMocks();
-  vi.stubGlobal("window", {});
+  vi.resetAllMocks();
+  requestAccess.mockImplementation(() => getAddress());
+  provider.on.mockImplementation((_event, listener) => listeners.add(listener));
+  provider.off.mockImplementation((_event, listener) => listeners.delete(listener));
+  const browser = {};
+  vi.stubGlobal("window", browser);
+  Object.assign(browser, { self: browser, top: browser });
+  listeners.clear();
+  install(provider);
+  isConnected.mockResolvedValue({ isConnected: true, apiVersion: 1 });
+  getNetwork.mockResolvedValue({ network: "TESTNET", networkPassphrase: Networks.TESTNET });
   vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-10-15T00:00:00Z"));
   unsignedXdr = transaction().toXDR();
   fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
-  getAddress.mockResolvedValue({ address, networkPassphrase: Networks.TESTNET });
+  getAddress.mockResolvedValue({ address });
   signTransaction.mockImplementation(async (unsigned: string) => {
     const tx = TransactionBuilder.fromXDR(unsigned, Networks.TESTNET);
     tx.sign(signer);
-    return { signedTxXdr: tx.toXDR(), signerAddress: address, networkPassphrase: Networks.TESTNET };
+    return { signedTxXdr: tx.toXDR(), signerAddress: address };
   });
-  module = new LanternModule("testnet", () => provider);
+  module = new LanternModule("testnet");
 });
 afterEach(() => {
   expect(fetchMock).not.toHaveBeenCalled();
@@ -72,7 +100,7 @@ function deferred<T>() {
 function signedResult() {
   const tx = TransactionBuilder.fromXDR(unsignedXdr, Networks.TESTNET);
   tx.sign(signer);
-  return { signedTxXdr: tx.toXDR(), signerAddress: address, networkPassphrase: Networks.TESTNET };
+  return { signedTxXdr: tx.toXDR(), signerAddress: address };
 }
 
 async function sign() {
@@ -80,68 +108,53 @@ async function sign() {
   return module.signTransaction(unsignedXdr, { address, networkPassphrase: Networks.TESTNET });
 }
 
-describe("experimental Lantern adapter activation", () => {
-  it("keeps the real browser row unavailable without inspecting unverified window.lantern", async () => {
-    const read = vi.fn(() => provider);
-    Object.defineProperty(window, "lantern", { configurable: true, get: read });
-    const browserModule = new LanternModule("testnet");
-    expect(await browserModule.isAvailable()).toBe(false);
-    expect(browserModule.productName).toContain("not yet supported");
-    expect(browserModule.productUrl).toBe("https://golantern.xyz");
-    expect(browserModule.productIcon).toBe("/wallets/lantern.jpg");
-    await expect(browserModule.getAddress()).rejects.toMatchObject({ code: "LANTERN_UNVERIFIED" });
-    await expect(
-      browserModule.signTransaction(unsignedXdr, { address, networkPassphrase: Networks.TESTNET }),
-    ).rejects.toMatchObject({ code: "LANTERN_UNVERIFIED" });
-    expect(read).not.toHaveBeenCalled();
-    expect(getAddress).not.toHaveBeenCalled();
-    expect(signTransaction).not.toHaveBeenCalled();
+describe("official desktop detection (mock provider, not extension acceptance)", () => {
+  it("activates verified desktop v1 with local icon and pinned install link", async () => {
+    expect(await module.isAvailable()).toBe(true);
+    expect(module.productName).toBe("Lantern");
+    expect(module.productIcon).toBe("/wallets/lantern.jpg");
+    expect(module.productUrl).toContain("v0.7.0-testnet.21");
   });
   it.each([
     undefined,
     null,
     {},
-    { apiVersion: "1", getAddress, signTransaction },
-    { apiVersion: PROVISIONAL_LANTERN_API, getAddress },
-  ])("refuses missing or unrecognized provisional provider %s", async (value) => {
-    const unavailable = new LanternModule("testnet", () => value);
-    expect(await unavailable.isAvailable()).toBe(false);
-    await expect(unavailable.getAddress()).rejects.toMatchObject({ code: "LANTERN_UNAVAILABLE" });
-    expect(getAddress).not.toHaveBeenCalled();
+    { ...provider, apiVersion: "1" },
+    { ...provider, isLantern: false },
+    { ...provider, on: undefined },
+  ])("refuses malformed provider %s", async (value) => {
+    install(value);
+    expect(await module.isAvailable()).toBe(false);
+    await expect(module.getAddress()).rejects.toMatchObject({ code: "LANTERN_UNAVAILABLE" });
+    expect(requestAccess).not.toHaveBeenCalled();
   });
-  it("contains provider lookup failures so unavailable wallets do not break the picker", async () => {
-    const unavailable = new LanternModule("testnet", () => {
-      throw new Error("private lookup failure");
-    });
-    expect(await unavailable.isAvailable()).toBe(false);
-    await expect(unavailable.getAddress()).rejects.toMatchObject({
-      code: "LANTERN_REQUEST_FAILED",
-    });
+  it("refuses embedded frames, disabled websites, and unsupported connected API", async () => {
+    Object.assign(window, { top: {} });
+    expect(await module.isAvailable()).toBe(false);
+    Object.assign(window, { top: window });
+    isConnected.mockResolvedValue({ isConnected: false });
+    expect(await module.isAvailable()).toBe(false);
+    isConnected.mockResolvedValue({ isConnected: true, apiVersion: 2 });
+    expect(await module.isAvailable()).toBe(false);
   });
-  it("supports only explicitly injected provisional testnet fixtures; mainnet fails before reading a provider", async () => {
-    expect(await module.isAvailable()).toBe(true);
-    expect(await module.isPlatformWrapper()).toBe(false);
-    const read = vi.fn(() => provider);
-    const mainnet = new LanternModule("mainnet", read);
+  it("never accesses mainnet provider", async () => {
+    const mainnet = new LanternModule("mainnet");
     expect(await mainnet.isAvailable()).toBe(false);
     await expect(mainnet.getAddress()).rejects.toMatchObject({ code: "LANTERN_TESTNET_ONLY" });
-    await expect(
-      mainnet.signTransaction(unsignedXdr, { address, networkPassphrase: Networks.PUBLIC }),
-    ).rejects.toMatchObject({ code: "LANTERN_TESTNET_ONLY" });
-    expect(read).not.toHaveBeenCalled();
+    expect(requestAccess).not.toHaveBeenCalled();
   });
 });
 
-describe("provisional connect and sign-only semantics", () => {
+describe("official connect and sign-only semantics", () => {
   it("connects with an explicit expected testnet and signs the original envelope once", async () => {
     const result = await sign();
-    expect(getAddress).toHaveBeenCalledWith({ networkPassphrase: Networks.TESTNET });
+    expect(requestAccess).toHaveBeenCalledWith();
+    expect(getAddress).toHaveBeenCalledWith();
     expect(getAddress).toHaveBeenCalledTimes(3);
     expect(signTransaction).toHaveBeenCalledOnce();
     expect(signTransaction).toHaveBeenCalledWith(unsignedXdr, {
       address,
       networkPassphrase: Networks.TESTNET,
-      submit: false,
     });
     expect(result.signerAddress).toBe(address);
     const signed = TransactionBuilder.fromXDR(result.signedTxXdr, Networks.TESTNET);
@@ -152,15 +165,13 @@ describe("provisional connect and sign-only semantics", () => {
     {},
     { address: "G-invalid", networkPassphrase: Networks.TESTNET },
     { address: contract, networkPassphrase: Networks.TESTNET },
-    { address },
-    { address, networkPassphrase: Networks.TESTNET, error: { code: "LOCKED" } },
   ])("rejects malformed or mixed-success identity responses %s", async (response) => {
     getAddress.mockResolvedValue(response);
     await expect(module.getAddress()).rejects.toMatchObject({ code: "LANTERN_INVALID_RESPONSE" });
     expect(signTransaction).not.toHaveBeenCalled();
   });
   it("checks the connected network before any signing request", async () => {
-    getAddress.mockResolvedValue({ address, networkPassphrase: Networks.PUBLIC });
+    getNetwork.mockResolvedValue({ network: "PUBLIC", networkPassphrase: Networks.PUBLIC });
     await expect(sign()).rejects.toMatchObject({ code: "LANTERN_WRONG_NETWORK" });
     expect(signTransaction).not.toHaveBeenCalled();
   });
@@ -216,49 +227,44 @@ describe("provisional connect and sign-only semantics", () => {
     expect(signTransaction).not.toHaveBeenCalled();
   });
   it("refuses a replacement provider even if it presents the same account", async () => {
-    let current = provider;
-    module = new LanternModule("testnet", () => current);
+    module = new LanternModule("testnet");
     await module.getAddress();
-    current = { ...provider };
+    const generation = module.connectionGeneration;
+    install({ ...provider });
+    expect(() => module.assertConnectionGeneration(generation)).toThrow(LanternWalletError);
     await expect(
       module.signTransaction(unsignedXdr, { address, networkPassphrase: Networks.TESTNET }),
     ).rejects.toMatchObject({ code: "LANTERN_WRONG_ACCOUNT" });
     expect(signTransaction).not.toHaveBeenCalled();
   });
-  it.each([
-    "body",
-    "signer",
-    "network",
-    "unsigned",
-    "claimed-signer",
-    "old-field",
-    "missing-network",
-    "mixed-error",
-  ])("refuses an invalid signed result (%s)", async (kind) => {
-    signTransaction.mockImplementation(async () => {
-      const tx =
-        kind === "body"
-          ? transaction(address, 101n)
-          : TransactionBuilder.fromXDR(
-              unsignedXdr,
-              kind === "network" ? Networks.PUBLIC : Networks.TESTNET,
-            );
-      if (kind !== "unsigned") tx.sign(kind === "signer" ? other : signer);
-      if (kind === "old-field")
+  it.each(["body", "signer", "network", "unsigned", "claimed-signer", "old-field"])(
+    "refuses an invalid signed result (%s)",
+    async (kind) => {
+      signTransaction.mockImplementation(async () => {
+        const tx =
+          kind === "body"
+            ? transaction(address, 101n)
+            : TransactionBuilder.fromXDR(
+                unsignedXdr,
+                kind === "network" ? Networks.PUBLIC : Networks.TESTNET,
+              );
+        if (kind !== "unsigned") tx.sign(kind === "signer" ? other : signer);
+        if (kind === "old-field")
+          return {
+            signedXDR: tx.toXDR(),
+            signerAddress: address,
+            networkPassphrase: Networks.TESTNET,
+          };
         return {
-          signedXDR: tx.toXDR(),
-          signerAddress: address,
-          networkPassphrase: Networks.TESTNET,
+          signedTxXdr: tx.toXDR(),
+          signerAddress: kind === "claimed-signer" ? other.publicKey() : address,
+          ...(kind !== "missing-network" ? { networkPassphrase: Networks.TESTNET } : {}),
+          ...(kind === "mixed-error" ? { error: { code: "internal" } } : {}),
         };
-      return {
-        signedTxXdr: tx.toXDR(),
-        signerAddress: kind === "claimed-signer" ? other.publicKey() : address,
-        ...(kind !== "missing-network" ? { networkPassphrase: Networks.TESTNET } : {}),
-        ...(kind === "mixed-error" ? { error: { code: "LOCKED" } } : {}),
-      };
-    });
-    await expect(sign()).rejects.toBeInstanceOf(LanternWalletError);
-  });
+      });
+      await expect(sign()).rejects.toBeInstanceOf(LanternWalletError);
+    },
+  );
   it("preserves existing transaction signatures and refuses dropped signatures", async () => {
     const original = transaction();
     original.sign(other);
@@ -289,10 +295,10 @@ describe("provisional connect and sign-only semantics", () => {
   });
 });
 
-describe("controlled provisional provider failures", () => {
+describe("controlled official provider failures", () => {
   it("maps a signing rejection without submitting or exposing provider payload", async () => {
     signTransaction.mockRejectedValue({
-      code: "USER_REJECTED",
+      code: "user_rejected",
       message: "private provider payload",
     });
     await expect(sign()).rejects.toMatchObject({ code: "LANTERN_REJECTED" });
@@ -309,19 +315,23 @@ describe("controlled provisional provider failures", () => {
   });
 
   it.each([
-    ["USER_REJECTED", "LANTERN_REJECTED", "Transaction cancelled in your wallet."],
-    ["LOCKED", "LANTERN_LOCKED", "Unlock Lantern and try again."],
+    ["user_rejected", "LANTERN_REJECTED", "Transaction cancelled in your wallet."],
     [
-      "WRONG_NETWORK",
+      "not_allowed",
+      "LANTERN_NOT_ALLOWED",
+      "Connect Lantern on TESTNET, or enable websites in Lantern Settings, then reconnect.",
+    ],
+    [
+      "network_mismatch",
       "LANTERN_WRONG_NETWORK",
       "Lantern is on the wrong network. Switch to TESTNET and reconnect before signing.",
     ],
     [
-      "WRONG_ACCOUNT",
+      "account_mismatch",
       "LANTERN_WRONG_ACCOUNT",
       "The Lantern account changed. Reconnect the intended account before signing.",
     ],
-  ])("maps only the declared fixture code %s", async (code, expected, message) => {
+  ])("maps the documented semantic code %s", async (code, expected, message) => {
     getAddress.mockRejectedValue({ code, message: "private provider payload" });
     let caught: unknown;
     try {
@@ -344,7 +354,7 @@ describe("controlled provisional provider failures", () => {
   });
 });
 
-describe("provisional connection lifecycle generations", () => {
+describe("connection lifecycle generations", () => {
   it.each(["account", "network"])("rejects %s drift during signing approval", async (drift) => {
     const response = deferred<ReturnType<typeof signedResult>>();
     signTransaction.mockReturnValue(response.promise);
@@ -356,8 +366,10 @@ describe("provisional connection lifecycle generations", () => {
     await vi.waitFor(() => expect(signTransaction).toHaveBeenCalledOnce());
     getAddress.mockResolvedValue({
       address: drift === "account" ? other.publicKey() : address,
-      networkPassphrase: drift === "network" ? Networks.PUBLIC : Networks.TESTNET,
+      networkPassphrase: Networks.TESTNET,
     });
+    if (drift === "network")
+      getNetwork.mockResolvedValue({ network: "PUBLIC", networkPassphrase: Networks.PUBLIC });
     response.resolve(signedResult());
     await expect(pending).rejects.toMatchObject({
       code: drift === "account" ? "LANTERN_WRONG_ACCOUNT" : "LANTERN_WRONG_NETWORK",
@@ -395,10 +407,11 @@ describe("provisional connection lifecycle generations", () => {
       getAddress.mockReturnValueOnce(response.promise);
       const older = module.getAddress();
       const olderOutcome = older.catch((error) => error);
+      await vi.waitFor(() => expect(getAddress).toHaveBeenCalledOnce());
       await module.getAddress();
       if (outcome === "resolve")
         response.resolve({ address: other.publicKey(), networkPassphrase: Networks.TESTNET });
-      else response.reject({ code: "LOCKED" });
+      else response.reject({ code: "internal" });
       expect(await olderOutcome).toBeInstanceOf(LanternWalletError);
       const signed = await module.signTransaction(unsignedXdr, {
         address,
@@ -418,10 +431,149 @@ describe("provisional connection lifecycle generations", () => {
     const outcome = pending.catch((error) => error);
     await vi.waitFor(() => expect(signTransaction).toHaveBeenCalledOnce());
     await module.getAddress();
-    response.reject({ code: "USER_REJECTED" });
+    response.reject({ code: "user_rejected" });
     expect(await outcome).toBeInstanceOf(LanternWalletError);
     await expect(
       module.signTransaction(unsignedXdr, { address, networkPassphrase: Networks.TESTNET }),
     ).resolves.toMatchObject({ signerAddress: address });
+  });
+});
+
+describe("synchronous lifecycle invalidation and recovery (mock only)", () => {
+  it.each(["account", "network", "revoke"])(
+    "cannot revive a signature after %s changes away and back",
+    async (reason) => {
+      const response = deferred<ReturnType<typeof signedResult>>();
+      signTransaction.mockReturnValueOnce(response.promise);
+      await module.getAddress();
+      const pending = module.signTransaction(unsignedXdr, {
+        address,
+        networkPassphrase: Networks.TESTNET,
+      });
+      const outcome = pending.catch((error) => error);
+      await vi.waitFor(() => expect(signTransaction).toHaveBeenCalledOnce());
+      change(reason);
+      change(reason);
+      response.resolve(signedResult());
+      expect(await outcome).toMatchObject({ code: "LANTERN_WRONG_ACCOUNT" });
+      await expect(module.getAddress({ skipRequestAccess: true })).rejects.toMatchObject({
+        code: "LANTERN_WRONG_ACCOUNT",
+      });
+      await module.getAddress();
+      expect(requestAccess).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("detaches listeners on disconnect and provider replacement", async () => {
+    await module.getAddress();
+    expect(listeners.size).toBe(1);
+    await module.getAddress();
+    expect(listeners.size).toBe(1);
+    await module.disconnect();
+    expect(listeners.size).toBe(0);
+    await module.getAddress();
+    install({ ...provider });
+    await expect(module.getAddress({ skipRequestAccess: true })).rejects.toBeInstanceOf(
+      LanternWalletError,
+    );
+    expect(provider.off).toHaveBeenCalledTimes(2);
+    expect(listeners.size).toBe(0);
+  });
+
+  it.each(["timeout", "connection_lost", "account_mismatch", "user_rejected"])(
+    "retains exact prepared recovery hash except explicit %s refusal",
+    async (code) => {
+      const { signWithRecovery } = await import("@/lib/wallet-signing-recovery");
+      await module.getAddress();
+      signTransaction.mockRejectedValue({ code, message: "private provider payload" });
+      let record: import("@/lib/wallet-signing-recovery").SigningAttempt | null = null;
+      const submit = vi.fn();
+      const task = signWithRecovery({
+        network: "testnet",
+        xdr: unsignedXdr,
+        address,
+        networkPassphrase: Networks.TESTNET,
+        check: () => {},
+        save: (value) => {
+          record = value;
+        },
+        read: () => record,
+        clearRejected: () => {
+          record = null;
+        },
+        sign: () =>
+          module.signTransaction(unsignedXdr, { address, networkPassphrase: Networks.TESTNET }),
+      }).then(submit);
+      await expect(task).rejects.toBeInstanceOf(LanternWalletError);
+      expect(submit).not.toHaveBeenCalled();
+      if (code === "user_rejected") expect(record).toBeNull();
+      else
+        expect(record).toMatchObject({
+          phase: "signing",
+          txHash: transaction().hash().toString("hex"),
+        });
+    },
+  );
+
+  it("a lifecycle event before a late refusal retains the signing HOLD", async () => {
+    const { signWithRecovery } = await import("@/lib/wallet-signing-recovery");
+    const response = deferred<ReturnType<typeof signedResult>>();
+    await module.getAddress();
+    signTransaction.mockReturnValueOnce(response.promise);
+    let record: import("@/lib/wallet-signing-recovery").SigningAttempt | null = null;
+    const task = signWithRecovery({
+      network: "testnet",
+      xdr: unsignedXdr,
+      address,
+      networkPassphrase: Networks.TESTNET,
+      check: () => {},
+      save: (value) => {
+        record = value;
+      },
+      read: () => record,
+      clearRejected: () => {
+        record = null;
+      },
+      sign: () =>
+        module.signTransaction(unsignedXdr, { address, networkPassphrase: Networks.TESTNET }),
+    });
+    const outcome = task.catch((error) => error);
+    await vi.waitFor(() => expect(signTransaction).toHaveBeenCalledOnce());
+    change("revoke");
+    response.reject({ code: "user_rejected" });
+    expect(await outcome).toMatchObject({ code: "LANTERN_CONNECTION_LOST" });
+    expect(record).toMatchObject({ phase: "signing" });
+  });
+
+  it.each([
+    "network_mismatch",
+    "invalid_request",
+    "unsupported",
+    "busy",
+    "timeout",
+    "connection_lost",
+    "internal",
+  ])("contains %s errors without leaking provider payload", async (code) => {
+    signTransaction.mockRejectedValue({ code, message: "private provider payload" });
+    let error: unknown;
+    try {
+      await sign();
+    } catch (value) {
+      error = value;
+    }
+    expect(error).toBeInstanceOf(LanternWalletError);
+    expect(friendlyError(error).message).not.toContain("private provider payload");
+    expect(friendlyError(error).message).not.toBe("Transaction cancelled in your wallet.");
+  });
+});
+
+describe("non-interactive connection reads", () => {
+  it("reads address and network without requesting another grant", async () => {
+    await module.getAddress();
+    const generation = module.connectionGeneration;
+    await module.getAddress({ skipRequestAccess: true });
+    await module.getNetwork();
+    expect(requestAccess).toHaveBeenCalledOnce();
+    expect(module.connectionGeneration).toBe(generation);
   });
 });

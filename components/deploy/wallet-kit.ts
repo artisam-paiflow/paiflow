@@ -8,6 +8,7 @@ import type {
   WalletConnectModule,
 } from "@creit.tech/stellar-wallets-kit/modules/walletconnect.module";
 import { walletConnectMobileWallets, mobileWalletImages } from "./mobile-wallet-registry";
+import type { LanternModule } from "./lantern-module";
 import { WALLET_CONNECT_UNCONFIGURED, walletConnectProjectId } from "./wallet-connect-config";
 
 function isMobile() {
@@ -22,6 +23,7 @@ export type WalletConnectClient = InstanceType<typeof SignClient>;
 
 export type WalletKit = {
   kit: StellarWalletsKit;
+  lantern?: LanternModule;
   /** null when WalletConnect is not configured; desktop Freighter remains available. */
   module: WalletConnectModule | null;
   client: WalletConnectClient | null;
@@ -49,11 +51,12 @@ export async function getWalletKit(network: "testnet" | "mainnet"): Promise<Wall
     ] = await Promise.all([
       import("@creit.tech/stellar-wallets-kit"),
       import("@creit.tech/stellar-wallets-kit/modules/walletconnect.module"),
-      mobile ? null : import("./lantern-module"),
+      mobile || network !== "testnet" ? null : import("./lantern-module"),
     ]);
-    const desktopModules = lantern
-      ? [new FreighterModule(), new lantern.LanternModule(network)]
-      : [];
+    const lanternModule = lantern ? new lantern.LanternModule(network) : undefined;
+    const desktopModules = mobile
+      ? []
+      : [new FreighterModule(), ...(lanternModule ? [lanternModule] : [])];
 
     const walletNetwork = network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET;
     const projectId = walletConnectProjectId();
@@ -68,7 +71,13 @@ export async function getWalletKit(network: "testnet" | "mainnet"): Promise<Wall
         network: walletNetwork,
         modules: desktopModules,
       });
-      return { kit, module: null, client: null, method: WalletConnectAllowedMethods.SIGN };
+      return {
+        kit,
+        lantern: lanternModule,
+        module: null,
+        client: null,
+        method: WalletConnectAllowedMethods.SIGN,
+      };
     }
 
     const chain = network === "mainnet" ? "stellar:pubnet" : "stellar:testnet";
@@ -127,6 +136,7 @@ export async function getWalletKit(network: "testnet" | "mainnet"): Promise<Wall
 
     return {
       kit,
+      lantern: lanternModule,
       module: walletConnectModule,
       client: walletConnectClient,
       method: WalletConnectAllowedMethods.SIGN,

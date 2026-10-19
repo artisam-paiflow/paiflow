@@ -79,8 +79,8 @@ describe("shared wallet initialization", () => {
     const lantern = options.modules.find((module) => module.productId === "lantern");
     if (mobile) expect(lantern).toBeUndefined();
     else {
-      expect(lantern?.productName).toBe("Lantern (not yet supported)");
-      expect(lantern?.productUrl).toBe("https://golantern.xyz");
+      expect(lantern?.productName).toBe("Lantern");
+      expect(lantern?.productUrl).toContain("v0.7.0-testnet.21");
       expect(await lantern?.isAvailable?.()).toBe(false);
     }
 
@@ -117,6 +117,15 @@ describe("shared wallet initialization", () => {
         },
       }),
     );
+  });
+
+  it("keeps Lantern out of desktop mainnet while preserving Freighter and WalletConnect", async () => {
+    const { getWalletKit } = await import("@/components/deploy/wallet-kit");
+    const shared = await getWalletKit("mainnet");
+    const options = mocks.kit.mock.calls[0]?.[0] as { modules: Array<{ productId?: string }> };
+    expect(options.modules).toHaveLength(2);
+    expect(options.modules.some((module) => module.productId === "lantern")).toBe(false);
+    expect(shared.lantern).toBeUndefined();
   });
 
   it("keeps the network caches and WalletConnect chain configuration separate", async () => {
