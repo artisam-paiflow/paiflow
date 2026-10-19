@@ -26,6 +26,7 @@ import {
   SWAP_ROUTER_UNSET_MESSAGE,
 } from "@/lib/env";
 import { AppError } from "@/lib/errors";
+import { log } from "@/lib/log";
 import { prepareServiceDeployment } from "@/lib/deployments/service-work";
 import { assertNoHiddenSurfaces } from "@/lib/features";
 import type { PipelineNode, PipelineNodeParams } from "@/lib/flows/to-params";
@@ -305,12 +306,15 @@ export async function submitDeployTx(
   let send;
   try {
     send = await server.sendTransaction(tx);
-  } catch (error) {
+  } catch {
     await recordTransactionOutcome(txHash, "UNRESOLVED", {
       failureCode: "RPC_UNAVAILABLE",
       submissionAttempt,
     });
-    throw error;
+    // A missing acknowledgement does not prove the network rejected the envelope.
+    // Preserve the original hash for reconciliation instead of reporting a failed deploy.
+    log.warn({ txHash, stage: "send" }, "Deployment RPC unavailable; finality unknown");
+    return unknownDeployFinality(txHash);
   }
   const sent = classifySend(send);
 
@@ -350,12 +354,13 @@ export async function submitDeployTx(
     let got;
     try {
       got = await server.getTransaction(send.hash);
-    } catch (error) {
+    } catch {
       await recordTransactionOutcome(txHash, "UNRESOLVED", {
         failureCode: "RPC_UNAVAILABLE",
         observation,
       });
-      throw error;
+      log.warn({ txHash, stage: "confirmation" }, "Deployment RPC unavailable; finality unknown");
+      return unknownDeployFinality(txHash);
     }
     if (got.status === "SUCCESS") {
       const created = extractCreatedContract(got);
@@ -381,10 +386,14 @@ export async function submitDeployTx(
     failureCode: "FINALITY_UNKNOWN",
     observation,
   });
+  return unknownDeployFinality(txHash);
+}
+
+function unknownDeployFinality(txHash: string): SubmitResult {
   return {
     status: "FAILED",
-    txHash: send.hash,
-    errorMessage: "Timed out waiting for finality",
+    txHash,
+    errorMessage: "Confirmation is pending; check the original transaction hash",
     failureCode: "FINALITY_UNKNOWN",
   };
 }
@@ -443,11 +452,21 @@ export async function deployPipelineByRelayer(opts: {
     // Attach every child address to the exact envelope identity. The SDK send
     // gate checkpoints both atomically with its durable admission before sending.
     // The request may die after finality but before its confirmation checkpoint.
-    const preparedHash = TransactionBuilder.fromXDR(prepared.xdr, stellarPassphrase())
-      .hash()
-      .toString("hex");
+    const preparedTx = TransactionBuilder.fromXDR(prepared.xdr, stellarPassphrase());
+    const preparedHash = preparedTx.hash().toString("hex");
     prepareServiceDeployment(preparedHash, prepared.pipeline);
+    channel.trackPending(
+      preparedHash,
+      "timeBounds" in preparedTx ? preparedTx.timeBounds?.maxTime : undefined,
+    );
     const result = await submitDeployTx(prepared.xdr);
+    if (
+      result.status === "SUCCESS" ||
+      result.status === "NOT_ACCEPTED" ||
+      result.failureCode !== "FINALITY_UNKNOWN"
+    ) {
+      channel.clearPending?.(preparedHash);
+    }
     if (result.status === "NOT_ACCEPTED") {
       // Nothing to resubmit here: the envelope lives only inside this lock, and
       // a retry re-prepares with a fresh sequence number. An empty hash is how

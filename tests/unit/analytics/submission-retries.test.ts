@@ -173,7 +173,11 @@ describe("tracked RPC retry paths", () => {
             message: expect.stringContaining(f.txHash),
           });
           await expect(pending).rejects.toThrow("Check this original transaction hash");
-        } else await expect(pending).rejects.toThrow("Synthetic send ambiguity");
+        } else
+          await expect(pending).resolves.toMatchObject({
+            txHash: f.txHash,
+            failureCode: "FINALITY_UNKNOWN",
+          });
       };
       server.sendTransaction.mockRejectedValueOnce(new Error("Synthetic send ambiguity"));
       await expectAmbiguity(submit(f.signedXdr));
