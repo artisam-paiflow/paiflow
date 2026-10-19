@@ -315,7 +315,7 @@ export async function prepareStreamerPauseInvocation(opts: {
   invokerAddress: string;
 }): Promise<PreparedInvoke> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.invokerAddress);
+  const sourceAcct = await loadPaymentAccount(server, opts.invokerAddress);
 
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
@@ -352,7 +352,7 @@ export async function prepareStreamerUnpauseInvocation(opts: {
   invokerAddress: string;
 }): Promise<PreparedInvoke> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.invokerAddress);
+  const sourceAcct = await loadPaymentAccount(server, opts.invokerAddress);
 
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
@@ -389,7 +389,7 @@ export async function prepareStreamerRetrieveUnvestedInvocation(opts: {
   invokerAddress: string;
 }): Promise<PreparedInvoke> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.invokerAddress).catch((err: unknown) => {
+  const sourceAcct = await loadPaymentAccount(server, opts.invokerAddress).catch((err: unknown) => {
     if (err instanceof AppError) throw err;
     throw new AppError(
       "UPSTREAM_RPC",
