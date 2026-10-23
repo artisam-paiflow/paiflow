@@ -19,7 +19,7 @@ export async function publicEmbedDeployment(req: Request, id: string) {
       undefined,
       retryAfterSeconds(limit),
     );
-  if (!z.string().uuid().safeParse(id).success)
+  if (!z.string().guid({ error: "Invalid uuid" }).safeParse(id).success)
     throw new AppError("NOT_FOUND", "Deployment not found");
   const deployment = await db.deployment.findUnique({
     where: { id },

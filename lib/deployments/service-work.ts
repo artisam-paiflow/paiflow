@@ -24,7 +24,7 @@ const context = (processContext.deploymentWorkContext ??= new AsyncLocalStorage<
 /** The same row lock serializes admission, retirement and settlement completion
  * across replicas. Never hold this database transaction over network I/O. */
 export async function lockDeployment(tx: Prisma.TransactionClient, id: string) {
-  if (!z.string().uuid().safeParse(id).success)
+  if (!z.string().guid({ error: "Invalid uuid" }).safeParse(id).success)
     throw new AppError("NOT_FOUND", "Deployment not found");
   const rows = await tx.$queryRaw<
     Array<{ id: string; serviceState: "ACTIVE" | "RETIRING" | "RETIRED" }>
@@ -37,7 +37,7 @@ export async function lockDeployment(tx: Prisma.TransactionClient, id: string) {
 }
 
 export async function assertDeploymentService(id: string) {
-  if (!z.string().uuid().safeParse(id).success)
+  if (!z.string().guid({ error: "Invalid uuid" }).safeParse(id).success)
     throw new AppError("NOT_FOUND", "Deployment not found");
   const row = await db.deployment.findUnique({ where: { id }, select: { serviceState: true } });
   if (!row || row.serviceState === "RETIRED")

@@ -74,7 +74,7 @@
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",
     "@creit.tech/stellar-wallets-kit": "^1.9.5",
-    "@hookform/resolvers": "^3.9.1",
+    "@hookform/resolvers": "^5.9.2",
     "@prisma/client": "^6.1.0",
     "@simplewebauthn/browser": "^14.0.0",
     "@simplewebauthn/server": "^14.0.1",
@@ -104,7 +104,7 @@
     "server-only": "^0.0.1",
     "sonner": "^1.7.1",
     "tailwind-merge": "^2.5.5",
-    "zod": "^3.24.1",
+    "zod": "^4.6.6",
     "zustand": "^5.0.2"
   },
   "devDependencies": {

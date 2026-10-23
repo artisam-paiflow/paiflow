@@ -19,6 +19,7 @@ export function tokenListQuery(req: NextRequest) {
   return DeveloperTokenListQuerySchema.parse(Object.fromEntries(params));
 }
 export function tokenId(id: string) {
-  if (!z.string().uuid().safeParse(id).success) throw new AppError("NOT_FOUND", "Token not found");
+  if (!z.string().guid({ error: "Invalid uuid" }).safeParse(id).success)
+    throw new AppError("NOT_FOUND", "Token not found");
   return id;
 }

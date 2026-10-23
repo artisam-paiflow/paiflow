@@ -9,7 +9,7 @@ const Query = z.object({
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   action: z.string().optional(),
-  userId: z.string().uuid().optional(),
+  userId: z.string().guid({ error: "Invalid uuid" }).optional(),
 });
 
 export async function GET(req: NextRequest) {

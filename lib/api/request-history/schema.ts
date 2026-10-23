@@ -45,19 +45,19 @@ export function requestEndpoint(path: string): string {
 }
 export const ApiRequestRecordSchema = z
   .object({
-    id: z.string().uuid(),
-    requestId: z.string().uuid(),
+    id: z.string().guid({ error: "Invalid uuid" }),
+    requestId: z.string().guid({ error: "Invalid uuid" }),
     occurredAt: z.string().datetime(),
-    accountId: z.string().uuid().nullable(),
-    tokenCreatorId: z.string().uuid().nullable(),
-    apiTokenId: z.string().uuid().nullable(),
-    developerApiTokenId: z.string().uuid().nullable().default(null),
-    deploymentId: z.string().uuid().nullable(),
+    accountId: z.string().guid({ error: "Invalid uuid" }).nullable(),
+    tokenCreatorId: z.string().guid({ error: "Invalid uuid" }).nullable(),
+    apiTokenId: z.string().guid({ error: "Invalid uuid" }).nullable(),
+    developerApiTokenId: z.string().guid({ error: "Invalid uuid" }).nullable().default(null),
+    deploymentId: z.string().guid({ error: "Invalid uuid" }).nullable(),
     txHash: z
       .string()
       .regex(/^[0-9a-f]{64}$/)
       .nullable(),
-    preparationRequestId: z.string().uuid().nullable(),
+    preparationRequestId: z.string().guid({ error: "Invalid uuid" }).nullable(),
     callerType: z.enum(["deployment_token", "developer_token", "unknown"]),
     method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]),
     endpoint: z.enum([

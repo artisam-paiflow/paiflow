@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { integerNumber } from "@/lib/validation/number";
 
 export const RetireDeploymentSchema = z
   .object({
@@ -18,7 +19,7 @@ export const SettlementVerificationSchema = z.discriminatedUnion("kind", [
   z
     .object({
       kind: z.literal("fence-work"),
-      id: z.string().uuid(),
+      id: z.string().guid({ error: "Invalid uuid" }),
       evidence: z.string().trim().min(20).max(2000),
       confirmation: z.literal("Verified worker stopped"),
     })
@@ -28,7 +29,7 @@ export const SettlementVerificationSchema = z.discriminatedUnion("kind", [
       kind: z.literal("transaction"),
       txHash: z.string().regex(/^[0-9a-f]{64}$/),
       outcome: z.enum(["SUCCESS", "FAILED"]),
-      ledger: z.number().int().positive(),
+      ledger: integerNumber().positive(),
       evidence: z.string().trim().min(20).max(2000),
       confirmation: z.literal("Verified no remaining obligation"),
     })
@@ -36,7 +37,7 @@ export const SettlementVerificationSchema = z.discriminatedUnion("kind", [
   z
     .object({
       kind: z.literal("streamer"),
-      id: z.string().uuid(),
+      id: z.string().guid({ error: "Invalid uuid" }),
       outcome: z.enum(["CLAIMED", "SKIPPED"]),
       evidence: z.string().trim().min(20).max(2000),
       confirmation: z.literal("Verified no remaining obligation"),
@@ -45,7 +46,7 @@ export const SettlementVerificationSchema = z.discriminatedUnion("kind", [
   z
     .object({
       kind: z.literal("events"),
-      cutoffLedger: z.number().int().nonnegative(),
+      cutoffLedger: integerNumber().nonnegative(),
       evidence: z.string().trim().min(20).max(2000),
       confirmation: z.literal("Verified no remaining obligation"),
     })
@@ -53,7 +54,7 @@ export const SettlementVerificationSchema = z.discriminatedUnion("kind", [
   z
     .object({
       kind: z.literal("work"),
-      id: z.string().uuid(),
+      id: z.string().guid({ error: "Invalid uuid" }),
       evidence: z.string().trim().min(20).max(2000),
       confirmation: z.literal("Verified no remaining obligation"),
     })
@@ -61,7 +62,7 @@ export const SettlementVerificationSchema = z.discriminatedUnion("kind", [
   z
     .object({
       kind: z.literal("offramp"),
-      id: z.string().uuid(),
+      id: z.string().guid({ error: "Invalid uuid" }),
       evidence: z.string().trim().min(20).max(2000),
       confirmation: z.literal("Verified no remaining obligation"),
     })
