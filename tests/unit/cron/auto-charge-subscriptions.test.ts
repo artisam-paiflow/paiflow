@@ -24,7 +24,7 @@ import { ChargeRelayerMode } from "@prisma/client";
 
 const { mockDb, mockEnv, mockRelayer, mockInvoke, mockClient, mockUrlGuard } = vi.hoisted(() => {
   const mockDb = {
-    deployment: { findMany: vi.fn(), update: vi.fn() },
+    deployment: { findMany: vi.fn(), updateMany: vi.fn() },
   };
 
   const mockEnv = {
@@ -110,6 +110,7 @@ function primeUserDeployment(chargeRelayerUrl = "https://relayer.example.com/cha
       chargeRelayerUrl,
       chargeRelayerToken: "tenant-token",
       nextChargeAt: now,
+      chargeScheduleRevision: 0,
       pipelineSnapshot: [{ nodeId: "sub", contractAddress: "C123", templateKind: "SUBSCRIPTION" }],
     },
   ]);
@@ -178,7 +179,7 @@ describe("auto-charge-subscriptions tenant relayer guards", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(json.data.details[0]).toMatchObject({ status: "failed" });
     expect(json.data.skipped).toBe(0);
-    expect(mockDb.deployment.update).toHaveBeenCalledWith(
+    expect(mockDb.deployment.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: { chargeRelayerMode: ChargeRelayerMode.MANUAL, nextChargeAt: null },
       }),
@@ -200,7 +201,7 @@ describe("auto-charge-subscriptions tenant relayer guards", () => {
     const json = await (await POST(makeRequest("cron-secret"))).json();
 
     expect(json.data.details[0]).toMatchObject({ status: "failed" });
-    expect(mockDb.deployment.update).not.toHaveBeenCalled();
+    expect(mockDb.deployment.updateMany).not.toHaveBeenCalled();
   });
 
   it("refuses a redirect instead of following it", async () => {
@@ -264,6 +265,7 @@ describe("auto-charge-subscriptions state preflight", () => {
         chargeRelayerMode: ChargeRelayerMode.PLATFORM,
         chargeRelayerAddress: "GDRELAYER",
         nextChargeAt: now,
+        chargeScheduleRevision: 0,
         pipelineSnapshot: [{ nodeId: "sub", contractAddress: "C123", templateKind }],
       },
     ]);
@@ -312,9 +314,9 @@ describe("auto-charge-subscriptions state preflight", () => {
       spender: "C123",
     });
     expect(mockRelayer.readSubscriptionNextChargeAt).toHaveBeenCalledTimes(2);
-    expect(mockDb.deployment.update).toHaveBeenCalledWith({
-      where: { id: "dep-sub" },
-      data: { nextChargeAt: new Date((duePast + 86400) * 1000), lastChargedAt: expect.any(Date) },
+    expect(mockDb.deployment.updateMany).toHaveBeenCalledWith({
+      where: { id: "dep-sub", serviceState: "ACTIVE", chargeScheduleRevision: 0 },
+      data: { nextChargeAt: new Date((duePast + 86400) * 1000) },
     });
   });
   it.each(["SUBSCRIPTION", "SUBSCRIPTION_DEV"])(
@@ -369,11 +371,11 @@ describe("auto-charge-subscriptions state preflight", () => {
       if (["cancelled", "expired", "not-due", "invalid-date"].includes(scenario))
         expect(mockRelayer.readTokenAllowance).not.toHaveBeenCalled();
       if (["cancelled", "expired"].includes(scenario))
-        expect(mockDb.deployment.update).toHaveBeenCalledWith({
-          where: { id: "dep-sub" },
+        expect(mockDb.deployment.updateMany).toHaveBeenCalledWith({
+          where: { id: "dep-sub", serviceState: "ACTIVE", chargeScheduleRevision: 0 },
           data: { chargeRelayerMode: ChargeRelayerMode.MANUAL, nextChargeAt: null },
         });
-      if (scenario === "invalid-date") expect(mockDb.deployment.update).not.toHaveBeenCalled();
+      if (scenario === "invalid-date") expect(mockDb.deployment.updateMany).not.toHaveBeenCalled();
     },
   );
   it("reports state RPC failure without falling back or changing scheduling", async () => {
@@ -385,7 +387,7 @@ describe("auto-charge-subscriptions state preflight", () => {
     expect(json.data.failed).toBe(1);
     expect(mockRelayer.readSubscriptionIsCancelled).not.toHaveBeenCalled();
     expect(mockRelayer.prepareSubscriptionChargeByRelayerTx).not.toHaveBeenCalled();
-    expect(mockDb.deployment.update).not.toHaveBeenCalled();
+    expect(mockDb.deployment.updateMany).not.toHaveBeenCalled();
   });
   it("keeps failed charges due and reads fresh next-charge time for catch-up", async () => {
     prime();
@@ -395,7 +397,7 @@ describe("auto-charge-subscriptions state preflight", () => {
     });
     const failed = await (await POST(makeRequest("cron-secret"))).json();
     expect(failed.data.failed).toBe(1);
-    expect(mockDb.deployment.update).not.toHaveBeenCalled();
+    expect(mockDb.deployment.updateMany).not.toHaveBeenCalled();
     expect(mockRelayer.readSubscriptionNextChargeAt).not.toHaveBeenCalled();
     prime();
     mockRelayer.readSubscriptionNextChargeAt
@@ -406,5 +408,79 @@ describe("auto-charge-subscriptions state preflight", () => {
     expect(success.data.platformCharged).toBe(2);
     expect(mockRelayer.readSubscriptionState).toHaveBeenCalledTimes(2); // once in each cron run
     expect(mockRelayer.readSubscriptionNextChargeAt).toHaveBeenCalledTimes(3);
+  });
+  it.each([1, 2])(
+    "retains confirmed counts when post-charge schedule read %i fails",
+    async (read) => {
+      prime();
+      if (read === 2)
+        mockRelayer.readSubscriptionNextChargeAt.mockResolvedValueOnce(BigInt(duePast + 86400));
+      mockRelayer.readSubscriptionNextChargeAt.mockRejectedValueOnce(new Error("RPC unavailable"));
+      const result = await (await POST(makeRequest("cron-secret"))).json();
+      expect(result.data.platformCharged).toBe(1);
+      expect(result.data.failed).toBe(1);
+      expect(result.data.details[0]).toMatchObject({
+        status: "charged",
+        chargedCount: 1,
+        error: expect.any(String),
+      });
+      expect(mockDb.deployment.updateMany).not.toHaveBeenCalled();
+      expect(mockRelayer.submitSubscriptionChargeByRelayerTx).toHaveBeenCalledTimes(1);
+    },
+  );
+  it("retains earlier confirmed charges when a later catch-up charge fails", async () => {
+    prime();
+    mockRelayer.readSubscriptionNextChargeAt.mockResolvedValue(BigInt(duePast));
+    mockRelayer.submitSubscriptionChargeByRelayerTx
+      .mockResolvedValueOnce({ status: "SUCCESS", txHash: TX_HASH_OK })
+      .mockResolvedValueOnce({
+        status: "FAILED",
+        txHash: "c".repeat(64),
+        errorMessage: "network failure",
+      });
+    const result = await (await POST(makeRequest("cron-secret"))).json();
+    expect(result.data.platformCharged).toBe(1);
+    expect(result.data.failed).toBe(1);
+    expect(result.data.details[0]).toMatchObject({
+      status: "charged",
+      chargedCount: 1,
+      error: expect.any(String),
+    });
+    expect(mockDb.deployment.updateMany).not.toHaveBeenCalled();
+  });
+  it("keeps confirmed counts separate from a failed database schedule checkpoint", async () => {
+    prime();
+    mockDb.deployment.updateMany.mockRejectedValueOnce(new Error("DB unavailable"));
+    const result = await (await POST(makeRequest("cron-secret"))).json();
+    expect(result.data.platformCharged).toBe(1);
+    expect(result.data.failed).toBe(1);
+    expect(result.data.details[0]).toMatchObject({
+      status: "charged",
+      chargedCount: 1,
+      error: expect.any(String),
+    });
+    expect(mockDb.deployment.updateMany).toHaveBeenCalledExactlyOnceWith({
+      where: { id: "dep-sub", serviceState: "ACTIVE", chargeScheduleRevision: 0 },
+      data: { nextChargeAt: new Date((duePast + 86400) * 1000) },
+    });
+  });
+  it("never invents charge history or resubmits when a later tick observes an advanced schedule after unknown finality", async () => {
+    prime();
+    mockRelayer.submitSubscriptionChargeByRelayerTx.mockResolvedValue({
+      status: "FAILED",
+      txHash: TX_HASH_OK,
+      errorMessage: "Timed out waiting for finality",
+    });
+    const first = await (await POST(makeRequest("cron-secret"))).json();
+    expect(first.data.platformCharged).toBe(0);
+    expect(mockDb.deployment.updateMany).not.toHaveBeenCalled();
+    const state = await mockRelayer.readSubscriptionState();
+    state.nextChargeAt = BigInt(duePast + 86400);
+    await POST(makeRequest("cron-secret"));
+    expect(mockRelayer.submitSubscriptionChargeByRelayerTx).toHaveBeenCalledTimes(1);
+    expect(mockDb.deployment.updateMany).toHaveBeenCalledExactlyOnceWith({
+      where: { id: "dep-sub", serviceState: "ACTIVE", chargeScheduleRevision: 0 },
+      data: { nextChargeAt: new Date((duePast + 86400) * 1000) },
+    });
   });
 });

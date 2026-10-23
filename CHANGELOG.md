@@ -11,6 +11,16 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Return a state conflict for a verified already-active Subscription reactivation during wallet preparation, while retaining upstream classification for unproven or unrelated failures (#1078).
+
+- Reconcile Subscription billing history from confirmed charge-event ledger times, including cancelled subscriptions and retained events behind the cursor; fence stale schedule refreshes against newer configuration, cancellation and retirement observations (#1077).
+
+- Preserve Schedule vested entitlement when pause/resume crosses its fixed window; keep duplicate controls idempotent and reject inconsistent accounting before claims or retrieval. Streamer artifact version 6 requires separate activation and does not repair existing instances (#1075).
+
+- Update vulnerable runtime and test dependencies to restore the CI audit gate without adding exceptions. The wallet SDK's TOML parser now rejects integers that cannot be represented safely instead of returning rounded metadata.
+
+- Bound public Subscription allowance reads, approval preparation, submission eligibility and status recovery to shared interactive RPC deadlines; distinguish unavailable RPC services from absent accounts while preserving original approval hashes and uncertain finality (#1074).
+
 - Bound guarded Schedule state, funding and control reads to one interactive RPC deadline; distinguish unavailable and malformed upstream responses while preserving controller checks and original-hash recovery.
 
 - Reject execute amounts above the contract i128 maximum with a field-level validation error before RPC lookup or transaction preparation.
@@ -37,6 +47,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Consolidate Windows setup into one guide and PDF following one path: set up the Paiflow starter, then Engr with Kimi.
+
 - Add the October 20 Aklan hackathon primer and PDF with the event schedule, pitch deck requirements and linked Paiflow Guide; refresh the guide access code and SDK reference links.
 
 - Complete the SDK onboarding README and generated Markdown method/type reference with CI drift checks; align OpenAPI/Postman guidance with the published beta and bounded testnet evidence (API specification correction 1.1.1).
@@ -55,6 +67,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 - Owner-managed developer token lifecycle APIs with explicit deployment grants, immutable read/operate permissions, expiry and revocation. API v1 credential acceptance follows separately ([#1029](https://github.com/webnxt-2030/pinkraft/issues/1029)).
 
 ### Changed
+
+- Rename the Web3 Iloilo participant guide to an event primer matching Aklan's section structure, using Iloilo's updated event dates, agenda and meeting links; remove the additional mechanics and onboarding subsections and regenerate the PDF.
 
 - Split Part 2 of the Paiflow Guide into the recommended starter video tutorial (2.a) and written instructions for a fresh repository (2.b), with highlighted guidance for choosing a path.
 

@@ -193,7 +193,21 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
     const { txHash } = parsed.data;
 
     const server = sorobanRpc();
-    const got = await server.getTransaction(txHash);
+    const lookupStartedAt = Date.now();
+    const got = await server.getTransaction(txHash).catch(() => {
+      log.warn(
+        {
+          operation: "getTransaction",
+          category: "upstream",
+          elapsedMs: Math.max(0, Date.now() - lookupStartedAt),
+        },
+        "Transaction status unavailable; original hash retained",
+      );
+      throw new AppError(
+        "UPSTREAM_RPC",
+        "Cannot determine transaction finality; check the original transaction hash again",
+      );
+    });
 
     if (got.status === "SUCCESS") {
       await recordTransactionOutcome(txHash, "CONFIRMED", {

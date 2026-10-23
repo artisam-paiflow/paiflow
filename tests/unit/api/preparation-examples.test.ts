@@ -97,52 +97,6 @@ describe("documented preparation correlation", () => {
       run("Submit execute", "prerequest"); assert.equal(headers.has("x-preparation-request-id"), false);
     `);
   });
-  it.each(["docs/hackathon/web3-iloilo/llms.md"])(
-    "%s keeps concurrent execute preparations and retries separate",
-    (file) => {
-      const source = readFileSync(file, "utf8");
-      const helper = source.match(/```ts\n(import "server-only";[\s\S]*?)\n```/)![1]!;
-      execute(`
-        ${compile(helper.replace('import "server-only";', ""))}
-        process.env.PAIFLOW_MODE = "team";
-        process.env.PAIFLOW_BASE_URL = "https://beta.app.paiflow.xyz";
-        process.env.PAIFLOW_DEPLOYMENT_ID = "test-deployment";
-        process.env.PAIFLOW_API_TOKEN = "test-token";
-        const ids = ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"];
-        let preparedCount = 0, failedOnce = false;
-        const submits = [];
-        globalThis.fetch = async (url, options) => {
-          if (url.pathname.endsWith("/submit")) {
-            submits.push({ path: url.pathname, headers: options.headers, body: JSON.parse(options.body) });
-            if (!failedOnce) {
-              failedOnce = true;
-              return Response.json({ error: { code: "UPSTREAM_RPC", message: "Uncertain" } }, { status: 502 });
-            }
-            return Response.json({ data: { status: "SUCCESS", txHash: "synthetic" } }, {
-              headers: { "x-history-request-id": "33333333-3333-4333-8333-333333333333" },
-            });
-          }
-          const id = ids[preparedCount++];
-          return Response.json({ data: { xdr: "prepared-" + preparedCount } }, {
-            headers: id ? { "x-history-request-id": id } : {},
-          });
-        };
-        const first = await prepareExecute({ from: "source", amount: "1" });
-        const second = await prepareExecute({ from: "source", amount: "2" });
-        const firstSubmit = { signedXdr: "signed-first", preparationRequestId: first.preparationRequestId };
-        await assert.rejects(submitExecute(firstSubmit), { message: "Uncertain" });
-        await submitExecute(firstSubmit, false);
-        await submitExecute({ signedXdr: "signed-second", preparationRequestId: second.preparationRequestId });
-        assert.deepEqual(submits.map(s => s.headers["x-preparation-request-id"]), [ids[0], ids[0], ids[1]]);
-        assert.deepEqual(submits.map(s => s.body), [{ signedXdr: "signed-first" }, { signedXdr: "signed-first" }, { signedXdr: "signed-second" }]);
-        const legacy = await prepareExecute({ from: "source", amount: "1" });
-        assert.equal(legacy.preparationRequestId, null);
-        await submitExecute({ signedXdr: "legacy", preparationRequestId: legacy.preparationRequestId });
-        assert.equal(submits.at(-1).headers["x-preparation-request-id"], undefined);
-      `);
-    },
-  );
-
   it("the SDK context keeps concurrent preparation metadata and exact-envelope retries separate", () => {
     const source = readFileSync("docs/hackathon/llms.md", "utf8");
     const helper = source.match(/```ts\n(import "server-only";[\s\S]*?)\n```/)![1]!;

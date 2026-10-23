@@ -51,9 +51,10 @@ pub enum Error {
     NotPaused = 10,
     NothingToRetrieve = 11,
     ArithmeticOverflow = 12,
+    InvalidAccountingState = 13,
 }
 
-const VERSION: u32 = 5;
+const VERSION: u32 = 6;
 const TOTAL_BPS: u32 = 10_000;
 const TTL_THRESHOLD: u32 = 50_000;
 const TTL_EXTEND_TO: u32 = 500_000;
@@ -161,18 +162,28 @@ impl Streamer {
         let paused_at: u64 = env.storage().instance().get(&Key::PausedAt).unwrap_or(0);
         let pause_offset: u64 = env.storage().instance().get(&Key::PauseOffset).unwrap_or(0);
 
-        let mut cap = if now > end { end } else { now };
-        if paused && paused_at > 0 && paused_at < cap {
-            cap = paused_at;
+        if paused && paused_at > now {
+            panic_with_error!(env, Error::InvalidAccountingState);
         }
-        if cap <= start {
-            return (0, 0);
-        }
-        let elapsed = cap.saturating_sub(start).saturating_sub(pause_offset);
+        let cap = if paused {
+            now.min(end).min(paused_at)
+        } else {
+            now.min(end)
+        };
+        let window_elapsed = cap.saturating_sub(start);
+        // PauseOffset contains only completed pause overlap with [start, end].
+        // Invalid stored accounting must never become a negative payout or an
+        // inflated retrieval amount, including before the first interval.
+        let elapsed = window_elapsed
+            .checked_sub(pause_offset)
+            .unwrap_or_else(|| panic_with_error!(env, Error::InvalidAccountingState));
         let intervals = elapsed / interval_seconds;
         let vested = i128::from(intervals)
             .checked_mul(amount_per_interval)
             .unwrap_or_else(|| panic_with_error!(env, Error::ArithmeticOverflow));
+        if claimed < 0 || claimed > vested {
+            panic_with_error!(env, Error::InvalidAccountingState);
+        }
         let available = vested
             .checked_sub(claimed)
             .unwrap_or_else(|| panic_with_error!(env, Error::ArithmeticOverflow));
@@ -301,6 +312,10 @@ impl Streamer {
         {
             panic_with_error!(&env, Error::PauseNotAllowed);
         }
+        // A repeated request must not move the original freeze point forward.
+        if Self::is_paused(env.clone()) {
+            return;
+        }
         env.storage().instance().set(&Key::Paused, &true);
         env.storage()
             .instance()
@@ -320,17 +335,29 @@ impl Streamer {
         {
             panic_with_error!(&env, Error::PauseNotAllowed);
         }
+        if !Self::is_paused(env.clone()) {
+            return;
+        }
         let paused_at: u64 = env.storage().instance().get(&Key::PausedAt).unwrap_or(0);
         let now = env.ledger().timestamp();
-        if paused_at > 0 && now > paused_at {
-            let offset: u64 = env.storage().instance().get(&Key::PauseOffset).unwrap_or(0);
-            let added = now - paused_at;
-            env.storage()
-                .instance()
-                .set(&Key::PauseOffset, &offset.saturating_add(added));
+        if paused_at > now {
+            panic_with_error!(&env, Error::InvalidAccountingState);
         }
+        let start: u64 = env.storage().instance().get(&Key::StartTs).unwrap();
+        let end: u64 = env.storage().instance().get(&Key::EndTs).unwrap();
+        let offset: u64 = env.storage().instance().get(&Key::PauseOffset).unwrap_or(0);
+        // Fixed end: neither pre-start nor post-end wall time can revoke earned
+        // entitlement. Partial active intervals carry across genuine pauses.
+        let added = now.min(end).saturating_sub(paused_at.max(start));
+        let offset = offset
+            .checked_add(added)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow));
+        env.storage().instance().set(&Key::PauseOffset, &offset);
         env.storage().instance().set(&Key::Paused, &false);
         env.storage().instance().set(&Key::PausedAt, &0u64);
+        // A corrupted legacy/injected state is refused, never repaired by
+        // clamping available or replacing vested entitlement with Claimed.
+        Self::compute_vested_and_available(&env);
         #[allow(deprecated)]
         env.events().publish((symbol_short!("unpause"),), ());
     }
@@ -1298,3 +1325,7 @@ mod test {
 #[cfg(test)]
 #[path = "arithmetic-tests.rs"]
 mod arithmetic_tests;
+
+#[cfg(test)]
+#[path = "pause-tests.rs"]
+mod pause_tests;

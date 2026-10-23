@@ -86,6 +86,11 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
       name: "NothingToRetrieve",
       friendly: "There are no unvested funds to retrieve.",
     },
+    13: {
+      name: "InvalidAccountingState",
+      friendly:
+        "This stream has inconsistent vesting accounting. Stop and reconcile its history before moving funds.",
+    },
   },
   splitter: {
     1: ALREADY_INITIALIZED,
@@ -722,7 +727,10 @@ export function translateSorobanError(
   if (contractError) {
     const key =
       (contractError.address && hint?.addressMap?.[contractError.address]) ?? hint?.contract;
-    const entry = key ? CONTRACT_ERRORS[key][contractError.code] : undefined;
+    // Parsed frames were already checked from the origin outward. Retrying
+    // the outermost regex match would undo the rejected-origin protection.
+    const entry =
+      rejected === undefined && key ? CONTRACT_ERRORS[key][contractError.code] : undefined;
     if (entry) return translated(entry, contractError.address, hint);
     if (contractError.code) {
       return {
