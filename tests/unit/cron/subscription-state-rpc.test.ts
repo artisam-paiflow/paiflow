@@ -24,7 +24,7 @@ import {
 
 const { server, db, prepare, submit } = vi.hoisted(() => ({
   server: { getAccount: vi.fn(), simulateTransaction: vi.fn() },
-  db: { deployment: { findMany: vi.fn(), update: vi.fn() } },
+  db: { deployment: { findMany: vi.fn(), updateMany: vi.fn() } },
   prepare: vi.fn(),
   submit: vi.fn(),
 }));
@@ -54,6 +54,7 @@ beforeEach(() => {
       id: "fixture",
       chargeEndAt: null,
       chargeRelayerMode: "PLATFORM",
+      chargeScheduleRevision: 0,
       pipelineSnapshot: [
         { nodeId: "sub", contractAddress: contract, templateKind: "SUBSCRIPTION" },
       ],
@@ -124,7 +125,7 @@ it.each([
   } else {
     expect(result.data.platformCharged).toBe(1);
     expect(prepare).toHaveBeenCalledTimes(1);
-    expect(db.deployment.update).toHaveBeenCalledWith(
+    expect(db.deployment.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ nextChargeAt: expect.any(Date) }),
       }),

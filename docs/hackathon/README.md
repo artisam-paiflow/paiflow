@@ -56,6 +56,11 @@ Paths below are relative to this folder unless stated otherwise.
 
 ## Early integration
 
+The [Web3 Iloilo event primer](web3-iloilo/event-primer.md) and [PDF](web3-iloilo/event-primer.pdf) follow Aklan's section structure, using Iloilo's event details, preparation permissions, integration window and prize pool. Its earlier `participant-guide.pdf` remains archival.
+
+Regenerate the Iloilo primer with the same four-page layout as Aklan:
+`node scripts/render-event-primer-pdf.mjs docs/hackathon/web3-iloilo/event-primer.md`.
+
 The [Aklan event primer](aklan/event-primer.md) covers the October 20, 2026 hackathon. Its schedule and early-building permission are event-specific; outstanding planning details are tracked in the internal [organiser notes](aklan/organiser-notes.md).
 
 Teams may deploy, integrate Paiflow and test payments before the event once credentials are available. Use the SDK in your own Node app or start from the minimal SDK payment example. The example enables payments once its server origin, explicit deployment ID and token are configured; without complete configuration, payment actions stay disabled. Event schedules describe time to finish and demonstrate integration. Retain published payout qualification and submission rules, including FEU's event-day qualifying payout. Keep participant briefs, starter guidance, AI context and tutorial scripts aligned.
@@ -89,10 +94,13 @@ Participant-facing repository links use [`artisam-paiflow/paiflow` on `develop`]
 
 ## PDF regeneration
 
+The [Windows setup guide](setup-guide.md) and its [PDF](setup-guide.pdf) consolidate the former Engr and starter setup guides. Follow one path: install Git, NVM, Node and pnpm, run the Paiflow starter, then set up Engr with a Kimi API key. Follow the current starter README for configuration; this setup guide ends with the local app and coding tools ready.
+
 After Markdown approval and an explicit request to regenerate, run from the repository root:
 
 ```bash
 node scripts/render-developer-guide-pdf.mjs docs/hackathon/paiflow-guide.md
+node scripts/render-setup-guide-pdf.mjs
 node scripts/render-event-primer-pdf.mjs docs/hackathon/event-primer-template.md
 ```
 
