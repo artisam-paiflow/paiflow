@@ -26,6 +26,6 @@ export const AllowanceSubmitSchema = z
   })
   .strict();
 
-export const AllowanceDeploymentIdSchema = z.string().uuid();
+export const AllowanceDeploymentIdSchema = z.string().guid({ error: "Invalid uuid" });
 
 export const AllowanceStatusSchema = z.object({ intent: z.string().min(10).max(4096) }).strict();

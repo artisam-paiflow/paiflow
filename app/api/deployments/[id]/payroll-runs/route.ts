@@ -12,13 +12,13 @@ import {
 } from "@/lib/payroll/run-serialize";
 
 const Query = z.object({
-  cursor: z.string().uuid().optional(),
+  cursor: z.string().guid({ error: "Invalid uuid" }).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
 /** A malformed (non-UUID) id can't match any row; treat it as not-found rather
  * than letting it reach Prisma and surface as a generic 500. */
-const isUuid = (v: string) => z.string().uuid().safeParse(v).success;
+const isUuid = (v: string) => z.string().guid({ error: "Invalid uuid" }).safeParse(v).success;
 
 /**
  * List a deployment's payroll runs, newest first, with per-run payout counts.

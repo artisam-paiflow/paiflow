@@ -19,7 +19,7 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
   return withErrorHandler(async () => {
     const user = await requireSession();
     const { id } = await ctx.params;
-    if (!z.string().uuid().safeParse(id).success) {
+    if (!z.string().guid({ error: "Invalid uuid" }).safeParse(id).success) {
       throw new AppError("NOT_FOUND", "Deployment not found");
     }
     await enforceWriteRateLimit("timelockRelease", `${user.id}:${id}`);

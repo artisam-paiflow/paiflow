@@ -26,12 +26,12 @@ import { SANDBOX_TEMPLATE_KINDS } from "@/lib/sandbox";
 import { assertNoHiddenSurfaces, serverFeatures } from "@/lib/features";
 
 const PrepareInputSchema = z.object({
-  flowId: z.string().uuid(),
+  flowId: z.string().guid({ error: "Invalid uuid" }),
   sourceAccount: z.string().optional(),
 });
 
 const PrepareSchema = z.object({
-  flowId: z.string().uuid(),
+  flowId: z.string().guid({ error: "Invalid uuid" }),
   sourceAccount: z
     .string()
     .refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar account"),

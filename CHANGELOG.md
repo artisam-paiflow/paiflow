@@ -7,6 +7,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Security
 
+- Upgrade Zod's runtime collection parser and its form resolver to address oversized constrained-collection resource exhaustion, preserving existing identifier, integer, default and form validation behavior ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)).
+
 - Update the Rust contract workspace's transitive `serde_with` and `serde_with_macros` dependencies to 3.21.0 to fix the KeyValueMap serialization panic ([GHSA-7gcf-g7xr-8hxj](https://github.com/advisories/GHSA-7gcf-g7xr-8hxj)).
 
 ### Fixed

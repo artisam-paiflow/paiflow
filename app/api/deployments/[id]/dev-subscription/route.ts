@@ -2,6 +2,7 @@ import { requireFeature } from "@/lib/features";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
+import { integerNumber } from "@/lib/validation/number";
 import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
@@ -30,9 +31,9 @@ const BodySchema = z
       .optional(),
     schedule: z
       .object({
-        startTs: z.number().int().nonnegative(),
-        intervalSeconds: z.number().int().positive(),
-        endTs: z.number().int().positive(),
+        startTs: integerNumber().nonnegative(),
+        intervalSeconds: integerNumber().positive(),
+        endTs: integerNumber().positive(),
       })
       .refine((s) => s.endTs > s.startTs, { message: "endTs must be after startTs" })
       .optional(),
