@@ -397,3 +397,272 @@ describe("Subscription preparation through the real SDK client and builders", ()
     },
   );
 });
+
+describe("Subscription already-active guard through real SDK diagnostics", () => {
+  function event(
+    origin: string | undefined,
+    topics: xdr.ScVal[],
+    data = xdr.ScVal.scvVoid(),
+    successful = false,
+  ) {
+    return new xdr.DiagnosticEvent({
+      inSuccessfulContractCall: successful,
+      event: new xdr.ContractEvent({
+        ext: new xdr.ExtensionPoint(0),
+        contractId: origin ? (StrKey.decodeContract(origin) as unknown as xdr.Hash) : null,
+        type: xdr.ContractEventType.diagnostic(),
+        body: new xdr.ContractEventBody(0, new xdr.ContractEventV0({ topics, data })),
+      }),
+    }).toXDR("base64");
+  }
+  const guardTopics = (code = 7) => [
+    xdr.ScVal.scvSymbol("error"),
+    xdr.ScVal.scvError(xdr.ScError.sceContract(code)),
+  ];
+  const rootCall = (
+    target = contract,
+    method = "subscribe",
+    data = xdr.ScVal.scvVoid(),
+    successful = false,
+    origin?: string,
+  ) =>
+    event(
+      origin,
+      [
+        xdr.ScVal.scvSymbol("fn_call"),
+        xdr.ScVal.scvBytes(StrKey.decodeContract(target)),
+        xdr.ScVal.scvSymbol(method),
+      ],
+      data,
+      successful,
+    );
+  function refusal(
+    events = [rootCall(), event(contract, guardTopics()), event(contract, guardTopics())],
+    code = 7,
+  ) {
+    return {
+      latestLedger: 1000,
+      error:
+        `HostError: Error(Contract, #${code})\nEvent log (newest first):\n` +
+        `0: [Diagnostic Event] contract:${contract}, topics:[error, Error(Contract, #${code})]\n` +
+        `1: [Diagnostic Event] topics:[fn_call, ${contract}, subscribe], data:Void`,
+      events,
+    };
+  }
+  const serve = (simulation: unknown) =>
+    rpcFetch(async (call) => (call.method === "simulateTransaction" ? simulation : normal(call)));
+  const participant = (address = wallet) =>
+    ownerReactivate(
+      new Request("https://paiflow.test/subscription-subscribe", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ userAddress: address }),
+      }) as NextRequest,
+      { params: Promise.resolve({ id: deployment.id }) },
+    );
+
+  it("returns participant409 for verified target subscribe error7 without producing XDR", async () => {
+    serve(refusal());
+    const response = await participant();
+    expect(response.status).toBe(409);
+    const body = await response.json();
+    expect(body.error).toMatchObject({
+      code: "CONFLICT",
+      message: "Subscription is already active",
+    });
+    expect(body.error.details).toContain("HostError: Error(Contract, #7)");
+    expect(body.data).toBeUndefined();
+    unchanged();
+  });
+
+  it("accepts a corroborated root target encoded as a contract address", async () => {
+    serve(
+      refusal([
+        event(undefined, [
+          xdr.ScVal.scvSymbol("fn_call"),
+          new Address(contract).toScVal(),
+          xdr.ScVal.scvSymbol("subscribe"),
+        ]),
+        event(contract, guardTopics()),
+      ]),
+    );
+    expect((await participant()).status).toBe(409);
+    unchanged();
+  });
+
+  it.each(["SUBSCRIPTION", "SUBSCRIPTION_DEV"])(
+    "classifies a %s state race after the SDK cancelled precheck without reserving intent",
+    async (kind) => {
+      const selected = {
+        ...deployment,
+        pipelineSnapshot: [{ nodeId: "sub", templateKind: kind, contractAddress: contract }],
+      };
+      mocks.state.mockResolvedValue({ ...state, templateKind: kind });
+      serve(refusal());
+      await expect(
+        prepareSubscriptionControl(selected, "subscription.reactivate", wallet),
+      ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
+      expect(mocks.state).toHaveBeenCalledOnce();
+      unchanged();
+    },
+  );
+
+  it.each(["SUBSCRIPTION", "SUBSCRIPTION_DEV"])(
+    "preserves valid %s preparation and simulated source/network/method",
+    async (kind) => {
+      const selected = {
+        ...deployment,
+        pipelineSnapshot: [{ nodeId: "sub", templateKind: kind, contractAddress: contract }],
+      };
+      mocks.state.mockResolvedValue({ ...state, templateKind: kind });
+      const result = await prepareSubscriptionControl(selected, "subscription.reactivate", wallet);
+      const tx = TransactionBuilder.fromXDR(result.xdr, Networks.TESTNET) as Transaction;
+      expect(tx.source).toBe(wallet);
+      expect(tx.operations).toHaveLength(1);
+      const operation = tx.operations[0]!;
+      expect(operation.type).toBe("invokeHostFunction");
+      if (operation.type !== "invokeHostFunction") throw new Error("Unexpected operation");
+      expect(operation.func.invokeContract().functionName().toString()).toBe("subscribe");
+      expect(operation.func.invokeContract().args()).toHaveLength(0);
+      expect(result.networkPassphrase).toBe(Networks.TESTNET);
+      expect(mocks.createIntent).toHaveBeenCalledOnce();
+      expect(mocks.audit).not.toHaveBeenCalled();
+      expect(mocks.charge).not.toHaveBeenCalled();
+    },
+  );
+
+  it("preserves the SDK active precheck409 without any builder RPC", async () => {
+    mocks.state.mockResolvedValue({ ...state, isCancelled: false });
+    await expect(prepare()).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
+    expect(fetch).not.toHaveBeenCalled();
+    unchanged();
+  });
+
+  it("preserves participant success and wrong-wallet422 before RPC", async () => {
+    expect((await participant(Keypair.random().publicKey())).status).toBe(422);
+    expect(fetch).not.toHaveBeenCalled();
+    expect((await participant()).status).toBe(200);
+    unchanged();
+  });
+
+  it("preserves a real transport failure502 without exposing provider details", async () => {
+    rpcFetch(async (call) => {
+      if (call.method === "simulateTransaction") throw new Error("private provider failure");
+      return normal(call);
+    });
+    const response = await participant();
+    expect(response.status).toBe(502);
+    expect(JSON.stringify(await response.json())).not.toContain("private provider failure");
+    unchanged();
+  });
+
+  it.each([
+    ["no diagnostics", () => refusal([])],
+    [
+      "malformed diagnostic marker",
+      () =>
+        refusal([
+          rootCall(),
+          event(undefined, [xdr.ScVal.scvU32(7)]),
+          event(contract, guardTopics()),
+        ]),
+    ],
+    ["missing root call", () => refusal([event(contract, guardTopics())])],
+    ["wrong root target", () => refusal([rootCall(asset), event(contract, guardTopics())])],
+    [
+      "wrong method",
+      () => refusal([rootCall(contract, "unsubscribe"), event(contract, guardTopics())]),
+    ],
+    [
+      "nonempty args",
+      () =>
+        refusal([
+          rootCall(contract, "subscribe", xdr.ScVal.scvVec([xdr.ScVal.scvU32(1)])),
+          event(contract, guardTopics()),
+        ]),
+    ],
+    [
+      "unfamiliar empty vector args",
+      () =>
+        refusal([
+          rootCall(contract, "subscribe", xdr.ScVal.scvVec([])),
+          event(contract, guardTopics()),
+        ]),
+    ],
+    [
+      "successful-only root call",
+      () =>
+        refusal([
+          rootCall(contract, "subscribe", xdr.ScVal.scvVoid(), true),
+          event(contract, guardTopics()),
+        ]),
+    ],
+    [
+      "successful-only guard",
+      () => refusal([rootCall(), event(contract, guardTopics(), xdr.ScVal.scvVoid(), true)]),
+    ],
+    ["unrelated origin", () => refusal([rootCall(), event(asset, guardTopics())])],
+    [
+      "nested propagated guard",
+      () => refusal([rootCall(), event(asset, guardTopics()), event(contract, guardTopics())]),
+    ],
+    [
+      "nested call with omitted nested error",
+      () =>
+        refusal([
+          rootCall(),
+          rootCall(asset, "transfer", xdr.ScVal.scvVoid(), false, contract),
+          event(contract, guardTopics()),
+        ]),
+    ],
+    [
+      "anonymous error",
+      () => refusal([rootCall(), event(undefined, guardTopics()), event(contract, guardTopics())]),
+    ],
+    ["top-level code mismatch", () => refusal(undefined, 5)],
+    ["target code mismatch", () => refusal([rootCall(), event(contract, guardTopics(5))])],
+    [
+      "non-contract error",
+      () =>
+        refusal([
+          rootCall(),
+          event(contract, [
+            xdr.ScVal.scvSymbol("error"),
+            xdr.ScVal.scvError(xdr.ScError.sceAuth(xdr.ScErrorCode.scecInvalidAction())),
+          ]),
+        ]),
+    ],
+    [
+      "malformed error topic",
+      () =>
+        refusal([rootCall(), event(contract, [xdr.ScVal.scvSymbol("error"), xdr.ScVal.scvU32(7)])]),
+    ],
+    [
+      "duplicate root calls",
+      () => refusal([rootCall(), rootCall(), event(contract, guardTopics())]),
+    ],
+    ["malformed encoded diagnostics", () => refusal(["invalid-base64"])],
+    ["malformed diagnostic collection", () => ({ ...refusal(), events: {} })],
+    ["bare numeric string", () => ({ ...refusal(), error: "Error(Contract, #7)" })],
+  ] as const)("retains upstream502 for %s", async (_name, simulation) => {
+    serve(simulation());
+    const response = await participant();
+    expect(response.status).toBe(502);
+    expect((await response.json()).error.code).toBe("UPSTREAM_RPC");
+    unchanged();
+  });
+
+  it("does not classify subscribe diagnostics on the unsubscribe builder", async () => {
+    serve(refusal());
+    const response = await ownerCancel(
+      new Request("https://paiflow.test/subscription-unsubscribe", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ userAddress: wallet }),
+      }) as NextRequest,
+      { params: Promise.resolve({ id: deployment.id }) },
+    );
+    expect(response.status).toBe(502);
+    unchanged();
+  });
+});

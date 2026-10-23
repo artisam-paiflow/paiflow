@@ -11,6 +11,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Return a state conflict for a verified already-active Subscription reactivation during wallet preparation, while retaining upstream classification for unproven or unrelated failures (#1078).
+
 - Reconcile Subscription billing history from confirmed charge-event ledger times, including cancelled subscriptions and retained events behind the cursor; fence stale schedule refreshes against newer configuration, cancellation and retirement observations (#1077).
 
 - Preserve Schedule vested entitlement when pause/resume crosses its fixed window; keep duplicate controls idempotent and reject inconsistent accounting before claims or retrieval. Streamer artifact version 6 requires separate activation and does not repair existing instances (#1075).
