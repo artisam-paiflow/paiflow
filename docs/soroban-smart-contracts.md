@@ -405,6 +405,58 @@ instances continue through legacy getters. This optimization does not claim lowe
 fees, universal latency gains, or production capacity. TESTNET evidence and limits are recorded in
 [`subscription-state-testnet.md`](subscription-state-testnet.md).
 
+### 4.1.5 Fixed-end Schedule pause accounting (#1075)
+
+Streamer artifact version 6 counts each completed pause only over its overlap with
+`[start_ts, end_ts]`: `max(0, min(resume_time, end_ts) - max(paused_at, start_ts))`.
+While paused, the original pause timestamp freezes vesting, including timestamp zero.
+Partial active intervals carry across pauses. The end never moves; occurrence-derived
+windows also retain their original end, so pausing may reduce total payments. Existing
+earned entitlement remains claimable while paused and after the end. See
+[`SPEC.md` §3.1](../SPEC.md#31-triggers) for the product semantics.
+
+Duplicate pause/resume calls remain authorized and permission-gated but make no changes
+and emit no duplicate transition event. A duplicate pause cannot advance the freeze point.
+Negative claimed amounts, a pause offset exceeding capped elapsed time, and claimed
+amounts above computed vesting fail with appended `InvalidAccountingState = 13`.
+No value is clamped and claimed amounts never replace calculated vesting. An invalid
+state cannot reach the retrieval token balance/transfer calls. Underfunded claims still
+revert atomically; retrieval leaves all vested, unpaid entitlement in the pool.
+
+Public function signatures, constructor arguments, existing storage key/value shapes,
+and existing error numbers are unchanged. Only the stored artifact version changes from
+5 to 6; the workspace package version is not an app release. Normal and dev Schedule
+flows both use this standard STREAMER artifact.
+
+Artifact activation and existing-instance handling are separate:
+
+1. Before activation, complete Rust format, workspace tests, Clippy, a WASM build,
+   application regressions and independent contract review. Record the source revision
+   and new artifact hash; merging source alone activates nothing on-chain.
+2. With separate rollout authorization, upload to the intended TESTNET and activate
+   only its STREAMER template hash in the target environment's database. Verify the
+   environment/network and database explicitly; `contracts:update-hashes` uses
+   `STELLAR_NETWORK`, not an upload command's network flag. Refresh the service's
+   template cache through the approved deployment process. Do not change factory,
+   unrelated templates or existing pipeline snapshots to suggest an upgrade.
+3. Deploy fresh test instances and verify claims, pauses and permitted retrieval
+   before/across/after the end with wallet signing and exact token/recipient balances.
+   Production activation requires its own approval and validation.
+4. Existing Streamers remain on their deployed code. Neither Streamer nor the factory
+   exposes an upgrade entry point; new WASM cannot repair their offsets. Inventory
+   deployed code/version, controller, recipients, window, pause history, claimed
+   transfers, holdings and unresolved hashes before proposing any instance recovery.
+   Stop further unsafe controls through operational coordination; do not infer failed
+   finality or clear retained financial evidence from timeouts.
+5. Reconstruct earned but unpaid entitlement from authoritative history, reconcile
+   recipient/controller obligations, and obtain explicit owner authorization for a
+   settlement/redeployment plan. Preserve old financial records and addresses; any new
+   deployment has its own snapshot. Stored `PauseOffset` alone cannot reconstruct
+   erroneous historical pauses. If history or consent is missing, retain the unresolved
+   case rather than guessing a correction. `cancel` refunds the full holding balance to
+   admin and does not preserve unpaid recipient entitlement; it is not an automatic
+   migration or recovery shortcut. No funds move as part of artifact activation.
+
 ### 4.2 Contract build pipeline
 
 Prerequisite (once per machine):

@@ -11,6 +11,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Preserve Schedule vested entitlement when pause/resume crosses its fixed window; keep duplicate controls idempotent and reject inconsistent accounting before claims or retrieval. Streamer artifact version 6 requires separate activation and does not repair existing instances (#1075).
+
 - Bound guarded Schedule state, funding and control reads to one interactive RPC deadline; distinguish unavailable and malformed upstream responses while preserving controller checks and original-hash recovery.
 
 - Reject execute amounts above the contract i128 maximum with a field-level validation error before RPC lookup or transaction preparation.
