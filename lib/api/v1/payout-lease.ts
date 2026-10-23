@@ -1,6 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { integerNumber } from "@/lib/validation/number";
 import { AppError } from "@/lib/errors";
 import { redis } from "@/lib/redis";
 import {
@@ -17,10 +18,10 @@ const TransactionSchema = z.object({
     .refine((s) => BigInt(s) > 0n),
 });
 const RecordSchema = z.object({
-  owner: z.string().uuid(),
+  owner: z.string().guid({ error: "Invalid uuid" }),
   deploymentId: z.string(),
   tokenId: z.string(),
-  ownerExpires: z.number().int(),
+  ownerExpires: integerNumber(),
   stage: z.enum(["preparing", "ready"]),
   configTx: TransactionSchema.optional(),
   deposit: TransactionSchema.optional(),

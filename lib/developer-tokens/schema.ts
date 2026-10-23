@@ -9,7 +9,7 @@ const DeploymentIdsSchema = z
   .array(
     z
       .string()
-      .uuid()
+      .guid({ error: "Invalid uuid" })
       .transform((id) => id.toLowerCase()),
   )
   .max(MAX_DEVELOPER_TOKEN_GRANTS)
@@ -30,14 +30,14 @@ export const UpdateDeveloperTokenSchema = z.object({ deploymentIds: DeploymentId
 export type UpdateDeveloperToken = z.infer<typeof UpdateDeveloperTokenSchema>;
 export const DeveloperTokenListQuerySchema = z
   .object({
-    cursor: z.string().uuid().optional(),
+    cursor: z.string().guid({ error: "Invalid uuid" }).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
   })
   .strict();
 export type DeveloperTokenListQuery = z.infer<typeof DeveloperTokenListQuerySchema>;
 export const DeveloperTokenSchema = z
   .object({
-    id: z.string().uuid(),
+    id: z.string().guid({ error: "Invalid uuid" }),
     tokenPrefix: z.string(),
     label: z.string().nullable(),
     permission: DeveloperTokenPermissionSchema,
@@ -45,7 +45,7 @@ export const DeveloperTokenSchema = z
     lastUsedAt: z.string().datetime().nullable(),
     expiresAt: z.string().datetime().nullable(),
     revokedAt: z.string().datetime().nullable(),
-    deploymentIds: z.array(z.string().uuid()),
+    deploymentIds: z.array(z.string().guid({ error: "Invalid uuid" })),
   })
   .strict();
 export type DeveloperToken = z.infer<typeof DeveloperTokenSchema>;
@@ -54,17 +54,24 @@ export const CreatedDeveloperTokenSchema = DeveloperTokenSchema.extend({
 });
 export type CreatedDeveloperToken = z.infer<typeof CreatedDeveloperTokenSchema>;
 export const DeveloperTokenListSchema = z
-  .object({ items: z.array(DeveloperTokenSchema), nextCursor: z.string().uuid().nullable() })
+  .object({
+    items: z.array(DeveloperTokenSchema),
+    nextCursor: z.string().guid({ error: "Invalid uuid" }).nullable(),
+  })
   .strict();
 export type DeveloperTokenList = z.infer<typeof DeveloperTokenListSchema>;
 export const DeveloperTokenDeploymentSchema = z
-  .object({ id: z.string().uuid(), flowName: z.string(), network: z.string() })
+  .object({
+    id: z.string().guid({ error: "Invalid uuid" }),
+    flowName: z.string(),
+    network: z.string(),
+  })
   .strict();
 export type DeveloperTokenDeployment = z.infer<typeof DeveloperTokenDeploymentSchema>;
 export const DeveloperTokenDeploymentListSchema = z
   .object({
     items: z.array(DeveloperTokenDeploymentSchema),
-    nextCursor: z.string().uuid().nullable(),
+    nextCursor: z.string().guid({ error: "Invalid uuid" }).nullable(),
   })
   .strict();
 

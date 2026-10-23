@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { integerNumber } from "@/lib/validation/number";
 import type { FlowGraph, FlowNode } from "./schema";
 import type { ValidationIssue } from "./issue";
 import type { PipelineNodeParams } from "./to-params";
@@ -29,7 +30,7 @@ export const BlockBindingSchema = z.discriminatedUnion("role", [
   }).strict(),
   BindingBaseSchema.extend({
     role: z.literal("payout_sink"),
-    recipientIndex: z.number().int().nonnegative(),
+    recipientIndex: integerNumber().nonnegative(),
   }).strict(),
 ]);
 export const PipelineImplementationSchema = z

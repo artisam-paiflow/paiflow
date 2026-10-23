@@ -1,5 +1,6 @@
 import { StrKey } from "@stellar/stellar-sdk";
 import { z } from "zod";
+import { integerNumber } from "@/lib/validation/number";
 import { I128_MAX } from "@/lib/flows/primitives";
 
 // Shared by the owner-session token routes and the "API access" panel. No
@@ -17,7 +18,7 @@ export type CreateApiToken = z.infer<typeof CreateApiTokenSchema>;
 
 /** A token as the list and revoke routes return it. Never carries the hash. */
 export const ApiTokenSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid({ error: "Invalid uuid" }),
   tokenPrefix: z.string(),
   label: z.string().nullable(),
   createdAt: z.string(),
@@ -104,7 +105,7 @@ export const ExecuteSubmittedSchema = z
     status: ExecuteStatusSchema.describe(
       "PENDING: accepted, not yet final; resubmit the same envelope to check again.",
     ),
-    ledger: z.number().int().optional(),
+    ledger: integerNumber().optional(),
     error: z.object({ code: z.string(), message: z.string() }).optional(),
   })
   .describe("The outcome of executing a deposit-triggered flow.");
@@ -131,7 +132,7 @@ export const ReleasedSchema = z
   .object({
     nodeId: z.string().describe("The timelock branch node that was released."),
     txHash: z.string().describe("Hash of the confirmed release transaction, hex."),
-    ledger: z.number().int().optional(),
+    ledger: integerNumber().optional(),
   })
   .describe("A confirmed early release of a timelock branch's before side.");
 export type Released = z.infer<typeof ReleasedSchema>;
@@ -151,15 +152,15 @@ export const ListEventsQuerySchema = z
 export type ListEventsQuery = z.infer<typeof ListEventsQuerySchema>;
 
 export const ContractEventItemSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid({ error: "Invalid uuid" }),
   eventId: z.string(),
   kind: z.string(),
   /** The event's first topic: `"swap"` for a swap, whose `kind` is `PAYOUT`. */
   topic: z.string().nullable(),
-  ledger: z.number().int(),
+  ledger: integerNumber(),
   txHash: z.string(),
   occurredAt: z.string(),
-  data: z.unknown().nullable(),
+  data: z.unknown().nullable().optional(),
 });
 export type ContractEventItem = z.infer<typeof ContractEventItemSchema>;
 
@@ -178,7 +179,7 @@ export const DemoTokenSchema = z
   .object({
     deploymentId: z
       .string()
-      .uuid()
+      .guid({ error: "Invalid uuid" })
       .describe("The shared demo deployment this token reaches, and the only one it reaches."),
     token: z
       .string()
@@ -221,7 +222,7 @@ export const TransactionStatusSchema = z.object({
   txHash: z.string().regex(/^[0-9a-f]{64}$/),
   network: z.enum(["testnet", "mainnet"]),
   status: z.enum(["SUCCESS", "FAILED", "PENDING", "UNKNOWN", "REJECTED"]),
-  ledger: z.number().int().positive().optional(),
+  ledger: integerNumber().positive().optional(),
   error: z.object({ code: z.string(), message: z.string() }).optional(),
 });
 export type TransactionStatus = z.infer<typeof TransactionStatusSchema>;
@@ -230,7 +231,7 @@ export type TransactionStatus = z.infer<typeof TransactionStatusSchema>;
 export const WebhookAttemptResponseSchema = TransactionStatusSchema.partial({
   txHash: true,
 }).extend({
-  attemptId: z.string().uuid(),
+  attemptId: z.string().guid({ error: "Invalid uuid" }),
 });
 
 /** Discovery describes integration support, not live execution readiness. */
@@ -258,7 +259,7 @@ export const CapabilitiesAssetSchema = z.discriminatedUnion("kind", [
 
 export const DeploymentCapabilitiesSchema = z
   .object({
-    deploymentId: z.string().uuid(),
+    deploymentId: z.string().guid({ error: "Invalid uuid" }),
     network: z.enum(["testnet", "mainnet"]),
     configurationSource: z.literal("deployment_snapshot"),
     triggerType: z.enum([
@@ -302,7 +303,7 @@ export type DeploymentCapabilities = z.infer<typeof DeploymentCapabilitiesSchema
 /** Live Subscription configuration; allowance uses integer stroops, never floating point. */
 export const SubscriptionStateSchema = z
   .object({
-    deploymentId: z.string().uuid(),
+    deploymentId: z.string().guid({ error: "Invalid uuid" }),
     flowName: z.string(),
     network: z.enum(["testnet", "mainnet"]),
     templateKind: z.enum(["SUBSCRIPTION", "SUBSCRIPTION_DEV"]),
@@ -339,7 +340,7 @@ export const DeploymentBalanceNodeSchema = z
   .strict();
 export const DeploymentBalancesSchema = z
   .object({
-    deploymentId: z.string().uuid(),
+    deploymentId: z.string().guid({ error: "Invalid uuid" }),
     network: z.enum(["testnet", "mainnet"]),
     totals: z.array(
       z
@@ -368,10 +369,12 @@ export const ScheduleStateQuerySchema = z
 export const SchedulePrepareSchema = ScheduleStateQuerySchema.extend({
   walletAddress: z.string().refine(StrKey.isValidEd25519PublicKey),
 }).strict();
-export const ScheduleReconcileSchema = z.object({ intent: z.string().uuid() }).strict();
+export const ScheduleReconcileSchema = z
+  .object({ intent: z.string().guid({ error: "Invalid uuid" }) })
+  .strict();
 export const ScheduleStateSchema = z
   .object({
-    deploymentId: z.string().uuid(),
+    deploymentId: z.string().guid({ error: "Invalid uuid" }),
     network: z.enum(["testnet", "mainnet"]),
     nodeId: z.string().min(1),
     contractAddress: z.string().refine(StrKey.isValidContract),
@@ -415,12 +418,14 @@ export const SubscriptionControlPrepareSchema = z
   })
   .strict();
 export type SubscriptionControlPrepare = z.infer<typeof SubscriptionControlPrepareSchema>;
-export const SubscriptionControlReconcileSchema = z.object({ intent: z.string().uuid() }).strict();
+export const SubscriptionControlReconcileSchema = z
+  .object({ intent: z.string().guid({ error: "Invalid uuid" }) })
+  .strict();
 export type SubscriptionControlReconcile = z.infer<typeof SubscriptionControlReconcileSchema>;
 
 export const SubscriptionControlPreparedSchema = z
   .object({
-    intent: z.string().uuid(),
+    intent: z.string().guid({ error: "Invalid uuid" }),
     txHash: z.string().regex(/^[0-9a-f]{64}$/),
     expiresAt: z.string().datetime(),
     xdr: z.string().min(1),
@@ -436,11 +441,11 @@ export const SubscriptionControlPreparedSchema = z
 export type SubscriptionControlPrepared = z.infer<typeof SubscriptionControlPreparedSchema>;
 export const SubscriptionControlReconciledSchema = z
   .object({
-    intent: z.string().uuid(),
+    intent: z.string().guid({ error: "Invalid uuid" }),
     txHash: z.string().regex(/^[0-9a-f]{64}$/),
     action: z.enum(["subscription.cancel", "subscription.reactivate"]),
     state: z.enum(["PREPARED", "SUBMITTING", "SUCCESS", "FAILED", "EXPIRED"]),
-    ledger: z.number().int().positive().nullable(),
+    ledger: integerNumber().positive().nullable(),
     replacementAllowed: z.boolean(),
   })
   .strict();

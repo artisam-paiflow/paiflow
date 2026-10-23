@@ -31,7 +31,7 @@ export const WalletControlActionSchema = z.enum([
 export type WalletControlAction = z.infer<typeof WalletControlActionSchema>;
 export const WalletControlSubmitSchema = z
   .object({
-    intent: z.string().uuid(),
+    intent: z.string().guid({ error: "Invalid uuid" }),
     signedXdr: z.string().min(1).max(100_000),
   })
   .strict();
@@ -198,7 +198,7 @@ export async function readControlIntent(
   deploymentId: string,
   action: WalletControlAction,
 ) {
-  z.string().uuid().parse(id);
+  z.string().guid({ error: "Invalid uuid" }).parse(id);
   const intent = await db.walletControlIntent.findFirst({
     where: {
       id,
