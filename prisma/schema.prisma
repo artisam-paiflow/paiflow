@@ -410,6 +410,9 @@ model Deployment {
   chargeRelayerAddress    String?
   nextChargeAt            DateTime?
   lastChargedAt           DateTime?
+  // Maintained by a DB trigger for every schedule/config/lifecycle write.
+  // History-only projection does not invalidate a current schedule observation.
+  chargeScheduleRevision  Int                    @default(0)
   chargeEndAt             DateTime?
   offRampEnabled          Boolean                @default(false)
   // Client-supplied key that makes deploy creation idempotent per owner. A

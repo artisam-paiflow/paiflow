@@ -6,6 +6,7 @@ import {
   observeExternalRelayer,
 } from "@/lib/deployments/service-work";
 import { db } from "@/lib/db";
+import { refreshSubscriptionSchedule } from "@/lib/subscription/billing-history";
 import { env } from "@/lib/env";
 import { log } from "@/lib/log";
 import { AppError, withErrorHandler } from "@/lib/errors";
@@ -42,6 +43,7 @@ type ResultDetail = {
   contractAddress: string;
   status: "charged" | "skipped" | "failed";
   error?: string;
+  chargedCount?: number;
 };
 
 /**
@@ -169,6 +171,7 @@ async function runSubscriptionCharges() {
       chargeRelayerUrl: true,
       chargeRelayerToken: true,
       nextChargeAt: true,
+      chargeScheduleRevision: true,
       pipelineSnapshot: true,
     },
     // Most overdue first, so a backlog drains
@@ -243,6 +246,7 @@ async function runSubscriptionCharges() {
         return;
       }
 
+      let chargedCount = 0;
       try {
         const state =
           node.templateKind === "SUBSCRIPTION"
@@ -257,18 +261,18 @@ async function runSubscriptionCharges() {
             ]);
 
         if (cancelled) {
-          await db.deployment.update({
-            where: { id: d.id },
-            data: { chargeRelayerMode: ChargeRelayerMode.MANUAL, nextChargeAt: null },
+          await refreshSubscriptionSchedule(d.id, d.chargeScheduleRevision, {
+            chargeRelayerMode: ChargeRelayerMode.MANUAL,
+            nextChargeAt: null,
           });
           results.push({ deploymentId: d.id, contractAddress, status: "skipped" });
           return;
         }
 
         if (d.chargeEndAt && d.chargeEndAt <= now) {
-          await db.deployment.update({
-            where: { id: d.id },
-            data: { chargeRelayerMode: ChargeRelayerMode.MANUAL, nextChargeAt: null },
+          await refreshSubscriptionSchedule(d.id, d.chargeScheduleRevision, {
+            chargeRelayerMode: ChargeRelayerMode.MANUAL,
+            nextChargeAt: null,
           });
           results.push({ deploymentId: d.id, contractAddress, status: "skipped" });
           return;
@@ -277,9 +281,8 @@ async function runSubscriptionCharges() {
         // Verify the on-chain schedule is actually due.
         const nextChargeDate = chargeDate(nextChargeAt);
         if (nextChargeDate > now) {
-          await db.deployment.update({
-            where: { id: d.id },
-            data: { nextChargeAt: nextChargeDate },
+          await refreshSubscriptionSchedule(d.id, d.chargeScheduleRevision, {
+            nextChargeAt: nextChargeDate,
           });
           results.push({ deploymentId: d.id, contractAddress, status: "skipped" });
           return;
@@ -333,7 +336,6 @@ async function runSubscriptionCharges() {
           return;
         }
 
-        let chargedCount = 0;
         if (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM) {
           for (let i = 0; i < MAX_CATCHUP_PER_RUN; i++) {
             const submit = await withRelayerChannel(async (channel) => {
@@ -343,13 +345,13 @@ async function runSubscriptionCharges() {
 
             if (submit.status === "SUCCESS") {
               chargedCount++;
+              platformCharged++;
               const next = await readSubscriptionNextChargeAt(contractAddress);
               if (chargeDate(next) > new Date()) break;
             } else {
               throw new Error(submit.errorMessage ?? "Platform charge submission failed");
             }
           }
-          platformCharged += chargedCount;
         } else {
           // USER relayer mode
           if (!d.chargeRelayerUrl || !d.chargeRelayerAddress) {
@@ -380,9 +382,9 @@ async function runSubscriptionCharges() {
               // `nextChargeAt` is already in the past, so this deployment would
               // otherwise come back every tick. Only for a deterministic
               // refusal: one EAI_AGAIN must not switch off a tenant.
-              await db.deployment.update({
-                where: { id: d.id },
-                data: { chargeRelayerMode: ChargeRelayerMode.MANUAL, nextChargeAt: null },
+              await refreshSubscriptionSchedule(d.id, d.chargeScheduleRevision, {
+                chargeRelayerMode: ChargeRelayerMode.MANUAL,
+                nextChargeAt: null,
               });
             }
             log.warn(
@@ -479,10 +481,12 @@ async function runSubscriptionCharges() {
             if (body.status === "SUCCESS" && body.txHash) {
               await observeExternalRelayer(body.txHash);
               chargedCount++;
+              userCharged++;
             } else if (body.status === "PENDING" && body.signedXdr) {
               const submit = await submitSubscriptionChargeByRelayerTx(body.signedXdr);
               if (submit.status === "SUCCESS") {
                 chargedCount++;
+                userCharged++;
               } else {
                 throw new Error(submit.errorMessage ?? "User relayer signed tx submission failed");
               }
@@ -493,17 +497,14 @@ async function runSubscriptionCharges() {
             const next = await readSubscriptionNextChargeAt(contractAddress);
             if (chargeDate(next) > new Date()) break;
           }
-          userCharged += chargedCount;
         }
 
         if (chargedCount > 0) {
           const next = await readSubscriptionNextChargeAt(contractAddress);
-          await db.deployment.update({
-            where: { id: d.id },
-            data: {
-              lastChargedAt: new Date(),
-              nextChargeAt: chargeDate(next),
-            },
+          // Historical charge time is projected from committed charge events by
+          // event polling, even if this read or a later catch-up attempt fails.
+          await refreshSubscriptionSchedule(d.id, d.chargeScheduleRevision, {
+            nextChargeAt: chargeDate(next),
           });
           results.push({
             deploymentId: d.id,
@@ -520,6 +521,20 @@ async function runSubscriptionCharges() {
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        if (chargedCount > 0) {
+          log.warn(
+            { deploymentId: d.id, contractAddress, chargedCount, error: message },
+            "Subscription charge completed before a later automation error",
+          );
+          results.push({
+            deploymentId: d.id,
+            contractAddress,
+            status: "charged",
+            chargedCount,
+            error: message,
+          });
+          return;
+        }
         if (err instanceof RelayerResponseError) {
           // Never `skipped`: a tenant must not be able to pick a status code or
           // payload that reclassifies its own failed charge.
@@ -560,7 +575,8 @@ async function runSubscriptionCharges() {
     platformCharged,
     userCharged,
     skipped: results.filter((r) => r.status === "skipped").length,
-    failed: results.filter((r) => r.status === "failed").length,
+    failed: results.filter((r) => r.status === "failed" || (r.status === "charged" && r.error))
+      .length,
     details: results,
     truncated,
   };
