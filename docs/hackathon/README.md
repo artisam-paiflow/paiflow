@@ -89,10 +89,13 @@ Participant-facing repository links use [`artisam-paiflow/paiflow` on `develop`]
 
 ## PDF regeneration
 
+The [Windows setup guide](setup-guide.md) and its [PDF](setup-guide.pdf) consolidate the former Engr and starter setup guides. Follow one path: install Git, NVM, Node and pnpm, run the Paiflow starter, then set up Engr with a Kimi API key. Follow the current starter README for configuration; this setup guide ends with the local app and coding tools ready.
+
 After Markdown approval and an explicit request to regenerate, run from the repository root:
 
 ```bash
 node scripts/render-developer-guide-pdf.mjs docs/hackathon/paiflow-guide.md
+node scripts/render-setup-guide-pdf.mjs
 node scripts/render-event-primer-pdf.mjs docs/hackathon/event-primer-template.md
 ```
 
