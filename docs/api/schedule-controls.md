@@ -48,6 +48,13 @@ Retrieval always returns funds to the deployed controller. It leaves vested unpa
 entitlement at the contract; callers cannot choose another recipient or amount.
 It does not cancel, rewrite the schedule, or pay its recipients.
 
+Schedule pause/resume uses the fixed-end semantics in
+[`SPEC.md` §3.1](../../SPEC.md#31-triggers). The version-6 accounting correction affects
+fresh instances after artifact activation; existing contracts require separate
+[reconciliation and recovery planning](../soroban-smart-contracts.md#415-fixed-end-schedule-pause-accounting-1075).
+Negative or otherwise invalid contract accounting remains an error, never an increased
+retrievable amount.
+
 ## Prepare, sign, submit
 
 Keep the deployment token on your authenticated application server. Expose only the
