@@ -43,6 +43,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Consolidate Windows setup into one guide and PDF following one path: set up the Paiflow starter, then Engr with Kimi.
+
 - Add the October 20 Aklan hackathon primer and PDF with the event schedule, pitch deck requirements and linked Paiflow Guide; refresh the guide access code and SDK reference links.
 
 - Complete the SDK onboarding README and generated Markdown method/type reference with CI drift checks; align OpenAPI/Postman guidance with the published beta and bounded testnet evidence (API specification correction 1.1.1).
@@ -61,6 +63,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 - Owner-managed developer token lifecycle APIs with explicit deployment grants, immutable read/operate permissions, expiry and revocation. API v1 credential acceptance follows separately ([#1029](https://github.com/webnxt-2030/pinkraft/issues/1029)).
 
 ### Changed
+
+- Rename the Web3 Iloilo participant guide to an event primer matching Aklan's section structure, using Iloilo's updated event dates, agenda and meeting links; remove the additional mechanics and onboarding subsections and regenerate the PDF.
 
 - Split Part 2 of the Paiflow Guide into the recommended starter video tutorial (2.a) and written instructions for a fresh repository (2.b), with highlighted guidance for choosing a path.
 
