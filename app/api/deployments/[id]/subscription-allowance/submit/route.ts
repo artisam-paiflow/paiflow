@@ -5,6 +5,10 @@ import { getSessionUser } from "@/lib/auth";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 import { audit, needsSubmitRow } from "@/lib/audit";
 import { recordSignedTransaction } from "@/lib/signed-tx";
+import {
+  withInteractiveRpcBudget,
+  interactiveRpcBudgetExpired,
+} from "@/lib/stellar/interactive-rpc-budget";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { submitTriggerTx } from "@/lib/stellar/trigger";
 import { subscriptionState, requireSubscriber } from "@/lib/subscription/state";
@@ -22,32 +26,43 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
     });
     const body = AllowanceSubmitSchema.parse(await req.json());
     const { intent, signer } = verifyAllowanceIntent(body.intent, body.signedXdr, id);
-    const state = await subscriptionState(id);
-    if (
-      state.contractAddress !== intent.contractAddress ||
-      state.tokenContractAddress !== intent.tokenContractAddress
-    )
-      throw new AppError(
-        "VALIDATION",
-        "Subscription configuration changed; check transaction status before preparing again",
-      );
+    // Eligibility and original-hash lookup share one deadline. Durable bookkeeping
+    // and sending below finish independently; uncertainty never permits replacement.
+    const { state, known } = await withInteractiveRpcBudget(async () => {
+      const state = await subscriptionState(id, { classifyRpcFailures: true });
+      if (
+        state.contractAddress !== intent.contractAddress ||
+        state.tokenContractAddress !== intent.tokenContractAddress
+      )
+        throw new AppError(
+          "VALIDATION",
+          "Subscription configuration changed; check transaction status before preparing again",
+        );
 
-    // A replay or a lost submit response must never create a second approval.
-    // Check the exact prepared hash before considering another send. Current
-    // subscriber changes do not erase a previously confirmed wallet consent.
-    const known = await sorobanRpc()
-      .getTransaction(intent.txHash)
-      .catch(() => {
+      // A replay or a lost submit response must never create a second approval.
+      // Check the exact prepared hash before considering another send. Current
+      // subscriber changes do not erase a previously confirmed wallet consent.
+      const known = await sorobanRpc()
+        .getTransaction(intent.txHash)
+        .catch(() => {
+          throw new AppError(
+            "UPSTREAM_RPC",
+            "Cannot determine approval status; check the prepared transaction hash before trying again",
+          );
+        });
+      if (!["NOT_FOUND", "SUCCESS", "FAILED"].includes(known.status))
         throw new AppError(
           "UPSTREAM_RPC",
-          "Cannot determine approval status; check the prepared transaction hash before trying again",
+          "Cannot establish approval status; submission was not attempted",
         );
-      });
-    if (!["NOT_FOUND", "SUCCESS", "FAILED"].includes(known.status))
-      throw new AppError(
-        "UPSTREAM_RPC",
-        "Cannot establish approval status; submission was not attempted",
-      );
+      if (known.status === "NOT_FOUND") requireSubscriber(state, intent.subscriber);
+      if (interactiveRpcBudgetExpired())
+        throw new AppError(
+          "UPSTREAM_RPC",
+          "Approval eligibility exceeded its RPC deadline; check the original transaction hash",
+        );
+      return { state, known };
+    });
     if (known.status === "FAILED")
       return NextResponse.json({
         data: {
@@ -56,7 +71,6 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
           errorMessage: "Transaction failed on the network",
         },
       });
-    if (known.status !== "SUCCESS") requireSubscriber(state, intent.subscriber);
     const sessionUser = await getSessionUser();
     await recordSignedTransaction({
       signer,

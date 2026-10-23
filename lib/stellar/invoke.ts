@@ -17,6 +17,7 @@ import { simulationFailure } from "./sim-error";
 import { depositSimulationFailure } from "./deposit-simulation-error";
 import { subscriptionChargeFailure } from "./subscription-charge-error";
 import { streamerRetrieveFailure } from "./streamer-retrieve-error";
+import { allowanceRpcCall } from "./allowance-rpc";
 import { loadPaymentAccount } from "./load-payment-account";
 
 export type PreparedInvoke = {
@@ -484,8 +485,8 @@ export async function prepareTokenApproveInvocation(opts: {
 }): Promise<PreparedInvokeTx> {
   const server = sorobanRpc();
   const [sourceAcct, latestLedger] = await Promise.all([
-    server.getAccount(opts.from),
-    server.getLatestLedger(),
+    loadPaymentAccount(server, opts.from),
+    allowanceRpcCall("getLatestLedger", () => server.getLatestLedger()),
   ]);
 
   const tokenIdBytes = decodeContractAddress(opts.tokenContractAddress);
@@ -524,11 +525,13 @@ export async function prepareTokenApproveInvocation(opts: {
     .setTimeout(180)
     .build();
 
-  const sim = await server.simulateTransaction(tx);
+  const sim = await allowanceRpcCall("simulateTransaction", () => server.simulateTransaction(tx));
   if (rpc.Api.isSimulationError(sim)) {
     throw simulationFailure(sim.error);
   }
-  const assembled = rpc.assembleTransaction(tx, sim).build();
+  const assembled = await allowanceRpcCall("assembleTransaction", async () =>
+    rpc.assembleTransaction(tx, sim).build(),
+  );
 
   return { xdr: assembled.toXDR(), tx: assembled };
 }
