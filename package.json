@@ -91,7 +91,7 @@
     "ioredis": "^5.4.1",
     "lucide-react": "^0.469.0",
     "minio": "^8.0.3",
-    "next": "^15.5.27",
+    "next": "^15.5.28",
     "next-auth": "5.0.0-beta.32",
     "pino": "^9.5.0",
     "posthog-js": "^1.433.4",
@@ -133,7 +133,7 @@
     "typedoc": "0.28.20",
     "typedoc-plugin-markdown": "4.14.0",
     "typescript": "^5.7.2",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs}": [
@@ -153,19 +153,20 @@
     "overrides": {
       "protobufjs": ">=7.6.3 <8",
       "axios": ">=1.18.0 <2",
+      "follow-redirects": ">=1.16.1 <2",
       "ws": ">=8.21.0 <9",
       "form-data": ">=4.0.6 <5",
       "ua-parser-js": ">=2.0.10 <3",
       "uuid": ">=11.1.1 <12",
       "postcss": ">=8.5.23 <9",
       "js-yaml": ">=4.3.2 <5",
-      "vite": ">=6.4.3 <7",
+      "vite": ">=6.4.4 <7",
       "esbuild": ">=0.28.1 <0.29",
       "brace-expansion": ">=1.1.21 <2",
-      "dompurify": ">=3.4.16 <4",
+      "dompurify": ">=3.4.17 <4",
       "nanoid": ">=3.3.19 <4",
-      "ip-address": ">=10.7.1 <11",
-      "toml": ">=4.2.0 <5",
+      "ip-address": ">=10.7.4 <11",
+      "toml": ">=5.0.1 <6",
       "browserslist": ">=4.28.7 <5",
       "baseline-browser-mapping": ">=2.11.22 <3",
       "deepmerge-ts": ">=8.0.0 <9",

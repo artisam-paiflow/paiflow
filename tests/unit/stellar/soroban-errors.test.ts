@@ -12,6 +12,38 @@ const STREAMER_BAD_WINDOW_DUMP =
   'topics:[error, Error(Contract, 4)], data:"escalating error to VM trap from failed host function call: create_contract_with_constructor"';
 
 describe("translateSorobanError", () => {
+  it("names the Streamer invalid-accounting error without changing other contracts' #13", () => {
+    const raw = "Error(Contract, #13)";
+    const translated = translateSorobanError(raw, { contract: "streamer" });
+    expect(translated.errorName).toBe("InvalidAccountingState");
+    expect(translated.friendly).toMatch(/reconcile its history/i);
+    expect(translateSorobanError(raw, { contract: "stellar_asset" }).errorName).toBe(
+      "TrustlineMissingError",
+    );
+    expect(translateSorobanError(raw, { contract: "payer" }).matched).toBe(false);
+    expect(translateSorobanError(raw).matched).toBe(false);
+  });
+
+  it("does not mistake an inner token's #13 for the Streamer accounting guard", () => {
+    const streamer = "CABCDEFGHIJKLMNOPQRSTUVWXYZ234567ABCDEFGHIJKLMNOPQRSTUVW";
+    const asset = "CC5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVA";
+    const raw =
+      `[Diagnostic Event] contract:${streamer}, topics:[error, Error(Contract, #13)] ` +
+      `[Diagnostic Event] contract:${asset}, topics:[error, Error(Contract, #13)]`;
+    expect(
+      translateSorobanError(raw, {
+        contract: "streamer",
+        addressMap: { [streamer]: "streamer", [asset]: "stellar_asset" },
+      }).errorName,
+    ).toBe("TrustlineMissingError");
+    expect(
+      translateSorobanError(raw, {
+        contract: "streamer",
+        addressMap: { [streamer]: "streamer" },
+      }).matched,
+    ).toBe(false);
+  });
+
   it("translates a contract error via the contract hint", () => {
     const t = translateSorobanError(STREAMER_BAD_WINDOW_DUMP, { contract: "streamer" });
     expect(t.matched).toBe(true);
