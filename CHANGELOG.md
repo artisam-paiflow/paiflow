@@ -11,6 +11,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Reconcile Subscription billing history from confirmed charge-event ledger times, including cancelled subscriptions and retained events behind the cursor; fence stale schedule refreshes against newer configuration, cancellation and retirement observations (#1077).
+
 - Preserve Schedule vested entitlement when pause/resume crosses its fixed window; keep duplicate controls idempotent and reject inconsistent accounting before claims or retrieval. Streamer artifact version 6 requires separate activation and does not repair existing instances (#1075).
 
 - Update vulnerable runtime and test dependencies to restore the CI audit gate without adding exceptions. The wallet SDK's TOML parser now rejects integers that cannot be represented safely instead of returning rounded metadata.

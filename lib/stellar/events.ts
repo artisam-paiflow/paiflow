@@ -6,6 +6,11 @@ import { AppError } from "@/lib/errors";
 import { EventKind, TemplateKind } from "@prisma/client";
 import { sorobanRpc } from "./client";
 import { db } from "@/lib/db";
+import {
+  subscriptionBillingEmitter,
+  projectSubscriptionCharge,
+  reconcileStoredSubscriptionCharges,
+} from "@/lib/subscription/billing-history";
 import { changesDashboardBalance } from "@/lib/balance-events";
 import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 import { redis, eventChannel } from "@/lib/redis";
@@ -1173,7 +1178,12 @@ async function ingestEventPage(
       pipeline,
       contractAddress,
     });
-    const safePayload = convertBigInts({ topics, value, contractAddress }) as object;
+    const safePayload = convertBigInts({
+      topics,
+      value,
+      contractAddress,
+      ...(ev.inSuccessfulContractCall === false ? { inSuccessfulContractCall: false } : {}),
+    }) as object;
     const safeDecodedData = convertBigInts(resolvedData) as Prisma.InputJsonValue | null;
 
     let persisted = false;
@@ -1219,7 +1229,7 @@ async function ingestEventPage(
                 kind,
                 ledger: ev.ledger,
                 txHash: ev.txHash,
-                payload: { topics, value, contractAddress },
+                payload: safePayload,
                 decodedData: resolvedData,
                 occurredAt: ev.ledgerClosedAt,
               }),
@@ -1237,6 +1247,11 @@ async function ingestEventPage(
       } else if (!client && fresh) {
         log.warn({ deploymentId, eventId: ev.id }, "event publisher: no redis client");
       }
+
+      // Replayed rows retry this checkpoint even when insertion already succeeded.
+      // Keep fresh balance invalidation/publish bookkeeping before this fallible projection.
+      const billingEmitter = subscriptionBillingEmitter(pipeline, flowTemplateKind);
+      if (billingEmitter) await projectSubscriptionCharge(created, billingEmitter);
 
       // Persist cash_out obligations before advancing the cursor so the PDAX leg
       // can run asynchronously. Payroll deployments are excluded: their jobs
@@ -1469,6 +1484,14 @@ async function pollEventsForWithOutcomeInner(
     log.warn({ deploymentId }, "pollEventsFor: flow templateKind not found, skipping");
     return skipped("missing-template");
   }
+
+  const billingEmitter = subscriptionBillingEmitter(deployment.pipelineSnapshot, flowTemplateKind);
+  if (billingEmitter)
+    await reconcileStoredSubscriptionCharges({
+      deploymentId,
+      emitter: billingEmitter,
+      cutoff: options?.retirementCutoff,
+    });
 
   const graph = FlowGraphSchema.safeParse(migrateFlowGraph(deployment.graphSnapshot)).data ?? null;
   const symbolMap = buildAssetSymbolMap(graph);
