@@ -90,9 +90,9 @@ export async function readSubscriptionState(
   };
 }
 
-/** Preserve the public allowance workflow's existing response shape and classification. */
-export async function subscriptionState(id: string) {
-  const { templateKind: _templateKind, ...state } = await readSubscriptionState(id);
+/** Preserve public response shape and eligibility; interactive routes opt into safe reads. */
+export async function subscriptionState(id: string, opts: { classifyRpcFailures?: boolean } = {}) {
+  const { templateKind: _templateKind, ...state } = await readSubscriptionState(id, opts);
   return state;
 }
 

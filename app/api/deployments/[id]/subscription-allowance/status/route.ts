@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deploymentServiceRoute } from "@/lib/deployments/service-route";
+import { withInteractiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
 import { withErrorHandler } from "@/lib/errors";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 import { allowanceHasExpired } from "@/lib/stellar/allowance-status";
@@ -34,4 +35,7 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
   });
 }
 
-export const GET = deploymentServiceRoute(GETHandler, "public");
+export const GET = deploymentServiceRoute(
+  (req, ctx) => withInteractiveRpcBudget(() => GETHandler(req, ctx)),
+  "public",
+);
