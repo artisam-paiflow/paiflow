@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   db: { deployment: { findFirst: vi.fn() } },
   rpc: {
     getAccount: vi.fn(),
+    _getLedgerEntries: vi.fn(),
     getLatestLedger: vi.fn(),
     simulateTransaction: vi.fn(),
     getTransaction: vi.fn(),
@@ -70,6 +71,7 @@ import { GET, POST } from "@/app/api/deployments/[id]/subscription-allowance/rou
 import { POST as submit } from "@/app/api/deployments/[id]/subscription-allowance/submit/route";
 import { assetContractId } from "@/lib/stellar/assets";
 import { AppError } from "@/lib/errors";
+import { paymentAccountResponse } from "../stellar/payment-account-fixture";
 import { MAX_ALLOWANCE } from "@/lib/subscription/schema";
 
 const id = "11111111-1111-4111-8111-111111111111";
@@ -139,6 +141,7 @@ beforeEach(() => {
   mocks.cancelled.mockResolvedValue(false);
   mocks.allowance.mockResolvedValue(100n);
   mocks.session.mockResolvedValue(null);
+  mocks.rpc._getLedgerEntries.mockResolvedValue(paymentAccountResponse(customer.publicKey()));
   mocks.rpc.getAccount.mockImplementation(async () => new Account(customer.publicKey(), "1"));
   mocks.rpc.getLatestLedger.mockResolvedValue({ sequence: 1000 });
   mocks.rpc.simulateTransaction.mockResolvedValue({
@@ -183,6 +186,7 @@ describe("anonymous subscription allowance journey", () => {
         tokenContractAddress: token,
         owner: customer.publicKey(),
         spender,
+        classifyRpcFailures: true,
       });
       expect(mocks.record).toHaveBeenCalledWith(
         expect.objectContaining({

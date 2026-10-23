@@ -1,5 +1,4 @@
 import {
-  Account,
   Networks,
   SorobanDataBuilder,
   TransactionBuilder,
@@ -23,6 +22,7 @@ vi.mock("@/lib/stellar/client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/stellar/client")>()),
   sorobanRpc: () => holder.server!,
 }));
+import { paymentAccountResponse } from "./payment-account-fixture";
 import { prepareTokenApproveInvocation } from "@/lib/stellar/invoke";
 import { payoutTransactionFinished } from "@/lib/stellar/payout-state";
 
@@ -94,7 +94,7 @@ describe("CAP-71 ledger compatibility (#792)", () => {
     const server = holder.server!;
     const now = 1_800_000_000_000;
     vi.spyOn(Date, "now").mockReturnValue(now);
-    vi.spyOn(server, "getAccount").mockResolvedValue(new Account(LEDGER_ACCOUNT, "1"));
+    vi.spyOn(server, "_getLedgerEntries").mockResolvedValue(paymentAccountResponse(LEDGER_ACCOUNT));
     const post = vi
       .spyOn(server.httpClient, "post")
       .mockResolvedValueOnce(response(ledgerFixture().latest))
@@ -136,7 +136,9 @@ describe("CAP-71 ledger compatibility (#792)", () => {
     "refuses an invalid approval sequence %s before simulation",
     async (sequence) => {
       const server = holder.server!;
-      vi.spyOn(server, "getAccount").mockResolvedValue(new Account(LEDGER_ACCOUNT, "1"));
+      vi.spyOn(server, "_getLedgerEntries").mockResolvedValue(
+        paymentAccountResponse(LEDGER_ACCOUNT),
+      );
       vi.spyOn(server.httpClient, "post").mockResolvedValue(
         response({ ...ledgerFixture().latest, sequence }),
       );
@@ -150,7 +152,7 @@ describe("CAP-71 ledger compatibility (#792)", () => {
 
   it("does not return an approval when simulation rejects", async () => {
     const server = holder.server!;
-    vi.spyOn(server, "getAccount").mockResolvedValue(new Account(LEDGER_ACCOUNT, "1"));
+    vi.spyOn(server, "_getLedgerEntries").mockResolvedValue(paymentAccountResponse(LEDGER_ACCOUNT));
     vi.spyOn(server.httpClient, "post")
       .mockResolvedValueOnce(response(ledgerFixture().latest))
       .mockResolvedValueOnce(
@@ -163,7 +165,7 @@ describe("CAP-71 ledger compatibility (#792)", () => {
 
   it("refuses approval preparation when latest-ledger metadata cannot decode", async () => {
     const server = holder.server!;
-    vi.spyOn(server, "getAccount").mockResolvedValue(new Account(LEDGER_ACCOUNT, "1"));
+    vi.spyOn(server, "_getLedgerEntries").mockResolvedValue(paymentAccountResponse(LEDGER_ACCOUNT));
     vi.spyOn(server.httpClient, "post").mockResolvedValue(
       response({ ...ledgerFixture().latest, metadataXdr: "AAAAfw==" }),
     );
@@ -216,8 +218,10 @@ describe("CAP-71 ledger compatibility (#792)", () => {
 
   it("refuses approval preparation when RPC is unavailable", async () => {
     const server = holder.server!;
-    vi.spyOn(server, "getAccount").mockResolvedValue(new Account(LEDGER_ACCOUNT, "1"));
+    vi.spyOn(server, "_getLedgerEntries").mockResolvedValue(paymentAccountResponse(LEDGER_ACCOUNT));
     vi.spyOn(server.httpClient, "post").mockRejectedValue(new Error("timeout"));
-    await expect(prepareTokenApproveInvocation(approval)).rejects.toThrow("timeout");
+    await expect(prepareTokenApproveInvocation(approval)).rejects.toMatchObject({
+      code: "UPSTREAM_RPC",
+    });
   });
 });

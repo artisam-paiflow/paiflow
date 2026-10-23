@@ -11,6 +11,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Bound public Subscription allowance reads, approval preparation, submission eligibility and status recovery to shared interactive RPC deadlines; distinguish unavailable RPC services from absent accounts while preserving original approval hashes and uncertain finality (#1074).
+
 - Bound guarded Schedule state, funding and control reads to one interactive RPC deadline; distinguish unavailable and malformed upstream responses while preserving controller checks and original-hash recovery.
 
 - Reject execute amounts above the contract i128 maximum with a field-level validation error before RPC lookup or transaction preparation.
