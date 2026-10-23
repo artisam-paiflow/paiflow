@@ -16,6 +16,7 @@ import { AppError } from "@/lib/errors";
 import { simulationFailure } from "./sim-error";
 import { depositSimulationFailure } from "./deposit-simulation-error";
 import { subscriptionChargeFailure } from "./subscription-charge-error";
+import { subscriptionSubscribeFailure } from "./subscription-subscribe-error";
 import { streamerRetrieveFailure } from "./streamer-retrieve-error";
 import { allowanceRpcCall } from "./allowance-rpc";
 import { loadPaymentAccount } from "./load-payment-account";
@@ -616,7 +617,7 @@ export async function prepareSubscriptionSubscribeInvocation(opts: {
 
   const sim = await simulateSubscriptionControl(server, tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw simulationFailure(sim.error, { contract: "subscription" });
+    throw subscriptionSubscribeFailure(sim, opts.contractAddress);
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 

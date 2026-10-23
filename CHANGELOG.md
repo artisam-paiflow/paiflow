@@ -11,6 +11,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Return a state conflict for a verified already-active Subscription reactivation during wallet preparation, while retaining upstream classification for unproven or unrelated failures (#1078).
+
 - Preserve Schedule vested entitlement when pause/resume crosses its fixed window; keep duplicate controls idempotent and reject inconsistent accounting before claims or retrieval. Streamer artifact version 6 requires separate activation and does not repair existing instances (#1075).
 
 - Update vulnerable runtime and test dependencies to restore the CI audit gate without adding exceptions. The wallet SDK's TOML parser now rejects integers that cannot be represented safely instead of returning rounded metadata.
