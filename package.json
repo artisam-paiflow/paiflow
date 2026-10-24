@@ -161,6 +161,7 @@
       "postcss": ">=8.5.23 <9",
       "js-yaml": ">=4.3.2 <5",
       "vite": ">=6.4.4 <7",
+      "jsdom>undici": ">=8.12.2 <9",
       "esbuild": ">=0.28.1 <0.29",
       "brace-expansion": ">=1.1.21 <2",
       "dompurify": ">=3.4.17 <4",

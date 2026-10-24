@@ -757,7 +757,7 @@ export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: "Paiflow API v1",
-    version: "1.1.1",
+    version: "1.2.0",
     description: [
       "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.",
       "",
@@ -852,11 +852,24 @@ export const openApiDocument = {
       ),
     },
     "/api/developer-tokens/deployments": {
-      get: developerManagementOperation(
-        "listDeveloperTokenCandidates",
-        "List eligible owned deployment choices",
-        "DeveloperTokenDeploymentList",
-      ),
+      get: {
+        ...developerManagementOperation(
+          "listDeveloperTokenCandidates",
+          "List eligible owned deployment choices",
+          "DeveloperTokenDeploymentList",
+        ),
+        parameters: [
+          ...developerTokenPagination,
+          {
+            name: "search",
+            in: "query",
+            required: false,
+            description:
+              "Trimmed case-insensitive flow-name substring or exact full deployment UUID, within owned CONFIRMED ACTIVE deployments. Applied before pagination; reset cursor when changing search.",
+            schema: { type: "string", maxLength: 100 },
+          },
+        ],
+      },
     },
     "/api/developer-tokens/{tokenId}": {
       get: developerManagementOperation(

@@ -5,13 +5,21 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+### Changed
+
+- Reorganize Developer API around a compact token list, expandable details, dedicated creation panel and Quickstart. Search eligible deployments across pages while preserving explicit selections and one-time token reveal protections. Add the flow-name index migration; OpenAPI revision 1.2.0 documents the optional owner-session deployment search parameter.
+
 ### Security
+
+- Update jsdom's transitive `undici` dependency to 8.12.3 to fix EventSource parser resource exhaustion and mixed-case Subresource Integrity verification ([GHSA-4qv8-2p9j-2685](https://github.com/advisories/GHSA-4qv8-2p9j-2685), [GHSA-f72v-6w45-q472](https://github.com/advisories/GHSA-f72v-6w45-q472)).
 
 - Upgrade Zod's runtime collection parser and its form resolver to address oversized constrained-collection resource exhaustion, preserving existing identifier, integer, default and form validation behavior ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)).
 
 - Update the Rust contract workspace's transitive `serde_with` and `serde_with_macros` dependencies to 3.21.0 to fix the KeyValueMap serialization panic ([GHSA-7gcf-g7xr-8hxj](https://github.com/advisories/GHSA-7gcf-g7xr-8hxj)).
 
 ### Fixed
+
+- Keep flows whose deployments have all retired out of the default dashboard, with paginated access to retained definitions in Retired flows and clearer counts for the displayed results (#1092).
 
 - Return a state conflict for a verified already-active Subscription reactivation during wallet preparation, while retaining upstream classification for unproven or unrelated failures (#1078).
 
@@ -49,6 +57,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Showcase the first JRU and NVC Aklan hackathons on the marketing homepage, with an event hub, photo galleries, JRU winning projects and repository links, and shared builder resources (#1090).
+
 - Consolidate Windows setup into one guide and PDF following one path: set up the Paiflow starter, then Engr with Kimi.
 
 - Add the October 20 Aklan hackathon primer and PDF with the event schedule, pitch deck requirements and linked Paiflow Guide; refresh the guide access code and SDK reference links.
@@ -69,6 +79,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 - Owner-managed developer token lifecycle APIs with explicit deployment grants, immutable read/operate permissions, expiry and revocation. API v1 credential acceptance follows separately ([#1029](https://github.com/webnxt-2030/pinkraft/issues/1029)).
 
 ### Changed
+
+- Link the Windows Setup Guide from the Paiflow Guide and Iloilo primer, clarify
+  its companion PDF role and current Iloilo scope, and align API/AI payment
+  guidance with shared RPC deadlines and original-transaction recovery.
 
 - Rename the Web3 Iloilo participant guide to an event primer matching Aklan's section structure, using Iloilo's updated event dates, agenda and meeting links; remove the additional mechanics and onboarding subsections and regenerate the PDF.
 

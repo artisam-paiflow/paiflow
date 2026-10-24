@@ -120,6 +120,7 @@ test("panel → real HTTP → installed SDK: two selections, live authorization 
     });
   });
   await page.goto("/account/developer");
+  await page.getByRole("button", { name: "Create token", exact: true }).click();
   await page.getByLabel("Label (optional)").fill("Integrated verification");
   await page.getByRole("checkbox", { name: /Verification 0/ }).check();
   await page.getByRole("checkbox", { name: /Verification 1/ }).check();
@@ -294,6 +295,7 @@ test("panel → real HTTP → installed SDK: two selections, live authorization 
   expect((await sandbox.request.get("/api/developer-tokens")).status()).toBe(403);
   await sandbox.close();
   await page.reload();
+  await page.getByRole("button", { name: "Create token", exact: true }).click();
   await expect(page.getByRole("button", { name: "Generate token" })).toBeVisible();
   for (const width of [1440, 393]) {
     await page.setViewportSize({ width, height: 900 });

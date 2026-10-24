@@ -12,10 +12,15 @@ inside each event's primer. Resolve the placeholders before participant distribu
 
 ## Participant distribution
 
-Distribute exactly two PDF resources: the event-specific primer and the Paiflow Guide.
+Distribute the event-specific primer and the Paiflow Guide as the two core PDF resources.
 The primer contains event rules, timeline, judging, submissions and all resource links.
 The guide covers wallets, flow deployment, a hosted payment, app integration and
 verified payout, including essential recovery and troubleshooting.
+
+Include the [Windows Setup Guide](setup-guide.md) and its [PDF](setup-guide.pdf)
+as a companion resource for participants setting up Windows development tools.
+Link it from the event primer and Paiflow Guide so participants can find it before
+starting the integration tutorial.
 
 Detailed integration references stay on GitHub:
 
@@ -42,6 +47,7 @@ Paths below are relative to this folder unless stated otherwise.
 | File or document                                                                                                                          | Purpose                                                                                  | Keep aligned with                                                                                                          |
 | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | [Paiflow Guide](paiflow-guide.md)                                                                                                         | Two-part wallet/flow tutorial and SDK app integration walkthrough                        | `paiflow-guide.pdf`, SDK/API READMEs, current starter behaviour and tutorial videos                                        |
+| [Windows Setup Guide](setup-guide.md)                                                                                                     | Windows tools, starter setup and Engr with Kimi                                          | `setup-guide.pdf`, starter README and current tool installation instructions                                               |
 | [SDK README](../../packages/sdk/README.md)                                                                                                | Detailed typed Node integration examples, errors and recovery                            | SDK contract, API reference and package implementation                                                                     |
 | [HTTP API README](../api/README.md)                                                                                                       | Detailed authentication, endpoints, constraints, errors and independent checkout example | OpenAPI, Postman, SDK README and shared AI context                                                                         |
 | [OpenAPI JSON](../api/openapi.json)                                                                                                       | Machine-readable API contract                                                            | Source `lib/api/v1/openapi.ts`, route/schema definitions and the deployed `/api/v1/openapi.json`                           |
@@ -67,13 +73,13 @@ Teams may deploy, integrate Paiflow and test payments before the event once cred
 
 ## Hackathon feature availability
 
-Dev mode will stay disabled for the duration of the hackathon. Participant instructions must use configured recipients and values in standard flows. Do not direct teams to Dev values, Fill value via API or per-payment payouts. Shared technical references may retain advanced Dev-mode details only with an explicit unavailable-during-this-hackathon note. The SDK payment example accepts only a testnet native-XLM Receive deployment and a fixed 1 XLM payment; it includes no per-payment recipient controls or advanced panels. Keep the starter README and shared `llms.md` copy aligned. Historical Web3 Iloilo materials retain their separate event scope.
+Dev mode will stay disabled for the duration of the hackathon. Participant instructions must use configured recipients and values in standard flows. Do not direct teams to Dev values, Fill value via API or per-payment payouts. Shared technical references may retain advanced Dev-mode details only with an explicit unavailable-during-this-hackathon note. The SDK payment example accepts only a testnet native-XLM Receive deployment and a fixed 1 XLM payment; it includes no per-payment recipient controls or advanced panels. Keep the starter README and shared `llms.md` copy aligned. Use the current [Web3 Iloilo event primer](web3-iloilo/event-primer.md) for the October 25 event; its earlier participant-guide PDF is archival.
 
 ## Public documentation
 
 Developer READMEs and AI context guides link to GitHub Markdown sources so readers and AI tools can inspect the instructions and code examples. Keep those source links current when files are renamed. Starter and sample READMEs should point to the Paiflow Guide and canonical SDK/API READMEs; remove retired API PDF links when updating those separate repositories.
 
-The established [Paiflow Guide Drive PDF](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing) is a distribution copy. After source approval and requested PDF regeneration, check its revision and update it before distribution. Use the event's approved primer PDF alongside it. Stop distributing the old API quickstart PDF; GitHub READMEs replace its detailed reference role. Existing Drive/Google Docs copies and separate starter/sample repositories are not updated by a local repository edit.
+The established [Paiflow Guide Drive PDF](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing) is a distribution copy. After source approval and requested PDF regeneration, check its revision and update it before distribution. Use the event's approved primer PDF alongside it, with the Windows Setup Guide PDF as a companion for Windows participants. Stop distributing the old API quickstart PDF; GitHub READMEs replace its detailed reference role. Existing Drive/Google Docs copies and separate starter/sample repositories are not updated by a local repository edit.
 
 The Paiflow Guide Markdown and regenerated PDF contain two parts in one document:
 the Paiflow app tutorial, then app integration through the SDK. The guide and primer
@@ -89,7 +95,7 @@ Participant-facing repository links use [`artisam-paiflow/paiflow` on `develop`]
 - A deployed spec may differ from the current repository. Verify its availability and contents before claiming the live API is current.
 - Use `https://beta.app.paiflow.xyz` for the current beta instructions. Keep sample environment values and client defaults consistent with the documented origin.
 - Shared instructions may use different examples: the beginner guide starts with XLM; Campus Snacks uses Circle testnet USDC. Preserve the correct asset, issuer, amounts and payout expectations for each example.
-- Keep event-specific JRU/Iloilo instructions and older primer PDFs separate from the active FEU Tech documents. They are not sources for another event's rules.
+- Keep each event's rules in its own documents. The October 25 Web3 Iloilo primer is the current Iloilo participant brief; JRU, Aklan and FEU Tech materials are not sources for its rules. Earlier participant-guide PDFs remain archival.
 - `temp-memory.md` files are local working notes, not participant documentation or published sources.
 
 ## PDF regeneration

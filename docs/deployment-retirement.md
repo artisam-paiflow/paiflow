@@ -16,6 +16,13 @@ all**, including retired deployments. `DELETE /api/flows/:id` requires
 `{"confirmation":"Permanently delete flow"}`. The existing database foreign-key
 restriction is the final guard against concurrent deployment creation.
 
+The dashboard's default **Current flows** view keeps drafts and flows with any
+ACTIVE or RETIRING deployment visible. A flow with at least one deployment, all
+of them RETIRED, appears only in **Retired flows**. Both views paginate retained
+definitions; opening a definition does not restore deployment access or service.
+This classification is computed from deployment state, with no archive mutation
+or history deletion.
+
 The deployment page offers **Permanently retire deployment**. The owner must
 acknowledge irreversibility and their continuing on-chain responsibility.
 `POST /api/deployments/:id/retirement` requires:
