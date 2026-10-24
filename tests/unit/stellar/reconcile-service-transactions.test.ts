@@ -65,7 +65,11 @@ async function pending(
   const work = await db.deploymentWork.create({
     data: { deploymentId, kind: "funding-submit", state },
   });
-  return db.serviceTransaction.create({ data: { workId: work.id, txHash, transport } });
+  // These fixtures are intentionally eligible immediately; make that state
+  // explicit without depending on database and application clock timing.
+  return db.serviceTransaction.create({
+    data: { workId: work.id, txHash, transport, nextCheckAt: new Date(Date.now() - 1000) },
+  });
 }
 async function due(id: string) {
   await db.serviceTransaction.update({ where: { id }, data: { nextCheckAt: new Date(0) } });
