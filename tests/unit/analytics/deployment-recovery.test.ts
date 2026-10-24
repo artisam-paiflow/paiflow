@@ -109,6 +109,7 @@ beforeEach(async () => {
   rpc.sendTransaction.mockResolvedValue({ status: "PENDING", hash: txHash });
 });
 afterEach(async () => {
+  vi.useRealTimers();
   delete process.env.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID;
   delete process.env.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL;
   delete process.env.STELLAR_NETWORK;
@@ -128,6 +129,62 @@ function request(): NextRequest {
   }) as NextRequest;
 }
 const context = () => ({ params: Promise.resolve({ id: deploymentId }) });
+
+it("reconciles a delayed original deployment on minute ticks after reload and replay", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  const started = Date.now();
+  vi.setSystemTime(started);
+  const { POST } = await import("@/app/api/deployments/[id]/submit/route");
+  const { GET } = await import("@/app/api/deployments/[id]/status/route");
+  const { reconcileTransactions } = await import("@/lib/stellar/reconcile-transactions");
+  expect((await POST(request(), context())).status).toBe(200);
+
+  // Providers can accept an envelope before their finality reads catch up.
+  // Advance only the clock: never force a persisted nextCheckAt into the past.
+  rpc.getTransaction.mockResolvedValue({ status: "NOT_FOUND" });
+  for (let tick = 1; tick <= 4; tick++) {
+    vi.setSystemTime(started + tick * 60_000);
+    expect(await reconcileTransactions()).toMatchObject({ checked: 1, confirmed: 0 });
+    const pending = await db.signedTransaction.findUniqueOrThrow({ where: { txHash } });
+    expect(pending).toMatchObject({
+      outcome: "UNRESOLVED",
+      checkAttempts: tick,
+    });
+    expect(pending.nextCheckAt!.getTime()).toBeGreaterThan(Date.now());
+    expect(pending.nextCheckAt!.getTime()).toBeLessThanOrEqual(started + (tick + 1) * 60_000);
+  }
+
+  const readStatus = () =>
+    GET(
+      new Request(`https://paiflow.test/api/deployments/${deploymentId}/status`) as NextRequest,
+      context(),
+    );
+  expect(await (await readStatus()).json()).toEqual({ status: "SUBMITTED" });
+  expect((await (await POST(request(), context())).json()).data).toEqual({
+    status: "SUBMITTED",
+    txHash,
+  });
+  expect(rpc.sendTransaction).toHaveBeenCalledOnce();
+
+  rpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 123 });
+  vi.setSystemTime(started + 5 * 60_000);
+  expect(await reconcileTransactions()).toMatchObject({ checked: 1, confirmed: 1 });
+  expect(await (await readStatus()).json()).toEqual({ status: "CONFIRMED" });
+  const confirmed = await db.deployment.findUniqueOrThrow({ where: { id: deploymentId } });
+  expect(confirmed).toMatchObject({
+    deployTxHash: txHash,
+    pipelineSnapshot: pipeline,
+    contractAddress: pipeline[0]!.contractAddress,
+    confirmedAt: new Date(started + 5 * 60_000),
+  });
+  expect(confirmed.webhookSecret).toMatch(/^whsec_[a-f0-9]{64}$/);
+  expect((await (await POST(request(), context())).json()).data.status).toBe("CONFIRMED");
+  expect(rpc.sendTransaction).toHaveBeenCalledOnce();
+  expect(await db.auditLog.count({ where: { userId: session.id, action: "DEPLOY_CONFIRM" } })).toBe(
+    1,
+  );
+  expect(await reconcileTransactions()).toMatchObject({ checked: 0 });
+});
 
 it.each([false, true])(
   "cron recovers accepted webhook setup exactly once (transient RPC error: %s)",

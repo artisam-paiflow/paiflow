@@ -19,6 +19,12 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Retry an initial automatic Hold probe read failure after one minute while retaining longer backoff for repeated failures, contract reverts and submission/finality errors (#1076).
+
+- Check recent deployment attempts on each ordinary minute reconciliation tick instead of allowing missing RPC reads to grow into multi-minute confirmation backoff; preserve original-hash recovery and long-term unresolved history (#1079).
+
+- Reconcile durable funding and service transaction finality in the background after the browser leaves, including completed submission work and existing confirmed signed transactions; retain unknown outcomes and original hashes with bounded fair retries (#1097).
+
 - Keep flows whose deployments have all retired out of the default dashboard, with paginated access to retained definitions in Retired flows and clearer counts for the displayed results (#1092).
 
 - Return a state conflict for a verified already-active Subscription reactivation during wallet preparation, while retaining upstream classification for unproven or unrelated failures (#1078).
