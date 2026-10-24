@@ -9,6 +9,7 @@ Build your first payment integration: a customer's XLM payment automatically spl
 | Resource                                                                                                                      | Use it when you want to…                                                                           |
 | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | This guide                                                                                                                    | Build and test an XLM flow in Paiflow, then connect your own app using the SDK.                    |
+| [Windows Setup Guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/setup-guide.md)                  | Install Git, Node and pnpm, run the starter, then set up Engr with Kimi on Windows.                |
 | [SDK README](https://github.com/artisam-paiflow/paiflow/blob/develop/packages/sdk/README.md)                                  | Build a custom Node integration with the published `@paiflow/sdk@0.2.0` beta.                      |
 | [SDK method and type reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/sdk/reference/README.md)         | Look up SDK methods, parameters, return types and exported types.                                  |
 | [HTTP API README](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md)                                 | Look up endpoint schemas, errors, limits, pagination and advanced workflows.                       |
@@ -77,7 +78,7 @@ Keep wallet secrets in Freighter. Never paste a secret key or recovery phrase in
 4. Submit the form to continue with Google and complete signup. If Google asks you to choose an account again, use the intended account and finish the flow.
 5. When you return to Paiflow, confirm you are signed in before creating your flow. On later visits, an already linked Google account signs in without a new access code.
 
-**Access code:** `529e6c8e5fcd8eed4932779307aa1065`
+**Access code:** `bab87b6b0c4176e2963824a5751cd312`
 
 The signup access code is different from the developer API token created in Part 2. Do not put the access code into your app configuration. Google sign-in opens your Paiflow account; Freighter separately authorises your blockchain transactions.
 

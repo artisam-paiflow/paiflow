@@ -398,23 +398,36 @@ curl -sS -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/execute/submit" \
 
 What to expect:
 
-- **It waits.** By default the call waits up to about 25 seconds for a final result. Add
+- **RPC work shares one budget.** Interactive payment preparation, submission and
+  original-hash status recovery each have one shared 25-second RPC budget per operation.
+  For submission, preflight lookup, sending, confirmation and optional event catch-up
+  all use that same budget; confirmation does not get another 25 seconds. Each interactive RPC
+  call uses only the remaining budget; background calls retain their ten-second timeout. Durable
+  bookkeeping completes separately, so this is not a strict total HTTP response deadline.
+  Add
   `?wait=false` to get `PENDING` back as soon as the network accepts the transaction. At most three
   waiting calls per token are held open at once; a fourth still sends its transaction but returns
-  `PENDING` straight away, exactly as `?wait=false` would. Resubmit the same `signedXdr` to check it.
-- **A `502` here does not mean the transaction was not sent.** Each RPC call times out at ten
-  seconds, so a stalled RPC during the wait ends the call with `502 UPSTREAM_RPC` even though the
-  envelope was already broadcast. Treat it like `PENDING`: submit the same `signedXdr` again, or
-  poll events, rather than preparing a new one.
+  `PENDING` straight away, exactly as `?wait=false` would. Check the original hash with
+  `GET /api/v1/deployments/{id}/transactions/{txHash}`.
+- **An uncertain outcome keeps its original hash.** After positive network acceptance,
+  exhausting the shared confirmation budget returns `PENDING`. A transport failure during
+  preflight, sending or confirmation can still return `502 UPSTREAM_RPC`; a lost send
+  acknowledgement does not prove the envelope was never broadcast. Retain the original
+  preparation, signed envelope and hash, and query that hash for recovery. If deliberately
+  resubmitting, use only the same signed envelope. Timeout, local expiry, `NOT_FOUND` or
+  missing events never authorise preparing or signing a replacement payment.
 - **`status` is one of three values.**
   - `SUCCESS`: the flow ran. Look up `txHash` on
     [stellar.expert](https://stellar.expert/explorer/testnet).
-  - `PENDING`: accepted but not final yet. Submit the **same** `signedXdr` again to check.
+  - `PENDING`: finality is not yet established. Check the **original transaction hash**.
   - `FAILED`: the transaction reached the network and failed. The response is still HTTP `200`, and
     `error` says why, for example
     `{ "code": "txTooLate", "message": "The transaction's 180-second window expired … Prepare it again." }`.
 - **Safe to retry.** Submissions are idempotent on the envelope hash. Sending the same envelope
   twice never executes the flow twice; the second call reports what happened to the first.
+- **Events can catch up later.** Event ingestion is best effort within the remaining budget.
+  A confirmed `SUCCESS` stays successful if optional catch-up runs out of time; missing or
+  delayed events do not permit another payment.
 - **Only this flow's deposit is accepted.** The envelope must hold exactly one `deposit` call on
   this deployment's trigger contract. Anything else, including a fee-bump envelope, is refused with
   `422`. A token for one flow can't be used to submit an unrelated transaction.
@@ -564,17 +577,17 @@ Successful responses are `{ "data": … }`. Errors use one shape on every route:
 `fields` appears on validation errors. `details`, when present, carries raw technical detail such
 as a Soroban simulation diagnostic.
 
-| `code`               | HTTP | When                                                                                                                                              |
-| -------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `UNAUTHENTICATED`    | 401  | Token missing, unknown, revoked, expired, or for another deployment (token management: no signed-in session)                                      |
-| `INSUFFICIENT_FUNDS` | 402  | The `from` account doesn't exist on this network (prepare)                                                                                        |
-| `FORBIDDEN`          | 403  | Not allowed for this caller (sandbox), or the public demo is not enabled on this instance (demo token)                                            |
-| `NOT_FOUND`          | 404  | A malformed deployment id, or (execute) a deployment that isn't confirmed                                                                         |
-| `CONFLICT`           | 409  | Already 10 active tokens, or another operation holds a conflicting state                                                                          |
-| `VALIDATION`         | 422  | Bad body or query; a deposit the simulation rejects; a flow that doesn't start with a deposit trigger; an envelope that isn't this flow's deposit |
-| `RATE_LIMITED`       | 429  | Too many requests in the window (see below); on the demo token, also when the instance has no shared rate limiter                                 |
-| `INTERNAL`           | 500  | Unexpected server error; on the demo token, also a deliberate refusal when the demo flow is misconfigured, with the reason logged                 |
-| `UPSTREAM_RPC`       | 502  | The Stellar RPC call failed, or the network was too busy to accept the transaction; retry, resubmitting the same envelope                         |
+| `code`               | HTTP | When                                                                                                                                                                  |
+| -------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `UNAUTHENTICATED`    | 401  | Token missing, unknown, revoked, expired, or for another deployment (token management: no signed-in session)                                                          |
+| `INSUFFICIENT_FUNDS` | 402  | The `from` account doesn't exist on this network (prepare)                                                                                                            |
+| `FORBIDDEN`          | 403  | Not allowed for this caller (sandbox), or the public demo is not enabled on this instance (demo token)                                                                |
+| `NOT_FOUND`          | 404  | A malformed deployment id, or (execute) a deployment that isn't confirmed                                                                                             |
+| `CONFLICT`           | 409  | Already 10 active tokens, or another operation holds a conflicting state                                                                                              |
+| `VALIDATION`         | 422  | Bad body or query; a deposit the simulation rejects; a flow that doesn't start with a deposit trigger; an envelope that isn't this flow's deposit                     |
+| `RATE_LIMITED`       | 429  | Too many requests in the window (see below); on the demo token, also when the instance has no shared rate limiter                                                     |
+| `INTERNAL`           | 500  | Unexpected server error; on the demo token, also a deliberate refusal when the demo flow is misconfigured, with the reason logged                                     |
+| `UPSTREAM_RPC`       | 502  | RPC unavailable or network busy; preserve the original payment and query its hash after uncertain submission. Any deliberate resubmission must use the same envelope. |
 
 Every response carries an `x-request-id` header. Include it when you report a problem.
 
