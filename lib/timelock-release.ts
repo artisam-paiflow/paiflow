@@ -59,6 +59,9 @@ export const LEASE_MS = 10 * 60 * 1000;
 export const BEFORE_DEADLINE_MARGIN_MS = 10 * 1000;
 const FAILURE_BACKOFF_BASE_MS = 5 * 60 * 1000;
 const FAILURE_BACKOFF_MAX_MS = 6 * 60 * 60 * 1000;
+// Give a single transient probe failure another ordinary minute tick before
+// applying the longer backoff used for repeated provider/contract failures.
+const INITIAL_FAILURE_RETRY_MS = 60 * 1000;
 // A Postgres timestamp, and a JS Date, stop well before u64 seconds do.
 const MAX_UNLOCK_SECONDS = 253_402_300_799; // 9999-12-31T23:59:59Z
 
@@ -327,12 +330,15 @@ export function classifySimulationError(contractAddress: string, error: string):
   }
 }
 
-function failureUpdate(row: TimelockRelease, now: Date, error: string) {
+function failureUpdate(row: TimelockRelease, now: Date, error: string, probeReadFailed = false) {
   const failureCount = row.failureCount + 1;
-  const delay = Math.min(
-    FAILURE_BACKOFF_BASE_MS * 2 ** Math.min(failureCount - 1, 20),
-    FAILURE_BACKOFF_MAX_MS,
-  );
+  const delay =
+    probeReadFailed && failureCount === 1
+      ? INITIAL_FAILURE_RETRY_MS
+      : Math.min(
+          FAILURE_BACKOFF_BASE_MS * 2 ** Math.min(failureCount - 1, 20),
+          FAILURE_BACKOFF_MAX_MS,
+        );
   return {
     failureCount,
     lastError: error.slice(0, 1000),
@@ -355,6 +361,7 @@ async function probe(row: TimelockRelease, now: Date): Promise<AutoReleaseDetail
   const update = (data: Prisma.TimelockReleaseUpdateInput) =>
     db.timelockRelease.update({ where: { id: row.id }, data: { ...data, leaseUntil: null } });
 
+  let probeReadFailed = true;
   try {
     // The old timelock's release_by_relayer takes no argument; the two-outcome
     // one takes the side it intends, and the cron only ever intends "after".
@@ -362,6 +369,7 @@ async function probe(row: TimelockRelease, now: Date): Promise<AutoReleaseDetail
     const sim = side
       ? await simulateReleaseByRelayer(row.contractAddress, side)
       : await simulateReleaseByRelayer(row.contractAddress);
+    probeReadFailed = false;
 
     if (!sim.ok) {
       const verdict = classifySimulationError(row.contractAddress, sim.error);
@@ -435,7 +443,7 @@ async function probe(row: TimelockRelease, now: Date): Promise<AutoReleaseDetail
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     log.warn({ ...detail, error: message }, "auto-release: probe failed");
-    await update(failureUpdate(row, now, message)).catch((updateErr: unknown) => {
+    await update(failureUpdate(row, now, message, probeReadFailed)).catch((updateErr: unknown) => {
       log.error({ ...detail, err: updateErr }, "auto-release: could not record the failure");
     });
     return { ...detail, status: "failed", error: message };
