@@ -336,6 +336,7 @@ model Flow {
   deployments Deployment[]
 
   @@index([ownerId, updatedAt(sort: Desc)])
+  @@index([name])
 }
 
 model ContractTemplate {

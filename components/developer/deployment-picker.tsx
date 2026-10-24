@@ -26,6 +26,16 @@ export default function DeploymentPicker({
   const [page, setPage] = useState(0);
   const [next, setNext] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
+  useEffect(() => {
+    if (search.trim() === query) return;
+    const timer = window.setTimeout(() => {
+      setCursors([null]);
+      setPage(0);
+      setQuery(search.trim());
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [search, query]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -35,7 +45,7 @@ export default function DeploymentPicker({
     setLoadError(false);
     const cursor = cursors[page];
     void managementRequest(
-      `/api/developer-tokens/deployments?limit=20${cursor ? `&cursor=${cursor}` : ""}`,
+      `/api/developer-tokens/deployments?limit=20${cursor ? `&cursor=${cursor}` : ""}${query ? `&search=${encodeURIComponent(query)}` : ""}`,
       DeveloperTokenDeploymentListSchema,
     )
       .then((data) => {
@@ -56,7 +66,7 @@ export default function DeploymentPicker({
     return () => {
       current = false;
     };
-  }, [page, attempt]);
+  }, [page, attempt, query]);
   return (
     <fieldset
       disabled={disabled}
@@ -66,16 +76,17 @@ export default function DeploymentPicker({
       <legend className="text-on-surface px-1 font-medium">
         Selected deployments ({selected.length}/100)
       </legend>
-      <p id={hintId} className="text-on-surface-muted text-sm">
+      <p id={hintId} className="text-on-surface-variant text-sm">
         Select confirmed active deployments you own. New deployments are never added automatically.
       </p>
       <label className="grid gap-1 text-sm">
-        Filter this page by flow name or deployment ID
+        Search by flow name or full deployment ID
         <input
           className={inputClass}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           type="search"
+          maxLength={100}
         />
       </label>
       {loading ? (
@@ -90,48 +101,44 @@ export default function DeploymentPicker({
       ) : (
         <>
           {!items.length ? (
-            <p>
-              No eligible deployments on this page. Deploy and confirm a flow first; retiring and
-              retired deployments cannot be selected.
+            <p className="text-on-surface-variant text-sm">
+              {query
+                ? "No matching deployments. Try a different name or clear the search."
+                : "No eligible deployments. Deploy and confirm a flow first; retiring and retired deployments cannot be selected."}
             </p>
           ) : null}
-          {items.length > 0 &&
-          !items.some((item) =>
-            `${item.flowName} ${item.id}`.toLowerCase().includes(search.toLowerCase()),
-          ) ? (
-            <p>No matches on this page. Try another page or clear the filter.</p>
-          ) : null}
-          <div className="space-y-1">
-            {items
-              .filter((item) =>
-                `${item.flowName} ${item.id}`.toLowerCase().includes(search.toLowerCase()),
-              )
-              .map((item) => (
-                <label
-                  key={item.id}
-                  className="bg-surface-container-lowest flex min-h-11 items-start gap-3 rounded p-3"
-                >
-                  <input
-                    type="checkbox"
-                    className="accent-primary mt-1 size-5 shrink-0"
-                    checked={selected.includes(item.id)}
-                    disabled={!selected.includes(item.id) && selected.length >= 100}
-                    onChange={(e) =>
-                      onChange(
-                        e.target.checked
-                          ? [...selected, item.id]
-                          : selected.filter((id) => id !== item.id),
-                      )
-                    }
-                  />
-                  <span className="min-w-0">
-                    <span className="block">{item.flowName}</span>
-                    <span className="text-on-surface-muted block font-mono text-xs break-all">
-                      {item.id} · {item.network}
+          <div className="max-h-72 space-y-1 overflow-y-auto overscroll-contain">
+            {items.map((item) => (
+              <label
+                key={item.id}
+                className="bg-surface-container-lowest flex min-h-11 items-start gap-3 rounded p-3"
+              >
+                <input
+                  type="checkbox"
+                  className="accent-primary mt-1 size-5 shrink-0"
+                  checked={selected.includes(item.id)}
+                  disabled={!selected.includes(item.id) && selected.length >= 100}
+                  onChange={(e) =>
+                    onChange(
+                      e.target.checked
+                        ? [...selected, item.id]
+                        : selected.filter((id) => id !== item.id),
+                    )
+                  }
+                />
+                <span className="min-w-0">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">{item.flowName}</span>
+                    <span className="border-outline-variant/40 rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase">
+                      {item.network}
                     </span>
                   </span>
-                </label>
-              ))}
+                  <span className="text-on-surface-variant block font-mono text-xs break-all">
+                    {item.id}
+                  </span>
+                </span>
+              </label>
+            ))}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -158,12 +165,16 @@ export default function DeploymentPicker({
         </>
       )}
       {selected.length ? (
-        <div>
-          <p className="text-on-surface-muted text-sm">
-            All selected IDs, including other pages. An ID without a loaded label may be
-            unavailable; remove it if the server refuses the selection.
+        <details className="border-outline-variant/30 border-t pt-2">
+          <summary className="text-primary min-h-11 cursor-pointer py-2 text-sm">
+            {selected.length} deployment{selected.length === 1 ? "" : "s"} selected · Review
+            selection
+          </summary>
+          <p className="text-on-surface-variant text-xs">
+            Selections across all pages. Unverified IDs are retained; remove unavailable deployments
+            before saving.
           </p>
-          <ul className="mt-2 space-y-2">
+          <ul className="mt-2 max-h-56 space-y-2 overflow-y-auto">
             {selected.map((id) => (
               <li key={id} className="flex flex-wrap items-center justify-between gap-2">
                 <span className="min-w-0 font-mono text-xs break-all">
@@ -180,7 +191,7 @@ export default function DeploymentPicker({
               </li>
             ))}
           </ul>
-        </div>
+        </details>
       ) : null}
       {error ? (
         <p role="alert" className="text-error text-sm">

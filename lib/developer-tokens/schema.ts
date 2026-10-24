@@ -35,6 +35,10 @@ export const DeveloperTokenListQuerySchema = z
   })
   .strict();
 export type DeveloperTokenListQuery = z.infer<typeof DeveloperTokenListQuerySchema>;
+export const DeveloperTokenDeploymentQuerySchema = DeveloperTokenListQuerySchema.extend({
+  search: z.string().trim().max(100).optional(),
+});
+export type DeveloperTokenDeploymentQuery = z.infer<typeof DeveloperTokenDeploymentQuerySchema>;
 export const DeveloperTokenSchema = z
   .object({
     id: z.string().guid({ error: "Invalid uuid" }),

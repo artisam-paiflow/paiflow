@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Paiflow API v1",
-    "version": "1.1.1",
+    "version": "1.2.0",
     "description": "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.\n\nEvery `/api/v1/deployments/{id}/…` call requires a Bearer credential: a deployment token (`pfk_…`) bound to one deployment, or a developer token (`pfd_…`) with explicit grants to selected existing deployments still owned by the token owner. GET /api/v1/deployments discovers only that credential's eligible deployments. Developer READ_ONLY permits reads, quotes and funding discovery; READ_OPERATE additionally permits preparation, submission, reconciliation and relayer release. See docs/api/developer-token-permissions.md for the complete matrix. No token grants flow/deployment creation or legacy dev/payroll access.\n\n**Execute deposits are signed by the caller.** `execute` returns an unsigned envelope; you sign it with the `from` key, which stays on your side, and post it to `execute/submit`. A leaked token can prepare and relay a deposit you signed. Webhook and early-release operations use the relayer.\n\nSuccessful responses are `{ \"data\": … }`. Errors are `{ \"error\": { code, message, fields?, details? } }`:\n\n| Code | HTTP status |\n| --- | --- |\n| `UNAUTHENTICATED` | 401 |\n| `INSUFFICIENT_FUNDS` | 402 |\n| `FORBIDDEN` | 403 |\n| `NOT_FOUND` | 404 |\n| `CONFLICT` | 409 |\n| `VALIDATION` | 422 |\n| `RATE_LIMITED` | 429 |\n| `INTERNAL` | 500 |\n| `UPSTREAM_RPC` | 502 |\n\nRate limits are per token and per endpoint (each operation lists its own). Allowances are shared across the selected deployments. A token that has been issued or has worked in the last 30 days is subject to nothing else. Any other token is limited per client address before it is looked up: 6000 lookups per 60 seconds, and, after 300 failed authentications in 600 seconds from the address, 60 per 60 seconds. A token refused in the last minute is refused again without a lookup. Refusal of a live developer credential for a missing grant is never negatively cached, so selection edits take effect immediately. So one caller's bad token does not lock out others on the same network.\n\n`POST /api/v1/demo-token` explicitly requests a short-lived token for an operator-configured shared demo deployment. Availability depends on environment configuration; it may be disabled. A demo token does not guarantee every operation is eligible.\n\nThe public instance runs on Stellar **testnet**. Guide: `docs/api/README.md`."
   },
   "servers": [
@@ -337,6 +337,16 @@
               "minimum": 1,
               "maximum": 100,
               "default": 20
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Trimmed case-insensitive flow-name substring or exact full deployment UUID, within owned CONFIRMED ACTIVE deployments. Applied before pagination; reset cursor when changing search.",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
             }
           }
         ],

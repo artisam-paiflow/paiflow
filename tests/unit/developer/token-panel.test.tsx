@@ -5,7 +5,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import DeveloperTokenPanel from "@/components/developer/token-panel";
 import type { DeveloperToken } from "@/lib/developer-tokens/schema";
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 const A = "11111111-1111-4111-8111-111111111111";
 const B = "22222222-2222-4222-8222-222222222222";
 const C = "33333333-3333-4333-8333-333333333333";
@@ -60,12 +60,18 @@ beforeEach(() => {
       if (input.startsWith("/api/developer-tokens/deployments")) {
         if (failDeployments) throw new Error("network");
         return response({
-          items: emptyDeployments
-            ? []
-            : input.includes("cursor=")
-              ? [deployment(B)]
-              : [deployment(A)],
-          nextCursor: !emptyDeployments && !input.includes("cursor=") ? A : null,
+          items:
+            emptyDeployments || input.includes("search=missing")
+              ? []
+              : input.includes("search=Memberships")
+                ? [deployment(B)]
+                : input.includes("cursor=")
+                  ? [deployment(B)]
+                  : [deployment(A)],
+          nextCursor:
+            !emptyDeployments && !input.includes("cursor=") && !input.includes("search=")
+              ? A
+              : null,
         });
       }
       if (method === "POST") {
@@ -113,8 +119,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 const ready = async () => {
-  await screen.findByRole("checkbox", { name: /Donations/ });
   await screen.findByRole("button", { name: "Refresh token list" });
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Create token" }).matches(":disabled")).toBe(false),
+  );
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Create token" }));
+  await screen.findByRole("checkbox", { name: /Donations/ });
+  for (const details of screen.queryAllByText(/^View details for /)) await user.click(details);
 };
 const form = () => within(screen.getByRole("form", { name: "Create developer token" }));
 
@@ -135,6 +147,81 @@ function deferResponse(matches: (url: string, method: string) => boolean) {
 }
 
 describe("developer token management", () => {
+  it("starts with token management, keeps details collapsed and opens creation on demand", async () => {
+    rows = [token()];
+    const user = userEvent.setup();
+    render(<DeveloperTokenPanel />);
+    await screen.findByRole("heading", { name: "Campus backend" });
+    expect(screen.queryByRole("form", { name: "Create developer token" })).toBeNull();
+    expect(
+      (screen.getByText("View details for Campus backend").closest("details") as HTMLDetailsElement)
+        .open,
+    ).toBe(false);
+    expect(requests.some((r) => r.url.includes("/deployments"))).toBe(false);
+    expect(screen.getByRole("link", { name: /API reference/ }).getAttribute("href")).toBe(
+      "/api/v1/openapi.json",
+    );
+    await user.click(screen.getByText("View details for Campus backend"));
+    expect(screen.getByRole("button", { name: "Revoke token" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Create token" }));
+    const panel = screen.getByRole("region", { name: "Create token panel" });
+    expect(document.activeElement).toBe(panel);
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("form", { name: "Create developer token" })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Create token" }));
+  });
+  it("provides a runnable environment-variable quickstart without exposing credentials", async () => {
+    const user = userEvent.setup();
+    const copy = vi.spyOn(navigator.clipboard, "writeText");
+    render(<DeveloperTokenPanel />);
+    await screen.findByText("No developer tokens yet.");
+    await user.click(screen.getByRole("button", { name: "Quickstart" }));
+    expect(screen.queryByRole("region", { name: "Your developer tokens" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Copy example" }));
+    const sample = copy.mock.calls[0]?.[0];
+    expect(sample).toContain(String.fromCharCode(92) + "\n");
+    expect(sample).toContain("Authorization: Bearer $PAIFLOW_API_TOKEN");
+    expect(sample).not.toContain(SECRET);
+    expect(requests.some((r) => r.url.includes("/deployments"))).toBe(false);
+  });
+  it("dismisses a revealed secret when navigating to Quickstart and never restores it", async () => {
+    const user = userEvent.setup();
+    render(<DeveloperTokenPanel />);
+    await ready();
+    await user.click(screen.getByRole("checkbox", { name: /Donations/ }));
+    await user.click(form().getByRole("button", { name: "Generate token" }));
+    await screen.findByTestId("developer-token-reveal");
+    await user.click(screen.getByRole("button", { name: "Quickstart" }));
+    expect(document.body.textContent).not.toContain(SECRET);
+    await user.click(screen.getByRole("button", { name: "Tokens" }));
+    expect(screen.queryByTestId("developer-token-reveal")).toBeNull();
+    expect(screen.queryByRole("form", { name: "Create developer token" })).toBeNull();
+  });
+  it("searches beyond the loaded page, resets pagination and preserves explicit selections", async () => {
+    const user = userEvent.setup();
+    render(<DeveloperTokenPanel />);
+    await ready();
+    await user.click(screen.getByRole("checkbox", { name: /Donations/ }));
+    await user.click(screen.getByRole("button", { name: "Next deployments" }));
+    await screen.findByRole("checkbox", { name: /Memberships/ });
+    await user.type(screen.getByRole("searchbox"), "Memberships");
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (r) => r.url === "/api/developer-tokens/deployments?limit=20&search=Memberships",
+        ),
+      ).toBe(true),
+    );
+    expect(screen.getByText("Page 1")).toBeTruthy();
+    await user.click(screen.getByRole("checkbox", { name: /Memberships/ }));
+    await user.click(form().getByRole("button", { name: "Generate token" }));
+    await screen.findByTestId("developer-token-reveal");
+    expect(requests.find((r) => r.method === "POST")?.body).toEqual({
+      permission: "READ_ONLY",
+      deploymentIds: [A, B],
+    });
+  });
+
   it("creates only explicitly chosen deployments across pages, copies once and never recovers plaintext", async () => {
     const user = userEvent.setup();
     const copy = vi.spyOn(navigator.clipboard, "writeText");
@@ -145,7 +232,7 @@ describe("developer token management", () => {
       false,
     );
     await user.type(form().getByLabelText("Label (optional)"), "Campus backend");
-    await user.selectOptions(form().getByLabelText("Permission"), "READ_OPERATE");
+    await user.click(form().getByRole("radio", { name: /Read and operate/ }));
     await user.selectOptions(form().getByLabelText("Expires"), "90");
     await user.click(screen.getByRole("checkbox", { name: /Donations/ }));
     await user.click(screen.getByRole("button", { name: "Next deployments" }));
@@ -164,8 +251,10 @@ describe("developer token management", () => {
     await user.click(screen.getByRole("button", { name: "Copy token" }));
     expect(copy).toHaveBeenCalledWith(SECRET);
     expect(storage).not.toHaveBeenCalled();
-    expect(form().getByRole("button", { name: "Generate token" }).matches(":disabled")).toBe(true);
+    expect(screen.queryByRole("form", { name: "Create developer token" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Create token" }).matches(":disabled")).toBe(true);
     await user.click(screen.getByRole("button", { name: "Done, hide token" }));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Create token" }));
     expect(document.body.textContent).not.toContain(SECRET);
     await user.click(screen.getByRole("button", { name: "Refresh token list" }));
     expect(document.body.textContent).not.toContain(SECRET);
@@ -222,6 +311,7 @@ describe("developer token management", () => {
     const editor = within(
       await screen.findByRole("form", { name: "Edit deployments for Campus backend" }),
     );
+    await user.click(editor.getByText(/Review selection/));
     expect(editor.queryByRole("combobox")).toBeNull();
     expect(editor.getByText(/Permission, label and expiry are fixed/)).toBeTruthy();
     expect(editor.getByRole("button", { name: `Remove ${C}` })).toBeTruthy();
@@ -244,6 +334,7 @@ describe("developer token management", () => {
     const editor = within(
       await screen.findByRole("form", { name: "Edit deployments for Campus backend" }),
     );
+    await user.click(editor.getByText(/Review selection/));
     await user.click(editor.getByRole("button", { name: `Remove ${C}` }));
     expect(editor.getByText(/will have no deployment access/)).toBeTruthy();
     mutationError = { error: { message: "Token has expired. Create a replacement." } };
@@ -287,6 +378,7 @@ describe("developer token management", () => {
     const user = userEvent.setup();
     render(<DeveloperTokenPanel />);
     await screen.findByText(/Could not load tokens/);
+    await user.click(screen.getByRole("button", { name: "Create token" }));
     await screen.findByRole("button", { name: "Retry deployments" });
     emptyDeployments = true;
     failDeployments = false;
@@ -297,14 +389,15 @@ describe("developer token management", () => {
     await screen.findByText("No developer tokens yet.");
     expect(screen.queryByRole("checkbox")).toBeNull();
   });
-  it("filters within a page and keeps selections while navigating back", async () => {
+  it("searches eligible deployments and keeps selections while navigating back", async () => {
     const user = userEvent.setup();
     render(<DeveloperTokenPanel />);
     await ready();
     await user.click(screen.getByRole("checkbox", { name: /Donations/ }));
     await user.type(screen.getByRole("searchbox"), "missing");
-    expect(screen.getByText(/No matches on this page/)).toBeTruthy();
+    await screen.findByText(/No matching deployments/);
     await user.clear(screen.getByRole("searchbox"));
+    await screen.findByRole("checkbox", { name: /Donations/ });
     await user.click(screen.getByRole("button", { name: "Next deployments" }));
     await screen.findByRole("checkbox", { name: /Memberships/ });
     await user.click(screen.getByRole("button", { name: "Previous deployments" }));
@@ -384,6 +477,7 @@ describe("developer token management", () => {
         const editor = within(
           await screen.findByRole("form", { name: "Edit deployments for Campus backend" }),
         );
+        await user.click(editor.getByText(/Review selection/));
         await user.click(editor.getByRole("button", { name: `Remove ${A}` }));
         await user.click(editor.getByRole("button", { name: "Save selection" }));
       } else {
