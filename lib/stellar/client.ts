@@ -74,7 +74,11 @@ function createRpcServer(): rpc.Server {
   const get = server.getTransaction.bind(server);
   server.getTransaction = async (hash) => {
     const result = await get(hash);
-    if (result.status === "SUCCESS" || result.status === "FAILED")
+    if (
+      (result.status === "SUCCESS" || result.status === "FAILED") &&
+      Number.isSafeInteger(result.ledger) &&
+      result.ledger > 0
+    )
       await observeServiceTransaction(hash, result.status, result.ledger);
     return result;
   };

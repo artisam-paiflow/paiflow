@@ -1052,18 +1052,22 @@ model DeploymentWork {
 }
 
 model ServiceTransaction {
-  id        String                  @id @default(uuid()) @db.Uuid
-  workId    String                  @db.Uuid
-  txHash    String
-  transport String
-  state     ServiceTransactionState @default(PENDING)
-  ledger    Int?
-  createdAt DateTime                @default(now())
-  work      DeploymentWork          @relation(fields: [workId], references: [id], onDelete: Restrict)
+  nextCheckAt   DateTime                @default(now())
+  lastCheckedAt DateTime?
+  checkAttempts Int                     @default(0)
+  id            String                  @id @default(uuid()) @db.Uuid
+  workId        String                  @db.Uuid
+  txHash        String
+  transport     String
+  state         ServiceTransactionState @default(PENDING)
+  ledger        Int?
+  createdAt     DateTime                @default(now())
+  work          DeploymentWork          @relation(fields: [workId], references: [id], onDelete: Restrict)
 
   @@unique([workId, txHash])
   @@index([txHash, state])
   @@index([state, createdAt])
+  @@index([state, nextCheckAt, id])
 }
 
 // Reusable event invitations. The raw code is shown only when created.

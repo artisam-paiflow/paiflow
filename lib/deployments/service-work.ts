@@ -224,9 +224,20 @@ export async function observeServiceTransaction(
   ledger?: number,
   force = false,
 ) {
-  if (!context.getStore() && !force) return;
+  const scope = context.getStore();
+  if (!scope && !force) return;
+  // A shared hash may belong to other deployments. Ordinary observation only
+  // projects participants covered by this admission; retirement explicitly forces
+  // verified settlement observations through its dedicated path.
+  const deploymentIds = scope
+    ? (scope.participants ?? [scope]).map((participant) => participant.deploymentId)
+    : [];
   await db.serviceTransaction.updateMany({
-    where: { txHash, state: "PENDING" },
+    where: {
+      txHash,
+      state: "PENDING",
+      ...(!force ? { work: { deploymentId: { in: deploymentIds } } } : {}),
+    },
     data: { state, ...(ledger === undefined ? {} : { ledger }) },
   });
 }

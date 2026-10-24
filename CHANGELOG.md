@@ -19,6 +19,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Reconcile durable funding and service transaction finality in the background after the browser leaves, including completed submission work and existing confirmed signed transactions; retain unknown outcomes and original hashes with bounded fair retries (#1097).
+
 - Keep flows whose deployments have all retired out of the default dashboard, with paginated access to retained definitions in Retired flows and clearer counts for the displayed results (#1092).
 
 - Return a state conflict for a verified already-active Subscription reactivation during wallet preparation, while retaining upstream classification for unproven or unrelated failures (#1078).
