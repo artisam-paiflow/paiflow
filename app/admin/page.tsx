@@ -1,10 +1,11 @@
 import Link from "next/link";
+import { Role } from "@prisma/client";
+import { getAuditLogPage } from "@/lib/admin/audit-log/page";
+import { getWalletConnectionStats } from "@/lib/admin-stats";
 import { requirePageSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import AuditLog from "@/components/admin/audit-log";
 import Topbar from "@/components/app/topbar";
-import { Role } from "@prisma/client";
-
-import { getWalletConnectionStats } from "@/lib/admin-stats";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +14,7 @@ export default async function AdminHome() {
   const [users, deployments, recentAudit, walletStats] = await Promise.all([
     db.user.count(),
     db.deployment.count(),
-    db.auditLog.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      include: { user: { select: { username: true } } },
-    }),
+    getAuditLogPage({ limit: 20 }),
     getWalletConnectionStats(),
   ]);
   return (
@@ -87,38 +84,7 @@ export default async function AdminHome() {
           />
         </section>
 
-        <section className="glass-panel mt-lg overflow-hidden rounded-xl">
-          <header className="border-outline-variant/15 bg-surface-container/60 px-md flex items-center justify-between border-b py-2.5">
-            <span className="text-label-sm text-on-surface-variant font-mono">
-              / RECENT AUDIT EVENTS
-            </span>
-            <span className="text-label-sm text-on-surface-variant font-mono">
-              {recentAudit.length} SHOWN
-            </span>
-          </header>
-          <ul className="divide-outline-variant/10 divide-y">
-            {recentAudit.map((a) => (
-              <li
-                key={a.id}
-                className="px-md text-body-md hover:bg-surface-container-high/40 grid grid-cols-[180px_140px_1fr_180px] gap-3 py-2.5 transition-colors"
-              >
-                <span className="text-label-sm text-primary font-mono">{a.action}</span>
-                <span className="text-on-surface-variant">{a.user?.username ?? "—"}</span>
-                <span className="text-label-sm text-on-surface-variant truncate font-mono">
-                  {a.metadata ? JSON.stringify(a.metadata) : ""}
-                </span>
-                <span className="text-label-sm text-on-surface-variant text-right font-mono">
-                  {new Date(a.createdAt).toLocaleString()}
-                </span>
-              </li>
-            ))}
-            {recentAudit.length === 0 && (
-              <li className="px-md py-md text-label-sm text-on-surface-variant font-mono">
-                NO EVENTS YET.
-              </li>
-            )}
-          </ul>
-        </section>
+        <AuditLog initial={recentAudit} />
       </main>
     </>
   );
