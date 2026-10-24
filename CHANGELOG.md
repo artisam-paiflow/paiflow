@@ -51,6 +51,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Showcase the first JRU and NVC Aklan hackathons on the marketing homepage, with an event hub, photo galleries, JRU winning projects and repository links, and shared builder resources (#1090).
+
 - Consolidate Windows setup into one guide and PDF following one path: set up the Paiflow starter, then Engr with Kimi.
 
 - Add the October 20 Aklan hackathon primer and PDF with the event schedule, pitch deck requirements and linked Paiflow Guide; refresh the guide access code and SDK reference links.
