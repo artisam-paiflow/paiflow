@@ -6,7 +6,8 @@ signing and connection safeguards. This is implementation readiness, **not joint
 real-extension acceptance**. Deployment and joint QA remain to be verified.
 Lantern is omitted on mobile and mainnet. Android Chrome WalletConnect (#1002)
 is not built upstream; Apps-tab embedding uses a separate postMessage bridge and
-is not implemented here. Deprecated payroll and fiat off-ramp are excluded.
+is documented separately in [public Apps-tab support](lantern-apps-tab.md).
+Deprecated payroll and fiat off-ramp are excluded.
 
 ## Module, release and installation
 
