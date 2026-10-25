@@ -126,7 +126,12 @@ class Bridge {
         }
         if (!signing) {
           if (reply.type === "lantern:connectRejected") {
-            finish(undefined, new LanternWalletError("LANTERN_REJECTED"));
+            // Identity reads also happen after a signature was returned. A
+            // connection refusal never proves the transaction was not signed.
+            finish(
+              undefined,
+              new Error("Lantern wallet connection rejected. Reconnect before continuing."),
+            );
           } else if (
             reply.type === "lantern:publicKey" &&
             typeof reply.publicKey === "string" &&

@@ -27,7 +27,9 @@ signing starts, malformed responses and provider errors preserve the prepared ha
 and recovery hold. Timeout guidance never authorizes another signature.
 
 Only an error-free `lantern:signRejected` is treated as explicit user refusal and
-can release its matching signing attempt. A `signRejected` carrying an error or
+can release its matching signing attempt. Connection refusal during identity
+revalidation, including after a signed reply, never clears the signing attempt.
+A `signRejected` carrying an error or
 `txError` is a controlled failure with unresolved signing state, regardless of its
 text. Provider error strings are not displayed or used to infer cancellation.
 Before/after signing, account and network are re-read; the unchanged body, source,

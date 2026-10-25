@@ -101,6 +101,9 @@ let rejectSign = false;
 let holdIdentity = false;
 let holdSigning = false;
 let providerError = false;
+let rejectIdentityAt: number | null = null;
+let identityReads = 0;
+let signingReplies = 0;
 let send: ReturnType<typeof vi.fn>;
 let reply: (data: unknown) => void;
 let listeners: Set<(event: MessageEvent) => void>;
@@ -111,6 +114,11 @@ function frame() {
     listeners.forEach((fn) => fn({ data, source: parent, origin } as unknown as MessageEvent));
   parent.postMessage.mockImplementation((message: Record<string, unknown>) => {
     if (message.type === "lantern:getPublicKey") {
+      identityReads++;
+      if (identityReads === rejectIdentityAt) {
+        reply({ type: "lantern:connectRejected" });
+        return;
+      }
       if (!holdIdentity) reply({ type: "lantern:publicKey", publicKey: address, network });
     } else {
       reply({ type: "lantern:signing", id: message.id });
@@ -135,6 +143,7 @@ function frame() {
       else {
         const tx = TransactionBuilder.fromXDR(message.xdr as string, Networks.TESTNET);
         tx.sign(signer);
+        signingReplies++;
         reply({ type: "lantern:xdrSigned", id: message.id, signedXdr: tx.toXDR() });
       }
     }
@@ -233,6 +242,9 @@ beforeEach(() => {
   holdIdentity = false;
   holdSigning = false;
   providerError = false;
+  rejectIdentityAt = null;
+  identityReads = 0;
+  signingReplies = 0;
   origin = "https://android.golantern.xyz";
   frame();
   vi.stubEnv("NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID", "configured-project-id");
@@ -340,6 +352,40 @@ describe("Lantern public testnet payments with server-prepared Soroban envelopes
           ([url]) => !url.endsWith("/submit") && !url.endsWith("/trigger"),
         ),
       ).toBe(true);
+    },
+  );
+  it.each([
+    ["distribute", 2],
+    ["allowance", 2],
+    ["distribute", 3],
+    ["allowance", 3],
+  ] as const)(
+    "retains %s recovery when identity read %i is rejected during signing",
+    async (kind, rejectedRead) => {
+      await fixture(kind);
+      rejectIdentityAt = rejectedRead;
+      const view = mount(kind);
+      await tap();
+      expect(identityReads).toBe(rejectedRead);
+      expect(signingReplies).toBe(rejectedRead === 3 ? 1 : 0);
+      const key = kind === "allowance" ? allowanceKey : triggerKey;
+      const saved = localStorage.getItem(key);
+      expect(JSON.parse(saved!)).toMatchObject({ txHash: hash, phase: "signing" });
+      expect(mocks.fetch).toHaveBeenCalledOnce();
+      expect(mocks.poll).not.toHaveBeenCalled();
+      await tap();
+      expect(identityReads).toBe(rejectedRead);
+      expect(localStorage.getItem(key)).toBe(saved);
+      view.unmount();
+      frame();
+      mocks.poll.mockRejectedValue(new Error("Unknown"));
+      mocks.fetch.mockClear();
+      await act(async () => {
+        mount(kind);
+      });
+      await tap();
+      expect(send).not.toHaveBeenCalled();
+      expect(localStorage.getItem(key)).toBe(saved);
     },
   );
   it.each<Kind>(["distribute", "allowance"])(
