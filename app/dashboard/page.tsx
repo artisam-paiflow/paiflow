@@ -2,11 +2,12 @@ import Link from "next/link";
 import { requirePageSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
+import { dashboardFlows, DashboardFlowQuerySchema } from "@/lib/dashboard/flows";
+import { isStellarNetwork, stellarExpertContractUrl } from "@/lib/stellar/explorer";
 import Topbar from "@/components/app/topbar";
 import DeleteFlowButton from "@/components/flows/delete-flow-button";
 import RetirementPanel from "@/components/deploy/retirement-panel";
 import NewFlowButton from "@/components/flows/new-flow-button";
-import { isStellarNetwork, stellarExpertContractUrl } from "@/lib/stellar/explorer";
 
 export const dynamic = "force-dynamic";
 
@@ -48,15 +49,17 @@ function truncateAddr(addr: string | null) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
-export default async function Dashboard() {
+export default async function Dashboard({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const user = await requirePageSession();
-  const [flows, deployments] = await Promise.all([
-    db.flow.findMany({
-      where: { ownerId: user.id },
-      include: { _count: { select: { deployments: true } } },
-      orderBy: { updatedAt: "desc" },
-      take: 20,
-    }),
+  const query = DashboardFlowQuerySchema.parse(await searchParams);
+  const retiredView = query.view === "retired";
+  const flowViewUrl = retiredView ? "/dashboard?view=retired" : "/dashboard";
+  const [flowPage, deployments] = await Promise.all([
+    dashboardFlows(user.id, query),
     db.deployment.findMany({
       where: { ownerId: user.id, serviceState: { not: "RETIRED" } },
       orderBy: { createdAt: "desc" },
@@ -65,7 +68,10 @@ export default async function Dashboard() {
     }),
   ]);
 
-  const activeCount = deployments.filter((d) => d.status === "CONFIRMED").length;
+  const flows = flowPage.items;
+  const activeCount = deployments.filter(
+    (d) => d.status === "CONFIRMED" && d.serviceState === "ACTIVE",
+  ).length;
 
   return (
     <div className="min-h-screen">
@@ -92,14 +98,14 @@ export default async function Dashboard() {
           <MetricCard
             eyebrow="PIPELINES"
             value={String(flows.length)}
-            sub="defined"
+            sub={retiredView ? "retired flows shown" : "current flows shown"}
             icon="account_tree"
             accent="primary"
           />
           <MetricCard
             eyebrow="DEPLOYMENTS"
             value={String(deployments.length)}
-            sub={`${activeCount} active`}
+            sub={`${activeCount} active of ${deployments.length} shown`}
             icon="rocket_launch"
             accent="secondary"
           />
@@ -116,21 +122,53 @@ export default async function Dashboard() {
         {/* Flows grid */}
         <section className="mt-lg">
           <div className="mb-md flex items-end justify-between">
-            <h2 className="text-headline-sm text-on-surface">Automations</h2>
+            <h2 className="text-headline-sm text-on-surface">
+              {retiredView ? "Retired flows" : "Automations"}
+            </h2>
             <span className="text-label-sm text-on-surface-variant font-mono">
-              {flows.length} TOTAL
+              {flows.length} SHOWN
             </span>
           </div>
+
+          <nav aria-label="Flow views" className="mb-sm flex flex-wrap gap-4">
+            <Link
+              href="/dashboard"
+              aria-current={!retiredView ? "page" : undefined}
+              className="text-label-md text-primary underline underline-offset-4"
+            >
+              Current flows
+            </Link>
+            <Link
+              href="/dashboard?view=retired"
+              aria-current={retiredView ? "page" : undefined}
+              className="text-label-md text-primary underline underline-offset-4"
+            >
+              Retired flows
+            </Link>
+          </nav>
+          <p className="text-body-sm text-on-surface-variant mb-md">
+            {retiredView
+              ? "These flow definitions are retained because all their deployments have retired. Retired deployments remain inaccessible and their service cannot be restored."
+              : "Drafts and flows with active or retiring deployments. Flows whose deployments have all retired are in Retired flows."}
+          </p>
 
           {flows.length === 0 ? (
             <div className="glass-panel p-xl flex flex-col items-center justify-center rounded-xl border-dashed text-center">
               <span className="material-symbols-outlined text-on-surface-variant/50 text-[40px]">
                 account_tree
               </span>
-              <p className="mt-md text-body-md text-on-surface-variant">No flows yet.</p>
-              <p className="text-label-sm text-on-surface-variant/70 mt-1 font-mono">
-                CLICK NEW FLOW TO DRAG YOUR FIRST ONE.
+              <p className="mt-md text-body-md text-on-surface-variant">
+                {query.cursor
+                  ? "No flows on this page. Return to the newest flows."
+                  : retiredView
+                    ? "No fully retired flows."
+                    : "No current flows. Create a flow or view your retired flows."}
               </p>
+              {!retiredView && !query.cursor ? (
+                <p className="text-label-sm text-on-surface-variant/70 mt-1 font-mono">
+                  CLICK NEW FLOW TO START BUILDING.
+                </p>
+              ) : null}
               <NewFlowButton className="mt-md bg-primary text-label-md text-on-primary inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_20px_rgba(255,177,196,0.55)] active:scale-95">
                 <span className="material-symbols-outlined text-[16px]">add</span>
                 NEW FLOW
@@ -170,6 +208,21 @@ export default async function Dashboard() {
               ))}
             </div>
           )}
+          <nav aria-label="Flow pages" className="mt-md flex flex-wrap gap-4">
+            {query.cursor ? (
+              <Link href={flowViewUrl} className="text-primary underline underline-offset-4">
+                Newest flows
+              </Link>
+            ) : null}
+            {flowPage.nextCursor ? (
+              <Link
+                href={`${flowViewUrl}${retiredView ? "&" : "?"}cursor=${flowPage.nextCursor}`}
+                className="text-primary underline underline-offset-4"
+              >
+                Older flows
+              </Link>
+            ) : null}
+          </nav>
         </section>
 
         {/* Deployments table */}
@@ -184,7 +237,7 @@ export default async function Dashboard() {
           <div className="glass-panel overflow-hidden rounded-xl">
             {deployments.length === 0 ? (
               <div className="p-md text-label-md text-on-surface-variant font-mono">
-                NO DEPLOYMENTS YET.
+                NO ACTIVE OR RETIRING DEPLOYMENTS.
               </div>
             ) : (
               <table className="w-full table-fixed">

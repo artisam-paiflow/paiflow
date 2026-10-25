@@ -77,7 +77,7 @@ export function Field(props: FieldProps) {
   });
 
   return (
-    <div className="group grid gap-1">
+    <div className="group grid min-w-0 grid-cols-1 gap-1">
       {props.group ? (
         <>
           <span id={labelId} className={labelClass}>
@@ -88,7 +88,7 @@ export function Field(props: FieldProps) {
             aria-labelledby={labelId}
             aria-describedby={controlProps["aria-describedby"]}
             aria-invalid={controlProps["aria-invalid"]}
-            className="grid gap-1"
+            className="grid min-w-0 grid-cols-1 gap-1"
           >
             {props.children}
           </div>

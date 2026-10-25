@@ -13,6 +13,7 @@ import {
   MAX_ACTIVE_DEVELOPER_TOKENS,
   type CreateDeveloperToken,
   type DeveloperTokenListQuery,
+  type DeveloperTokenDeploymentQuery,
 } from "./schema";
 
 export const DEVELOPER_TOKEN_SELECT = {
@@ -181,12 +182,35 @@ export async function listDeveloperTokens(ownerId: string, query: DeveloperToken
     nextCursor: rows.length > query.limit ? items.at(-1)!.id : null,
   };
 }
-export async function listEligibleDeployments(ownerId: string, query: DeveloperTokenListQuery) {
+export async function listEligibleDeployments(
+  ownerId: string,
+  query: DeveloperTokenDeploymentQuery,
+) {
   const rows = await db.deployment.findMany({
     where: {
       ownerId,
       status: "CONFIRMED",
       serviceState: "ACTIVE",
+      ...(query.search
+        ? {
+            OR: [
+              {
+                flow: {
+                  name: {
+                    contains: query.search.replace(/[\\%_]/g, "\\$&"),
+                    mode: "insensitive" as const,
+                  },
+                },
+              },
+              // UUID columns support exact comparisons; never cast arbitrary search text to UUID.
+              ...(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                query.search,
+              )
+                ? [{ id: query.search.toLowerCase() }]
+                : []),
+            ],
+          }
+        : {}),
       ...(query.cursor ? { id: { gt: query.cursor } } : {}),
     },
     orderBy: { id: "asc" },

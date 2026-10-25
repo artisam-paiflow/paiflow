@@ -5,6 +5,7 @@ import { AppError } from "@/lib/errors";
 import { env } from "@/lib/env";
 import { FlowGraphSchema, isTrigger, assetLabel } from "@/lib/flows/schema";
 import { findPipelineNode, pipelineNodesOfKind } from "@/lib/pipeline-snapshot";
+import { withInteractiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
 import { assetContractId } from "@/lib/stellar/assets";
 import {
   readSubscriptionAsset,
@@ -13,7 +14,10 @@ import {
   readTokenAllowance,
 } from "@/lib/stellar/relayer";
 
-export async function readSubscriptionState(id: string, opts: { snapshotOnly?: boolean } = {}) {
+export async function readSubscriptionState(
+  id: string,
+  opts: { snapshotOnly?: boolean; classifyRpcFailures?: boolean } = {},
+) {
   const d = await db.deployment.findFirst({
     where: { id, status: "CONFIRMED" },
     select: {
@@ -57,9 +61,9 @@ export async function readSubscriptionState(id: string, opts: { snapshotOnly?: b
   if (!StrKey.isValidContract(node.contractAddress))
     throw new AppError("VALIDATION", "Invalid subscription contract address");
   const [subscriber, tokenContractAddress, isCancelled] = await Promise.all([
-    readSubscriptionSubscriberNullable(node.contractAddress),
-    readSubscriptionAsset(node.contractAddress),
-    readSubscriptionIsCancelled(node.contractAddress),
+    readSubscriptionSubscriberNullable(node.contractAddress, opts),
+    readSubscriptionAsset(node.contractAddress, opts),
+    readSubscriptionIsCancelled(node.contractAddress, opts),
   ]);
   if (
     (subscriber !== null && !StrKey.isValidEd25519PublicKey(subscriber)) ||
@@ -86,9 +90,9 @@ export async function readSubscriptionState(id: string, opts: { snapshotOnly?: b
   };
 }
 
-/** Preserve the public allowance workflow's existing response shape and classification. */
-export async function subscriptionState(id: string) {
-  const { templateKind: _templateKind, ...state } = await readSubscriptionState(id);
+/** Preserve public response shape and eligibility; interactive routes opt into safe reads. */
+export async function subscriptionState(id: string, opts: { classifyRpcFailures?: boolean } = {}) {
+  const { templateKind: _templateKind, ...state } = await readSubscriptionState(id, opts);
   return state;
 }
 
@@ -111,19 +115,25 @@ export function requireSubscriber(
   return state.subscriber;
 }
 
-/** Deployment-token allowance read reusing the public workflow's live state readers. */
+/** Interactive deployment-token read; public/background helpers keep their defaults. */
 export async function subscriptionAllowanceState(id: string) {
-  const state = await readSubscriptionState(id, { snapshotOnly: true });
-  if (!state.subscriber && state.templateKind !== "SUBSCRIPTION_DEV")
-    throw new AppError("UPSTREAM_RPC", "Ordinary subscription has no configured subscriber");
-  const allowance = state.subscriber
-    ? await readTokenAllowance({
-        tokenContractAddress: state.tokenContractAddress,
-        owner: state.subscriber,
-        spender: state.contractAddress,
-      })
-    : null;
-  if (allowance !== null && (allowance < 0n || allowance > (1n << 127n) - 1n))
-    throw new AppError("UPSTREAM_RPC", "Invalid allowance returned by the contract");
-  return { ...state, allowance: allowance?.toString() ?? "0", setupRequired: !state.subscriber };
+  return withInteractiveRpcBudget(async () => {
+    const state = await readSubscriptionState(id, {
+      snapshotOnly: true,
+      classifyRpcFailures: true,
+    });
+    if (!state.subscriber && state.templateKind !== "SUBSCRIPTION_DEV")
+      throw new AppError("UPSTREAM_RPC", "Ordinary subscription has no configured subscriber");
+    const allowance = state.subscriber
+      ? await readTokenAllowance({
+          tokenContractAddress: state.tokenContractAddress,
+          owner: state.subscriber,
+          spender: state.contractAddress,
+          classifyRpcFailures: true,
+        })
+      : null;
+    if (allowance !== null && (allowance < 0n || allowance > (1n << 127n) - 1n))
+      throw new AppError("UPSTREAM_RPC", "Invalid allowance returned by the contract");
+    return { ...state, allowance: allowance?.toString() ?? "0", setupRequired: !state.subscriber };
+  });
 }

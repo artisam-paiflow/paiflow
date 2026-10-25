@@ -1,22 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo } from "react";
 import type { FlowNode, FlowGraph } from "@/lib/flows/schema";
 import {
   isPendingAddress,
-  bpsToPct,
   sourceAmountStroops,
   isTrigger,
   TOTAL_BPS,
   assetLabel,
   stroopsToDisplay,
   splitTotalFixedStroops,
-  type SplitRecipient,
 } from "@/lib/flows/schema";
-import { cn, formatStroops, shortAddr } from "@/lib/utils";
+import { cn, formatStroops } from "@/lib/utils";
 import { NODE_TYPE_LABELS } from "@/lib/flows/node-labels";
-import { RecipientEmailField } from "./notification-settings";
-import AddressInput from "./address-input";
 import type { AddressEntry } from "@/lib/address-book.types";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
 import { computeAssetFlow, type ValidationIssue } from "@/lib/flows/validate";
@@ -24,15 +20,20 @@ import { fieldErrorUnder, nodeIssues } from "@/lib/flows/issue-paths";
 import type { FeatureFlags } from "@/lib/feature-flags";
 import { AssetField, Field } from "./panels/asset-fields";
 import { IntervalField } from "./panels/interval-field";
-import { AllocationBar } from "./panels/allocation-bar";
-import { defaultShares } from "./panels/split-shares.utils";
 import {
   fiatPayoutAvailable as fiatAvailable,
   showPayoutModeSelect,
 } from "./panels/payout-mode.utils";
 import SwapPanel from "./panels/swap-panel";
-import { BpsDraftInput } from "./inputs/bps-draft-input";
-import { StroopsDraftInput } from "./inputs/stroops-draft-input";
+import { SplitRecipientsEditor } from "./panels/split-recipients-editor";
+import { AmountInput } from "./inputs/amount-input";
+import { PercentageInput } from "./inputs/percentage-input";
+import { Field as SharedField } from "./inputs/field";
+import { inputClass } from "./inputs/styles";
+import { NodeAssetField } from "./panels/node-asset-field";
+import { RecipientEmailField } from "./notification-settings";
+import AddressInput from "./address-input";
+import { AddressPicker } from "./inputs/address-picker";
 
 /**
  * Sentinel for an address field a developer chose to leave blank at design time
@@ -127,8 +128,8 @@ type Props = {
   /** The Soroswap router this environment resolves to; `undefined` when unset. */
   routerContractId?: string;
   /**
-   * Hide the internal node-type label + Delete header row. Set when the floating
-   * wrapper renders its own draggable header with the title and Delete control,
+   * Hide the internal node-type label + Delete header row. Set when the docked
+   * wrapper renders its own fixed header with the title and Delete control,
    * so the title isn't duplicated.
    */
   hideHeader?: boolean;
@@ -254,9 +255,7 @@ export default function ConfigPanel({
     <aside
       data-testid="config-panel"
       className={cn(
-        // Render at natural full height (no internal scrollbar / height cap):
-        // a tall panel (e.g. the splitter) is brought into view by panning the
-        // canvas or dragging the panel header, not by scrolling inside it.
+        // The docked container owns scrolling; fields keep their natural height.
         "space-y-4 border-l border-zinc-800 bg-zinc-950 p-4 text-sm",
         className,
       )}
@@ -290,34 +289,37 @@ export default function ConfigPanel({
 
       {node.type === "on_receive" && (
         <>
-          <AssetField
+          <NodeAssetField
             asset={node.config.asset}
             error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
           />
-          <Field
+          <AmountInput
             label={`Minimum amount (${assetLabel(node.config.asset)}), optional`}
             error={fieldError("minAmountStroops")}
-          >
-            <StroopsDraftInput
-              className="input font-mono"
-              value={node.config.minAmountStroops}
-              placeholder="Any amount"
-              onChange={(stroops) => {
-                onChange({
-                  ...node,
-                  config: { ...node.config, minAmountStroops: stroops || undefined },
-                });
-              }}
-            />
-            {node.config.minAmountStroops && (
-              <div className="mt-0.5 text-[11px] text-zinc-500">
-                ≥ {stroopsToDisplay(node.config.minAmountStroops, node.config.asset)}
-              </div>
-            )}
-          </Field>
+            value={node.config.minAmountStroops}
+            placeholder="Any amount"
+            onChange={(stroops) => {
+              onChange({
+                ...node,
+                config: { ...node.config, minAmountStroops: stroops || undefined },
+              });
+            }}
+            commit="draft"
+            echo={false}
+            asset={node.config.asset}
+            hint={
+              <>
+                {node.config.minAmountStroops && (
+                  <div className="mt-0.5 text-[11px] text-zinc-500">
+                    ≥ {stroopsToDisplay(node.config.minAmountStroops, node.config.asset)}
+                  </div>
+                )}
+              </>
+            }
+          />
         </>
       )}
 
@@ -341,6 +343,7 @@ export default function ConfigPanel({
           return (
             <>
               <IntervalField
+                shared
                 amount={amount}
                 unit={unit}
                 amountError={fieldError("intervalAmount")}
@@ -358,103 +361,117 @@ export default function ConfigPanel({
                   } as FlowNode)
                 }
               />
-              <Field label="Timezone">
-                <select
-                  className="input"
-                  value={tz}
-                  onChange={(e) => {
-                    const newTz = e.target.value;
-                    const localStart = formatIsoForTimezone(cfg.startsAt, tz);
-                    const atStart = isoFromLocalAndTimezone(localStart, newTz);
-                    const next: typeof cfg = {
-                      ...cfg,
-                      startsAt: atStart,
-                      timeZone: newTz,
-                    };
-                    if (cfg.endsAt) {
-                      const localEnd = formatIsoForTimezone(cfg.endsAt, tz);
-                      next.endsAt = isoFromLocalAndTimezone(localEnd, newTz);
-                    }
-                    onChange({ ...node, config: next } as FlowNode);
-                  }}
-                >
-                  {TIMEZONES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Starts at" error={fieldError("startsAt")}>
-                <input
-                  className="input"
-                  type="datetime-local"
-                  value={formatIsoForTimezone(cfg.startsAt, tz)}
-                  onChange={(e) => {
-                    const at = isoFromLocalAndTimezone(e.target.value, tz);
-                    onChange({
-                      ...node,
-                      config: { ...cfg, startsAt: at, timeZone: tz },
-                    } as FlowNode);
-                  }}
-                />
-              </Field>
-              <Field label="Ends at — optional" error={fieldError("endsAt")}>
-                <div className="flex gap-1">
-                  <input
-                    className="input"
-                    type="datetime-local"
-                    value={cfg.endsAt ? formatIsoForTimezone(cfg.endsAt, tz) : ""}
+              <SharedField label="Timezone">
+                {(control) => (
+                  <select
+                    {...control}
+                    className={inputClass}
+                    value={tz}
                     onChange={(e) => {
-                      const local = e.target.value;
+                      const newTz = e.target.value;
+                      const localStart = formatIsoForTimezone(cfg.startsAt, tz);
+                      const atStart = isoFromLocalAndTimezone(localStart, newTz);
+                      const next: typeof cfg = {
+                        ...cfg,
+                        startsAt: atStart,
+                        timeZone: newTz,
+                      };
+                      if (cfg.endsAt) {
+                        const localEnd = formatIsoForTimezone(cfg.endsAt, tz);
+                        next.endsAt = isoFromLocalAndTimezone(localEnd, newTz);
+                      }
+                      onChange({ ...node, config: next } as FlowNode);
+                    }}
+                  >
+                    {TIMEZONES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </SharedField>
+              <SharedField label="Starts at" error={fieldError("startsAt")}>
+                {(control) => (
+                  <input
+                    {...control}
+                    className={inputClass}
+                    type="datetime-local"
+                    value={formatIsoForTimezone(cfg.startsAt, tz)}
+                    onChange={(e) => {
+                      const at = isoFromLocalAndTimezone(e.target.value, tz);
+                      onChange({
+                        ...node,
+                        config: { ...cfg, startsAt: at, timeZone: tz },
+                      } as FlowNode);
+                    }}
+                  />
+                )}
+              </SharedField>
+              <SharedField label="Ends at — optional" error={fieldError("endsAt")}>
+                {(control) => (
+                  <>
+                    <div className="flex gap-1">
+                      <input
+                        {...control}
+                        className={inputClass}
+                        type="datetime-local"
+                        value={cfg.endsAt ? formatIsoForTimezone(cfg.endsAt, tz) : ""}
+                        onChange={(e) => {
+                          const local = e.target.value;
+                          onChange({
+                            ...node,
+                            config: {
+                              ...cfg,
+                              endsAt: local ? isoFromLocalAndTimezone(local, tz) : undefined,
+                              occurrences: undefined,
+                              timeZone: tz,
+                            },
+                          } as FlowNode);
+                        }}
+                      />
+                      {cfg.endsAt && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onChange({
+                              ...node,
+                              config: { ...cfg, endsAt: undefined, timeZone: tz },
+                            } as FlowNode)
+                          }
+                          className="rounded border border-zinc-700 px-2 text-zinc-400 hover:text-red-300"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </SharedField>
+              <SharedField label="Occurrences — optional" error={fieldError("occurrences")}>
+                {(control) => (
+                  <input
+                    {...control}
+                    className={inputClass}
+                    type="number"
+                    min="1"
+                    placeholder="e.g. 5"
+                    value={cfg.occurrences ?? ""}
+                    onChange={(e) =>
                       onChange({
                         ...node,
                         config: {
                           ...cfg,
-                          endsAt: local ? isoFromLocalAndTimezone(local, tz) : undefined,
-                          occurrences: undefined,
+                          endsAt: undefined,
+                          occurrences: e.target.value ? Number(e.target.value) : undefined,
                           timeZone: tz,
                         },
-                      } as FlowNode);
-                    }}
+                      } as FlowNode)
+                    }
                   />
-                  {cfg.endsAt && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onChange({
-                          ...node,
-                          config: { ...cfg, endsAt: undefined, timeZone: tz },
-                        } as FlowNode)
-                      }
-                      className="rounded border border-zinc-700 px-2 text-zinc-400 hover:text-red-300"
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-              </Field>
-              <Field label="Occurrences — optional" error={fieldError("occurrences")}>
-                <input
-                  className="input"
-                  type="number"
-                  min="1"
-                  placeholder="e.g. 5"
-                  value={cfg.occurrences ?? ""}
-                  onChange={(e) =>
-                    onChange({
-                      ...node,
-                      config: {
-                        ...cfg,
-                        endsAt: undefined,
-                        occurrences: e.target.value ? Number(e.target.value) : undefined,
-                        timeZone: tz,
-                      },
-                    } as FlowNode)
-                  }
-                />
-              </Field>
-              <Field label="Allow pause / resume">
+                )}
+              </SharedField>
+              <SharedField group label="Allow pause / resume">
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -474,8 +491,8 @@ export default function ConfigPanel({
                     Allow pausing this stream after deployment
                   </span>
                 </label>
-              </Field>
-              <Field label="Allow retrieve unvested">
+              </SharedField>
+              <SharedField group label="Allow retrieve unvested">
                 <label
                   className={`flex items-center gap-2 ${!(cfg.pauseAllowed ?? true) ? "cursor-not-allowed opacity-50" : ""}`}
                 >
@@ -494,7 +511,7 @@ export default function ConfigPanel({
                     Allow admin to retrieve unvested funds while paused
                   </span>
                 </label>
-              </Field>
+              </SharedField>
             </>
           );
         })()}
@@ -503,11 +520,12 @@ export default function ConfigPanel({
         <>
           {!sandbox && (
             <RecipientEmailField
+              shared={!devMode && triggerType !== "payroll" && node.config.payoutMode !== "fiat"}
               value={node.config.email}
               onChange={(email) => onChange({ ...node, config: { ...node.config, email } })}
             />
           )}
-          <AssetField
+          <NodeAssetField
             asset={node.config.asset}
             error={assetError}
             onChange={(asset) =>
@@ -517,33 +535,56 @@ export default function ConfigPanel({
           />
 
           {!(fiatPayoutAvailable && node.config.payoutMode === "fiat") && (
-            <ApiFillField
-              label="Recipient (G… or PENDING:)"
-              devMode={devMode}
-              active={isApiFillAddress(node.config.recipient)}
-              onActivate={() =>
-                onChange({ ...node, config: { ...node.config, recipient: API_FILL_ADDRESS } })
-              }
-              onDeactivate={() => onChange({ ...node, config: { ...node.config, recipient: "" } })}
-              hint="Recipient set via the API after deploy"
-              error={fieldError("recipient")}
-            >
-              <AddressInput
-                value={node.config.recipient}
-                onChange={(recipient) =>
-                  onChange({
-                    ...node,
-                    config: { ...node.config, recipient },
-                  })
-                }
-                pending={isPendingAddress(node.config.recipient)}
-                error={!!fieldError("recipient")}
-                addressBook={addressBook}
-                onAddressBookChange={refreshAddressBook}
-                addressBookLoading={addressBookLoading}
-                addressBookError={addressBookError}
-              />
-            </ApiFillField>
+            <>
+              {devMode ? (
+                <ApiFillField
+                  label="Recipient (G… or PENDING:)"
+                  devMode={devMode}
+                  active={isApiFillAddress(node.config.recipient)}
+                  onActivate={() =>
+                    onChange({ ...node, config: { ...node.config, recipient: API_FILL_ADDRESS } })
+                  }
+                  onDeactivate={() =>
+                    onChange({ ...node, config: { ...node.config, recipient: "" } })
+                  }
+                  hint="Recipient set via the API after deploy"
+                  error={fieldError("recipient")}
+                >
+                  <AddressInput
+                    value={node.config.recipient}
+                    onChange={(recipient) =>
+                      onChange({
+                        ...node,
+                        config: { ...node.config, recipient },
+                      })
+                    }
+                    pending={isPendingAddress(node.config.recipient)}
+                    error={!!fieldError("recipient")}
+                    addressBook={addressBook}
+                    onAddressBookChange={refreshAddressBook}
+                    addressBookLoading={addressBookLoading}
+                    addressBookError={addressBookError}
+                  />
+                </ApiFillField>
+              ) : (
+                <AddressPicker
+                  label="Recipient (G… or PENDING:)"
+                  error={fieldError("recipient")}
+                  value={node.config.recipient}
+                  onChange={(recipient) =>
+                    onChange({
+                      ...node,
+                      config: { ...node.config, recipient },
+                    })
+                  }
+                  pending={isPendingAddress(node.config.recipient)}
+                  addressBook={addressBook}
+                  onAddressBookChange={refreshAddressBook}
+                  addressBookLoading={addressBookLoading}
+                  addressBookError={addressBookError}
+                />
+              )}
+            </>
           )}
 
           {payPayoutSelect && (
@@ -667,29 +708,33 @@ export default function ConfigPanel({
           ) : triggerType === "on_schedule" ? (
             // Scheduled streams vest a fixed amount per interval — full-amount
             // and percentage modes are not offered here.
-            <Field
+            <AmountInput
               label={`Amount per interval (${assetLabel(node.config.asset)})`}
               error={fieldError("amountStroops")}
-            >
-              <StroopsDraftInput
-                className="input"
-                value={node.config.amountStroops}
-                onChange={(stroops) =>
-                  onChange({
-                    ...node,
-                    config: {
-                      ...node.config,
-                      amountStroops: stroops,
-                    },
-                  } as FlowNode)
-                }
-              />
-              {node.config.amountStroops && (
-                <div className="mt-0.5 text-[11px] text-zinc-500">
-                  = {stroopsToDisplay(node.config.amountStroops, node.config.asset)} per interval
-                </div>
-              )}
-            </Field>
+              value={node.config.amountStroops}
+              onChange={(stroops) =>
+                onChange({
+                  ...node,
+                  config: {
+                    ...node.config,
+                    amountStroops: stroops,
+                  },
+                } as FlowNode)
+              }
+              commit="draft"
+              echo={false}
+              asset={node.config.asset}
+              hint={
+                <>
+                  {node.config.amountStroops && (
+                    <div className="mt-0.5 text-[11px] text-zinc-500">
+                      = {stroopsToDisplay(node.config.amountStroops, node.config.asset)} per
+                      interval
+                    </div>
+                  )}
+                </>
+              }
+            />
           ) : (
             <>
               <label className="flex items-center gap-2">
@@ -714,82 +759,66 @@ export default function ConfigPanel({
 
               {!node.config.fullAmount && (
                 <>
-                  <Field label="Mode">
-                    <select
-                      className="input"
-                      value={node.config.mode}
-                      onChange={(e) =>
-                        onChange({
-                          ...node,
-                          config: {
-                            ...node.config,
-                            mode: e.target.value as "fixed" | "percentage",
-                          },
-                        } as FlowNode)
-                      }
-                    >
-                      <option value="fixed">Fixed amount</option>
-                      <option value="percentage">Percentage</option>
-                    </select>
-                  </Field>
-
-                  {node.config.mode === "fixed" && (
-                    <Field
-                      label={`Amount (${assetLabel(node.config.asset)})`}
-                      error={fieldError("amountStroops")}
-                    >
-                      <StroopsDraftInput
-                        className="input"
-                        value={node.config.amountStroops}
-                        onChange={(stroops) =>
+                  <SharedField label="Mode">
+                    {(control) => (
+                      <select
+                        {...control}
+                        className={inputClass}
+                        value={node.config.mode}
+                        onChange={(e) =>
                           onChange({
                             ...node,
                             config: {
                               ...node.config,
-                              amountStroops: stroops,
+                              mode: e.target.value as "fixed" | "percentage",
                             },
-                          })
+                          } as FlowNode)
                         }
-                      />
-                      {node.config.amountStroops && (
-                        <div className="mt-0.5 text-[11px] text-zinc-500">
-                          = {stroopsToDisplay(node.config.amountStroops, node.config.asset)}
-                        </div>
-                      )}
-                    </Field>
+                      >
+                        <option value="fixed">Fixed amount</option>
+                        <option value="percentage">Percentage</option>
+                      </select>
+                    )}
+                  </SharedField>
+
+                  {node.config.mode === "fixed" && (
+                    <AmountInput
+                      label={`Amount (${assetLabel(node.config.asset)})`}
+                      error={fieldError("amountStroops")}
+                      value={node.config.amountStroops}
+                      onChange={(stroops) =>
+                        onChange({
+                          ...node,
+                          config: {
+                            ...node.config,
+                            amountStroops: stroops,
+                          },
+                        })
+                      }
+                      commit="draft"
+                      echo={false}
+                      asset={node.config.asset}
+                      hint={
+                        <>
+                          {node.config.amountStroops && (
+                            <div className="mt-0.5 text-[11px] text-zinc-500">
+                              = {stroopsToDisplay(node.config.amountStroops, node.config.asset)}
+                            </div>
+                          )}
+                        </>
+                      }
+                    />
                   )}
 
                   {node.config.mode === "percentage" && (
-                    <Field label="Percentage" error={fieldError("percentage")}>
-                      <div className="relative">
-                        <input
-                          className="input pr-6"
-                          type="number"
-                          min={0}
-                          max={100}
-                          value={node.config.percentage ?? ""}
-                          onChange={(e) => {
-                            const v = Number(e.target.value);
-                            onChange({
-                              ...node,
-                              config: {
-                                ...node.config,
-                                // A cleared field leaves the percentage unset
-                                // instead of snapping to 0; validateFlow asks
-                                // for one before deploy (#583).
-                                percentage:
-                                  e.target.value === "" || isNaN(v)
-                                    ? undefined
-                                    : Math.min(100, Math.max(0, v)),
-                              },
-                            });
-                          }}
-                        />
-                        <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[11px] text-zinc-500">
-                          %
-                        </span>
-                      </div>
-                    </Field>
+                    <PercentageInput
+                      label="Percentage"
+                      error={fieldError("percentage")}
+                      value={node.config.percentage}
+                      onChange={(percentage) =>
+                        onChange({ ...node, config: { ...node.config, percentage } })
+                      }
+                    />
                   )}
                 </>
               )}
@@ -800,7 +829,7 @@ export default function ConfigPanel({
 
       {node.type === "split" && (
         <>
-          <AssetField
+          <NodeAssetField
             asset={node.config.asset}
             error={assetError}
             onChange={(asset) =>
@@ -860,7 +889,7 @@ export default function ConfigPanel({
                 — the sum of the recipient amounts below
               </div>
             ) : (
-              <Field
+              <AmountInput
                 label={
                   <>
                     Amount per interval ({assetLabel(node.config.asset)}){" "}
@@ -868,28 +897,32 @@ export default function ConfigPanel({
                   </>
                 }
                 error={fieldError("amountPerIntervalStroops")}
-              >
-                <StroopsDraftInput
-                  className="input"
-                  value={node.config.amountPerIntervalStroops}
-                  placeholder="Amount released each interval"
-                  onChange={(stroops) => {
-                    onChange({
-                      ...node,
-                      config: {
-                        ...node.config,
-                        amountPerIntervalStroops: stroops || undefined,
-                      },
-                    });
-                  }}
-                />
-                {node.config.amountPerIntervalStroops && (
-                  <div className="mt-0.5 text-[11px] text-zinc-500">
-                    = {stroopsToDisplay(node.config.amountPerIntervalStroops, node.config.asset)}{" "}
-                    per interval
-                  </div>
-                )}
-              </Field>
+                value={node.config.amountPerIntervalStroops}
+                placeholder="Amount released each interval"
+                onChange={(stroops) => {
+                  onChange({
+                    ...node,
+                    config: {
+                      ...node.config,
+                      amountPerIntervalStroops: stroops || undefined,
+                    },
+                  });
+                }}
+                commit="draft"
+                echo={false}
+                asset={node.config.asset}
+                hint={
+                  <>
+                    {node.config.amountPerIntervalStroops && (
+                      <div className="mt-0.5 text-[11px] text-zinc-500">
+                        ={" "}
+                        {stroopsToDisplay(node.config.amountPerIntervalStroops, node.config.asset)}{" "}
+                        per interval
+                      </div>
+                    )}
+                  </>
+                }
+              />
             ))}
 
           {node.type === "split" && (
@@ -942,7 +975,7 @@ export default function ConfigPanel({
 
       {node.type === "web2_webhook" && (
         <>
-          <AssetField
+          <NodeAssetField
             asset={node.config.asset}
             error={assetError}
             onChange={(asset) =>
@@ -958,40 +991,63 @@ export default function ConfigPanel({
 
       {node.type === "subscription" && (
         <>
-          <AssetField
+          <NodeAssetField
             asset={node.config.asset}
             error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
           />
-          <ApiFillField
-            label="Subscriber address (G… or PENDING:)"
-            devMode={devMode}
-            active={isApiFillAddress(node.config.subscriber)}
-            onActivate={() =>
-              onChange({ ...node, config: { ...node.config, subscriber: API_FILL_ADDRESS } })
-            }
-            onDeactivate={() => onChange({ ...node, config: { ...node.config, subscriber: "" } })}
-            hint="Subscriber set via the API after deploy"
-            error={fieldError("subscriber")}
-          >
-            <AddressInput
-              value={node.config.subscriber}
-              onChange={(subscriber) =>
-                onChange({
-                  ...node,
-                  config: { ...node.config, subscriber },
-                })
-              }
-              pending={isPendingAddress(node.config.subscriber)}
-              error={!!fieldError("subscriber")}
-              addressBook={addressBook}
-              onAddressBookChange={refreshAddressBook}
-              addressBookLoading={addressBookLoading}
-              addressBookError={addressBookError}
-            />
-          </ApiFillField>
+          <>
+            {devMode ? (
+              <ApiFillField
+                label="Subscriber address (G… or PENDING:)"
+                devMode={devMode}
+                active={isApiFillAddress(node.config.subscriber)}
+                onActivate={() =>
+                  onChange({ ...node, config: { ...node.config, subscriber: API_FILL_ADDRESS } })
+                }
+                onDeactivate={() =>
+                  onChange({ ...node, config: { ...node.config, subscriber: "" } })
+                }
+                hint="Subscriber set via the API after deploy"
+                error={fieldError("subscriber")}
+              >
+                <AddressInput
+                  value={node.config.subscriber}
+                  onChange={(subscriber) =>
+                    onChange({
+                      ...node,
+                      config: { ...node.config, subscriber },
+                    })
+                  }
+                  pending={isPendingAddress(node.config.subscriber)}
+                  error={!!fieldError("subscriber")}
+                  addressBook={addressBook}
+                  onAddressBookChange={refreshAddressBook}
+                  addressBookLoading={addressBookLoading}
+                  addressBookError={addressBookError}
+                />
+              </ApiFillField>
+            ) : (
+              <AddressPicker
+                label="Subscriber address (G… or PENDING:)"
+                error={fieldError("subscriber")}
+                value={node.config.subscriber}
+                onChange={(subscriber) =>
+                  onChange({
+                    ...node,
+                    config: { ...node.config, subscriber },
+                  })
+                }
+                pending={isPendingAddress(node.config.subscriber)}
+                addressBook={addressBook}
+                onAddressBookChange={refreshAddressBook}
+                addressBookLoading={addressBookLoading}
+                addressBookError={addressBookError}
+              />
+            )}
+          </>
           {(() => {
             // When the subscription feeds a split whose recipients are all
             // fixed amounts, the per-period pull is DERIVED from their sum
@@ -1008,42 +1064,45 @@ export default function ConfigPanel({
                 : null;
             if (fixedTotal && fixedTotal !== "0") {
               return (
-                <Field label={`Amount per period (${assetLabel(node.config.asset)})`}>
+                <SharedField group label={`Amount per period (${assetLabel(node.config.asset)})`}>
                   <div className="rounded border border-zinc-800 bg-zinc-900/50 p-2 text-xs text-zinc-400">
                     Derived from the split recipients: {formatStroops(fixedTotal)}{" "}
                     {assetLabel(node.config.asset)} per period (sum of the fixed amounts).
                   </div>
-                </Field>
+                </SharedField>
               );
             }
             return (
-              <Field
+              <AmountInput
                 label={`Amount per period (${assetLabel(node.config.asset)})`}
                 error={fieldError("amountPerPeriodStroops")}
-              >
-                <StroopsDraftInput
-                  className="input"
-                  value={node.config.amountPerPeriodStroops}
-                  onChange={(stroops) =>
-                    onChange({
-                      ...node,
-                      config: {
-                        ...node.config,
-                        amountPerPeriodStroops: stroops,
-                      },
-                    })
-                  }
-                />
-                <ApiFillHint
-                  show={
-                    devMode &&
-                    (!node.config.amountPerPeriodStroops ||
-                      node.config.amountPerPeriodStroops === "0")
-                  }
-                >
-                  Leave empty to set the amount via the API after deploy.
-                </ApiFillHint>
-              </Field>
+                value={node.config.amountPerPeriodStroops}
+                onChange={(stroops) =>
+                  onChange({
+                    ...node,
+                    config: {
+                      ...node.config,
+                      amountPerPeriodStroops: stroops,
+                    },
+                  })
+                }
+                commit="draft"
+                echo={false}
+                asset={node.config.asset}
+                hint={
+                  <>
+                    <ApiFillHint
+                      show={
+                        devMode &&
+                        (!node.config.amountPerPeriodStroops ||
+                          node.config.amountPerPeriodStroops === "0")
+                      }
+                    >
+                      Leave empty to set the amount via the API after deploy.
+                    </ApiFillHint>
+                  </>
+                }
+              />
             );
           })()}
           {(() => {
@@ -1058,6 +1117,7 @@ export default function ConfigPanel({
             return (
               <>
                 <IntervalField
+                  shared
                   amount={amount}
                   unit={unit}
                   amountError={fieldError("intervalAmount")}
@@ -1075,71 +1135,79 @@ export default function ConfigPanel({
                     } as FlowNode)
                   }
                 />
-                <Field label="Ends at — optional" error={fieldError("endsAt")}>
-                  <div className="flex gap-1">
+                <SharedField label="Ends at — optional" error={fieldError("endsAt")}>
+                  {(control) => (
+                    <>
+                      <div className="flex gap-1">
+                        <input
+                          {...control}
+                          className={inputClass}
+                          type="datetime-local"
+                          value={
+                            cfg.endsAt
+                              ? formatIsoForTimezone(
+                                  cfg.endsAt,
+                                  Intl.DateTimeFormat().resolvedOptions().timeZone,
+                                )
+                              : ""
+                          }
+                          onChange={(e) => {
+                            const local = e.target.value;
+                            onChange({
+                              ...node,
+                              config: {
+                                ...cfg,
+                                endsAt: local
+                                  ? isoFromLocalAndTimezone(
+                                      local,
+                                      Intl.DateTimeFormat().resolvedOptions().timeZone,
+                                    )
+                                  : undefined,
+                                occurrences: undefined,
+                              },
+                            } as FlowNode);
+                          }}
+                        />
+                        {cfg.endsAt && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onChange({
+                                ...node,
+                                config: { ...cfg, endsAt: undefined },
+                              } as FlowNode)
+                            }
+                            className="rounded border border-zinc-700 px-2 text-zinc-400 hover:text-red-300"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </SharedField>
+                <SharedField label="Occurrences — optional" error={fieldError("occurrences")}>
+                  {(control) => (
                     <input
-                      className="input"
-                      type="datetime-local"
-                      value={
-                        cfg.endsAt
-                          ? formatIsoForTimezone(
-                              cfg.endsAt,
-                              Intl.DateTimeFormat().resolvedOptions().timeZone,
-                            )
-                          : ""
-                      }
-                      onChange={(e) => {
-                        const local = e.target.value;
+                      {...control}
+                      className={inputClass}
+                      type="number"
+                      min="1"
+                      placeholder="e.g. 5"
+                      value={cfg.occurrences ?? ""}
+                      onChange={(e) =>
                         onChange({
                           ...node,
                           config: {
                             ...cfg,
-                            endsAt: local
-                              ? isoFromLocalAndTimezone(
-                                  local,
-                                  Intl.DateTimeFormat().resolvedOptions().timeZone,
-                                )
-                              : undefined,
-                            occurrences: undefined,
+                            endsAt: undefined,
+                            occurrences: e.target.value ? Number(e.target.value) : undefined,
                           },
-                        } as FlowNode);
-                      }}
+                        } as FlowNode)
+                      }
                     />
-                    {cfg.endsAt && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onChange({
-                            ...node,
-                            config: { ...cfg, endsAt: undefined },
-                          } as FlowNode)
-                        }
-                        className="rounded border border-zinc-700 px-2 text-zinc-400 hover:text-red-300"
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                </Field>
-                <Field label="Occurrences — optional" error={fieldError("occurrences")}>
-                  <input
-                    className="input"
-                    type="number"
-                    min="1"
-                    placeholder="e.g. 5"
-                    value={cfg.occurrences ?? ""}
-                    onChange={(e) =>
-                      onChange({
-                        ...node,
-                        config: {
-                          ...cfg,
-                          endsAt: undefined,
-                          occurrences: e.target.value ? Number(e.target.value) : undefined,
-                        },
-                      } as FlowNode)
-                    }
-                  />
-                </Field>
+                  )}
+                </SharedField>
               </>
             );
           })()}
@@ -1473,70 +1541,82 @@ export default function ConfigPanel({
 
       {node.type === "condition" && (
         <>
-          <Field label="Condition kind">
-            <select
-              className="input"
-              value={node.config.kind}
-              onChange={(e) => {
-                const k = e.target.value;
-                if (k === "amount_gt" || k === "amount_lt") {
-                  onChange({ ...node, config: { kind: k, amountStroops: "10000000" } } as FlowNode);
-                } else if (k === "oracle_gte") {
-                  onChange({
-                    ...node,
-                    config: {
-                      kind: "oracle_gte",
-                      oracle: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
-                      key: "price",
-                      threshold: "100",
-                    },
-                  });
-                } else if (k === "time_after" || k === "time_before") {
-                  onChange({
-                    ...node,
-                    config: {
-                      kind: k,
-                      at: new Date().toISOString(),
-                      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    },
-                  } as FlowNode);
-                } else if (k === "multisig") {
-                  onChange({
-                    ...node,
-                    config: {
-                      kind: "multisig",
-                      signers: ["PENDING:signer1"],
-                      threshold: 1,
-                    },
-                  });
-                }
-              }}
-            >
-              <option value="amount_gt">amount &gt;</option>
-              <option value="amount_lt">amount &lt;</option>
-              <option value="time_after">time after</option>
-              <option value="time_before">time before</option>
-            </select>
-          </Field>
-          {(node.config.kind === "amount_gt" || node.config.kind === "amount_lt") && (
-            <Field label="Threshold" error={fieldError("amountStroops")}>
-              <StroopsDraftInput
-                className="input"
-                value={node.config.amountStroops}
-                onChange={(stroops) => {
-                  const next =
-                    node.config.kind === "amount_gt"
-                      ? { kind: "amount_gt" as const, amountStroops: stroops }
-                      : { kind: "amount_lt" as const, amountStroops: stroops };
-                  onChange({ ...node, config: next } as FlowNode);
+          <SharedField label="Condition kind">
+            {(control) => (
+              <select
+                {...control}
+                className={inputClass}
+                value={node.config.kind}
+                onChange={(e) => {
+                  const k = e.target.value;
+                  if (k === "amount_gt" || k === "amount_lt") {
+                    onChange({
+                      ...node,
+                      config: { kind: k, amountStroops: "10000000" },
+                    } as FlowNode);
+                  } else if (k === "oracle_gte") {
+                    onChange({
+                      ...node,
+                      config: {
+                        kind: "oracle_gte",
+                        oracle: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+                        key: "price",
+                        threshold: "100",
+                      },
+                    });
+                  } else if (k === "time_after" || k === "time_before") {
+                    onChange({
+                      ...node,
+                      config: {
+                        kind: k,
+                        at: new Date().toISOString(),
+                        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                      },
+                    } as FlowNode);
+                  } else if (k === "multisig") {
+                    onChange({
+                      ...node,
+                      config: {
+                        kind: "multisig",
+                        signers: ["PENDING:signer1"],
+                        threshold: 1,
+                      },
+                    });
+                  }
                 }}
-              />
-              {trigger?.type === "on_receive" && (
-                <div className="mt-0.5 text-[11px] text-zinc-500">
-                  = {stroopsToDisplay(node.config.amountStroops, trigger.config.asset)}
-                </div>
-              )}
-            </Field>
+              >
+                <option value="amount_gt">amount &gt;</option>
+                <option value="amount_lt">amount &lt;</option>
+                <option value="time_after">time after</option>
+                <option value="time_before">time before</option>
+              </select>
+            )}
+          </SharedField>
+          {(node.config.kind === "amount_gt" || node.config.kind === "amount_lt") && (
+            <AmountInput
+              label="Threshold"
+              error={fieldError("amountStroops")}
+              value={node.config.amountStroops}
+              onChange={(stroops) => {
+                const next =
+                  node.config.kind === "amount_gt"
+                    ? { kind: "amount_gt" as const, amountStroops: stroops }
+                    : { kind: "amount_lt" as const, amountStroops: stroops };
+                onChange({ ...node, config: next } as FlowNode);
+              }}
+              commit="draft"
+              echo={false}
+              asset={trigger?.type === "on_receive" ? trigger.config.asset : undefined}
+              hint={
+                <>
+                  {trigger?.type === "on_receive" && (
+                    <div className="mt-0.5 text-[11px] text-zinc-500">
+                      = {stroopsToDisplay(node.config.amountStroops, trigger.config.asset)}
+                    </div>
+                  )}
+                </>
+              }
+            />
           )}
           {node.config.kind === "oracle_gte" && (
             <>
@@ -1582,44 +1662,50 @@ export default function ConfigPanel({
               const tz = cfg.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
               return (
                 <>
-                  <Field label="Date &amp; time" error={fieldError("at")}>
-                    <input
-                      className="input"
-                      type="datetime-local"
-                      value={formatIsoForTimezone(cfg.at, tz)}
-                      onChange={(e) => {
-                        const local = e.target.value;
-                        const at = isoFromLocalAndTimezone(local, tz);
-                        const next =
-                          cfg.kind === "time_after"
-                            ? { kind: "time_after" as const, at, timeZone: tz }
-                            : { kind: "time_before" as const, at, timeZone: tz };
-                        onChange({ ...node, config: next } as FlowNode);
-                      }}
-                    />
-                  </Field>
-                  <Field label="Timezone">
-                    <select
-                      className="input"
-                      value={tz}
-                      onChange={(e) => {
-                        const newTz = e.target.value;
-                        const local = formatIsoForTimezone(cfg.at, tz);
-                        const at = isoFromLocalAndTimezone(local, newTz);
-                        const next =
-                          cfg.kind === "time_after"
-                            ? { kind: "time_after" as const, at, timeZone: newTz }
-                            : { kind: "time_before" as const, at, timeZone: newTz };
-                        onChange({ ...node, config: next } as FlowNode);
-                      }}
-                    >
-                      {TIMEZONES.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
+                  <SharedField label="Date &amp; time" error={fieldError("at")}>
+                    {(control) => (
+                      <input
+                        {...control}
+                        className={inputClass}
+                        type="datetime-local"
+                        value={formatIsoForTimezone(cfg.at, tz)}
+                        onChange={(e) => {
+                          const local = e.target.value;
+                          const at = isoFromLocalAndTimezone(local, tz);
+                          const next =
+                            cfg.kind === "time_after"
+                              ? { kind: "time_after" as const, at, timeZone: tz }
+                              : { kind: "time_before" as const, at, timeZone: tz };
+                          onChange({ ...node, config: next } as FlowNode);
+                        }}
+                      />
+                    )}
+                  </SharedField>
+                  <SharedField label="Timezone">
+                    {(control) => (
+                      <select
+                        {...control}
+                        className={inputClass}
+                        value={tz}
+                        onChange={(e) => {
+                          const newTz = e.target.value;
+                          const local = formatIsoForTimezone(cfg.at, tz);
+                          const at = isoFromLocalAndTimezone(local, newTz);
+                          const next =
+                            cfg.kind === "time_after"
+                              ? { kind: "time_after" as const, at, timeZone: newTz }
+                              : { kind: "time_before" as const, at, timeZone: newTz };
+                          onChange({ ...node, config: next } as FlowNode);
+                        }}
+                      >
+                        {TIMEZONES.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </SharedField>
                   <p className="text-on-surface-variant text-[11px] leading-snug">
                     The funds are held until released.{" "}
                     {cfg.kind === "time_before"
@@ -1724,596 +1810,6 @@ export default function ConfigPanel({
   );
 }
 
-function SplitRecipientsEditor({
-  node,
-  trigger,
-  sourceAmount,
-  devMode,
-  addressBook,
-  refreshAddressBook,
-  addressBookLoading,
-  addressBookError,
-  fieldErrors,
-  onChange,
-  offrampEnabled,
-  sandbox,
-}: {
-  node: Extract<FlowNode, { type: "split" }>;
-  trigger: FlowNode | undefined;
-  sourceAmount: string | undefined;
-  devMode: boolean;
-  addressBook: AddressEntry[];
-  refreshAddressBook?: () => void;
-  addressBookLoading?: boolean;
-  addressBookError?: string | null;
-  /** Per-field validation messages for this node, keyed by config path. */
-  fieldErrors?: Map<string, string>;
-  onChange: (n: FlowNode) => void;
-  /** Off on this server (#722): fiat is not offered, only switched away from. */
-  offrampEnabled: boolean;
-  sandbox?: boolean;
-}) {
-  const onAddressBookChange = refreshAddressBook ?? (() => {});
-  const listError = fieldErrors?.get("recipients") ?? null;
-  const recipientError = (i: number, field: string): string | null =>
-    fieldErrors?.get(`recipients.${i}.${field}`) ?? null;
-  // In dev mode an empty recipients list means "fill via API"; the banner in
-  // the parent ConfigPanel already covers it, so skip the editor entirely.
-  if (devMode && node.config.recipients.length === 0) return null;
-
-  const triggerType = trigger?.type ?? null;
-  const isPayroll = triggerType === "payroll";
-  const isStreamer = triggerType === "on_schedule";
-  const fiatPayoutAvailable = fiatAvailable(offrampEnabled, triggerType, devMode);
-  const mode = isPayroll ? "fixed" : (node.config.recipients[0]?.mode ?? "percentage");
-  const totalFixed = splitTotalFixedStroops(node.config.recipients);
-  const minAmount = trigger?.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
-
-  // For scheduled splits the projection base lives on the split itself: the
-  // amount-per-interval field in percentage mode, or the sum of the fixed
-  // amounts in fixed mode (to-params derives the same base).
-  const projectionBase =
-    sourceAmount ??
-    (isStreamer
-      ? mode === "fixed"
-        ? (totalFixed ?? undefined)
-        : node.config.amountPerIntervalStroops
-      : undefined);
-
-  // Cache the shares from the mode the user is leaving so that toggling
-  // percentage → fixed → percentage restores the previously entered values
-  // instead of silently zeroing them out. Keyed by recipient index.
-  const modeCache = useRef<{
-    bps: Map<number, number>;
-    amountStroops: Map<number, string>;
-  }>({ bps: new Map(), amountStroops: new Map() });
-
-  // Each recipient card can be collapsed to a summary row. Default to all
-  // expanded when there are only a few recipients; collapse all but the first
-  // when the list gets long.
-  const [expandedRecipients, setExpandedRecipients] = useState<Set<number>>(() => {
-    if (node.config.recipients.length <= 3) {
-      return new Set(node.config.recipients.map((_, i) => i));
-    }
-    return new Set([0]);
-  });
-
-  useEffect(() => {
-    setExpandedRecipients(() => {
-      const next = new Set<number>();
-      if (node.config.recipients.length <= 3) {
-        for (let i = 0; i < node.config.recipients.length; i++) next.add(i);
-      }
-      return next;
-    });
-    // Switching to a different split node invalidates the cached shares.
-    modeCache.current = { bps: new Map(), amountStroops: new Map() };
-  }, [node.id]);
-
-  const toggleRecipient = (i: number) => {
-    setExpandedRecipients((prev) => {
-      const next = new Set(prev);
-      if (next.has(i)) next.delete(i);
-      else next.add(i);
-      return next;
-    });
-  };
-
-  const deleteRecipient = (i: number) => {
-    const nextRecipients = node.config.recipients.filter((_, j) => j !== i);
-    onChange({
-      ...node,
-      config: { ...node.config, recipients: nextRecipients },
-    } as FlowNode);
-    setExpandedRecipients((prev) => {
-      const next = new Set<number>();
-      for (const idx of prev) {
-        if (idx < i) next.add(idx);
-        else if (idx > i) next.add(idx - 1);
-      }
-      return next;
-    });
-  };
-
-  const setMode = (newMode: "percentage" | "fixed") => {
-    // Snapshot the current mode's values before the union switch discards them.
-    node.config.recipients.forEach((r, i) => {
-      if (r.mode === "percentage") modeCache.current.bps.set(i, r.bps);
-      else modeCache.current.amountStroops.set(i, r.amountStroops);
-    });
-    // A recipient with no cached share gets an even part of what the cached
-    // ones leave, so switching a fresh fixed split to percentage lands on a
-    // valid 100% instead of writing 0 into every share (#583).
-    const fresh = defaultShares(node.config.recipients.map((_, i) => modeCache.current.bps.get(i)));
-    const next = node.config.recipients.map((r, i) => {
-      // Preserve mode-independent fields (payout/bank details) across the switch.
-      const base = {
-        address: r.address,
-        label: r.label,
-        payoutMode: r.payoutMode,
-        accountName: r.accountName,
-        accountNumber: r.accountNumber,
-        bankCode: r.bankCode,
-      };
-      if (newMode === "percentage") {
-        return { ...base, mode: "percentage" as const, bps: fresh[i] ?? 0 };
-      }
-      return {
-        ...base,
-        mode: "fixed" as const,
-        amountStroops: modeCache.current.amountStroops.get(i) ?? "0",
-      };
-    });
-    onChange({
-      ...node,
-      config: { ...node.config, recipients: next },
-    } as FlowNode);
-  };
-
-  const updateRecipient = (i: number, r: SplitRecipient) => {
-    const next = [...node.config.recipients];
-    next[i] = r;
-    onChange({
-      ...node,
-      config: { ...node.config, recipients: next },
-    } as FlowNode);
-  };
-
-  return (
-    <div className="space-y-3">
-      {isPayroll ? (
-        <div className="text-xs text-amber-400">
-          Payroll distributions use fixed salary amounts only.
-        </div>
-      ) : (
-        <Field label="Distribution mode">
-          <select
-            className="input"
-            value={mode}
-            onChange={(e) => setMode(e.target.value as "percentage" | "fixed")}
-          >
-            <option value="percentage">Percentage</option>
-            <option value="fixed">Fixed amount</option>
-          </select>
-        </Field>
-      )}
-
-      {isStreamer && (
-        <div className="text-xs text-zinc-400">
-          {mode === "percentage"
-            ? "The amount per interval is divided among the recipients by their shares."
-            : "Each recipient receives their fixed amount every interval."}
-        </div>
-      )}
-
-      <div className={cn("text-xs", listError ? "text-error" : "text-zinc-400")}>
-        {mode === "percentage"
-          ? "Recipients (shares must sum to 100%)"
-          : isStreamer
-            ? "Recipients (each receives their amount every interval)"
-            : "Recipients (fixed amounts accumulate until the total is reached)"}
-      </div>
-
-      {listError && (
-        <p role="alert" className="text-error -mt-2 text-[11px] leading-snug">
-          {listError}
-        </p>
-      )}
-
-      {mode === "percentage" && <AllocationBar recipients={node.config.recipients} />}
-
-      {node.config.recipients.map((r, i) => {
-        const isPending = isPendingAddress(r.address);
-        const isPercentage = r.mode === "percentage";
-        // Fiat recipients (any trigger) sink through an auto-generated cash-out
-        // contract, so the wallet address and label are irrelevant — the bank
-        // details below are the destination.
-        const isFiatRecipient = r.payoutMode === "fiat";
-        const isExpanded = expandedRecipients.has(i);
-        const cardHasError = fieldErrors
-          ? [...fieldErrors.keys()].some((k) => k.startsWith(`recipients.${i}.`))
-          : false;
-        const projected =
-          isPercentage && projectionBase
-            ? stroopsToDisplay(
-                ((BigInt(projectionBase) * BigInt(r.bps)) / 10000n).toString(),
-                node.config.asset,
-              )
-            : null;
-
-        const summaryLabel = r.label
-          ? r.label
-          : isFiatRecipient
-            ? r.accountName?.trim() || "Fiat off-ramp"
-            : shortAddr(r.address);
-
-        const summaryAmount = isPercentage
-          ? `${bpsToPct(r.bps)}%`
-          : r.amountStroops && r.amountStroops !== "0"
-            ? stroopsToDisplay(r.amountStroops, node.config.asset)
-            : "0";
-
-        return (
-          <div
-            key={i}
-            className={cn(
-              "overflow-hidden rounded border bg-zinc-900/50",
-              cardHasError ? "border-error/60" : "border-zinc-800",
-            )}
-          >
-            <button
-              type="button"
-              onClick={() => toggleRecipient(i)}
-              className="flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left hover:bg-zinc-800/50"
-            >
-              <div className="flex min-w-0 items-center gap-1.5">
-                <span className="material-symbols-outlined text-[14px] text-zinc-500">
-                  {r.payoutMode === "fiat" ? "account_balance" : "account_circle"}
-                </span>
-                <span className="truncate text-xs text-zinc-300">{summaryLabel}</span>
-              </div>
-              <div className="flex shrink-0 items-center gap-1.5">
-                <span className="text-xs text-zinc-400">{summaryAmount}</span>
-                <span className="material-symbols-outlined text-[16px] text-zinc-500">
-                  {isExpanded ? "expand_less" : "expand_more"}
-                </span>
-              </div>
-            </button>
-
-            {isExpanded && (
-              <div className="space-y-2 border-t border-zinc-800 p-2 pt-1">
-                {isFiatRecipient ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs text-zinc-400">Fiat off-ramp</span>
-                      <button
-                        onClick={() => deleteRecipient(i)}
-                        className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-400 hover:text-red-300"
-                      >
-                        ×
-                      </button>
-                    </div>
-                    {isPercentage ? (
-                      <Field label="Share" error={recipientError(i, "bps")}>
-                        <BpsDraftInput
-                          className="input pr-5 text-right"
-                          value={r.bps}
-                          placeholder="0"
-                          onChange={(bps) => updateRecipient(i, { ...r, bps } as SplitRecipient)}
-                        />
-                      </Field>
-                    ) : (
-                      <Field label="Amount" error={recipientError(i, "amountStroops")}>
-                        <StroopsDraftInput
-                          className="input text-right"
-                          value={(r as Extract<SplitRecipient, { mode: "fixed" }>).amountStroops}
-                          placeholder="0"
-                          onChange={(stroops) => {
-                            updateRecipient(i, {
-                              ...r,
-                              amountStroops: stroops || "0",
-                            } as SplitRecipient);
-                          }}
-                        />
-                      </Field>
-                    )}
-                  </div>
-                ) : (
-                  <>
-                    {/* Row 1: wallet address + delete */}
-                    <div className="grid grid-cols-[1fr_28px] items-start gap-1">
-                      <div className="grid gap-0.5">
-                        <AddressInput
-                          value={r.address}
-                          placeholder="G... or PENDING:label"
-                          onChange={(address) =>
-                            updateRecipient(i, {
-                              ...r,
-                              address,
-                            } as SplitRecipient)
-                          }
-                          onSelectEntry={(entry) =>
-                            updateRecipient(i, {
-                              ...r,
-                              address: entry.address,
-                              label: entry.label || r.label,
-                            } as SplitRecipient)
-                          }
-                          pending={isPendingAddress(r.address)}
-                          label={`Wallet address for recipient ${i + 1}`}
-                          error={recipientError(i, "address")}
-                          addressBook={addressBook}
-                          onAddressBookChange={onAddressBookChange}
-                          addressBookLoading={addressBookLoading}
-                          addressBookError={addressBookError}
-                        />
-                      </div>
-                      <button
-                        onClick={() => deleteRecipient(i)}
-                        className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-400 hover:text-red-300"
-                      >
-                        ×
-                      </button>
-                    </div>
-
-                    {/* Row 2: share / amount */}
-                    <div className="mt-1 grid gap-0.5">
-                      <span className="text-[10px] text-zinc-500">
-                        {isPercentage ? "Share" : `Amount (${assetLabel(node.config.asset)})`}
-                      </span>
-                      {isPercentage ? (
-                        <BpsDraftInput
-                          className={cn(
-                            "input pr-5 text-right",
-                            recipientError(i, "bps") && "!border-error/70",
-                          )}
-                          aria-label={`Share for ${summaryLabel}`}
-                          value={r.bps}
-                          placeholder="0"
-                          onChange={(bps) => updateRecipient(i, { ...r, bps } as SplitRecipient)}
-                        />
-                      ) : (
-                        <>
-                          <div className="relative">
-                            <StroopsDraftInput
-                              className={cn(
-                                "input pr-5 text-right",
-                                recipientError(i, "amountStroops") && "!border-error/70",
-                              )}
-                              value={r.amountStroops}
-                              placeholder="0"
-                              onChange={(stroops) => {
-                                updateRecipient(i, {
-                                  ...r,
-                                  amountStroops: stroops || "0",
-                                } as SplitRecipient);
-                              }}
-                            />
-                          </div>
-                          {recipientError(i, "amountStroops") && (
-                            <span className="text-error text-[10px] leading-snug">
-                              {recipientError(i, "amountStroops")}
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-[1fr_auto] gap-1">
-                      <input
-                        className="input text-xs"
-                        value={r.label ?? ""}
-                        placeholder="Label (e.g. Alice)"
-                        onChange={(e) =>
-                          updateRecipient(i, {
-                            ...r,
-                            label: e.target.value || undefined,
-                          } as SplitRecipient)
-                        }
-                      />
-                      <div className="flex items-center gap-1 text-[10px]">
-                        {isPending && (
-                          <span className="rounded bg-amber-950 px-1.5 py-0.5 text-amber-400">
-                            needs address
-                          </span>
-                        )}
-                        {projected && (
-                          <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
-                            {projected}
-                          </span>
-                        )}
-                        {!isPercentage && r.amountStroops && r.amountStroops !== "0" && (
-                          <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
-                            {stroopsToDisplay(r.amountStroops, node.config.asset)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {showPayoutModeSelect(fiatPayoutAvailable, offrampEnabled, r.payoutMode) && (
-                  <div className="space-y-2 pt-1">
-                    <Field label="Payout mode">
-                      <select
-                        className="input text-xs"
-                        value={r.payoutMode ?? "crypto"}
-                        onChange={(e) => {
-                          const mode = e.target.value as "crypto" | "fiat";
-                          const isFiatNext = mode === "fiat";
-                          const base = {
-                            ...r,
-                            payoutMode: mode,
-                            // Fiat recipients get an auto-generated cash-out
-                            // contract at deploy time, so the wallet address
-                            // and label are hidden and replaced with a
-                            // sentinel. Switching back to crypto restores a
-                            // resolvable pending placeholder.
-                            address: isFiatNext
-                              ? "PENDING:fiat"
-                              : r.address === "PENDING:fiat"
-                                ? "PENDING:unnamed"
-                                : r.address,
-                            label: isFiatNext ? undefined : r.label,
-                          };
-                          updateRecipient(
-                            i,
-                            mode === "fiat" && !devMode
-                              ? {
-                                  ...base,
-                                  accountName: r.accountName ?? "",
-                                  accountNumber: r.accountNumber ?? "",
-                                  bankCode: r.bankCode ?? "",
-                                }
-                              : base,
-                          );
-                        }}
-                      >
-                        <option value="crypto">Crypto (wallet)</option>
-                        <option value="fiat" disabled={!fiatPayoutAvailable}>
-                          Fiat (bank transfer)
-                        </option>
-                      </select>
-                    </Field>
-
-                    {fiatPayoutAvailable && r.payoutMode === "fiat" && !devMode && (
-                      <>
-                        <Field label="Account name" error={recipientError(i, "accountName")}>
-                          <input
-                            className="input text-xs"
-                            value={r.accountName ?? ""}
-                            placeholder="Juan Dela Cruz"
-                            onChange={(e) =>
-                              updateRecipient(i, {
-                                ...r,
-                                accountName: e.target.value,
-                              } as SplitRecipient)
-                            }
-                          />
-                        </Field>
-                        <Field label="Account number" error={recipientError(i, "accountNumber")}>
-                          <input
-                            className="input text-xs"
-                            value={r.accountNumber ?? ""}
-                            placeholder="1234567890"
-                            onChange={(e) =>
-                              updateRecipient(i, {
-                                ...r,
-                                accountNumber: e.target.value,
-                              } as SplitRecipient)
-                            }
-                          />
-                        </Field>
-                        <Field label="Bank" error={recipientError(i, "bankCode")}>
-                          <select
-                            className="input text-xs"
-                            value={r.bankCode ?? ""}
-                            onChange={(e) =>
-                              updateRecipient(i, {
-                                ...r,
-                                bankCode: e.target.value,
-                              } as SplitRecipient)
-                            }
-                          >
-                            <option value="">— select bank —</option>
-                            <option value="BASECPH">BASECPH — BDO</option>
-                            <option value="BACTBPH">BACTBPH — BPI</option>
-                          </select>
-                        </Field>
-                      </>
-                    )}
-
-                    {!sandbox && (
-                      <RecipientEmailField
-                        value={r.email}
-                        onChange={(email) => updateRecipient(i, { ...r, email })}
-                      />
-                    )}
-                    {fiatPayoutAvailable && r.payoutMode === "fiat" && devMode && (
-                      <div className="rounded border border-amber-800/40 bg-amber-950/20 px-2 py-1 text-[10px] text-amber-300">
-                        Bank details configured via API after deploy.
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })}
-
-      {mode === "percentage" && remainingPct(node.config.recipients) > 0 && (
-        <div className="text-xs text-amber-400">
-          Remaining: {remainingPct(node.config.recipients).toFixed(1)}% unallocated
-        </div>
-      )}
-
-      {mode === "percentage" &&
-        node.config.recipients.reduce((s, r2) => s + (r2.mode === "percentage" ? r2.bps : 0), 0) >
-          TOTAL_BPS && (
-          <div className="text-error text-xs">
-            Total exceeds 100% by{" "}
-            {(
-              (node.config.recipients.reduce(
-                (s, r2) => s + (r2.mode === "percentage" ? r2.bps : 0),
-                0,
-              ) -
-                TOTAL_BPS) /
-              100
-            ).toFixed(1)}
-            %
-          </div>
-        )}
-
-      {mode === "fixed" && totalFixed && (
-        <div className="text-xs text-zinc-400">
-          Total fixed amount:{" "}
-          <span className="font-mono text-zinc-300">
-            {stroopsToDisplay(totalFixed, node.config.asset)}
-          </span>
-        </div>
-      )}
-
-      {mode === "fixed" && minAmount && totalFixed && BigInt(totalFixed) > BigInt(minAmount) && (
-        <div className="text-xs text-amber-400">
-          Total fixed amount is greater than the trigger minimum. Deposits will accumulate until the
-          total is reached.
-        </div>
-      )}
-
-      <button
-        className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900"
-        onClick={() => {
-          const nextRecipients = [
-            ...node.config.recipients,
-            isPayroll || mode === "fixed"
-              ? {
-                  address: "PENDING:unnamed",
-                  mode: "fixed" as const,
-                  amountStroops: "0",
-                }
-              : {
-                  address: "PENDING:unnamed",
-                  mode: "percentage" as const,
-                  bps: 100,
-                },
-          ];
-          onChange({
-            ...node,
-            config: { ...node.config, recipients: nextRecipients },
-          } as FlowNode);
-          setExpandedRecipients((prev) => {
-            const next = new Set(prev);
-            next.add(nextRecipients.length - 1);
-            return next;
-          });
-        }}
-      >
-        + Add recipient
-      </button>
-    </div>
-  );
-}
-
 /**
  * A field with an explicit "Fill via API" affordance, shown only in dev mode.
  * When the toggle is on, the input is replaced by a banner and the underlying
@@ -2378,9 +1874,4 @@ function ApiFillField({
 function ApiFillHint({ show, children }: { show: boolean; children: React.ReactNode }) {
   if (!show) return null;
   return <div className="mt-0.5 text-[11px] text-amber-400/80">{children}</div>;
-}
-
-function remainingPct(recipients: SplitRecipient[]): number {
-  const used = recipients.reduce((s, r) => (r.mode === "percentage" ? s + r.bps : s), 0);
-  return Math.max(0, (TOTAL_BPS - used) / 100);
 }

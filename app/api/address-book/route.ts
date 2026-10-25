@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { StrKey } from "@stellar/stellar-sdk";
+import { Prisma } from "@prisma/client";
+import { CreateAddressContactSchema } from "@/lib/address-book/schema";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
-
-const CreateSchema = z.object({
-  label: z.string().min(1).max(64),
-  address: z.string().refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar address"),
-});
 
 export async function GET() {
   return withErrorHandler(async () => {
@@ -27,7 +22,7 @@ export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     await enforceWriteRateLimit("addressBookWrite", user.id);
-    const body = CreateSchema.parse(await req.json());
+    const body = CreateAddressContactSchema.parse(await req.json());
 
     // Block saving the same wallet under a second label. Two contacts pointing
     // at one address are ambiguous and confusing (issue #243). Updating an
@@ -38,6 +33,23 @@ export async function POST(req: NextRequest) {
     });
     if (dupAddress) {
       throw new AppError("CONFLICT", `This address is already saved as "${dupAddress.label}".`);
+    }
+
+    if (body.createOnly) {
+      try {
+        // The unique owner/name constraint also protects against a stale contact list
+        // or simultaneous inline saves. This branch must never update an existing row.
+        const entry = await db.addressBookEntry.create({
+          data: { ownerId: user.id, label: body.label, address: body.address },
+        });
+        return NextResponse.json({ data: entry });
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+          const message = "A contact with this name already exists. Choose a different name.";
+          throw new AppError("CONFLICT", message, { label: [message] });
+        }
+        throw err;
+      }
     }
 
     const entry = await db.addressBookEntry.upsert({

@@ -295,16 +295,55 @@ export const parseOpenApi = (value: unknown) => {
     paths: object(data.paths),
   };
 };
+/** Supported/conditional integration operations; not proof of live readiness.
+ * @useDeclaredType
+ */
 export type DeploymentCapabilities = ReturnType<typeof parseCapabilities>;
+/** Node balances, asset totals and explicit freshness/completeness information.
+ * @useDeclaredType
+ */
 export type DeploymentBalances = ReturnType<typeof parseBalances>;
+/** Estimated output and fees for one deployed Swap node; no execution guarantee.
+ * @useDeclaredType
+ */
 export type SwapQuote = ReturnType<typeof parseQuote>;
+/** Attributable transaction result; UNKNOWN/REJECTED never authorize replacement.
+ * @useDeclaredType
+ */
 export type TransactionStatus = ReturnType<typeof parseTransaction>;
+/** One indexed contract event, identified by eventId and correlated using txHash.
+ * @useDeclaredType
+ */
 export type ContractEventItem = ReturnType<typeof parseEvent>;
+/** One indexed event page with continuation and hasMore state.
+ * @useDeclaredType
+ */
 export type ListEventsResponse = ReturnType<typeof parseEvents>;
+/** An explicitly authorized eligible deployment identity and pinned network.
+ * @useDeclaredType
+ */
 export type DeploymentSummary = ReturnType<typeof parseDeploymentSummary>;
+/** One scoped discovery page; nextCursor is null only at the end.
+ * @useDeclaredType
+ */
 export type ListDeploymentsResponse = ReturnType<typeof parseDeployments>;
+/** Projected public activity event, without private deployment data.
+ * @useDeclaredType
+ */
 export type PublicEmbedEvent = ReturnType<typeof parsePublicEvent>;
+/** Latest public projected events, rather than complete indexed history.
+ * @useDeclaredType
+ */
 export type PublicEmbedActivity = ReturnType<typeof parseActivity>;
+/** Legacy public streamer state, available without bearer authentication.
+ * @useDeclaredType
+ */
 export type PublicScheduleState = ReturnType<typeof parsePublicSchedule>;
+/** Explicitly created short-lived demo deployment credential; keep the token private.
+ * @useDeclaredType
+ */
 export type DemoToken = ReturnType<typeof parseDemo>;
+/** Raw public API specification; additive document fields are preserved.
+ * @useDeclaredType
+ */
 export type OpenApiDocument = ReturnType<typeof parseOpenApi>;

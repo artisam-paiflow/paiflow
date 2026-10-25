@@ -108,12 +108,17 @@ export async function submitTriggerTx(
   let send;
   try {
     send = await server.sendTransaction(tx);
-  } catch (error) {
+  } catch {
     await recordTransactionOutcome(txHash, "UNRESOLVED", {
       failureCode: "RPC_UNAVAILABLE",
       submissionAttempt,
     });
-    throw error;
+    // Transport errors may contain the signed envelope in their HTTP config.
+    // Preserve unknown finality without passing that object to route error logging.
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `Submission acknowledgement was not received for transaction ${txHash}. Its outcome is unknown. Check this original transaction hash without preparing or signing another payment.`,
+    );
   }
   const sent = classifySend(send);
   // Finality can arrive between the lookup and send. A replay refusal must not

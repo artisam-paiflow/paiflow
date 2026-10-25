@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const { db, getTransaction, record, confirm } = vi.hoisted(() => ({
   db: {
     signedTransaction: { findMany: vi.fn(), updateMany: vi.fn() },
@@ -35,7 +35,43 @@ beforeEach(() => {
   db.signedTransaction.updateMany.mockResolvedValue({ count: 1 });
   db.deployment.updateMany.mockResolvedValue({ count: 1 });
 });
+afterEach(() => vi.useRealTimers());
 describe("bounded server reconciliation", () => {
+  it.each([0, 1, 3, 7])(
+    "checks a recent deployment on the next minute tick after %s missing reads",
+    async (checkAttempts) => {
+      const now = new Date();
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(now);
+      db.signedTransaction.findMany.mockResolvedValue([
+        { ...row, kind: "DEPLOY", createdAt: new Date(now.getTime() - 5 * 60_000), checkAttempts },
+      ]);
+      getTransaction.mockResolvedValue({ status: "NOT_FOUND" });
+      await reconcileTransactions();
+      expect(db.signedTransaction.updateMany).toHaveBeenLastCalledWith({
+        where: { id: row.id, outcome: "UNRESOLVED", submissionRevision: 1, outcomeRevision: 2 },
+        data: { nextCheckAt: new Date(now.getTime() + 60_000) },
+      });
+    },
+  );
+  it.each(["DEPLOY", "TRIGGER"])(
+    "retains long-term backoff for older %s attempts without clearing unknown finality",
+    async (kind) => {
+      const now = new Date();
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(now);
+      db.signedTransaction.findMany.mockResolvedValue([
+        { ...row, kind, createdAt: new Date(now.getTime() - 15 * 60_000), checkAttempts: 4 },
+      ]);
+      getTransaction.mockResolvedValue({ status: "NOT_FOUND" });
+      await reconcileTransactions();
+      expect(record).toHaveBeenCalledWith(row.txHash, "UNRESOLVED", expect.any(Object));
+      expect(db.signedTransaction.updateMany).toHaveBeenLastCalledWith({
+        where: { id: row.id, outcome: "UNRESOLVED", submissionRevision: 1, outcomeRevision: 2 },
+        data: { nextCheckAt: new Date(now.getTime() + 480_000) },
+      });
+    },
+  );
   it.each(["NOT_FOUND", "RPC_UNAVAILABLE"])(
     "preserves a known RPC rejection on %s without a resend",
     async (result) => {

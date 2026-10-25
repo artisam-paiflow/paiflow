@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  withInteractiveRpcBudget,
+  remainingInteractiveRpcMs,
+  withIndependentEventRpcBudget,
+} from "@/lib/stellar/interactive-rpc-budget";
 import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { recordTransactionOutcome } from "@/lib/analytics/outcomes";
 import { sorobanRpc } from "@/lib/stellar/client";
@@ -25,10 +30,8 @@ const QuerySchema = z.object({
     .transform((h) => h.toLowerCase()),
 });
 
-// `sorobanRpc()` times each HTTP call out at 10s, but an ingest is one getEvents
-// per pipeline contract, so a slow RPC could still hold this response open past
-// the client's finality budget. Ingestion is best-effort — the cron poller re-runs whatever the
-// deadline cut short — so the status answer never waits longer than this.
+// Event ingestion uses at most five seconds of the remaining interactive budget.
+// Its explicitly owned worker cannot extend the original RPC deadline.
 const EVENT_INGEST_DEADLINE_MS = 5_000;
 
 // The status route is public, so the caller has no session to attribute a
@@ -190,7 +193,21 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
     const { txHash } = parsed.data;
 
     const server = sorobanRpc();
-    const got = await server.getTransaction(txHash);
+    const lookupStartedAt = Date.now();
+    const got = await server.getTransaction(txHash).catch(() => {
+      log.warn(
+        {
+          operation: "getTransaction",
+          category: "upstream",
+          elapsedMs: Math.max(0, Date.now() - lookupStartedAt),
+        },
+        "Transaction status unavailable; original hash retained",
+      );
+      throw new AppError(
+        "UPSTREAM_RPC",
+        "Cannot determine transaction finality; check the original transaction hash again",
+      );
+    });
 
     if (got.status === "SUCCESS") {
       await recordTransactionOutcome(txHash, "CONFIRMED", {
@@ -252,7 +269,11 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
         // Pull this transaction's contract events into the store now, so the
         // deployment page the user opens next renders them from the database
         // instead of waiting up to a minute for the cron poller.
-        const ingested = pollEventsFor(id).catch((err) => {
+        const ingested = (
+          remainingInteractiveRpcMs() > 0
+            ? withIndependentEventRpcBudget(() => pollEventsFor(id))
+            : Promise.resolve()
+        ).catch((err) => {
           // Caught on the poll itself, not just on the race, so a rejection that
           // lands after the deadline is still handled.
           log.warn({ err, deploymentId: id, txHash }, "tx-status: event ingestion failed");
@@ -268,7 +289,7 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
                 "tx-status: event ingestion deadline hit, leaving it to the cron poller",
               );
               resolve();
-            }, EVENT_INGEST_DEADLINE_MS);
+            }, remainingInteractiveRpcMs(EVENT_INGEST_DEADLINE_MS));
           }),
         ]);
         clearTimeout(deadline);
@@ -337,4 +358,7 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
   });
 }
 
-export const GET = deploymentServiceRoute(GETHandler, "public");
+export const GET = deploymentServiceRoute(
+  (req, ctx) => withInteractiveRpcBudget(() => GETHandler(req, ctx)),
+  "public",
+);

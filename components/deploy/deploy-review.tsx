@@ -4,6 +4,21 @@ import { Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { TemplateKind } from "@prisma/client";
 import type { Asset } from "@/lib/flows/schema";
+import {
+  PreparedRecoverySchema,
+  type PreparedRecovery,
+} from "@/lib/deployments/prepared-recovery-schema";
+import { preparedWalletTransactionHash } from "@/lib/stellar/wallet-signature";
+import {
+  readDeployPreparation,
+  saveDeployPreparation,
+  consumeDeployPreparation,
+  rejectDeployPreparation,
+  clearDeployPreparation,
+  deployPreparationKey,
+  legacyDeployRecoveryKey,
+  type DeployPreparation,
+} from "@/lib/deploy-preparation";
 import type { TrustlineCheck } from "@/lib/stellar/trustline-check";
 import { toastError } from "@/lib/friendly-toast";
 import { implementationLabel } from "@/lib/flows/implementation";
@@ -50,8 +65,11 @@ export default function DeployReview({
   const attemptRef = useRef<AbortController | null>(null);
   useLayoutEffect(() => {
     setBusy(false);
+    setRetry(null);
     return () => {
       attemptRef.current?.abort();
+      preparationEpoch.current++;
+      retryRef.current = null;
     };
   }, [flowId, network]);
   const pendingKey = deployPendingKey(flowId, network);
@@ -60,6 +78,25 @@ export default function DeployReview({
   const [storageBlocked, setStorageBlocked] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const pollTxStatus = usePollTxStatus();
+  const preparationKey = deployPreparationKey(pendingKey);
+  const legacyKey = legacyDeployRecoveryKey(flowId, network);
+  const [preparation, setPreparation] = useState<DeployPreparation | null>(null);
+  const [recoveryId, setRecoveryId] = useState<string | null>(null);
+  const [resumePreparation, setResumePreparation] = useState<Extract<
+    PreparedRecovery,
+    { status: "RESUMABLE" }
+  > | null>(null);
+  const [expiredPreparation, setExpiredPreparation] = useState(false);
+  const [retrySubmission, setRetrySubmission] = useState<{
+    pending: PendingDeploy;
+    signedXdr: string;
+  } | null>(null);
+  const retryRef = useRef<typeof retrySubmission>(null);
+  const preparationEpoch = useRef(0);
+  function setRetry(value: typeof retrySubmission) {
+    retryRef.current = value;
+    setRetrySubmission(value);
+  }
   const [pipeline, setPipeline] = useState<
     Array<{
       nodeId: string;
@@ -100,6 +137,19 @@ export default function DeployReview({
   function loadPending() {
     try {
       const saved = readPendingDeploy(pendingKey);
+      const prepared = readDeployPreparation(preparationKey);
+      const legacy = sessionStorage.getItem(legacyKey);
+      const identities = [saved?.deploymentId, prepared?.deploymentId, legacy].filter(
+        (id): id is string => Boolean(id),
+      );
+      if (
+        new Set(identities).size > 1 ||
+        (saved && prepared && saved.txHash !== prepared.txHash) ||
+        (legacy && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(legacy))
+      )
+        throw new Error("Conflicting deployment recovery identities. Resolve them before signing.");
+      setPreparation(prepared);
+      setRecoveryId(identities[0] ?? null);
       setPending(saved);
       setStorageBlocked(false);
       return saved;
@@ -125,7 +175,12 @@ export default function DeployReview({
       if (stored.status !== expected || stored.txHash !== saved.txHash)
         throw new Error("Deployment bookkeeping is not reconciled.");
       clearPendingDeploy(pendingKey, saved);
+      clearDeployPreparation(preparationKey, saved);
+      if (sessionStorage.getItem(legacyKey) === saved.deploymentId)
+        sessionStorage.removeItem(legacyKey);
       if (!current()) return;
+      loadPending();
+      setRetry(null);
       if (outcome.status === "SUCCESS") {
         setStatusMessage(`Deployment confirmed: ${saved.deploymentId}`);
         toast.success("Contract deployed.");
@@ -196,12 +251,205 @@ export default function DeployReview({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingKey]);
 
-  async function onDeploy() {
+  async function sendSignedDeployment(
+    saved: PendingDeploy,
+    signedXdr: string,
+    current: () => boolean,
+  ): Promise<"refused" | "unknown"> {
+    // Disable retry before sending. A lost reply never leaves an old positive refusal active.
+    setRetry(null);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const sending = (async () => {
+      try {
+        const response = await fetch(`/api/deployments/${saved.deploymentId}/submit`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ signedXdr }),
+        });
+        const body = await response.json();
+        if (
+          response.status === 502 &&
+          !response.ok &&
+          body?.error?.code === "UPSTREAM_RPC" &&
+          body.error.submissionStatus === "NOT_ACCEPTED" &&
+          current()
+        ) {
+          const actual = readPendingDeploy(pendingKey);
+          if (
+            actual?.deploymentId === saved.deploymentId &&
+            actual.txHash === saved.txHash &&
+            actual.phase === "submitted" &&
+            actual.attemptId === saved.attemptId
+          ) {
+            setRetry({ pending: actual, signedXdr });
+            setStatusMessage(
+              "The network did not accept this submission. You may retry the same signed transaction without signing again.",
+            );
+            return "refused" as const;
+          }
+        }
+      } catch {
+        /* A transport/parse failure proves no refusal. */
+      }
+      return "unknown" as const;
+    })();
+    try {
+      return await Promise.race([
+        sending,
+        new Promise<"unknown">((resolve) => {
+          timer = setTimeout(() => resolve("unknown"), 2000);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+  async function retryOriginalSubmission() {
+    const retry = retryRef.current;
+    if (!retry || busy || (attemptRef.current && !attemptRef.current.signal.aborted)) return;
+    const controller = new AbortController();
+    attemptRef.current = controller;
+    const current = () => attemptRef.current === controller && !controller.signal.aborted;
+    setBusy(true);
+    try {
+      await withDeployLock(pendingKey, async () => {
+        assertWalletAttemptActive(controller.signal);
+        const actual = loadPending();
+        if (
+          !actual ||
+          actual.deploymentId !== retry.pending.deploymentId ||
+          actual.txHash !== retry.pending.txHash ||
+          actual.phase !== "submitted" ||
+          actual.attemptId !== retry.pending.attemptId ||
+          retryRef.current !== retry
+        )
+          throw new Error("The original submission changed. Check its status before retrying.");
+        const result = await sendSignedDeployment(actual, retry.signedXdr, current);
+        if (result !== "refused") await reconcile(actual, current, true);
+      });
+    } catch (error) {
+      if (current()) toastError(error, "Submission status could not be checked");
+    } finally {
+      if (attemptRef.current === controller) {
+        attemptRef.current = null;
+        if (!controller.signal.aborted) setBusy(false);
+      }
+    }
+  }
+  async function inspectPreparation(): Promise<boolean> {
+    const epoch = ++preparationEpoch.current;
+    setResumePreparation(null);
+    setExpiredPreparation(false);
+    const saved = readPendingDeploy(pendingKey);
+    const ticket = readDeployPreparation(preparationKey);
+    const legacy = sessionStorage.getItem(legacyKey);
+    const id = ticket?.deploymentId ?? legacy;
+    if (saved || !id) return false;
+    const response = await fetch(`/api/deployments/${encodeURIComponent(id)}`);
+    if (!response.ok) return false;
+    const detail = (await response.json()).data;
+    if (
+      epoch !== preparationEpoch.current ||
+      readPendingDeploy(pendingKey) ||
+      detail?.id !== id ||
+      detail.flowId !== flowId ||
+      detail.network !== network ||
+      detail.serviceState !== "ACTIVE"
+    )
+      return false;
+    const actual = readDeployPreparation(preparationKey);
+    if (
+      !ticket ||
+      ticket.state !== "ready" ||
+      actual?.state !== "ready" ||
+      actual.deploymentId !== ticket.deploymentId ||
+      actual.txHash !== ticket.txHash ||
+      actual.address !== ticket.address
+    ) {
+      // RESUMABLE says nothing about whether a wallet signed. Legacy IDs and
+      // consumed/missing provenance remain read-only even if the server can resume.
+      setStatusMessage(
+        `Signing history is unknown for deployment ${id}. Check the original deployment; do not sign again.`,
+      );
+      return false;
+    }
+    if (
+      detail.status !== "PENDING_SIGNATURE" ||
+      detail.deployTxHash ||
+      detail.sourceAccount !== ticket.address
+    )
+      return false;
+    const parsed = PreparedRecoverySchema.safeParse(detail.preparedRecovery);
+    if (!parsed.success || parsed.data.status === "BLOCKED") return false;
+    const recovery = parsed.data;
+    if (
+      recovery.network !== network ||
+      recovery.sourceAccount !== ticket.address ||
+      recovery.txHash !== ticket.txHash ||
+      preparedWalletTransactionHash(
+        network,
+        recovery.unsignedXdr,
+        ticket.address,
+        recovery.networkPassphrase,
+      ) !== ticket.txHash
+    )
+      return false;
+    if (recovery.status === "RESUMABLE") {
+      setResumePreparation(recovery);
+      return false;
+    }
+    setExpiredPreparation(true);
+    return true;
+  }
+  useEffect(() => {
+    let active = true;
+    setResumePreparation(null);
+    setExpiredPreparation(false);
+    if (recoveryId && !pending)
+      void inspectPreparation().catch(() => {
+        if (!active) return;
+        setStatusMessage(
+          "Original preparation could not be verified. Check it before signing again.",
+        );
+      });
+    return () => {
+      active = false;
+      preparationEpoch.current++;
+    };
+    // Refresh only on durable identity/state changes, never implicitly sign.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingKey, recoveryId, pending?.txHash, preparation?.state]);
+
+  async function replaceExpiredPreparation() {
+    if (busy || (attemptRef.current && !attemptRef.current.signal.aborted)) return;
+    setBusy(true);
+    try {
+      await withDeployLock(pendingKey, async () => {
+        loadPending();
+        if (!(await inspectPreparation())) return;
+        const ticket = readDeployPreparation(preparationKey);
+        if (!ticket || ticket.state !== "ready" || readPendingDeploy(pendingKey)) return;
+        clearDeployPreparation(preparationKey, ticket);
+        if (sessionStorage.getItem(legacyKey) === ticket.deploymentId)
+          sessionStorage.removeItem(legacyKey);
+        loadPending();
+        setStatusMessage(null);
+      });
+    } catch (error) {
+      toastError(error, "Preparation could not be checked");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onDeploy(resuming = false) {
     if (
       !checkSettled ||
       !storageReady ||
       storageBlocked ||
       pending ||
+      (!resuming && Boolean(recoveryId || preparation)) ||
+      (resuming && !resumePreparation) ||
       (attemptRef.current && !attemptRef.current.signal.aborted)
     )
       return;
@@ -233,6 +481,10 @@ export default function DeployReview({
             await reconcile(existing, current);
             return;
           }
+          const ticket = readDeployPreparation(preparationKey);
+          const legacy = sessionStorage.getItem(legacyKey);
+          if (resuming ? !ticket || ticket.state !== "ready" : Boolean(ticket || legacy))
+            throw new Error("Resolve the original deployment before preparing another.");
           const { getWalletKit } = await import("@/components/deploy/wallet-kit");
           check();
           const shared = await getWalletKit(network);
@@ -242,35 +494,98 @@ export default function DeployReview({
           if (!connection) return;
           const { address, walletId } = connection;
           void trackWalletConnection({ address, network, walletId, surface: "deploy_review" });
-          stage = "prepare";
-          const prep = await fetch("/api/deployments/prepare", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ flowId, sourceAccount: address }),
-          });
-          check();
-          const prepData = await prep.json();
-          check();
-          if (!prep.ok) throw apiError(prepData, "Prepare failed");
-          setPipeline(prepData.data.pipeline ?? []);
-          deploymentId = prepData.data.deploymentId;
-          if (
-            typeof deploymentId !== "string" ||
-            typeof prepData.data.xdr !== "string" ||
-            typeof prepData.data.networkPassphrase !== "string" ||
-            !prepData.data.networkPassphrase
-          )
-            throw new Error("Missing deployment transaction payload");
+          let prepared: { deploymentId: string; xdr: string; networkPassphrase: string };
+          if (resuming) {
+            if (ticket && resumePreparation) {
+              // Re-fetch inside the admission boundary; React state is never the proof.
+              const response = await fetch(
+                `/api/deployments/${encodeURIComponent(ticket.deploymentId)}`,
+              );
+              check();
+              const detail = response.ok ? (await response.json()).data : null;
+              const parsed = PreparedRecoverySchema.safeParse(detail?.preparedRecovery);
+              const actual = readDeployPreparation(preparationKey);
+              if (
+                !parsed.success ||
+                parsed.data.status !== "RESUMABLE" ||
+                detail.id !== ticket.deploymentId ||
+                detail.flowId !== flowId ||
+                detail.network !== network ||
+                detail.serviceState !== "ACTIVE" ||
+                detail.status !== "PENDING_SIGNATURE" ||
+                detail.deployTxHash ||
+                actual?.state !== "ready" ||
+                actual.txHash !== ticket.txHash ||
+                actual.deploymentId !== ticket.deploymentId ||
+                parsed.data.sourceAccount !== address ||
+                detail.sourceAccount !== address ||
+                parsed.data.network !== network ||
+                parsed.data.txHash !== ticket.txHash ||
+                preparedWalletTransactionHash(
+                  network,
+                  parsed.data.unsignedXdr,
+                  address,
+                  parsed.data.networkPassphrase,
+                ) !== ticket.txHash
+              )
+                throw new Error("Original deployment preparation is not safe to resume.");
+              prepared = {
+                deploymentId: ticket.deploymentId,
+                xdr: parsed.data.unsignedXdr,
+                networkPassphrase: parsed.data.networkPassphrase,
+              };
+            } else throw new Error("Original preparation is no longer resumable.");
+          } else {
+            stage = "prepare";
+            const prep = await fetch("/api/deployments/prepare", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ flowId, sourceAccount: address }),
+            });
+            check();
+            const prepData = await prep.json();
+            check();
+            if (!prep.ok) throw apiError(prepData, "Prepare failed");
+            prepared = prepData.data;
+            setPipeline(prepData.data.pipeline ?? []);
+            if (
+              typeof prepared?.deploymentId !== "string" ||
+              typeof prepared.xdr !== "string" ||
+              typeof prepared.networkPassphrase !== "string"
+            )
+              throw new Error("Missing deployment transaction payload");
+            const txHash = preparedWalletTransactionHash(
+              network,
+              prepared.xdr,
+              address,
+              prepared.networkPassphrase,
+            );
+            try {
+              saveDeployPreparation(preparationKey, {
+                deploymentId: prepared.deploymentId,
+                txHash,
+                address,
+              });
+            } catch (error) {
+              setStorageBlocked(true);
+              setStatusMessage(
+                "Deployment preparation could not be saved. No signature was requested.",
+              );
+              throw error;
+            }
+          }
+          deploymentId = prepared.deploymentId;
           const preparedDeploymentId = deploymentId;
           stage = "sign";
           const signed = await signWithRecovery({
             network,
-            xdr: prepData.data.xdr,
+            xdr: prepared.xdr,
             address,
-            networkPassphrase: prepData.data.networkPassphrase,
+            networkPassphrase: prepared.networkPassphrase,
             check,
             save: (attempt) => {
               try {
+                consumeDeployPreparation(preparationKey, attempt);
                 savePendingDeploy(pendingKey, { ...attempt, deploymentId: preparedDeploymentId });
               } catch (error) {
                 setStorageBlocked(true);
@@ -281,11 +596,14 @@ export default function DeployReview({
               }
             },
             read: () => readPendingDeploy(pendingKey),
-            clearRejected: (attempt) => rejectPendingDeploySigning(pendingKey, attempt),
+            clearRejected: (attempt) => {
+              rejectPendingDeploySigning(pendingKey, attempt);
+              if (!readPendingDeploy(pendingKey)) rejectDeployPreparation(preparationKey, attempt);
+            },
             sign: () =>
-              connection.signTransaction(prepData.data.xdr, {
+              connection.signTransaction(prepared.xdr, {
                 address,
-                networkPassphrase: prepData.data.networkPassphrase,
+                networkPassphrase: prepared.networkPassphrase,
               }),
           });
           check();
@@ -294,15 +612,8 @@ export default function DeployReview({
           check();
           dispatched = true;
           stage = "submit";
-          try {
-            void fetch(`/api/deployments/${deploymentId}/submit`, {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ signedXdr: signed.signedTxXdr }),
-            }).catch(() => {});
-          } catch {
-            /* Preserve the recorded hash even if the response is lost. */
-          }
+          const outcome = await sendSignedDeployment(saved, signed.signedTxXdr, current);
+          if (outcome === "refused") return;
           await reconcile(saved, current, true);
         };
         try {
@@ -397,8 +708,14 @@ export default function DeployReview({
         </div>
       )}
       <button
-        onClick={onDeploy}
-        disabled={busy || !checkSettled || !storageReady || storageBlocked || Boolean(pending)}
+        onClick={() => void onDeploy()}
+        disabled={
+          busy ||
+          !checkSettled ||
+          !storageReady ||
+          storageBlocked ||
+          Boolean(pending || preparation || recoveryId)
+        }
         className="bg-primary px-md text-label-md text-on-primary inline-flex w-full items-center justify-center gap-2 rounded-lg py-3 font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_24px_rgba(255,177,196,0.55)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
       >
         {busy ? (
@@ -422,7 +739,37 @@ export default function DeployReview({
           </>
         )}
       </button>
-      {(pending || statusMessage) && (
+      {resumePreparation && !pending && (
+        <button
+          type="button"
+          disabled={busy || storageBlocked}
+          onClick={() => void onDeploy(true)}
+          className="text-secondary underline disabled:opacity-50"
+        >
+          RESUME DEPLOYMENT
+        </button>
+      )}
+      {expiredPreparation && !pending && (
+        <button
+          type="button"
+          disabled={busy || storageBlocked}
+          onClick={() => void replaceExpiredPreparation()}
+          className="text-secondary underline disabled:opacity-50"
+        >
+          Prepare another
+        </button>
+      )}
+      {retrySubmission && pending && (
+        <button
+          type="button"
+          disabled={busy || storageBlocked}
+          onClick={() => void retryOriginalSubmission()}
+          className="text-secondary underline disabled:opacity-50"
+        >
+          RETRY SUBMISSION
+        </button>
+      )}
+      {(pending || recoveryId || statusMessage) && (
         <div role="status" className="text-on-surface-variant space-y-2 text-xs">
           <p>
             {statusMessage ??
@@ -430,6 +777,30 @@ export default function DeployReview({
                 ? `Signing outcome is unknown for ${pending.txHash}. No submission is recorded. Check this deployment before deploying again.`
                 : `Deployment ${pending?.deploymentId} is awaiting confirmation. Check it before deploying again.`)}
           </p>
+          {recoveryId && !pending && (
+            <>
+              <a className="text-secondary underline" href={`/deployments/${recoveryId}`}>
+                VIEW DEPLOYMENT
+              </a>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  void withDeployLock(pendingKey, async () => {
+                    loadPending();
+                    await inspectPreparation();
+                  }).catch(() => {
+                    setStatusMessage(
+                      "Original deployment could not be verified. Its recovery remains held.",
+                    );
+                  })
+                }
+                className="text-secondary ml-3 underline"
+              >
+                CHECK PREPARATION STATUS
+              </button>
+            </>
+          )}
           {pending && (
             <>
               <a className="text-secondary underline" href={`/deployments/${pending.deploymentId}`}>

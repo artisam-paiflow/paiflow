@@ -7,7 +7,7 @@ import { withErrorHandler } from "@/lib/errors";
 const QuerySchema = z.object({
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
-  flowId: z.string().uuid().optional(),
+  flowId: z.string().guid({ error: "Invalid uuid" }).optional(),
   status: z.string().optional(),
 });
 

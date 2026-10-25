@@ -45,7 +45,7 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
     const { id } = await ctx.params;
     // Deployment.id is a Postgres uuid, so anything else would reach Prisma as
     // an invalid-input error (a 500) rather than a not-found.
-    if (!z.string().uuid().safeParse(id).success) {
+    if (!z.string().guid({ error: "Invalid uuid" }).safeParse(id).success) {
       throw new AppError("NOT_FOUND", "Deployment not found");
     }
     const deployment = await db.deployment.findFirst({

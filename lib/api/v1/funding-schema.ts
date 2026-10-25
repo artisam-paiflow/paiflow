@@ -15,7 +15,7 @@ export const FundingPrepareSchema = z
 export const FundingSubmitSchema = z
   .object({
     action: FundingActionSchema,
-    intent: z.string().uuid(),
+    intent: z.string().guid({ error: "Invalid uuid" }),
     signedXdr: z.string().min(1).max(100_000),
   })
   .strict();
@@ -23,7 +23,7 @@ export const FundingReconcileSchema = FundingSubmitSchema.omit({ signedXdr: true
 
 export const FundingDiscoverySchema = z
   .object({
-    deploymentId: z.string().uuid(),
+    deploymentId: z.string().guid({ error: "Invalid uuid" }),
     network: z.enum(["testnet", "mainnet"]),
     nodes: z
       .array(
@@ -44,7 +44,7 @@ export const FundingDiscoverySchema = z
   .strict();
 export const FundingPreparedSchema = FundingPrepareSchema.extend({
   nodeId: z.string().min(1),
-  intent: z.string().uuid(),
+  intent: z.string().guid({ error: "Invalid uuid" }),
   txHash: z.string().regex(/^[a-f0-9]{64}$/),
   expiresAt: z.string().datetime(),
   xdr: z.string().min(1),

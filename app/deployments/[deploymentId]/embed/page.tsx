@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function EmbedPage({ params }: { params: Promise<{ deploymentId: string }> }) {
   const { deploymentId } = await params;
-  if (!z.string().uuid().safeParse(deploymentId).success) notFound();
+  if (!z.string().guid({ error: "Invalid uuid" }).safeParse(deploymentId).success) notFound();
   // Internal snapshot determines payment eligibility; only its safe link is published.
   // Never load webhook credentials, owner records or tokens.
   const deployment = await db.deployment.findUnique({

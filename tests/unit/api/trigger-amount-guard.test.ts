@@ -48,6 +48,7 @@ vi.mock("@/lib/log", () => ({ log: { warn: vi.fn(), info: vi.fn(), error: vi.fn(
 
 import { Address, StrKey, xdr } from "@stellar/stellar-sdk";
 import { AppError } from "@/lib/errors";
+import { MissingPaymentAccountError } from "@/lib/stellar/load-payment-account";
 import { depositSimulationFailure } from "@/lib/stellar/deposit-simulation-error";
 import { POST } from "@/app/api/deployments/[id]/trigger/route";
 import { log } from "@/lib/log";
@@ -151,6 +152,29 @@ describe("POST /api/deployments/[id]/trigger — amount guard", () => {
     const res = await call(FIVE);
     expect(res.status).toBe(200);
     expect(mockPrepareTriggerTx).toHaveBeenCalledWith(expect.objectContaining({ amount: FIVE }));
+  });
+
+  it("keeps proven missing-account funding guidance at 402 on the native trigger route", async () => {
+    mockPrepareTriggerTx.mockRejectedValueOnce(new MissingPaymentAccountError());
+    const res = await call(FIVE);
+    expect(res.status).toBe(402);
+    const body = await res.json();
+    expect(body.error.code).toBe("INSUFFICIENT_FUNDS");
+    expect(body.error.message).toContain("Fund it");
+  });
+
+  it("keeps source-account RPC errors at 502 instead of displaying funding guidance", async () => {
+    mockPrepareTriggerTx.mockRejectedValueOnce(
+      new AppError(
+        "UPSTREAM_RPC",
+        "The source account could not be read from Soroban RPC; try again",
+      ),
+    );
+    const res = await call(FIVE);
+    expect(res.status).toBe(502);
+    const body = await res.json();
+    expect(body.error.code).toBe("UPSTREAM_RPC");
+    expect(body.error.message).not.toContain("does not exist");
   });
 
   it("leaves a percentage flow free-form", async () => {

@@ -28,7 +28,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/webnxt-2030/pinkraft.git",
+    "url": "git+https://github.com/artisam-paiflow/paiflow.git",
     "directory": "packages/sdk"
   },
   "scripts": {

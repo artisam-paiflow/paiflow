@@ -15,7 +15,7 @@ import { stellarPassphrase, stellarRelayerAddress, stellarRelayerSecretKey } fro
 import { AppError } from "@/lib/errors";
 import { simulationFailure } from "./sim-error";
 import { timelockSideArg } from "./scval";
-import { simulateGetter } from "./contract-read";
+import { simulateContractCall, simulateGetter } from "./contract-read";
 export { simulateContractCall, simulateGetter } from "./contract-read";
 
 /** Which list a timelock_branch release intends to pay; absent for the old timelock. */
@@ -425,7 +425,17 @@ export async function readTokenAllowance(opts: {
   tokenContractAddress: string;
   owner: string;
   spender: string;
+  classifyRpcFailures?: boolean;
 }): Promise<bigint> {
+  if (opts.classifyRpcFailures) {
+    const value = await simulateContractCall(opts.tokenContractAddress, "allowance", [
+      new Address(opts.owner).toScVal(),
+      new Address(opts.spender).toScVal(),
+    ]);
+    if (typeof value !== "bigint")
+      throw new AppError("UPSTREAM_RPC", "Unexpected subscription token allowance");
+    return value;
+  }
   const server = sorobanRpc();
 
   const source = stellarRelayerAddress();
@@ -604,7 +614,18 @@ async function readSubscriptionValue<T>(
   return value as T;
 }
 
-export async function readSubscriptionIsCancelled(contractAddress: string): Promise<boolean> {
+type SubscriptionReadOptions = { classifyRpcFailures?: boolean };
+
+export async function readSubscriptionIsCancelled(
+  contractAddress: string,
+  opts: SubscriptionReadOptions = {},
+): Promise<boolean> {
+  if (opts.classifyRpcFailures) {
+    const value = await simulateGetter(contractAddress, "is_cancelled");
+    if (typeof value !== "boolean")
+      throw new AppError("UPSTREAM_RPC", "Unexpected subscription cancellation state");
+    return value;
+  }
   return readSubscriptionValue<boolean>(contractAddress, "is_cancelled", "boolean");
 }
 
@@ -630,7 +651,14 @@ export async function readSubscriptionSubscriber(contractAddress: string): Promi
 
 export async function readSubscriptionSubscriberNullable(
   contractAddress: string,
+  opts: SubscriptionReadOptions = {},
 ): Promise<string | null> {
+  if (opts.classifyRpcFailures) {
+    const value = await simulateGetter(contractAddress, "subscriber");
+    if (value !== null && typeof value !== "string")
+      throw new AppError("UPSTREAM_RPC", "Unexpected subscription subscriber");
+    return value;
+  }
   const server = sorobanRpc();
 
   const source = stellarRelayerAddress();
@@ -697,7 +725,16 @@ export async function readSubscriptionSubscriberNullable(
   }
 }
 
-export async function readSubscriptionAsset(contractAddress: string): Promise<string> {
+export async function readSubscriptionAsset(
+  contractAddress: string,
+  opts: SubscriptionReadOptions = {},
+): Promise<string> {
+  if (opts.classifyRpcFailures) {
+    const value = await simulateGetter(contractAddress, "asset");
+    if (typeof value !== "string")
+      throw new AppError("UPSTREAM_RPC", "Unexpected subscription asset");
+    return value;
+  }
   return readSubscriptionAddress(contractAddress, "asset");
 }
 

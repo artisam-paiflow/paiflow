@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { integerNumber } from "@/lib/validation/number";
 import { AUDIENCES } from "./policy";
 
 export class ApiSummaryError extends Error {}
@@ -17,8 +18,8 @@ export const ApiSummaryTotalsSchema = z.object({
   rate_limited: count,
   total_duration_ms: count,
   mean_duration_ms: z.number().finite().nonnegative().nullable(),
-  min_duration_ms: z.number().int().nonnegative().nullable(),
-  max_duration_ms: z.number().int().nonnegative().nullable(),
+  min_duration_ms: integerNumber().nonnegative().nullable(),
+  max_duration_ms: integerNumber().nonnegative().nullable(),
   newest_request: z.string().datetime().nullable(),
 });
 export const ApiSummaryInputSchema = z

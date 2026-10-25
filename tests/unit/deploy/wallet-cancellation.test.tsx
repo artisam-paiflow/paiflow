@@ -135,7 +135,11 @@ describe("wallet signing cancellation analytics", () => {
       await waitFor(() =>
         expect(toast.error).toHaveBeenCalledWith("Transaction cancelled in your wallet."),
       );
-      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(
+        fetchMock.mock.calls.filter(
+          ([url]) => String(url).endsWith("/prepare") || String(url).endsWith("/trigger"),
+        ),
+      ).toHaveLength(1);
       expect(fetchMock.mock.calls[0]?.[0]).toBe(
         surface === "deploy"
           ? "/api/deployments/prepare"
@@ -160,7 +164,13 @@ describe("wallet signing cancellation analytics", () => {
       });
       expect(toast.error).toHaveBeenCalledWith("Transaction cancelled in your wallet.");
       expect(JSON.stringify(vi.mocked(track).mock.calls)).not.toContain("wallet payload");
-      expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(false);
+      expect(
+        (
+          screen.getByRole("button", {
+            name: surface === "deploy" ? /deploy to testnet/i : /connect wallet & trigger/i,
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(surface === "deploy");
     },
   );
 });

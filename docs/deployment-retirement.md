@@ -16,6 +16,13 @@ all**, including retired deployments. `DELETE /api/flows/:id` requires
 `{"confirmation":"Permanently delete flow"}`. The existing database foreign-key
 restriction is the final guard against concurrent deployment creation.
 
+The dashboard's default **Current flows** view keeps drafts and flows with any
+ACTIVE or RETIRING deployment visible. A flow with at least one deployment, all
+of them RETIRED, appears only in **Retired flows**. Both views paginate retained
+definitions; opening a definition does not restore deployment access or service.
+This classification is computed from deployment state, with no archive mutation
+or history deletion.
+
 The deployment page offers **Permanently retire deployment**. The owner must
 acknowledge irreversibility and their continuing on-chain responsibility.
 `POST /api/deployments/:id/retirement` requires:
@@ -77,6 +84,32 @@ existing jobs before creating missing obligations. Missing recovery data or
 ambiguous linkage blocks completion. Post-cutoff
 external activity does not extend the drain. Future schedules and nonzero
 contract balances alone do not block retirement.
+
+`cron/reconcile-transactions` projects PENDING `ServiceTransaction` finality for
+ACTIVE deployments on the configured network independently of browser polling
+and signed-transaction analytics. The separate queue includes DONE submission
+work and can replay a retained signed SUCCESS/ONCHAIN_FAILED outcome with a
+positive ledger. Otherwise it reads the original exact hash through its recorded
+RPC or Horizon transport. Each read has a cancellable deadline of at most three
+seconds within a four-second pass, with at most 50 due rows selected before
+processing. Durable admission rechecks lifecycle after selection; a shared hash
+only updates admitted deployment participants. No new submission, deployment
+setup, completion of original work, event-cutoff change or service reactivation happens in
+this projection. RETIRING finality stays with the settlement path below.
+
+Existing pending rows become due when the migration applies. A claim reserves
+its retry before reading, so unknown old hashes rotate behind other due work.
+For the first 15 minutes retries wait 30 seconds, then at most 60 seconds; older
+unknown hashes back off exponentially to at most 15 minutes. Provider absence,
+NOT_FOUND, read timeout, age and queue rejection never become terminal proof.
+Records remain PENDING and retryable without an age-based terminal cutoff.
+
+The scoped healthy-provider acceptance target is projection within two ordinary
+eligible reconciliation ticks after ledger finality, without owner status
+polling. This is a test target, not a production SLA: batches, provider outages,
+backoff, scheduler availability and the cron's other stages affect eligibility
+and observed timing. This pass adds at most four seconds of provider work to the
+existing multi-stage cron; it does not establish a whole-route latency bound.
 
 `cron/reconcile-transactions` also runs bounded, oldest-checked-first retirement
 reconciliation. Unknown finality, running claims, failed refunds, unresolved

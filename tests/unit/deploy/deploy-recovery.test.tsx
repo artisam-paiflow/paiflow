@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import DeployReview from "@/components/deploy/deploy-review";
+import { Account, Networks, Operation, TransactionBuilder } from "@stellar/stellar-sdk";
+import { saveDeployPreparation, readDeployPreparation } from "@/lib/deploy-preparation";
 import { deployPendingKey } from "@/lib/deploy-pending";
 
 const mocks = vi.hoisted(() => ({
@@ -68,6 +70,7 @@ async function click() {
 beforeEach(() => {
   vi.resetAllMocks();
   localStorage.clear();
+  sessionStorage.clear();
   vi.stubGlobal("navigator", {
     locks: {
       request: async (_key: string, _options: unknown, action: (lock: object) => Promise<void>) =>
@@ -199,7 +202,7 @@ describe("deployment submission recovery", () => {
     );
     const view = render(<DeployReview {...props} />);
     await click();
-    await waitFor(() => expect(mocks.poll).toHaveBeenCalledOnce());
+    await waitFor(() => expect(mocks.poll).toHaveBeenCalledOnce(), { timeout: 3000 });
     view.rerender(<DeployReview {...props} flowId="33333333-3333-3333-3333-333333333333" />);
     expect(localStorage.getItem(KEY)).not.toBeNull();
     await act(async () => outcome.resolve({ status: "FAILED" }));
@@ -324,9 +327,14 @@ describe("deployment identity before wallet response", () => {
     await click();
     await waitFor(() => expect(mocks.error).toHaveBeenCalledOnce());
     expect(localStorage.getItem(KEY)).toBeNull();
-    expect(mocks.fetch).toHaveBeenCalledOnce();
+    expect(mocks.fetch.mock.calls.filter(([url]) => url.endsWith("/prepare"))).toHaveLength(1);
+    expect(mocks.fetch.mock.calls.some(([url]) => url.endsWith("/submit"))).toBe(false);
     expect(mocks.poll).not.toHaveBeenCalled();
-    expect(deploy().disabled).toBe(false);
+    expect(deploy().disabled).toBe(true);
+    expect(JSON.parse(localStorage.getItem(`${KEY}:preparation`)!)).toMatchObject({
+      state: "ready",
+      txHash: HASH,
+    });
   });
   it("a signing marker with chain finality still holds until matching owner bookkeeping exists", async () => {
     localStorage.setItem(
@@ -346,4 +354,270 @@ describe("deployment identity before wallet response", () => {
     expect(mocks.sign).not.toHaveBeenCalled();
     expect(mocks.fetch).toHaveBeenCalledExactlyOnceWith(`/api/deployments/${DEPLOYMENT}/status`);
   });
+});
+
+// These component tests isolate crypto validation through the existing mock above;
+// real source/hash/signature validation is exercised by wallet-signature tests.
+const UNSIGNED = new TransactionBuilder(new Account(ADDRESS, "1"), {
+  fee: "100",
+  networkPassphrase: Networks.TESTNET,
+})
+  .addOperation(Operation.bumpSequence({ bumpTo: "2" }))
+  .setTimeout(180)
+  .build()
+  .toXDR();
+function preparationTicket() {
+  saveDeployPreparation(`${KEY}:preparation`, {
+    deploymentId: DEPLOYMENT,
+    txHash: HASH,
+    address: ADDRESS,
+  });
+}
+function ownedPreparation(
+  change: Record<string, unknown> = {},
+  recoveryChange: Record<string, unknown> = {},
+) {
+  return {
+    ok: true,
+    json: async () => ({
+      data: {
+        id: DEPLOYMENT,
+        flowId: FLOW,
+        network: "testnet",
+        sourceAccount: ADDRESS,
+        serviceState: "ACTIVE",
+        status: "PENDING_SIGNATURE",
+        deployTxHash: null,
+        preparedRecovery: {
+          status: "RESUMABLE",
+          unsignedXdr: UNSIGNED,
+          txHash: HASH,
+          sourceAccount: ADDRESS,
+          network: "testnet",
+          networkPassphrase: PASSPHRASE,
+          ...recoveryChange,
+        },
+        ...change,
+      },
+    }),
+  };
+}
+
+describe("combined prepared deployment recovery", () => {
+  it("resumes only a proven safe original preparation without preparing again", async () => {
+    preparationTicket();
+    mocks.fetch.mockImplementation(async (url: string) =>
+      url.endsWith("/submit") ? Promise.reject(new Error("lost")) : ownedPreparation(),
+    );
+    render(<DeployReview {...props} />);
+    const resume = await screen.findByRole("button", { name: "RESUME DEPLOYMENT" });
+    await act(async () => {
+      fireEvent.click(resume);
+    });
+    expect(mocks.sign).toHaveBeenCalledExactlyOnceWith(UNSIGNED, {
+      address: ADDRESS,
+      networkPassphrase: PASSPHRASE,
+    });
+    expect(mocks.fetch.mock.calls.some(([url]) => url.endsWith("/prepare"))).toBe(false);
+    expect(mocks.fetch.mock.calls.filter(([url]) => url.endsWith("/submit"))).toHaveLength(1);
+    expect(readDeployPreparation(`${KEY}:preparation`)?.state).toBe("signing");
+    expect(JSON.parse(localStorage.getItem(KEY)!)).toMatchObject({
+      phase: "submitted",
+      txHash: HASH,
+    });
+  });
+  it.each(["legacy-only", "consumed-provenance", "missing-provenance"])(
+    "does not infer safe signing from server RESUMABLE: %s",
+    async (kind) => {
+      sessionStorage.setItem(`paiflow-deploy-recovery:testnet:${FLOW}`, DEPLOYMENT);
+      if (kind === "consumed-provenance")
+        localStorage.setItem(
+          `${KEY}:preparation`,
+          JSON.stringify({
+            deploymentId: DEPLOYMENT,
+            txHash: HASH,
+            address: ADDRESS,
+            state: "signing",
+            attemptId: crypto.randomUUID(),
+          }),
+        );
+      mocks.fetch.mockResolvedValue(ownedPreparation());
+      render(<DeployReview {...props} />);
+      await waitFor(() => expect(mocks.fetch).toHaveBeenCalledOnce());
+      expect(screen.queryByRole("button", { name: "RESUME DEPLOYMENT" })).toBeNull();
+      expect(deploy().disabled).toBe(true);
+      expect(mocks.sign).not.toHaveBeenCalled();
+      expect(mocks.connect).not.toHaveBeenCalled();
+    },
+  );
+  it("restores safe signing only after matching explicit rejection, including reload", async () => {
+    mocks.sign.mockRejectedValueOnce({ code: -4, ext: "user_rejected" });
+    mocks.fetch.mockImplementation(async (url: string) =>
+      url.endsWith("/prepare") ? prepared() : ownedPreparation(),
+    );
+    const view = render(<DeployReview {...props} />);
+    await click();
+    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(readDeployPreparation(`${KEY}:preparation`)?.state).toBe("ready");
+    view.unmount();
+    render(<DeployReview {...props} />);
+    expect(await screen.findByRole("button", { name: "RESUME DEPLOYMENT" })).toBeTruthy();
+    expect(mocks.sign).toHaveBeenCalledOnce();
+  });
+  it.each([
+    "wrong-flow",
+    "wrong-network",
+    "wrong-owner-response-id",
+    "retiring",
+    "wrong-source",
+    "wrong-hash",
+    "blocked",
+    "wrong-passphrase",
+  ])("refuses incompatible original metadata: %s", async (kind) => {
+    preparationTicket();
+    const change: Record<string, unknown> = {};
+    const recoveryChange: Record<string, unknown> = {};
+    if (kind === "wrong-flow") change.flowId = "different";
+    if (kind === "wrong-network") change.network = "mainnet";
+    if (kind === "wrong-owner-response-id") change.id = "different";
+    if (kind === "retiring") change.serviceState = "RETIRING";
+    if (kind === "wrong-source") change.sourceAccount = "different";
+    if (kind === "wrong-hash") recoveryChange.txHash = "b".repeat(64);
+    if (kind === "blocked") change.preparedRecovery = { status: "BLOCKED" };
+    if (kind === "wrong-passphrase") {
+      recoveryChange.networkPassphrase = "wrong";
+      mocks.network.mockImplementation(() => {
+        throw new Error("wrong network");
+      });
+    }
+    mocks.fetch.mockResolvedValue(ownedPreparation(change, recoveryChange));
+    render(<DeployReview {...props} />);
+    await waitFor(() => expect(mocks.fetch).toHaveBeenCalledOnce());
+    expect(screen.queryByRole("button", { name: "RESUME DEPLOYMENT" })).toBeNull();
+    expect(deploy().disabled).toBe(true);
+    expect(mocks.sign).not.toHaveBeenCalled();
+  });
+  it("refuses a different connected account without consuming the original safe preparation", async () => {
+    preparationTicket();
+    mocks.fetch.mockResolvedValue(ownedPreparation());
+    mocks.connect.mockResolvedValue({
+      address: "GAUF2ILE2UGAAFJZBUSICBTRMOL5TDGBZRXHYO4O5P5RMAPJ24YCV2XQ",
+      walletId: "freighter",
+      signTransaction: mocks.sign,
+    });
+    render(<DeployReview {...props} />);
+    const resume = await screen.findByRole("button", { name: "RESUME DEPLOYMENT" });
+    await act(async () => fireEvent.click(resume));
+    expect(mocks.sign).not.toHaveBeenCalled();
+    expect(readDeployPreparation(`${KEY}:preparation`)?.state).toBe("ready");
+  });
+  it.each(["signing", "submitted"] as const)(
+    "an existing %s hash blocks resume and bare expiry",
+    async (phase) => {
+      preparationTicket();
+      localStorage.setItem(
+        KEY,
+        JSON.stringify({
+          deploymentId: DEPLOYMENT,
+          txHash: HASH,
+          phase,
+          attemptId: crypto.randomUUID(),
+        }),
+      );
+      mocks.fetch.mockResolvedValue(ownedPreparation({}, { status: "EXPIRED" }));
+      render(<DeployReview {...props} />);
+      await waitFor(() => expect(mocks.poll).toHaveBeenCalledWith(DEPLOYMENT, HASH));
+      expect(screen.queryByRole("button", { name: "RESUME DEPLOYMENT" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Prepare another" })).toBeNull();
+      expect(mocks.fetch).not.toHaveBeenCalled();
+      expect(localStorage.getItem(KEY)).not.toBeNull();
+    },
+  );
+  it("requires explicit replacement and freshly verified expiry of a safe preparation", async () => {
+    preparationTicket();
+    mocks.fetch.mockResolvedValue(ownedPreparation({}, { status: "EXPIRED" }));
+    render(<DeployReview {...props} />);
+    const replace = await screen.findByRole("button", { name: "Prepare another" });
+    expect(deploy().disabled).toBe(true);
+    expect(mocks.sign).not.toHaveBeenCalled();
+    await act(async () => fireEvent.click(replace));
+    expect(deploy().disabled).toBe(false);
+    expect(readDeployPreparation(`${KEY}:preparation`)).toBeNull();
+    expect(mocks.fetch.mock.calls.some(([url]) => url.endsWith("/prepare"))).toBe(false);
+  });
+  it("does not treat a bare EXPIRED response as sufficient replacement proof", async () => {
+    preparationTicket();
+    mocks.fetch.mockResolvedValue(ownedPreparation({ preparedRecovery: { status: "EXPIRED" } }));
+    render(<DeployReview {...props} />);
+    await waitFor(() => expect(mocks.fetch).toHaveBeenCalledOnce());
+    expect(screen.queryByRole("button", { name: "Prepare another" })).toBeNull();
+    expect(deploy().disabled).toBe(true);
+  });
+  it("fails closed on conflicting legacy and current recovery identities", async () => {
+    preparationTicket();
+    sessionStorage.setItem(
+      `paiflow-deploy-recovery:testnet:${FLOW}`,
+      "33333333-3333-3333-3333-333333333333",
+    );
+    render(<DeployReview {...props} />);
+    await click();
+    expect(mocks.connect).not.toHaveBeenCalled();
+    expect(mocks.sign).not.toHaveBeenCalled();
+    expect(deploy().disabled).toBe(true);
+  });
+  it("retries the identical signed bytes only on explicit NOT_ACCEPTED and loses that permission after an unknown response", async () => {
+    let sends = 0;
+    mocks.fetch.mockImplementation(async (url: string) => {
+      if (url.endsWith("/prepare")) return prepared();
+      if (url.endsWith("/submit")) {
+        sends++;
+        if (sends === 1)
+          return {
+            ok: false,
+            status: 502,
+            json: async () => ({
+              error: { code: "UPSTREAM_RPC", submissionStatus: "NOT_ACCEPTED" },
+            }),
+          };
+        throw new Error("lost response");
+      }
+      throw new Error("unexpected request");
+    });
+    render(<DeployReview {...props} />);
+    await click();
+    const retry = await screen.findByRole("button", { name: "RETRY SUBMISSION" });
+    expect(mocks.poll).not.toHaveBeenCalled();
+    await act(async () => fireEvent.click(retry));
+    const sendsArgs = mocks.fetch.mock.calls.filter(([url]) => url.endsWith("/submit"));
+    expect(sendsArgs).toHaveLength(2);
+    expect(sendsArgs[0]).toEqual(sendsArgs[1]);
+    expect(mocks.sign).toHaveBeenCalledOnce();
+    expect(mocks.fetch.mock.calls.filter(([url]) => url.endsWith("/prepare"))).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "RETRY SUBMISSION" })).toBeNull();
+    expect(localStorage.getItem(KEY)).not.toBeNull();
+    expect(JSON.stringify(Object.values(localStorage))).not.toContain("signed");
+  });
+  it.each(["missing-code", "wrong-status", "generic-error"])(
+    "does not infer submission refusal from %s",
+    async (kind) => {
+      mocks.fetch.mockImplementation(async (url: string) =>
+        url.endsWith("/prepare")
+          ? prepared()
+          : {
+              ok: false,
+              status: kind === "wrong-status" ? 500 : 502,
+              json: async () => ({
+                error: {
+                  code: kind === "missing-code" ? undefined : "UPSTREAM_RPC",
+                  submissionStatus: kind === "generic-error" ? undefined : "NOT_ACCEPTED",
+                },
+              }),
+            },
+      );
+      render(<DeployReview {...props} />);
+      await click();
+      expect(screen.queryByRole("button", { name: "RETRY SUBMISSION" })).toBeNull();
+      expect(localStorage.getItem(KEY)).not.toBeNull();
+    },
+  );
 });

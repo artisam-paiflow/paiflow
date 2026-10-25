@@ -28,28 +28,43 @@ import type {
   ListEventsResponse,
   ListDeploymentsResponse,
 } from "./read-parsers.js";
+/** ID-ordered discovery within the credential’s explicit eligible deployment scope. */
 export interface ListDeploymentsQuery {
+  /** Continue from the previous response cursor; omit for the first page. */
   cursor?: string;
+  /** Page size 1–100; server default 20. */
   limit?: number;
 }
+/** Discovery iterator options; each HTTP page has its own timeout. */
 export interface DeploymentPagesOptions extends RequestOptions {
+  /** Stop after this many pages (1–10000, default 100); a cap is not completeness. */
   maxPages?: number;
 }
+/** Indexed event filters. Event absence does not establish payment failure. */
 export interface ListEventsQuery {
+  /** Continue from the previous response cursor; omit for the first page. */
   cursor?: string;
+  /** Page size 1–100; server default 20. */
   limit?: number;
   txHash?: string;
 }
+/** Bounded event iteration; retain the last cursor for explicit continuation. */
 export interface EventPagesOptions extends RequestOptions {
+  /** Stop after this many pages (1–10000, default 100); a cap is not completeness. */
   maxPages?: number;
 }
+/** Quote one deployed Swap node; estimates do not guarantee execution or fees. */
 export interface SwapQuoteQuery {
+  /** Positive integer stroop string, never a floating-point token amount. */
   amountStroops: string;
   nodeId?: string;
 }
+/** Hosted payment URL hints; helpers perform no HTTP request or eligibility check. */
 export interface PaymentUrlOptions {
+  /** Decimal token text with at most seven decimals, rather than stroops. */
   amount?: string;
 }
+/** Public connection or latest-50 snapshot; deduplicate snapshots by eventId. */
 export type PublicEmbedMessage =
   | { event: "connected" }
   | { event: "snapshot"; snapshot: PublicEmbedActivity };
@@ -77,6 +92,7 @@ const deploymentsQuery = (query: ListDeploymentsQuery): Record<string, string> =
 /** Node-only client. Construction never requests a demo token or opens a connection. */
 export class Paiflow {
   readonly transport: PaiflowTransport;
+  /** Scoped list and bounded pages. Selection changes apply to subsequent requests. */
   readonly deployments;
   constructor(options: PaiflowOptions) {
     this.transport = new PaiflowTransport(options);
@@ -116,12 +132,18 @@ export class Paiflow {
       },
     };
   }
+  /**
+   * Bind workflow methods to an existing deployment; this does not fetch or deploy it.
+   * @param deploymentId - Existing deployment UUID explicitly allowed by the credential.
+   * @returns A deployment client sharing this transport.
+   */
   deployment(deploymentId: string): PaiflowDeployment {
     return new PaiflowDeployment(
       this.transport,
       input(() => uuid(deploymentId)),
     );
   }
+  /** Read the public raw API specification without forwarding the token. */
   getOpenApi(options?: RequestOptions) {
     return this.transport.request(
       {
@@ -149,21 +171,37 @@ export class Paiflow {
     );
   }
 }
+/** Existing-deployment workflows. API access never substitutes for wallet consent. */
 export class PaiflowDeployment {
+  /** Explicit webhook secret; persist keyed event identity and never replace uncertain callbacks. */
   readonly webhook;
+  /** Explicit relayer-backed timelock release. Authorise your application user first. */
   readonly releaseEarly;
+  /** Subscriber controls and public allowance consent; never charges automatically. */
   readonly subscription;
+  /** Controller-signed pause/resume/retrieve and explicit original-intent recovery. */
   readonly schedule;
+  /** Schedule/Webhook top-ups, not payouts. Reconcile the original intent after uncertainty. */
   readonly funding;
+  /** Token-authenticated prepare and explicit submit; preserve the original envelope. */
   readonly execute;
+  /** Anonymous payment helpers; public SUCCESS is global chain status, not an order receipt. */
   readonly publicPayment;
+  /** Read supported/conditional operations; capability is not live execution readiness. */
   readonly capabilities;
+  /** Live/cached balances with freshness, stale nodes and completeness visible. */
   readonly balances;
+  /** Estimate one deployed Swap node, without executing a swap. */
   readonly swap;
+  /** Read attributable transaction status; UNKNOWN/REJECTED do not permit replacement. */
   readonly transactions;
+  /** Indexed event list or bounded deduplicating pages; events may lag chain finality. */
   readonly events;
+  /** Public legacy streamer state, with no bearer token. */
   readonly publicSchedule;
+  /** Public activity/snapshot stream; explicit reconnect is required after stream closure. */
   readonly embed;
+  /** Hosted URLs only; never include bearer tokens or establish eligibility. */
   readonly urls;
   constructor(
     readonly transport: PaiflowTransport,

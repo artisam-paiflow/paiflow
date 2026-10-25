@@ -1,0 +1,21 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src/index.ts"],
+  "tsconfig": "tsconfig.json",
+  "plugin": ["typedoc-plugin-markdown"],
+  "name": "@paiflow/sdk \u2014 method and type reference",
+  "readme": "reference-intro.md",
+  "entryFileName": "README.md",
+  "disableSources": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "hideGenerator": true,
+  "githubPages": false,
+  "expandObjects": true,
+  "expandParameters": true,
+  "formatWithPrettier": true,
+  "validation": {
+    "notExported": false
+  },
+  "mergeReadme": true
+}
