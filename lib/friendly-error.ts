@@ -1,3 +1,4 @@
+import { LanternWalletError, LANTERN_WALLET_MESSAGES } from "@/lib/stellar/lantern-wallet-error";
 import { translateSorobanError } from "@/lib/stellar/soroban-errors";
 
 export type FriendlyError = {
@@ -52,6 +53,8 @@ export const WALLET_RELAY_FAILURE =
  * unchanged; raw Soroban dumps are translated here as a backstop.
  */
 export function friendlyError(err: unknown, fallback: string = DEFAULT_FALLBACK): FriendlyError {
+  if (err instanceof LanternWalletError) return { message: LANTERN_WALLET_MESSAGES[err.code] };
+
   // API error body shape from errorResponse()
   if (err != null && typeof err === "object" && "error" in err) {
     const body = (err as { error?: { message?: unknown; details?: unknown } }).error;

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TriggerButton } from "@/components/deploy/trigger-button";
 
@@ -16,6 +16,18 @@ const mocks = vi.hoisted(() => ({
   }[],
 }));
 
+// Routing/approval tests use opaque envelope strings. Cryptographic transaction
+// integrity remains covered by wallet-signature and wallet-connect-connection.
+vi.mock("@/lib/stellar/wallet-signature", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stellar/wallet-signature")>()),
+  assertSignedWalletTransaction: vi.fn(),
+  preparedWalletTransactionHash: () => "a".repeat(64),
+  signedWalletTransactionHash: () => "a".repeat(64),
+}));
+const ADDRESS = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+const OTHER_ADDRESS = "GAUF2ILE2UGAAFJZBUSICBTRMOL5TDGBZRXHYO4O5P5RMAPJ24YCV2XQ";
+const TESTNET = "Test SDF Network ; September 2015";
+const PUBLIC = "Public Global Stellar Network ; September 2015";
 vi.mock("@/lib/analytics/client", () => ({ track: vi.fn() }));
 vi.mock("@/lib/wallet-tracking", () => ({ trackWalletConnection: vi.fn() }));
 vi.mock("@/lib/hooks/use-poll-tx-status", () => ({ usePollTxStatus: () => mocks.poll }));
@@ -40,18 +52,33 @@ vi.mock("@creit.tech/stellar-wallets-kit/modules/walletconnect.module", () => ({
 }));
 vi.mock("@creit.tech/stellar-wallets-kit", () => ({
   StellarWalletsKit: class {
-    getAddress = async () => ({ address: `G${"A".repeat(55)}` });
+    getAddress = async () => ({ address: ADDRESS });
     signTransaction = mocks.sign;
     setWallet() {}
   },
   FreighterModule: class {},
-  WalletNetwork: { TESTNET: "testnet", PUBLIC: "mainnet" },
+  WalletNetwork: {
+    TESTNET: "Test SDF Network ; September 2015",
+    PUBLIC: "Public Global Stellar Network ; September 2015",
+  },
 }));
 
 describe("mobile Freighter deposit", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    vi.useFakeTimers();
+    vi.resetAllMocks();
+    vi.stubGlobal("navigator", {
+      locks: {
+        request: async (
+          _key: string,
+          _options: unknown,
+          callback: (lock: object) => Promise<void>,
+        ) => callback({}),
+      },
+    });
+    mocks.connect.mockResolvedValue({
+      uri: `wc:fresh-pairing@2?expiryTimestamp=${Math.floor(Date.now() / 1000) + 300}`,
+      approval: () => new Promise(() => {}),
+    });
     vi.stubEnv("NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID", "test-project");
     vi.stubGlobal("matchMedia", () => ({ matches: true }));
     sessionStorage.clear();
@@ -60,8 +87,6 @@ describe("mobile Freighter deposit", () => {
   });
 
   afterEach(() => {
-    vi.clearAllTimers();
-    vi.useRealTimers();
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -76,11 +101,11 @@ describe("mobile Freighter deposit", () => {
         approveConnection = resolve;
       });
       mocks.connect.mockResolvedValue({ uri, approval: () => approval });
-      let approveSignature!: (signed: { signedTxXdr: string }) => void;
+      let approveSignature!: (signed: { signedXDR: string }) => void;
       let rejectSignature!: (error: Error) => void;
-      mocks.sign.mockImplementation(
+      mocks.request.mockImplementation(
         () =>
-          new Promise<{ signedTxXdr: string }>((resolve, reject) => {
+          new Promise<{ signedXDR: string }>((resolve, reject) => {
             approveSignature = resolve;
             rejectSignature = reject;
           }),
@@ -90,7 +115,7 @@ describe("mobile Freighter deposit", () => {
         .fn()
         .mockResolvedValueOnce({
           ok: true,
-          json: async () => ({ data: { xdr: "unsigned", networkPassphrase: "server-network" } }),
+          json: async () => ({ data: { xdr: "unsigned", networkPassphrase: TESTNET } }),
         })
         .mockResolvedValueOnce({
           ok: true,
@@ -114,21 +139,34 @@ describe("mobile Freighter deposit", () => {
       expect(fetchMock).not.toHaveBeenCalled();
 
       await act(async () => {
+        mocks.sessions.push({
+          topic: "approved-topic",
+          pairingTopic: "topic",
+          expiry: Math.floor(Date.now() / 1000) + 3600,
+          namespaces: {
+            stellar: { accounts: [`stellar:testnet:${ADDRESS}`], methods: ["stellar_signXDR"] },
+          },
+        });
         approveConnection({ topic: "approved-topic" });
       });
-      expect(mocks.setSession).toHaveBeenCalledWith("approved-topic");
-      expect(mocks.sign).toHaveBeenCalledWith("unsigned", {
-        address: `G${"A".repeat(55)}`,
-        networkPassphrase: "server-network",
-      });
+      await waitFor(() =>
+        expect(mocks.request).toHaveBeenCalledWith({
+          topic: "approved-topic",
+          chainId: "stellar:testnet",
+          request: { method: "stellar_signXDR", params: { xdr: "unsigned" } },
+        }),
+      );
+      expect(mocks.setSession).not.toHaveBeenCalled();
+      expect(mocks.sign).not.toHaveBeenCalled();
       expect(fetchMock).toHaveBeenCalledOnce();
       fireEvent.click(screen.getByRole("button", { name: /open freighter to sign/i }));
       expect(open).toHaveBeenLastCalledWith("freighterwallet://wc-redirect", "_self");
 
       await act(async () => {
-        if (decision === "approve") approveSignature({ signedTxXdr: "signed" });
+        if (decision === "approve") approveSignature({ signedXDR: "signed" });
         else rejectSignature(new Error("User rejected the request"));
       });
+      await waitFor(() => expect(screen.queryByRole("button", { name: /processing/i })).toBeNull());
       if (decision === "approve") {
         expect(fetchMock).toHaveBeenCalledTimes(2);
         expect(fetchMock).toHaveBeenLastCalledWith(
@@ -146,7 +184,7 @@ describe("mobile Freighter deposit", () => {
   it.each(["approve", "reject", "network mismatch", "missing signature", "disconnect"] as const)(
     "reuses only the approved topic: %s",
     async (outcome) => {
-      const address = `G${"A".repeat(55)}`;
+      const address = ADDRESS;
       const session = { topic: "approved-topic", walletId: "freighter", address };
       localStorage.setItem("paiflow_mobile_wallet:testnet", JSON.stringify(session));
       // An older topic with the same account must never shadow the approved one.
@@ -172,7 +210,7 @@ describe("mobile Freighter deposit", () => {
           json: async () => ({
             data: {
               xdr: "unsigned",
-              networkPassphrase: outcome === "network mismatch" ? "mainnet" : "testnet",
+              networkPassphrase: outcome === "network mismatch" ? PUBLIC : TESTNET,
             },
           }),
         })
@@ -187,16 +225,17 @@ describe("mobile Freighter deposit", () => {
       await act(async () => {
         fireEvent.click(screen.getByRole("button", { name: /connect wallet & deposit/i }));
       });
-      expect(screen.getByRole("button", { name: /send with GAAAAA…AAAA/i }).title).toBe(address);
+      expect(screen.getByRole("button", { name: /send with/i }).title).toBe(address);
       expect(fetchMock).not.toHaveBeenCalled();
       if (outcome === "disconnect") mocks.sessions.splice(1, 1);
       await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: /send with GAAAAA…AAAA/i }));
+        fireEvent.click(screen.getByRole("button", { name: /send with/i }));
         // The native link must open before an async boundary loses Chrome's
         // user activation, without waiting for preparation or signing.
         expect(open).toHaveBeenCalledTimes(outcome === "disconnect" ? 0 : 1);
         expect(fetchMock).not.toHaveBeenCalled();
       });
+      await waitFor(() => expect(screen.queryByRole("button", { name: /processing/i })).toBeNull());
       if (outcome === "disconnect") {
         expect(open).not.toHaveBeenCalled();
         expect(mocks.request).not.toHaveBeenCalled();
@@ -222,8 +261,8 @@ describe("mobile Freighter deposit", () => {
   );
 
   it("remembers the exact newly approved pairing after reload instead of the older saved wallet", async () => {
-    const address = `G${"A".repeat(55)}`;
-    const oldAddress = `G${"B".repeat(55)}`;
+    const address = ADDRESS;
+    const oldAddress = OTHER_ADDRESS;
     const old = { topic: "old-topic", walletId: "lobstr", address: oldAddress };
     localStorage.setItem("paiflow_mobile_wallet:testnet", JSON.stringify(old));
     for (const [topic, pairingTopic, account] of [
@@ -241,13 +280,14 @@ describe("mobile Freighter deposit", () => {
     sessionStorage.setItem(
       "paiflow_pending_wc",
       JSON.stringify({
+        boundAction: JSON.stringify(["deposit-id", "testnet", "10000000", "trigger", null, true]),
         network: "testnet",
         timestamp: Date.now(),
         walletId: "freighter",
         pairingTopic: "new-pairing",
       }),
     );
-    mocks.sign.mockResolvedValue({ signedTxXdr: "signed" });
+    mocks.request.mockResolvedValue({ signedXDR: "signed" });
     mocks.poll.mockResolvedValue({ status: "SUCCESS" });
     vi.stubGlobal(
       "fetch",
@@ -255,7 +295,7 @@ describe("mobile Freighter deposit", () => {
         .fn()
         .mockResolvedValueOnce({
           ok: true,
-          json: async () => ({ data: { xdr: "unsigned", networkPassphrase: "testnet" } }),
+          json: async () => ({ data: { xdr: "unsigned", networkPassphrase: TESTNET } }),
         })
         .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { txHash: "hash" } }) }),
     );
@@ -264,7 +304,15 @@ describe("mobile Freighter deposit", () => {
         <TriggerButton deploymentId="deposit-id" network="testnet" amount="10000000" isDeposit />,
       );
     });
-    expect(mocks.setSession).toHaveBeenCalledWith("resumed-topic");
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith({
+        topic: "resumed-topic",
+        chainId: "stellar:testnet",
+        request: { method: "stellar_signXDR", params: { xdr: "unsigned" } },
+      }),
+    );
+    await waitFor(() => expect(screen.queryByRole("button", { name: /processing/i })).toBeNull());
+    expect(mocks.setSession).not.toHaveBeenCalled();
     expect(JSON.parse(localStorage.getItem("paiflow_mobile_wallet:testnet")!)).toEqual({
       topic: "resumed-topic",
       walletId: "freighter",
@@ -274,7 +322,7 @@ describe("mobile Freighter deposit", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /connect wallet & deposit/i }));
     });
-    expect(screen.getByRole("button", { name: /send with GAAAAA…AAAA/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /send with/i })).toBeTruthy();
     expect(mocks.connect).not.toHaveBeenCalled();
   });
 });

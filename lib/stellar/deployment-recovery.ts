@@ -7,6 +7,7 @@ import { sorobanRpc } from "./client";
 
 type PreparedDeployment = {
   id: string;
+  createdAt: Date;
   status: string;
   serviceState: string;
   network: string;
@@ -16,7 +17,7 @@ type PreparedDeployment = {
 };
 const blocked: PreparedRecovery = { status: "BLOCKED" };
 
-/** Only a never-accepted preparation can be signed again or deliberately replaced. */
+/** Server acceptance metadata only; the caller must independently prove safe signing history. */
 export async function preparedDeploymentRecovery(d: PreparedDeployment): Promise<PreparedRecovery> {
   try {
     if (
@@ -57,12 +58,23 @@ export async function preparedDeploymentRecovery(d: PreparedDeployment): Promise
         txHash,
         sourceAccount: d.sourceAccount,
         network: env().STELLAR_NETWORK,
+        networkPassphrase: stellarPassphrase(),
       };
     }
     // Local time only selects this path. A closed ledger proves the envelope can
     // no longer land, and durable state must still prove no ambiguous submission.
     const server = sorobanRpc();
-    if ((await server.getTransaction(txHash)).status !== "NOT_FOUND") return blocked;
+    // The app cannot have built/signed this envelope before this durable row.
+    // NOT_FOUND is meaningful only when RPC retains that entire possible history.
+    const created = Math.floor(d.createdAt.getTime() / 1000);
+    if (!Number.isSafeInteger(created) || created <= 0) return blocked;
+    const coversHistory = (result: Awaited<ReturnType<typeof server.getTransaction>>) =>
+      result.status === "NOT_FOUND" &&
+      Number.isSafeInteger(result.oldestLedger) &&
+      result.oldestLedger > 0 &&
+      Number.isSafeInteger(result.oldestLedgerCloseTime) &&
+      result.oldestLedgerCloseTime <= created;
+    if (!coversHistory(await server.getTransaction(txHash))) return blocked;
     const latest = await server.getLatestLedger();
     const ledgers = await server.getLedgers({
       startLedger: latest.sequence,
@@ -75,7 +87,13 @@ export async function preparedDeploymentRecovery(d: PreparedDeployment): Promise
       BigInt(ledger.ledgerCloseTime) <= BigInt(tx.timeBounds.maxTime)
     )
       return blocked;
-    if ((await server.getTransaction(txHash)).status !== "NOT_FOUND") return blocked;
+    const final = await server.getTransaction(txHash);
+    if (
+      !coversHistory(final) ||
+      !Number.isSafeInteger(final.latestLedger) ||
+      final.latestLedger < latest.sequence
+    )
+      return blocked;
     const current = await db.deployment.findUnique({ where: { id: d.id } });
     if (
       !current ||
@@ -85,10 +103,18 @@ export async function preparedDeploymentRecovery(d: PreparedDeployment): Promise
       current.unsignedXdr !== d.unsignedXdr ||
       current.network !== d.network ||
       current.sourceAccount !== d.sourceAccount ||
+      current.createdAt.getTime() !== d.createdAt.getTime() ||
       !(await safeToResume())
     )
       return blocked;
-    return { status: "EXPIRED" };
+    return {
+      status: "EXPIRED",
+      unsignedXdr: d.unsignedXdr,
+      txHash,
+      sourceAccount: d.sourceAccount,
+      network: env().STELLAR_NETWORK,
+      networkPassphrase: stellarPassphrase(),
+    };
   } catch {
     return blocked;
   }

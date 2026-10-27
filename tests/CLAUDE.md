@@ -35,10 +35,23 @@ transform, which vitest does not run. Pure logic still belongs in a `*.utils.ts`
 
 ## E2E (Playwright)
 
-At least one happy path: log in as the seeded admin, build a splitter flow, deploy with a mocked
-wallet signature, assert `CONFIRMED` plus a contract address, then fund and assert the event feed
-animates the fan-out. Runs locally only; not wired into CI. Playwright reuses an existing dev server
-if one is up and needs `tests/e2e/.auth/admin.json` from its global setup.
+Required full happy-path acceptance remains: log in as the seeded admin, build a splitter flow,
+deploy through a working browser wallet harness, assert `CONFIRMED` plus a contract address, then
+fund and assert the event feed animates the fan-out. This acceptance is still open under
+[#1003](https://github.com/webnxt-2030/pinkraft/issues/1003).
+
+`happy-path.spec.ts` actively checks draft creation, the deployment review's English preview,
+network chip and available deploy control, stopping before wallet access. Its separate wallet
+signing/deployment/funding test is explicitly skipped until a working browser harness exists;
+neither that skip nor Playwright test collection counts as wallet or deployment acceptance.
+Component tests cover signing and reconciliation separately; they do not establish browser or
+real handset acceptance. Do not hide an unexercised signing path behind a caught timeout or an
+early successful return.
+
+E2E runs locally only; it is not wired into CI. Playwright reuses an existing dev server if one is
+up and needs `tests/e2e/.auth/admin.json` from its global setup. Collection-only checks should use
+an isolated config with no global setup, web server, or storage state so they do not overwrite
+shared authentication files or connect to an application.
 
 ## CI
 

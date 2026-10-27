@@ -1,0 +1,14 @@
+{
+  "controlledChunkDelay": true,
+  "serverRenderedButtonEnabled": true,
+  "serverRenderedHandlerAttached": false,
+  "serverRenderedClickOpenedDialog": false,
+  "serverRenderedClickReplayedAfterHydration": false,
+  "hydratedHandlerAttached": true,
+  "hydratedClickOpenedDialog": true,
+  "apiMutationAttemptObserved": false,
+  "createFlowClicked": false,
+  "persistentProfileAccessed": false,
+  "initialMobileFailureCauseProven": false,
+  "analyticsTrafficMeasured": false
+}

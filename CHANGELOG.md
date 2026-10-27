@@ -21,6 +21,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Reconcile develop deployment preparation/resumption with Lantern integration signing guards: retain unknown hashes, resume only proven-safe original preparations, and retry explicitly unaccepted submissions using identical in-memory signed bytes (#1106).
+
 - Retry an initial automatic Hold probe read failure after one minute while retaining longer backoff for repeated failures, contract reverts and submission/finality errors (#1076).
 
 - Check recent deployment attempts on each ordinary minute reconciliation tick instead of allowing missing RPC reads to grow into multi-minute confirmation backoff; preserve original-hash recovery and long-term unresolved history (#1079).
@@ -88,6 +90,83 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Restore sign-only Lantern Apps-tab support for public Testnet trigger and
+  Subscription allowance pages, adapting the preserved bridge to pre-sign recovery
+  and scoped approval intents. Trusted frames bypass WalletConnect and wallet
+  navigation; real Android/extension acceptance remains pending (#930, #931, #933).
+
+- Enable the pinned Lantern desktop module in the Testnet wallet picker, with
+  synchronous account/network/revocation invalidation, sign-only validation and
+  controlled recovery errors. Mobile and mainnet Lantern remain unavailable;
+  real-extension joint acceptance is still pending (#1001).
+
+- Persist the prepared transaction hash before wallet signing for deploys, triggers,
+  allowance approvals and shared contract calls. Preserve unknown signing outcomes
+  across reloads, release only matching explicit cancellations, and recheck account
+  and network before a single submission (#1065).
+
+- Record Lantern’s reported desktop API/build readiness, artifact and executable-fixture
+  gates, error/recovery acceptance, and completed scanner-fixture handoff; keep the
+  provisional adapter disabled until the real module and extension are verified (#1001).
+
+- Permit app framing only by Lantern's exact Android and Chrome-extension origins,
+  with consistent CSP protection on middleware and static responses; embedded
+  authentication and signing remain unverified (#1021).
+
+- Recover wallet deployments after an RPC timeout through authenticated owner status checks; retain pending recovery until the matching deployment is confirmed in the app. (#1000, #1003)
+
+- Isolate shared wallet signing from deprecated payroll recovery names while retaining
+  legacy deployment-request reservations; exclude payroll/off-ramp from Lantern acceptance
+  and document the existing flags that block new use without stopping settlement.
+
+- Record five expired real unsigned Testnet scan samples: factory deployment,
+  deposit, Streamer top-up, one-stroop token approval, and a read-only actual-builder
+  distribution simulation. Preserve public metadata and explicit remaining Lantern
+  acceptance and capture-provenance limits;
+  retain the five synthetic examples (#1003).
+
+- Align alpha testing guides and PDFs with the shared wallet picker, keeping
+  Freighter as the wallet for this test plan and Lantern explicitly unavailable.
+
+- Reject a contract action's mismatched server network before asking a desktop
+  wallet to sign, while retaining signed-envelope validation before submission.
+
+- Keep new-flow controls natively disabled until hydration can handle a click,
+  preventing an enabled server-rendered button from silently losing the first tap
+  on a slow connection (#1003).
+
+- Preserve unresolved payroll update requests and every returned transaction hash
+  across navigation and reloads. Block replacement actions, cancel stale roster
+  approvals and validate all wallet responses before dispatch.
+
+- Report browser wallet-deployment acceptance as explicitly pending rather than
+  passing after a timeout; retain active draft-builder and deployment-review
+  assertions (#1003).
+
+- Validate every deployment wallet response and persist its public deployment ID
+  and transaction hash before submission. Preserve unresolved submissions across
+  navigation and reloads, with status-only recovery and browser admission locks.
+
+- Bind payment-trigger and allowance signatures to the exact approved wallet
+  session and unchanged transaction. Cancel stale approvals before dispatch;
+  preserve submitted hashes across view changes and reloads, and share transaction
+  admission with contract controls while retaining allowance-specific reconciliation
+  (#1003). Legacy unbound mobile wallet returns require reconnecting.
+
+- Centralize mobile wallet names, icons and handoff links while preserving existing
+  Freighter, LOBSTR and xBull behavior; keep Lantern gated on official metadata.
+
+- Keep contract-action signing bound to the selected wallet connection, cancelling
+  stale approvals when the deployment, network or action arguments change. Preserve
+  submitted hashes across view changes and reloads until finality is known; require
+  browser transaction locks and recovery storage before sending (#1003).
+
+- Share wallet initialization between payment triggers and contract calls, preserving
+  mobile pairing, wallet return and pending-transaction recovery (#397).
+
+- Use the shared wallet picker for deployment and payroll employee updates, record
+  the chosen wallet, and sign with the server-provided transaction network. Bind
+  WalletConnect signing to the approved session and cancel stale view attempts.
 - Link the Windows Setup Guide from the Paiflow Guide and Iloilo primer, clarify
   its companion PDF role and current Iloilo scope, and align API/AI payment
   guidance with shared RPC deadlines and original-transaction recovery.
@@ -149,6 +228,12 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Deterministic unsigned TESTNET envelope samples for Lantern scan-fixture
+  preparation, with synthetic-state limits and builder/decoder verification (#1003).
+
+- Prepare an experimental Lantern desktop adapter with fake-provider tests and
+  an explicitly unavailable picker entry pending upstream provider verification
+  and real-extension acceptance (#1001).
 - A reusable hackathon event primer template and PDF, with embedded resource links
   and organiser notes for event decisions, schedule checks and documentation structure.
 

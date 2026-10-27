@@ -1,15 +1,32 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { toast } from "sonner";
 import { toastError } from "@/lib/friendly-toast";
 import { usePollTxStatus } from "@/lib/hooks/use-poll-tx-status";
-import { getWalletKit } from "./wallet-kit";
 import { trackWalletConnection } from "@/lib/wallet-tracking";
+import {
+  CONTRACT_CALL_PENDING_EVENT,
+  clearPendingContractCall,
+  contractCallPendingKey,
+  readPendingContractCall,
+  savePendingContractCall,
+  markPendingContractCallSubmitted,
+  rejectPendingContractCallSigning,
+  withContractCallLock,
+  type PendingContractCall,
+} from "@/lib/contract-call-pending";
+import { assertNoPendingDeploymentRequest } from "@/lib/deployment-request-pending";
+import { readAllowancePendingHash } from "@/lib/subscription/allowance-pending";
+import { signWithRecovery } from "@/lib/wallet-signing-recovery";
+import { getWalletKit } from "./wallet-kit";
+import { assertWalletAttemptActive, connectSelectedWallet } from "./selected-wallet-connection";
 
 type ContractCallButtonProps = {
   deploymentId: string;
   network: "testnet" | "mainnet";
+  /** Stable operation identity, including any arguments that change what is signed. */
+  actionKey: string;
   label: string;
   busyLabel: string;
   icon?: string;
@@ -25,6 +42,7 @@ type ContractCallButtonProps = {
 export default function ContractCallButton({
   deploymentId,
   network,
+  actionKey,
   label,
   busyLabel,
   icon = "send",
@@ -38,10 +56,141 @@ export default function ContractCallButton({
 }: ContractCallButtonProps) {
   const [busy, setBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  // Same guard as trigger-button.tsx: wallet-kit 1.9.5 can fire onClosed after
-  // a wallet was picked (a backdrop click inside its 280ms close animation).
-  const signingStartedRef = useRef(false);
+  const pendingKey = contractCallPendingKey(deploymentId, network);
+  const [pending, setPending] = useState<PendingContractCall | null>(null);
+  const [allowancePending, setAllowancePending] = useState(false);
+  const [storageReady, setStorageReady] = useState(false);
+  const [storageBlocked, setStorageBlocked] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  // Inline callbacks are recreated by polling parents. Only a changed signing
+  // intent cancels preparation. Dispatch/reconciliation outlives the view.
+  useLayoutEffect(() => {
+    setBusy(false);
+    return () => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+    };
+  }, [deploymentId, network, actionKey, disabled]);
   const pollTxStatus = usePollTxStatus();
+
+  function loadPending() {
+    try {
+      assertNoPendingDeploymentRequest(deploymentId, network);
+      const saved = readPendingContractCall(pendingKey);
+      const allowanceHash = readAllowancePendingHash(deploymentId, network);
+      setAllowancePending(Boolean(allowanceHash));
+      if (allowanceHash) {
+        setStatusMessage(
+          "An approval is awaiting confirmation. Check its status on the allowance page before starting another action.",
+        );
+      } else if (saved?.phase === "signing") {
+        setStatusMessage(
+          `Signing outcome is unknown for ${saved.txHash}. No submission is recorded. Check its status before another action.`,
+        );
+      } else {
+        setStatusMessage(null);
+      }
+      setPending(saved);
+      setStorageBlocked(false);
+      return saved;
+    } catch {
+      setStorageBlocked(true);
+      setStatusMessage(
+        "A deployment request or transaction may be unresolved, or recovery storage is unavailable or invalid. Check the original action and transaction status before another action.",
+      );
+      throw new Error("Transaction status storage is unavailable or invalid.");
+    } finally {
+      setStorageReady(true);
+    }
+  }
+
+  async function reconcile(
+    saved: PendingContractCall,
+    isCurrentView: () => boolean,
+    onConfirmed?: () => void,
+  ) {
+    try {
+      // This controller deliberately belongs to no view. A changed action or
+      // unmount must not discard an irreversible dispatch's hash or outcome.
+      const outcome = await pollTxStatus(deploymentId, saved.txHash);
+      if (outcome.status !== "SUCCESS" && outcome.status !== "FAILED") {
+        throw new Error("Transaction finality is unknown.");
+      }
+      clearPendingContractCall(pendingKey, saved.txHash);
+      if (!isCurrentView()) return;
+      setStatusMessage(null);
+      if (outcome.status === "SUCCESS") {
+        toast.success("Transaction confirmed!");
+        onConfirmed?.();
+      } else {
+        toastError(
+          new Error(outcome.errorMessage ?? "Transaction failed on the network"),
+          "Transaction failed",
+        );
+      }
+    } catch {
+      if (isCurrentView()) {
+        setStatusMessage(
+          saved.phase === "signing"
+            ? `Signing outcome is still unknown for ${saved.txHash}. No submission is recorded. Check its status before another action.`
+            : `Confirmation is still unknown for ${saved.txHash}. Check its status before starting another action.`,
+        );
+      }
+    }
+  }
+
+  async function checkPendingStatus(saved: PendingContractCall) {
+    if (abortRef.current && !abortRef.current.signal.aborted) return;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const isCurrent = () => abortRef.current === controller && !controller.signal.aborted;
+    setBusy(true);
+    try {
+      await withContractCallLock(pendingKey, async () => {
+        const current = readPendingContractCall(pendingKey);
+        if (current?.txHash === saved.txHash) await reconcile(current, isCurrent);
+      });
+    } catch {
+      if (isCurrent()) {
+        setStatusMessage(
+          saved.phase === "signing"
+            ? `Signing outcome is still unknown for ${saved.txHash}. No submission is recorded. Check its status before another action.`
+            : `Confirmation is still unknown for ${saved.txHash}. Check its status before starting another action.`,
+        );
+      }
+    } finally {
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        if (!controller.signal.aborted) setBusy(false);
+      }
+    }
+  }
+
+  useEffect(() => {
+    setStorageReady(false);
+    setStatusMessage(null);
+    const refresh = () => {
+      try {
+        loadPending();
+      } catch {
+        // Reading and writing recovery state both fail closed.
+      }
+    };
+    window.addEventListener("storage", refresh);
+    window.addEventListener(CONTRACT_CALL_PENDING_EVENT, refresh);
+    try {
+      const saved = loadPending();
+      if (saved) void checkPendingStatus(saved);
+    } catch {
+      // No signing or submission is permitted without reliable recovery state.
+    }
+    return () => {
+      window.removeEventListener("storage", refresh);
+      window.removeEventListener(CONTRACT_CALL_PENDING_EVENT, refresh);
+    };
+    // Recover only the hash when entering this deployment; never replay an action.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingKey]);
 
   const variantClass =
     variant === "primary"
@@ -53,91 +202,187 @@ export default function ContractCallButton({
   const sizeClass =
     size === "sm" ? "text-label-sm px-3 py-1.5 gap-1.5" : "text-label-md px-4 py-2.5 gap-2";
 
-  const handleClick = useCallback(async () => {
-    if (busy || disabled) return;
-    abortRef.current?.abort();
+  const handleClick = async () => {
+    if (
+      disabled ||
+      !storageReady ||
+      storageBlocked ||
+      pending ||
+      allowancePending ||
+      (abortRef.current && !abortRef.current.signal.aborted)
+    )
+      return;
     const controller = new AbortController();
     abortRef.current = controller;
-    signingStartedRef.current = false;
+    const { signal } = controller;
+    const check = () => assertWalletAttemptActive(signal);
+    const isCurrent = () => abortRef.current === controller && !signal.aborted;
+    let connected = false;
     setBusy(true);
 
     try {
-      const { kit } = await getWalletKit(network);
-
-      await kit.openModal({
-        onWalletSelected: async (wallet: { id: string; name: string }) => {
-          signingStartedRef.current = true;
-          try {
-            toast.info(`Selected wallet: ${wallet.name}`);
-            kit.setWallet(wallet.id);
-
-            const { address } = await kit.getAddress();
-            toast.success(`Connected: ${address.slice(0, 6)}...${address.slice(-4)}`);
-            void trackWalletConnection({
-              address,
-              network,
-              walletId: wallet.id,
-              surface: "contract_call",
-            });
-
-            toast.info("Preparing transaction...");
-            const { xdr, networkPassphrase } = await prepare(address);
-
-            toast.info("Awaiting signature...");
-            const signed = await kit.signTransaction(xdr, {
-              address,
-              networkPassphrase,
-            });
-
-            toast.info("Submitting transaction...");
-            const { txHash } = await submit(signed.signedTxXdr);
-
-            toast.info("Transaction submitted. Waiting for confirmation...");
-            const outcome = await pollTxStatus(deploymentId, txHash, controller.signal);
-            if (outcome.status === "SUCCESS") {
-              toast.success("Transaction confirmed!");
-              onSuccess?.();
-            } else {
-              throw new Error(outcome.errorMessage ?? "Transaction failed on the network");
-            }
-          } catch (err) {
-            toastError(err, "Transaction failed");
-          } finally {
-            setBusy(false);
+      await withContractCallLock(pendingKey, async () => {
+        let admitted = false;
+        let onAbort!: () => void;
+        const cancelled = new Promise<never>((_resolve, reject) => {
+          onAbort = () => {
+            if (!admitted) reject(new Error("Transaction cancelled before submission."));
+          };
+          signal.addEventListener("abort", onAbort, { once: true });
+          if (signal.aborted) onAbort();
+        });
+        const execute = async () => {
+          check();
+          const existing = loadPending();
+          if (existing) {
+            admitted = true;
+            await reconcile(existing, isCurrent);
+            return;
           }
-        },
-        onClosed: () => {
-          if (signingStartedRef.current) return;
-          toast.warning("Connection cancelled");
-          abortRef.current?.abort();
-          setBusy(false);
-        },
+          assertNoPendingDeploymentRequest(deploymentId, network);
+          if (readAllowancePendingHash(deploymentId, network)) {
+            throw new Error(
+              "An approval is awaiting confirmation. Check its status on the allowance page before starting another action.",
+            );
+          }
+          const shared = await getWalletKit(network);
+          check();
+          const connection = await connectSelectedWallet(shared, network, signal);
+          check();
+          if (!connection) {
+            toast.warning("Connection cancelled");
+            return;
+          }
+          const { address, walletId } = connection;
+          connected = true;
+          toast.success(`Connected: ${address.slice(0, 6)}...${address.slice(-4)}`);
+          void trackWalletConnection({ address, network, walletId, surface: "contract_call" });
+
+          toast.info("Preparing transaction...");
+          const { xdr, networkPassphrase } = await prepare(address);
+          check();
+
+          toast.info("Awaiting signature...");
+          const signed = await signWithRecovery({
+            network,
+            xdr,
+            address,
+            networkPassphrase,
+            check,
+            save: (attempt) => {
+              assertNoPendingDeploymentRequest(deploymentId, network);
+              if (readAllowancePendingHash(deploymentId, network))
+                throw new Error(
+                  "An approval is awaiting confirmation. Check its status on the allowance page before starting another action.",
+                );
+              try {
+                savePendingContractCall(pendingKey, attempt);
+              } catch (error) {
+                setStorageBlocked(true);
+                setStatusMessage(
+                  "Transaction status could not be saved. No signature was requested.",
+                );
+                throw error;
+              }
+            },
+            read: () => readPendingContractCall(pendingKey),
+            clearRejected: (attempt) => rejectPendingContractCallSigning(pendingKey, attempt),
+            sign: () => connection.signTransaction(xdr, { address, networkPassphrase }),
+          });
+          check();
+          // The allowance protocol owns its opaque intent and clearing proof.
+          // Only read its public pending status, under the same admission lock.
+          assertNoPendingDeploymentRequest(deploymentId, network);
+          if (readAllowancePendingHash(deploymentId, network)) {
+            throw new Error(
+              "An approval is awaiting confirmation. Check its status on the allowance page before starting another action.",
+            );
+          }
+          const saved = { ...signed.attempt, phase: "submitted" as const };
+          markPendingContractCallSubmitted(pendingKey, signed.attempt);
+          check();
+          admitted = true;
+          // Irreversible boundary: from here, view cancellation only suppresses
+          // stale UI. Never retry a write or discard its outcome on navigation.
+          toast.info("Submitting transaction...");
+          try {
+            // Begin read-only reconciliation immediately: an HTTP response can
+            // be delayed forever after the server has already sent the bytes.
+            // Neither the response hash nor an error can replace this marker.
+            void submit(signed.signedTxXdr).catch(() => {});
+          } catch {
+            // A callback/transport failure does not prove the bytes were not sent.
+            // Reconcile the hash computed before dispatch, never a response hash.
+          }
+          if (isCurrent()) toast.info("Transaction submitted. Waiting for confirmation...");
+          await reconcile(saved, isCurrent, onSuccess);
+        };
+        try {
+          // Release an empty lock promptly when a wallet prompt is abandoned.
+          // Every resumed preparation still checks its cancelled view signal.
+          await Promise.race([execute(), cancelled]);
+        } finally {
+          signal.removeEventListener("abort", onAbort);
+        }
       });
     } catch (err) {
-      toastError(err, "Connection failed");
-      setBusy(false);
+      if (!signal.aborted) toastError(err, connected ? "Transaction failed" : "Connection failed");
+    } finally {
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        if (!signal.aborted) setBusy(false);
+      }
     }
-  }, [busy, deploymentId, network, prepare, submit, onSuccess]);
+  };
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={busy || disabled}
-      className={`${variantClass} ${sizeClass} ${className} inline-flex items-center justify-center rounded-lg font-mono font-bold transition-all duration-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none`}
-    >
-      {busy ? (
-        <>
-          <span className="material-symbols-outlined animate-spin text-[16px]">
-            progress_activity
-          </span>
-          {busyLabel}
-        </>
-      ) : (
-        <>
-          <span className="material-symbols-outlined text-[16px]">{icon}</span>
-          {label}
-        </>
+    <>
+      <button
+        onClick={handleClick}
+        disabled={
+          busy ||
+          disabled ||
+          !storageReady ||
+          storageBlocked ||
+          allowancePending ||
+          Boolean(pending)
+        }
+        className={`${variantClass} ${sizeClass} ${className} inline-flex items-center justify-center rounded-lg font-mono font-bold transition-all duration-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none`}
+      >
+        {busy ? (
+          <>
+            <span className="material-symbols-outlined animate-spin text-[16px]">
+              progress_activity
+            </span>
+            {busyLabel}
+          </>
+        ) : (
+          <>
+            <span className="material-symbols-outlined text-[16px]">{icon}</span>
+            {label}
+          </>
+        )}
+      </button>
+      {(pending || allowancePending || storageBlocked) && (
+        <div className="text-on-surface-variant space-y-2 text-xs" role="status">
+          <p>
+            {statusMessage ??
+              (pending?.phase === "signing"
+                ? `Signing outcome is unknown for ${pending.txHash}. No submission is recorded. Check its status before another action.`
+                : `A transaction is awaiting confirmation: ${pending?.txHash}. Check its status before starting another action.`)}
+          </p>
+          {pending && !storageBlocked && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void checkPendingStatus(pending)}
+              className="text-secondary underline disabled:opacity-50"
+            >
+              CHECK TRANSACTION STATUS
+            </button>
+          )}
+        </div>
       )}
-    </button>
+    </>
   );
 }

@@ -391,6 +391,7 @@ export default function DeploymentView({
                 <ContractCallButton
                   deploymentId={deploymentId}
                   network={network}
+                  actionKey="subscription-charge"
                   label="CHARGE NOW"
                   busyLabel="CHARGING…"
                   icon="bolt"
@@ -442,6 +443,7 @@ export default function DeploymentView({
                   <ContractCallButton
                     deploymentId={deploymentId}
                     network={network}
+                    actionKey="subscription-subscribe"
                     label="SUBSCRIBE"
                     busyLabel="SUBSCRIBING…"
                     icon="check_circle"
@@ -486,6 +488,7 @@ export default function DeploymentView({
                   <ContractCallButton
                     deploymentId={deploymentId}
                     network={network}
+                    actionKey="subscription-unsubscribe"
                     label="UNSUBSCRIBE"
                     busyLabel="UNSUBSCRIBING…"
                     icon="cancel"
@@ -560,6 +563,7 @@ export default function DeploymentView({
                 <ContractCallButton
                   deploymentId={deploymentId}
                   network={network}
+                  actionKey={`streamer-resume:${streamerNode.contractAddress}`}
                   label="RESUME"
                   busyLabel="RESUMING…"
                   icon="play_arrow"
@@ -605,6 +609,7 @@ export default function DeploymentView({
                 <ContractCallButton
                   deploymentId={deploymentId}
                   network={network}
+                  actionKey={`streamer-pause:${streamerNode.contractAddress}`}
                   label="PAUSE"
                   busyLabel="PAUSING…"
                   icon="pause"
@@ -651,6 +656,7 @@ export default function DeploymentView({
                 <ContractCallButton
                   deploymentId={deploymentId}
                   network={network}
+                  actionKey={`streamer-retrieve:${streamerNode.contractAddress}`}
                   label="RETRIEVE UNVESTED"
                   busyLabel="RETRIEVING…"
                   icon="account_balance_wallet"
