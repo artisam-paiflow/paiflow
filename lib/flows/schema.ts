@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
+import { integerNumber } from "@/lib/validation/number";
 import { formatStroops } from "@/lib/utils";
 import { bpsSchema, TOTAL_BPS } from "./primitives";
 import { looksLikeSecretSeed, SECRET_SEED_MESSAGE } from "./secret-seed";
@@ -113,11 +114,11 @@ export const OnScheduleTrigger = z.object({
   id: z.string().min(1),
   type: z.literal("on_schedule"),
   config: z.object({
-    intervalAmount: z.number().int().positive().default(1),
+    intervalAmount: integerNumber().positive().default(1),
     intervalUnit: z.enum(["minute", "hour", "day", "week", "month"]),
     startsAt: z.string().datetime(),
     endsAt: z.string().datetime().optional(),
-    occurrences: z.number().int().positive().optional(),
+    occurrences: integerNumber().positive().optional(),
     timeZone: z.string().optional(),
     pauseAllowed: z.boolean().optional(),
     retrieveAllowed: z.boolean().optional(),
@@ -148,10 +149,10 @@ export const SubscriptionTrigger = z.object({
     asset: AssetSchema,
     subscriber: stellarAccount,
     amountPerPeriodStroops: z.string().regex(/^\d+$/, "Amount must be a positive integer string"),
-    intervalAmount: z.number().int().positive().default(1),
+    intervalAmount: integerNumber().positive().default(1),
     intervalUnit: z.enum(["minute", "hour", "day", "week", "month"]).default("day"),
     endsAt: z.string().datetime().optional(),
-    occurrences: z.number().int().positive().optional(),
+    occurrences: integerNumber().positive().optional(),
   }),
 });
 
@@ -161,10 +162,10 @@ export const PayrollTrigger = z.object({
   config: z.object({
     asset: AssetSchema,
     employer: stellarAccount,
-    intervalAmount: z.number().int().positive().default(1),
+    intervalAmount: integerNumber().positive().default(1),
     intervalUnit: z.enum(["minute", "hour", "day", "week", "month"]).default("week"),
     endsAt: z.string().datetime().optional(),
-    occurrences: z.number().int().positive().optional(),
+    occurrences: integerNumber().positive().optional(),
     fillScheduleViaApi: z.boolean().default(false),
   }),
 });
@@ -512,7 +513,7 @@ export const ConditionLogic = z.object({
     z.object({
       kind: z.literal("multisig"),
       signers: z.array(stellarAccount).min(1).max(20),
-      threshold: z.number().int().min(1),
+      threshold: integerNumber().min(1),
     }),
   ]),
 });

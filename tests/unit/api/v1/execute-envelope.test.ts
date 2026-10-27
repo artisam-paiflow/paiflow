@@ -29,6 +29,7 @@ import {
   TransactionBuilder,
   rpc,
   xdr,
+  StrKey,
   type Transaction,
 } from "@stellar/stellar-sdk";
 
@@ -43,7 +44,7 @@ const { mockDb, mockRpc, mockBuildHint } = vi.hoisted(() => ({
     analyticsDelivery: { createMany: vi.fn(async () => ({ count: 1 })) },
   },
   mockRpc: {
-    getAccount: vi.fn(),
+    _getLedgerEntries: vi.fn(),
     simulateTransaction: vi.fn(),
     getTransaction: vi.fn(),
     sendTransaction: vi.fn(),
@@ -68,6 +69,7 @@ vi.mock("@/lib/audit", () => ({
 import { POST as prepare } from "@/app/api/v1/deployments/[id]/execute/route";
 import { POST as submit } from "@/app/api/v1/deployments/[id]/execute/submit/route";
 import { audit } from "@/lib/audit";
+import { paymentAccountResponse } from "../../stellar/payment-account-fixture";
 import {
   DEPLOYMENT_ID,
   OTHER_CONTRACT,
@@ -115,8 +117,9 @@ beforeEach(async () => {
   mockDb.deploymentApiToken.update.mockResolvedValue({});
   mockBuildHint.mockResolvedValue({ addressMap: { [ROUTER]: "soroswap_router" } });
 
-  const { Account } = await import("@stellar/stellar-sdk");
-  mockRpc.getAccount.mockImplementation(async (a: string) => new Account(a, "41"));
+  mockRpc._getLedgerEntries.mockImplementation(async (key: xdr.LedgerKey) =>
+    paymentAccountResponse(StrKey.encodeEd25519PublicKey(key.account().accountId().ed25519())),
+  );
   mockRpc.simulateTransaction.mockResolvedValue({
     id: "sim",
     latestLedger: 1000,

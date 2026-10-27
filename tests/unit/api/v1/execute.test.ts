@@ -25,7 +25,7 @@ vi.mock("@/lib/analytics/outcomes", () => ({
  * Auth runs for real against a mocked token table, so every refusal below goes
  * through `requireDeploymentToken` and `v1Route` as a partner's request would.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   Keypair,
   TransactionBuilder,
@@ -56,6 +56,8 @@ vi.mock("@/lib/audit", () => ({
 }));
 vi.mock("@/lib/signed-tx", () => ({ recordSignedTransaction: vi.fn(async () => undefined) }));
 
+import { interactiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
+import { recordTransactionOutcome } from "@/lib/analytics/outcomes";
 import { POST as prepare } from "@/app/api/v1/deployments/[id]/execute/route";
 import { POST as submit } from "@/app/api/v1/deployments/[id]/execute/submit/route";
 import {
@@ -67,7 +69,9 @@ import {
 import { V1_WAIT_SLOTS } from "@/lib/api/v1/limits";
 import { acquireWaitSlot } from "@/lib/api/v1/wait-slots";
 import { AppError } from "@/lib/errors";
+import { I128_MAX } from "@/lib/flows/primitives";
 import { SimulationError, simulationFailure } from "@/lib/stellar/sim-error";
+import { MissingPaymentAccountError } from "@/lib/stellar/load-payment-account";
 import { audit, wasTxConfirmedFor } from "@/lib/audit";
 import { recordSignedTransaction } from "@/lib/signed-tx";
 import { pollEventsFor } from "@/lib/stellar/events";
@@ -430,6 +434,39 @@ describe("POST …/execute (prepare)", () => {
     expect(mockPrepareTriggerTx).not.toHaveBeenCalled();
   });
 
+  it.each([(I128_MAX + 1n).toString(), "9".repeat(39)])(
+    "rejects an overflowing amount with 422 before preparation or financial side effects: %s",
+    async (amount) => {
+      const res = await callPrepare({ ...prepareBody, amount });
+
+      expect(res.status).toBe(422);
+      expect(await res.json()).toMatchObject({
+        error: {
+          code: "VALIDATION",
+          fields: { amount: ["Amount exceeds the contract i128 range"] },
+        },
+      });
+      expect(mockPrepareTriggerTx).not.toHaveBeenCalled();
+      expect(mockBuildHint).not.toHaveBeenCalled();
+      expect(mockRpc.getTransaction).not.toHaveBeenCalled();
+      expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+      expect(recordSignedTransaction).not.toHaveBeenCalled();
+      expect(audit).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([(I128_MAX - 1n).toString(), I128_MAX.toString()])(
+    "passes a representable boundary amount unchanged to preparation: %s",
+    async (amount) => {
+      mockPrepareTriggerTx.mockResolvedValue({ xdr: signedEnvelope() });
+
+      const res = await callPrepare({ ...prepareBody, amount });
+
+      expect(res.status).toBe(200);
+      expect(mockPrepareTriggerTx).toHaveBeenCalledWith(expect.objectContaining({ amount }));
+    },
+  );
+
   it("422 for a body that is not JSON", async () => {
     const res = await prepare(
       request(PREPARE_PATH, { token: token.plaintext, rawBody: "{nope" }),
@@ -505,7 +542,7 @@ describe("POST …/execute (prepare)", () => {
   });
 
   it("402 when `from` does not exist on this network", async () => {
-    mockPrepareTriggerTx.mockRejectedValue(new Error(`Account not found: ${FROM}`));
+    mockPrepareTriggerTx.mockRejectedValue(new MissingPaymentAccountError());
     const res = await callPrepare();
     expect(res.status).toBe(402);
     expect((await res.json()).error.message).toContain("must be a funded account");
@@ -513,6 +550,13 @@ describe("POST …/execute (prepare)", () => {
 
   it("502 when the RPC itself fails", async () => {
     mockPrepareTriggerTx.mockRejectedValue(new Error("socket hang up"));
+    const res = await callPrepare();
+    expect(res.status).toBe(502);
+    expect((await res.json()).error.code).toBe("UPSTREAM_RPC");
+  });
+
+  it("does not infer a missing account from the SDK's catch-all error message", async () => {
+    mockPrepareTriggerTx.mockRejectedValue(new Error(`Account not found: ${FROM}`));
     const res = await callPrepare();
     expect(res.status).toBe(502);
     expect((await res.json()).error.code).toBe("UPSTREAM_RPC");
@@ -981,4 +1025,95 @@ describe("waitForFinal", () => {
       expect(mockRpc.getTransaction).toHaveBeenCalledTimes(3);
     },
   );
+});
+
+describe("shared interactive submit budget", () => {
+  function rpcAfter<T>(value: T, ms: number): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const signal = interactiveRpcBudget()?.signal;
+      const timer = setTimeout(() => resolve(value), ms);
+      signal?.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer);
+          reject(signal.reason);
+        },
+        { once: true },
+      );
+    });
+  }
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    mockRpc.getTransaction.mockReset();
+    mockRpc.sendTransaction.mockReset();
+    vi.mocked(pollEventsFor).mockReset().mockResolvedValue(1);
+  });
+
+  it("shares25 seconds across preflight, send and optional confirmation, returning accepted PENDING", async () => {
+    const signed = signedEnvelope(),
+      txHash = hashOf(signed);
+    mockRpc.getTransaction
+      .mockImplementationOnce(() => rpcAfter({ status: "NOT_FOUND" }, 8_000))
+      .mockImplementation(() => rpcAfter({ status: "NOT_FOUND" }, 50_000));
+    mockRpc.sendTransaction.mockImplementation(() =>
+      rpcAfter({ status: "PENDING", hash: txHash }, 8_000),
+    );
+    const start = Date.now(),
+      pending = callSubmit(signed);
+    await vi.advanceTimersByTimeAsync(25_000);
+    const response = await pending;
+    expect(Date.now() - start).toBe(25_000);
+    expect(await response.json()).toEqual({ data: { txHash, status: "PENDING" } });
+    expect(mockRpc.sendTransaction).toHaveBeenCalledTimes(1);
+    expect(mockRpc.getTransaction).toHaveBeenCalledTimes(2);
+    expect(recordTransactionOutcome).toHaveBeenCalledWith(txHash, "ACCEPTED", expect.any(Object));
+    expect(
+      vi
+        .mocked(recordTransactionOutcome)
+        .mock.calls.some(([, outcome]) => outcome === "UNRESOLVED"),
+    ).toBe(false);
+  });
+
+  it("retains the original hash as UNRESOLVED when send exhausts the remaining budget and never resends", async () => {
+    const signed = signedEnvelope(),
+      txHash = hashOf(signed);
+    mockRpc.getTransaction.mockImplementation(() => rpcAfter({ status: "NOT_FOUND" }, 8_000));
+    mockRpc.sendTransaction.mockImplementation(() =>
+      rpcAfter({ status: "PENDING", hash: txHash }, 50_000),
+    );
+    const pending = callSubmit(signed);
+    await vi.advanceTimersByTimeAsync(25_000);
+    const response = await pending,
+      body = await response.json();
+    expect(response.status).toBe(502);
+    expect(body.error.code).toBe("UPSTREAM_RPC");
+    expect(body.error.message).toContain(txHash);
+    expect(body.error.message).toContain("outcome is unknown");
+    expect(recordSignedTransaction).toHaveBeenCalledOnce();
+    expect(recordTransactionOutcome).toHaveBeenCalledWith(txHash, "UNRESOLVED", expect.any(Object));
+    expect(mockRpc.sendTransaction).toHaveBeenCalledTimes(1);
+    expect(mockRpc.getTransaction).toHaveBeenCalledTimes(1);
+    expect(pollEventsFor).not.toHaveBeenCalled();
+  });
+
+  it("persists known SUCCESS even when the last second is exhausted catching up events", async () => {
+    const signed = signedEnvelope(),
+      txHash = hashOf(signed);
+    mockRpc.getTransaction.mockImplementation(() =>
+      rpcAfter({ status: "SUCCESS", ledger: 4242 }, 24_000),
+    );
+    vi.mocked(pollEventsFor).mockImplementation(() => rpcAfter(1, 50_000));
+    const pending = callSubmit(signed);
+    await vi.advanceTimersByTimeAsync(25_000);
+    const response = await pending;
+    expect(await response.json()).toEqual({ data: { txHash, status: "SUCCESS", ledger: 4242 } });
+    expect(recordTransactionOutcome).toHaveBeenCalledWith(
+      txHash,
+      "CONFIRMED",
+      expect.objectContaining({ ledger: 4242 }),
+    );
+    expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+    expect(pollEventsFor).toHaveBeenCalledOnce();
+  });
 });

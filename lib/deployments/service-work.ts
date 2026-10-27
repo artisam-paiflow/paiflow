@@ -24,7 +24,7 @@ const context = (processContext.deploymentWorkContext ??= new AsyncLocalStorage<
 /** The same row lock serializes admission, retirement and settlement completion
  * across replicas. Never hold this database transaction over network I/O. */
 export async function lockDeployment(tx: Prisma.TransactionClient, id: string) {
-  if (!z.string().uuid().safeParse(id).success)
+  if (!z.string().guid({ error: "Invalid uuid" }).safeParse(id).success)
     throw new AppError("NOT_FOUND", "Deployment not found");
   const rows = await tx.$queryRaw<
     Array<{ id: string; serviceState: "ACTIVE" | "RETIRING" | "RETIRED" }>
@@ -37,7 +37,7 @@ export async function lockDeployment(tx: Prisma.TransactionClient, id: string) {
 }
 
 export async function assertDeploymentService(id: string) {
-  if (!z.string().uuid().safeParse(id).success)
+  if (!z.string().guid({ error: "Invalid uuid" }).safeParse(id).success)
     throw new AppError("NOT_FOUND", "Deployment not found");
   const row = await db.deployment.findUnique({ where: { id }, select: { serviceState: true } });
   if (!row || row.serviceState === "RETIRED")
@@ -224,9 +224,20 @@ export async function observeServiceTransaction(
   ledger?: number,
   force = false,
 ) {
-  if (!context.getStore() && !force) return;
+  const scope = context.getStore();
+  if (!scope && !force) return;
+  // A shared hash may belong to other deployments. Ordinary observation only
+  // projects participants covered by this admission; retirement explicitly forces
+  // verified settlement observations through its dedicated path.
+  const deploymentIds = scope
+    ? (scope.participants ?? [scope]).map((participant) => participant.deploymentId)
+    : [];
   await db.serviceTransaction.updateMany({
-    where: { txHash, state: "PENDING" },
+    where: {
+      txHash,
+      state: "PENDING",
+      ...(!force ? { work: { deploymentId: { in: deploymentIds } } } : {}),
+    },
     data: { state, ...(ledger === undefined ? {} : { ledger }) },
   });
 }

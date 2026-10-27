@@ -70,6 +70,9 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
       }
       throw new AppError("CONFLICT", "Deployment already confirmed with a different transaction");
     }
+    if (deployment.status === "SUBMITTED" && deployment.deployTxHash === txHash) {
+      return NextResponse.json({ data: { status: "SUBMITTED", txHash } });
+    }
     if (deployment.status !== "PENDING_SIGNATURE") {
       throw new AppError("CONFLICT", `Deployment is ${deployment.status}, cannot submit`);
     }
@@ -159,7 +162,20 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
         if ((err as { code?: string }).code !== "P2025") throw err;
         log.warn({ deploymentId: id }, "submit: send not accepted, but no longer SUBMITTED");
       }
-      throw new AppError("UPSTREAM_RPC", SEND_NOT_ACCEPTED_MESSAGE);
+      log.error(
+        { code: "UPSTREAM_RPC", status: 502, deploymentId: id },
+        "Deployment submission not accepted",
+      );
+      return NextResponse.json(
+        {
+          error: {
+            code: "UPSTREAM_RPC",
+            message: SEND_NOT_ACCEPTED_MESSAGE,
+            submissionStatus: "NOT_ACCEPTED",
+          },
+        },
+        { status: 502 },
+      );
     }
     if (result.status === "SUCCESS") {
       const confirmed = await confirmDeployment(deployment, result, signer.signerAddress);

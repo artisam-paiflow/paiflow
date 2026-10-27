@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     await requireSession({ role: Role.ADMIN });
     const cursor = z
       .string()
-      .uuid()
+      .guid({ error: "Invalid uuid" })
       .optional()
       .parse(req.nextUrl.searchParams.get("cursor") ?? undefined);
     return NextResponse.json(await listGoogleSignupCodes(cursor), {

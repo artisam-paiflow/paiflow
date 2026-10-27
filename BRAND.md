@@ -498,7 +498,7 @@ Things that will break the brand. The agent must refuse these even if asked.
   are outside this rule.
 - ❌ **Lottie or heavy animation libraries.** CSS keyframes + Tailwind transitions only.
 - ❌ **Filled solid colors on icons by default.** Icons default to outlined; fill only for active nav items and live status icons.
-- ❌ **Background images, photos, stock illustrations.** Paiflow is generative geometry only: grids, glass, glow, monospace.
+- ❌ **Decorative background images and stock illustrations.** Paiflow's interface uses generative geometry: grids, glass, glow, monospace. Documentary photos from Paiflow hackathons and community events may appear in marketing event cards and galleries; keep them separate from interface backgrounds and use accurate captions and alt text.
 
 ---
 

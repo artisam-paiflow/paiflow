@@ -16,7 +16,10 @@ import { AppError } from "@/lib/errors";
 import { simulationFailure } from "./sim-error";
 import { depositSimulationFailure } from "./deposit-simulation-error";
 import { subscriptionChargeFailure } from "./subscription-charge-error";
+import { subscriptionSubscribeFailure } from "./subscription-subscribe-error";
 import { streamerRetrieveFailure } from "./streamer-retrieve-error";
+import { allowanceRpcCall } from "./allowance-rpc";
+import { loadPaymentAccount } from "./load-payment-account";
 
 export type PreparedInvoke = {
   xdr: string;
@@ -32,7 +35,7 @@ export async function prepareDistributeInvocation(opts: {
   invokerAddress: string;
 }): Promise<PreparedInvoke> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.invokerAddress);
+  const sourceAcct = await loadPaymentAccount(server, opts.invokerAddress);
 
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
@@ -139,7 +142,7 @@ export async function prepareWebhookDepositInvocation(opts: {
   amount: string;
 }): Promise<PreparedInvokeTx> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.from);
+  const sourceAcct = await loadPaymentAccount(server, opts.from);
 
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
@@ -274,7 +277,7 @@ export async function prepareDepositInvocation(opts: {
   timeoutSeconds?: 60 | 180;
 }): Promise<PreparedInvoke> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.invokerAddress);
+  const sourceAcct = await loadPaymentAccount(server, opts.invokerAddress);
 
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
@@ -314,7 +317,7 @@ export async function prepareStreamerPauseInvocation(opts: {
   invokerAddress: string;
 }): Promise<PreparedInvoke> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.invokerAddress);
+  const sourceAcct = await loadPaymentAccount(server, opts.invokerAddress);
 
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
@@ -351,7 +354,7 @@ export async function prepareStreamerUnpauseInvocation(opts: {
   invokerAddress: string;
 }): Promise<PreparedInvoke> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.invokerAddress);
+  const sourceAcct = await loadPaymentAccount(server, opts.invokerAddress);
 
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
@@ -388,7 +391,7 @@ export async function prepareStreamerRetrieveUnvestedInvocation(opts: {
   invokerAddress: string;
 }): Promise<PreparedInvoke> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.invokerAddress).catch((err: unknown) => {
+  const sourceAcct = await loadPaymentAccount(server, opts.invokerAddress).catch((err: unknown) => {
     if (err instanceof AppError) throw err;
     throw new AppError(
       "UPSTREAM_RPC",
@@ -435,7 +438,7 @@ export async function prepareStreamerTopUpInvocation(opts: {
   invokerAddress: string;
 }): Promise<PreparedInvoke> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.invokerAddress);
+  const sourceAcct = await loadPaymentAccount(server, opts.invokerAddress);
 
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
@@ -483,8 +486,8 @@ export async function prepareTokenApproveInvocation(opts: {
 }): Promise<PreparedInvokeTx> {
   const server = sorobanRpc();
   const [sourceAcct, latestLedger] = await Promise.all([
-    server.getAccount(opts.from),
-    server.getLatestLedger(),
+    loadPaymentAccount(server, opts.from),
+    allowanceRpcCall("getLatestLedger", () => server.getLatestLedger()),
   ]);
 
   const tokenIdBytes = decodeContractAddress(opts.tokenContractAddress);
@@ -523,13 +526,28 @@ export async function prepareTokenApproveInvocation(opts: {
     .setTimeout(180)
     .build();
 
-  const sim = await server.simulateTransaction(tx);
+  const sim = await allowanceRpcCall("simulateTransaction", () => server.simulateTransaction(tx));
   if (rpc.Api.isSimulationError(sim)) {
     throw simulationFailure(sim.error);
   }
-  const assembled = rpc.assembleTransaction(tx, sim).build();
+  const assembled = await allowanceRpcCall("assembleTransaction", async () =>
+    rpc.assembleTransaction(tx, sim).build(),
+  );
 
   return { xdr: assembled.toXDR(), tx: assembled };
+}
+
+/** Classify only the RPC dispatch, preserving contract simulation errors below. */
+async function simulateSubscriptionControl(server: rpc.Server, tx: Transaction) {
+  try {
+    return await server.simulateTransaction(tx);
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      "UPSTREAM_RPC",
+      "The Stellar RPC could not simulate this subscription control; try preparing again",
+    );
+  }
 }
 
 export async function prepareSubscriptionUnsubscribeInvocation(opts: {
@@ -537,7 +555,7 @@ export async function prepareSubscriptionUnsubscribeInvocation(opts: {
   subscriberAddress: string;
 }): Promise<PreparedInvokeTx> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.subscriberAddress);
+  const sourceAcct = await loadPaymentAccount(server, opts.subscriberAddress);
 
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
@@ -560,7 +578,7 @@ export async function prepareSubscriptionUnsubscribeInvocation(opts: {
     .setTimeout(180)
     .build();
 
-  const sim = await server.simulateTransaction(tx);
+  const sim = await simulateSubscriptionControl(server, tx);
   if (rpc.Api.isSimulationError(sim)) {
     throw simulationFailure(sim.error, { contract: "subscription" });
   }
@@ -574,7 +592,7 @@ export async function prepareSubscriptionSubscribeInvocation(opts: {
   subscriberAddress: string;
 }): Promise<PreparedInvokeTx> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.subscriberAddress);
+  const sourceAcct = await loadPaymentAccount(server, opts.subscriberAddress);
 
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
@@ -597,9 +615,9 @@ export async function prepareSubscriptionSubscribeInvocation(opts: {
     .setTimeout(180)
     .build();
 
-  const sim = await server.simulateTransaction(tx);
+  const sim = await simulateSubscriptionControl(server, tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw simulationFailure(sim.error, { contract: "subscription" });
+    throw subscriptionSubscribeFailure(sim, opts.contractAddress);
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 

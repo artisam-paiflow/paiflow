@@ -13,7 +13,7 @@ import {
 
 /** A malformed (non-UUID) path segment can't match any row; treat it as
  * not-found rather than letting it reach Prisma and surface as a generic 500. */
-const isUuid = (v: string) => z.string().uuid().safeParse(v).success;
+const isUuid = (v: string) => z.string().guid({ error: "Invalid uuid" }).safeParse(v).success;
 
 /**
  * Return a single payroll run with its per-payout status, including off-ramp

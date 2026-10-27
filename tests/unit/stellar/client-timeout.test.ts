@@ -16,6 +16,7 @@ vi.mock("@/lib/env", async (importOriginal) => ({
   stellarRelayerAddress: () => undefined,
 }));
 
+import { withInteractiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
 import { STELLAR_HTTP_TIMEOUT_MS, horizon, sorobanRpc } from "@/lib/stellar/client";
 
 describe("Stellar client timeouts", () => {
@@ -41,6 +42,23 @@ describe("Stellar client timeouts", () => {
     afterAll(() => {
       server.closeAllConnections();
       server.close();
+    });
+
+    it("actually closes an interactive HTTP request when its shared budget expires", async () => {
+      const fetch = globalThis.fetch;
+      const closed = new Promise<void>((resolve) => {
+        server.once("request", (_req, response) => response.once("close", resolve));
+      });
+      // Keep the production SDK/client/interceptor; redirect only its test transport locally.
+      vi.stubGlobal("fetch", (_input: RequestInfo | URL, init?: RequestInit) => fetch(url, init));
+      try {
+        await expect(
+          withInteractiveRpcBudget(() => sorobanRpc().getHealth(), 150),
+        ).rejects.toThrow();
+        await closed;
+      } finally {
+        vi.unstubAllGlobals();
+      }
     });
 
     it("rejects instead of hanging when the timeout is set the way client.ts sets it", async () => {

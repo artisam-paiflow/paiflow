@@ -2,6 +2,8 @@ import "server-only";
 import { Address, StrKey, scValToNative, xdr } from "@stellar/stellar-sdk";
 import { AppError } from "@/lib/errors";
 import { sorobanRpc } from "./client";
+import { withInteractiveRpcBudget } from "./interactive-rpc-budget";
+import { scheduleReadFailure, scheduleRpcRead } from "./schedule-rpc";
 
 /** STREAMER exposes neither admin() nor asset(). Read only these instance fields. */
 export async function readStreamerConfig(
@@ -9,7 +11,7 @@ export async function readStreamerConfig(
 ): Promise<{ admin: string; asset: string }> {
   if (!StrKey.isValidContract(contractId))
     throw new AppError("VALIDATION", "Invalid Schedule contract");
-  try {
+  return withInteractiveRpcBudget(async () => {
     const key = xdr.LedgerKey.contractData(
       new xdr.LedgerKeyContractData({
         contract: new Address(contractId).toScAddress(),
@@ -17,34 +19,83 @@ export async function readStreamerConfig(
         durability: xdr.ContractDataDurability.persistent(),
       }),
     );
-    const result = await sorobanRpc().getLedgerEntries(key);
+    // Keep malformed raw entries distinct from a successful lookup proving absence.
+    // The SDK parsed reader normalizes entries:null into an empty list.
+    const result: unknown = await scheduleRpcRead("configuration.lookup", () =>
+      sorobanRpc()._getLedgerEntries(key),
+    );
     if (
+      !result ||
+      typeof result !== "object" ||
+      !("latestLedger" in result) ||
+      typeof result.latestLedger !== "number" ||
       !Number.isInteger(result.latestLedger) ||
       result.latestLedger <= 0 ||
-      result.entries.length !== 1 ||
-      !result.entries[0]!.key.toXDR().equals(key.toXDR())
+      result.latestLedger > 0xffff_ffff ||
+      ("entries" in result && result.entries !== undefined && !Array.isArray(result.entries))
     )
-      throw new Error();
-    const storage = result.entries[0]!.val.contractData().val().instance().storage() ?? [];
+      throw scheduleReadFailure("configuration.response", "invalid_response");
+    const entries = "entries" in result ? result.entries : undefined;
+    if (entries === undefined || (Array.isArray(entries) && entries.length === 0))
+      throw scheduleReadFailure("configuration.response", "missing_entry");
+    if (!Array.isArray(entries) || entries.length !== 1)
+      throw scheduleReadFailure("configuration.response", "invalid_response");
+    const entry: unknown = entries[0];
+    if (
+      !entry ||
+      typeof entry !== "object" ||
+      !("key" in entry) ||
+      typeof entry.key !== "string" ||
+      !("xdr" in entry) ||
+      typeof entry.xdr !== "string"
+    )
+      throw scheduleReadFailure("configuration.response", "invalid_response");
+    let storage: xdr.ScMapEntry[];
+    try {
+      const returnedKey = xdr.LedgerKey.fromXDR(entry.key, "base64");
+      if (!returnedKey.toXDR().equals(key.toXDR()))
+        throw scheduleReadFailure("configuration.key", "mismatched_key");
+      const data = xdr.LedgerEntryData.fromXDR(entry.xdr, "base64").contractData();
+      if (
+        !data.contract().toXDR().equals(key.contractData().contract().toXDR()) ||
+        !data.key().toXDR().equals(key.contractData().key().toXDR()) ||
+        data.durability().name !== "persistent"
+      )
+        throw scheduleReadFailure("configuration.storage", "invalid_storage");
+      storage = data.val().instance().storage() ?? [];
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      throw scheduleReadFailure("configuration.storage", "invalid_storage");
+    }
     const read = (name: string): string => {
       const fields = storage.filter((entry) => {
-        const native: unknown = scValToNative(entry.key());
-        return Array.isArray(native) && native.length === 1 && native[0] === name;
+        const fieldKey = entry.key();
+        if (fieldKey.switch().name !== "scvVec") return false;
+        const variant = fieldKey.vec();
+        return (
+          variant?.length === 1 &&
+          variant[0]?.switch().name === "scvSymbol" &&
+          variant[0].sym().toString() === name
+        );
       });
       if (fields.length !== 1 || fields[0]!.val().switch().name !== "scvAddress") throw new Error();
       const value: unknown = scValToNative(fields[0]!.val());
       if (typeof value !== "string") throw new Error();
       return value;
     };
-    const admin = read("Admin");
-    const asset = read("Asset");
+    let admin: string;
+    let asset: string;
+    try {
+      admin = read("Admin");
+      asset = read("Asset");
+    } catch {
+      throw scheduleReadFailure("configuration.fields", "invalid_storage");
+    }
     if (
       !(StrKey.isValidEd25519PublicKey(admin) || StrKey.isValidContract(admin)) ||
       !StrKey.isValidContract(asset)
     )
-      throw new Error();
+      throw scheduleReadFailure("configuration.addresses", "invalid_storage");
     return { admin, asset };
-  } catch {
-    throw new AppError("UPSTREAM_RPC", "Current Schedule controller and asset could not be read");
-  }
+  });
 }

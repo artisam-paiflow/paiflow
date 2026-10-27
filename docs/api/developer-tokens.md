@@ -16,6 +16,12 @@ starter repository. The [release policy](../releasing.md) and
 | `pfk_` + 64 lowercase hex characters | Existing single-deployment token from that deployment's **API access** panel; existing behavior remains supported.                                  |
 | `pkdev_`                             | Legacy Dev/payroll credential, unrelated to this feature and rejected by `/api/v1`. Retirement work #472/#985 is not completed by developer tokens. |
 
+The page opens on **Tokens**, with a compact list and expandable credential details.
+Choose **Create token** to open the name/expiry, permission and deployment sections;
+**Quickstart** contains a server-side request example and the API reference remains
+visible in the page navigation. Creating a token closes the form and focuses its
+one-time secret reveal. Switching sections dismisses that secret permanently.
+
 Use a full owner account; sandbox sessions cannot manage tokens. Deploy your flows
 through the existing app/wallet workflow first. Choose a label, **Read only** or
 **Read and operate**, and 1–100 existing **CONFIRMED**, **ACTIVE** deployments you own.
@@ -56,7 +62,12 @@ The SDK intentionally does not wrap them. Successful responses are `no-store`.
 | `DELETE /api/developer-tokens/{tokenId}` | Idempotently revoke; preserve metadata and financial history.                                        |
 
 List routes use UUID `cursor` and integer `limit` (default 20, maximum 100),
-returning `{data:{items,nextCursor}}`. Metadata contains only `id`, `tokenPrefix`,
+returning `{data:{items,nextCursor}}`. The eligible-deployment list also accepts
+optional `search` (trimmed, at most 100 characters), matching a case-insensitive
+flow-name substring or an exact full deployment UUID. Search applies before cursor
+pagination across all eligible owned deployments. Reset the cursor when changing
+search. It never expands ownership or eligibility; the token metadata list does
+not accept this parameter. Metadata contains only `id`, `tokenPrefix`,
 `label`, `permission`, `createdAt`, `lastUsedAt`, `expiresAt`, `revokedAt` and
 `deploymentIds`; no token hash or recoverable credential. PATCH cannot edit revoked
 or expired credentials. Every retained/new grant must still be eligible; explicitly

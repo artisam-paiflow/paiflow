@@ -1,12 +1,16 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const { reconcile, deliver, lease } = vi.hoisted(() => ({
+const { reconcile, serviceReconcile, deliver, lease } = vi.hoisted(() => ({
   reconcile: vi.fn(),
+  serviceReconcile: vi.fn(),
   deliver: vi.fn(),
   lease: vi.fn(),
 }));
 vi.mock("@/lib/stellar/reconcile-transactions", () => ({ reconcileTransactions: reconcile }));
+vi.mock("@/lib/stellar/reconcile-service-transactions", () => ({
+  reconcileServiceTransactions: serviceReconcile,
+}));
 vi.mock("@/lib/api/request-history/delivery", () => ({
   drainApiRequests: vi.fn(async () => ({ persisted: 0 })),
 }));
@@ -20,6 +24,7 @@ beforeEach(() => {
   vi.stubEnv("NODE_ENV", "production");
   vi.stubEnv("CRON_SECRET", secret);
   reconcile.mockResolvedValue({ checked: 1, confirmed: 1, failed: 0, unresolved: 0 });
+  serviceReconcile.mockResolvedValue({ checked: 1, confirmed: 1, failed: 0, unresolved: 0 });
   deliver.mockResolvedValue({ delivered: 1 });
   lease.mockImplementation(async (_name: string, _ttl: number, run: () => Promise<unknown>) => ({
     acquired: true,
@@ -42,6 +47,7 @@ describe("transaction reconciliation cron boundary", () => {
     }
     expect(lease).not.toHaveBeenCalled();
     expect(reconcile).not.toHaveBeenCalled();
+    expect(serviceReconcile).not.toHaveBeenCalled();
     expect(deliver).not.toHaveBeenCalled();
   });
 
@@ -65,6 +71,7 @@ describe("transaction reconciliation cron boundary", () => {
     expect(response.status).toBe(200);
     expect((await response.json()).data).toMatchObject({ checked: 0, leaseHeld: true });
     expect(reconcile).not.toHaveBeenCalled();
+    expect(serviceReconcile).not.toHaveBeenCalled();
     expect(deliver).not.toHaveBeenCalled();
   });
 
@@ -78,6 +85,11 @@ describe("transaction reconciliation cron boundary", () => {
     );
     expect(response.status).toBe(200);
     expect(lease).toHaveBeenCalledWith("reconcile-transactions", 60_000, expect.any(Function));
+    expect(serviceReconcile).toHaveBeenCalledExactlyOnceWith();
+    expect((await response.json()).data.serviceTransactions).toMatchObject({
+      checked: 1,
+      confirmed: 1,
+    });
     expect(deliver).toHaveBeenCalledWith({ batch: 20, budgetMs: 6_000 });
     expect(reconcile.mock.invocationCallOrder[0]).toBeLessThan(
       deliver.mock.invocationCallOrder[0]!,

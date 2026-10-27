@@ -70,6 +70,7 @@ jobs:
       - run: pnpm db:generate
       - run: pnpm db:migrate:deploy
       - run: pnpm typecheck
+      - run: pnpm sdk:docs:check
       - run: pnpm sdk:typecheck
       - run: pnpm sdk:test
       - run: pnpm sdk:test:package

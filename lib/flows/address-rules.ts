@@ -127,16 +127,10 @@ export function addressFields(node: FlowNode): AddressField[] {
   }
 }
 
-// Cap the echoed value just past a full strkey, so a pasted blob can't flood
-// the error panel.
-function showValue(v: string): string {
-  return v.length > 60 ? `${v.slice(0, 57)}...` : v;
-}
-
 function expected(accepts: AddressAccepts): string {
   return accepts === "account"
-    ? "a Stellar wallet address (G…, 56 characters)"
-    : "a Stellar wallet (G…) or contract (C…) address, 56 characters";
+    ? "a complete wallet address (G…, 56 characters)"
+    : "a complete wallet (G…) or contract (C…) address, 56 characters";
 }
 
 export function addressFriendlyMessage(
@@ -144,24 +138,19 @@ export function addressFriendlyMessage(
   accepts: AddressAccepts,
   what: string,
 ): string {
-  const pending = "or PENDING:<name> to fill it in when you deploy";
-  if (value.trim() === "") {
-    return `Enter ${what}: ${expected(accepts)}, ${pending}.`;
-  }
   if (looksLikeSecretSeed(value)) return SECRET_SEED_MESSAGE;
-  const shown = `"${showValue(value)}"`;
+  const field = `${what[0]!.toUpperCase()}${what.slice(1)}`;
   if (accepts === "account" && StrKey.isValidContract(value)) {
-    return `${what[0]!.toUpperCase()}${what.slice(1)} must be a wallet address (G…), and ${shown} is a contract address. Enter a wallet address, ${pending}.`;
+    return `${field} needs a wallet address (G…). This is a contract address (C…).`;
   }
   if (value !== value.trim() && isAcceptedFlowAddress(value.trim(), accepts)) {
-    return `${shown} for ${what} has spaces around it. Remove them.`;
+    return `Remove the spaces around the address for ${what}.`;
   }
-  // Said, not done: a lower-case strkey is a different string, and the user
-  // should see the address they will be paying.
+  // Explain the correction without changing the destination on the user's behalf.
   if (value !== value.toUpperCase() && isAcceptedFlowAddress(value.toUpperCase(), accepts)) {
-    return `${shown} for ${what} is in lower case. Stellar addresses are upper case; paste the address exactly as your wallet shows it.`;
+    return `The address for ${what} is in lower case. Paste the uppercase address from your wallet.`;
   }
-  return `${shown} is not a complete Stellar address for ${what}. Enter ${expected(accepts)}, ${pending}.`;
+  return `Enter ${expected(accepts)} for ${what}.`;
 }
 
 /** One issue per address field that is neither a complete strkey it accepts nor a PENDING: placeholder. */

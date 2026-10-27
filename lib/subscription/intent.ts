@@ -2,6 +2,7 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { Address, Transaction, TransactionBuilder, scValToNative } from "@stellar/stellar-sdk";
+import { integerNumber } from "@/lib/validation/number";
 import { AppError } from "@/lib/errors";
 import { env, stellarPassphrase } from "@/lib/env";
 import { signerFromTransaction } from "@/lib/stellar/signer";
@@ -17,7 +18,7 @@ const IntentSchema = z
     preparationLedger: z.number().int().positive().max(0xffff_ffff).optional(),
     maxTime: z.string().regex(/^[1-9][0-9]*$/),
     txHash: z.string().regex(/^[a-f0-9]{64}$/),
-    expiresAt: z.number().int(),
+    expiresAt: integerNumber(),
   })
   .strict();
 type Intent = z.infer<typeof IntentSchema>;

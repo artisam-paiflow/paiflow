@@ -1,9 +1,13 @@
 # Changelog
 
 SDK versions are independent of the app and API. Follow the repository release
-[release policy](https://github.com/webnxt-2030/pinkraft/blob/71e9326b62d18bf9366ffbf0564fdd62847c3af6/docs/releasing.md).
+[release policy](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/releasing.md).
 
 ## [Unreleased]
+
+- Point package repository metadata and the release-policy link to the public
+  source mirror. This applies to the next published SDK artifact; the existing
+  npm `0.2.0` artifact retains its original metadata.
 
 ## [0.2.0] - 2026-10-16
 

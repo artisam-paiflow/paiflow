@@ -66,9 +66,9 @@ export const V1_PRE_AUTH_LIMITS = {
  * How many `execute/submit?wait=true` calls one token may have waiting on the network at once.
  * A call over the cap still sends the transaction; it answers `PENDING` straight away, as
  * `wait=false` does, instead of holding the connection (#524). The slot's lease outlives the wait
- * so a process that dies mid-wait frees it by expiry rather than holding it forever: the longest a
- * live wait holds it is `CONFIRM_DEADLINE_MS` (25 s) plus one `getTransaction` that starts just
- * before the deadline and runs to `STELLAR_HTTP_TIMEOUT_MS` (10 s), about 35 s. Leases are scored
+ * so a process that dies mid-wait frees it by expiry rather than holding it forever. Live RPC
+ * waiting shares the interactive operation's 25-second deadline. The longer lease also allows
+ * durable bookkeeping to complete after that HTTP deadline. Leases are scored
  * with each replica's clock; skew of seconds between replicas is inside that margin.
  */
 export const V1_WAIT_SLOTS = {

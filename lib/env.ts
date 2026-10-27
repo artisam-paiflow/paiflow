@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { config as dotenvConfig, parse as parseDotenv } from "dotenv";
 import { StrKey } from "@stellar/stellar-sdk";
 import { z } from "zod";
+import { coercedIntegerNumber } from "@/lib/validation/number";
 import { PosthogApiHostSchema, PosthogReportError } from "@/lib/analytics/posthog-report-schema";
 
 const optionalString = z
@@ -24,9 +25,12 @@ const optionalUuid = z
   .string()
   .optional()
   .transform((v) => (v && v.length > 0 ? v : undefined))
-  .refine((v) => v === undefined || z.string().uuid().safeParse(v).success, {
-    message: "must be a UUID",
-  });
+  .refine(
+    (v) => v === undefined || z.string().guid({ error: "Invalid uuid" }).safeParse(v).success,
+    {
+      message: "must be a UUID",
+    },
+  );
 
 // Stellar memo IDs are numeric (uint64). Kept as a string to avoid precision
 // loss; validated at config load so a swapped/misconfigured PDAX memo fails at
@@ -185,10 +189,10 @@ const EnvSchema = z.object({
   // .catch() instead of failing EnvSchema and crashing env() for every route.
   // The enforcement path (lib/flows/limits.ts) parses these vars leniently on
   // its own because it also runs in the browser, where env() is unavailable.
-  NEXT_PUBLIC_SPLITTER_XLM_MIN: z.coerce.number().int().nonnegative().default(150).catch(150),
-  NEXT_PUBLIC_SPLITTER_XLM_MAX: z.coerce.number().int().nonnegative().default(500).catch(500),
-  NEXT_PUBLIC_SPLITTER_USDC_MIN: z.coerce.number().int().nonnegative().default(30).catch(30),
-  NEXT_PUBLIC_SPLITTER_USDC_MAX: z.coerce.number().int().nonnegative().default(110).catch(110),
+  NEXT_PUBLIC_SPLITTER_XLM_MIN: coercedIntegerNumber().nonnegative().default(150).catch(150),
+  NEXT_PUBLIC_SPLITTER_XLM_MAX: coercedIntegerNumber().nonnegative().default(500).catch(500),
+  NEXT_PUBLIC_SPLITTER_USDC_MIN: coercedIntegerNumber().nonnegative().default(30).catch(30),
+  NEXT_PUBLIC_SPLITTER_USDC_MAX: coercedIntegerNumber().nonnegative().default(110).catch(110),
 
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
 

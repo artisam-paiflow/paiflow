@@ -111,3 +111,54 @@ describe("wallet SDK JSON-RPC dependency", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("wallet SDK TOML dependency", () => {
+  function legacyResolver() {
+    const rootRequire = createRequire(import.meta.url);
+    const kitRequire = createRequire(rootRequire.resolve("@creit.tech/stellar-wallets-kit"));
+    const trezorRequire = createRequire(kitRequire.resolve("@trezor/connect"));
+    const blockchainRequire = createRequire(trezorRequire.resolve("@trezor/blockchain-link"));
+    const sdkRequire = createRequire(blockchainRequire.resolve("@stellar/stellar-sdk"));
+    const { StellarToml } = blockchainRequire("@stellar/stellar-sdk") as {
+      StellarToml: { Resolver: { resolve(domain: string): Promise<unknown> } };
+    };
+    const { httpClient } = sdkRequire("./http-client") as {
+      httpClient: { get(url: string, options: unknown): Promise<{ data: string }> };
+    };
+    return { resolver: StellarToml.Resolver, httpClient };
+  }
+
+  it("resolves ordinary stellar.toml metadata through the transitive SDK", async () => {
+    const { resolver, httpClient } = legacyResolver();
+    const get = vi.spyOn(httpClient, "get").mockResolvedValue({
+      data: 'VERSION="2.7.0"\n[[CURRENCIES]]\ncode="USD"\ndecimals=7\n',
+    });
+    try {
+      await expect(resolver.resolve("issuer.invalid")).resolves.toEqual({
+        VERSION: "2.7.0",
+        CURRENCIES: [{ code: "USD", decimals: 7 }],
+      });
+      expect(get).toHaveBeenCalledWith(
+        "https://issuer.invalid/.well-known/stellar.toml",
+        expect.any(Object),
+      );
+    } finally {
+      get.mockRestore();
+    }
+  });
+
+  it.each(["9007199254740993", "9223372036854775808"])(
+    "rejects unsafe integer %s without returning rounded issuer metadata",
+    async (integer) => {
+      const { resolver, httpClient } = legacyResolver();
+      const get = vi.spyOn(httpClient, "get").mockResolvedValue({ data: `value=${integer}` });
+      try {
+        await expect(resolver.resolve("issuer.invalid")).rejects.toThrow(
+          "stellar.toml is invalid - Parsing error",
+        );
+      } finally {
+        get.mockRestore();
+      }
+    },
+  );
+});

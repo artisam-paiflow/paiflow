@@ -1,7 +1,6 @@
 # Node SDK contract and endpoint coverage
 
-Implementation contract originating in [#954](https://github.com/webnxt-2030/pinkraft/issues/954), under
-[#953](https://github.com/webnxt-2030/pinkraft/issues/953). The Node package implements this surface. Beta `0.2.0` provides
+The Node package implements the existing-deployment surface below. Beta `0.2.0` provides
 developer credentials and scoped deployment discovery; see the
 [release record](release-checklist.md) for registry availability.
 Local SDK tests do not establish hosted availability. See the
@@ -13,7 +12,7 @@ User decisions: TypeScript, Node first, existing deployments, a separate package
 in this repository named `@paiflow/sdk`. Release-preparation PRs target `develop`
 under the current workflow. The `@paiflow` npm scope exists; registry publishing,
 SDK tagging and backend promotion remain distinct release steps.
-Sources are the [quickstart](../hackathon/developer-api-quickstart.md),
+Sources are the [HTTP API README](../api/README.md),
 [developer context](../hackathon/llms.md), [API reference](../api/README.md), and
 actual handlers. The original contract used `testing` baseline `e803520c`
 (2026-10-13); the current matrix includes developer-token work merged into `develop`.

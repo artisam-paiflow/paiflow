@@ -3,18 +3,42 @@
 import { useEffect, useId, useRef } from "react";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { isValidEmailAddress } from "@/lib/flows/schema";
+import { Field } from "./inputs/field";
+import { inputClass } from "./inputs/styles";
 
 export function RecipientEmailField({
   value,
   onChange,
   label = "Recipient email (optional)",
+  shared = false,
 }: {
   value?: string;
   onChange: (email: string) => void;
   label?: string;
+  /** Standard builder forms opt in; excluded forms and notification settings keep their presentation. */
+  shared?: boolean;
 }) {
   const id = useId();
   const invalid = !!value?.trim() && !isValidEmailAddress(value.trim());
+  if (shared) {
+    return (
+      <Field
+        label={label}
+        error={invalid ? "Enter a valid email address or leave it empty." : null}
+      >
+        {(control) => (
+          <input
+            {...control}
+            type="email"
+            maxLength={254}
+            className={inputClass}
+            value={value ?? ""}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        )}
+      </Field>
+    );
+  }
   return (
     <div className="space-y-1">
       <label htmlFor={id} className="text-on-surface-variant text-body-sm">

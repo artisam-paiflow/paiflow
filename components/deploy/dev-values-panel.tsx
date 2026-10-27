@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useFieldArray, useForm, type FieldPath } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
+import type { z } from "zod";
 import {
   DevPayerSchema,
   DevSplitterSchema,
@@ -304,7 +305,7 @@ function SplitForm({
     payoutMode: "crypto" as const,
     ...(mode === "percentage" ? { bps: 0 } : { amountStroops: "" }),
   });
-  const form = useForm<DevSplitter>({
+  const form = useForm<z.input<typeof DevSplitterSchema>, unknown, DevSplitter>({
     resolver: zodResolver(DevSplitterSchema),
     defaultValues: {
       nodeId: node.id,

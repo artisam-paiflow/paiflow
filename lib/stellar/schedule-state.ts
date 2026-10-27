@@ -1,6 +1,8 @@
 import "server-only";
 import {
   Account,
+  Address,
+  xdr,
   BASE_FEE,
   Contract,
   StrKey,
@@ -9,31 +11,43 @@ import {
   scValToNative,
 } from "@stellar/stellar-sdk";
 import { stellarPassphrase } from "@/lib/env";
-import { AppError } from "@/lib/errors";
 import { sorobanRpc } from "./client";
 import { readStreamerConfig } from "./streamer-config";
-import { fetchTokenBalance } from "./balance";
+import { loadPaymentAccount } from "./load-payment-account";
+import { withInteractiveRpcBudget } from "./interactive-rpc-budget";
+import { scheduleReadFailure, scheduleRpcRead } from "./schedule-rpc";
 
 /** No cached display data is used to authorize controls. Each getter is simulated, never sent. */
 export async function readScheduleState(contractAddress: string, sourceAccount: string | null) {
-  try {
+  return withInteractiveRpcBudget(async () => {
     const config = await readStreamerConfig(contractAddress);
     const readSource =
       sourceAccount ?? (StrKey.isValidEd25519PublicKey(config.admin) ? config.admin : null);
-    if (!readSource) throw new Error();
+    if (!readSource) throw scheduleReadFailure("state.source", "missing_source");
     const server = sorobanRpc();
-    const source = await server.getAccount(readSource);
-    const read = async (method: string): Promise<unknown> => {
+    const source = await scheduleRpcRead("state.account", () =>
+      loadPaymentAccount(server, readSource),
+    );
+    const read = async (
+      method: string,
+      target = contractAddress,
+      args: xdr.ScVal[] = [],
+    ): Promise<unknown> => {
       const tx = new TransactionBuilder(new Account(source.accountId(), source.sequenceNumber()), {
         fee: BASE_FEE,
         networkPassphrase: stellarPassphrase(),
       })
-        .addOperation(new Contract(contractAddress).call(method))
+        .addOperation(new Contract(target).call(method, ...args))
         .setTimeout(30)
         .build();
-      const sim = await server.simulateTransaction(tx);
-      if (rpc.Api.isSimulationError(sim) || !sim.result?.retval) throw new Error();
-      return scValToNative(sim.result.retval);
+      const sim = await scheduleRpcRead(`state.${method}`, () => server.simulateTransaction(tx));
+      if (rpc.Api.isSimulationError(sim) || !sim.result?.retval)
+        throw scheduleReadFailure(`state.${method}`, "invalid_simulation");
+      try {
+        return scValToNative(sim.result.retval);
+      } catch {
+        throw scheduleReadFailure(`state.${method}`, "invalid_value");
+      }
     };
     // Bounded groups avoid a large concurrent RPC burst.
     const [paused, pauseAllowed, retrieveAllowed] = await Promise.all([
@@ -42,11 +56,7 @@ export async function readScheduleState(contractAddress: string, sourceAccount: 
       read("retrieve_allowed"),
     ]);
     const [available, claimed] = await Promise.all([read("available"), read("claimed")]);
-    const balance = await fetchTokenBalance({
-      tokenAddress: config.asset,
-      holderAddress: contractAddress,
-      sourceAccount: readSource,
-    });
+    const balance = await read("balance", config.asset, [new Address(contractAddress).toScVal()]);
     const validAmount = (value: unknown): value is bigint =>
       typeof value === "bigint" && value >= 0n && value <= (1n << 127n) - 1n;
     if (
@@ -57,7 +67,7 @@ export async function readScheduleState(contractAddress: string, sourceAccount: 
       !validAmount(claimed) ||
       !validAmount(balance)
     )
-      throw new Error();
+      throw scheduleReadFailure("state.values", "invalid_value");
     const unvested = balance > available ? balance - available : 0n;
     return {
       controller: config.admin,
@@ -83,8 +93,5 @@ export async function readScheduleState(contractAddress: string, sourceAccount: 
       retrievableStroops: paused && retrieveAllowed ? unvested.toString() : "0",
       readAt: new Date().toISOString(),
     };
-  } catch (error) {
-    if (error instanceof AppError) throw error;
-    throw new AppError("UPSTREAM_RPC", "Current Schedule state could not be read");
-  }
+  });
 }

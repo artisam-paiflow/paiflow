@@ -1,7 +1,8 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { Role, TimelockMode } from "@prisma/client";
 import { db } from "@/lib/db";
+import { beforeServiceSubmission } from "@/lib/deployments/service-work";
 
 const CHANNEL = { index: 0 };
 const { mockSimulate, mockSend, mockLock } = vi.hoisted(() => ({
@@ -154,6 +155,89 @@ describe("cron/auto-release", () => {
     await cleanup();
   });
   afterAll(cleanup);
+  afterEach(() => vi.useRealTimers());
+
+  it("retries a transient failed Hold on ordinary minute ticks without duplicating release", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const start = Date.now();
+    vi.setSystemTime(start);
+    const { deployment, address } = await makeTimelockDeployment({ unlockAt: new Date(start) });
+    mockSimulate.mockRejectedValueOnce(new Error("synthetic provider interruption"));
+    expect(await runAutoRelease()).toMatchObject({ failed: 1, released: 0 });
+    expect(mockSend).not.toHaveBeenCalled();
+    let row = await db.timelockRelease.findUniqueOrThrow({ where: { contractAddress: address } });
+    expect(row.nextProbeAt!.getTime()).toBeLessThanOrEqual(start + 60_000);
+    expect(row.failureCount).toBe(1);
+
+    // Scheduler jitter may dispatch before the retry deadline. Do not edit
+    // nextProbeAt or bypass discovery/selection to make the next run eligible.
+    vi.setSystemTime(start + 59_000);
+    expect(await runAutoRelease()).toMatchObject({ released: 0, failed: 0 });
+    expect(mockSimulate).toHaveBeenCalledOnce();
+    mockSimulate.mockResolvedValue(okSim);
+    mockSend.mockResolvedValue({
+      status: "SUCCESS",
+      txHash: "retry-original-release",
+      ledger: 100,
+    });
+    vi.setSystemTime(start + 119_000);
+    expect(await runAutoRelease()).toMatchObject({ released: 1, failed: 0 });
+    expect(mockSend).toHaveBeenCalledOnce();
+    row = await db.timelockRelease.findUniqueOrThrow({ where: { contractAddress: address } });
+    expect(row).toMatchObject({
+      failureCount: 0,
+      leaseUntil: null,
+      lastError: null,
+      lastReleaseTxHash: "retry-original-release",
+      lastReleasedAt: new Date(start + 119_000),
+    });
+    vi.setSystemTime(start + 179_000);
+    expect(await runAutoRelease()).toMatchObject({ released: 0 });
+    expect(mockSend).toHaveBeenCalledOnce();
+    expect(
+      await db.deploymentWork.count({ where: { deploymentId: deployment.id, state: "OPEN" } }),
+    ).toBe(0);
+  });
+
+  it("retains exponential backoff for repeated failed probes", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const start = Date.now();
+    vi.setSystemTime(start);
+    const { address } = await makeTimelockDeployment({ unlockAt: new Date(start) });
+    mockSimulate.mockRejectedValue(new Error("synthetic persistent provider failure"));
+    for (const [attempt, delay] of [60_000, 600_000, 1_200_000].entries()) {
+      expect(await runAutoRelease()).toMatchObject({ failed: 1 });
+      const row = await db.timelockRelease.findUniqueOrThrow({
+        where: { contractAddress: address },
+      });
+      expect(row.failureCount).toBe(attempt + 1);
+      expect(row.nextProbeAt).toEqual(new Date(Date.now() + delay));
+      vi.setSystemTime(row.nextProbeAt!);
+    }
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("does not shorten retry or clear the original hash after a submission loses finality", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const start = Date.now();
+    vi.setSystemTime(start);
+    const { address } = await makeTimelockDeployment({ unlockAt: new Date(start) });
+    const originalHash = "a".repeat(64);
+    mockSimulate.mockResolvedValue(okSim);
+    mockSend.mockImplementationOnce(async () => {
+      await beforeServiceSubmission(originalHash, "rpc");
+      throw new Error("synthetic finality read interruption");
+    });
+    expect(await runAutoRelease()).toMatchObject({ failed: 1 });
+    const row = await db.timelockRelease.findUniqueOrThrow({ where: { contractAddress: address } });
+    expect(row.nextProbeAt).toEqual(new Date(start + 5 * 60_000));
+    vi.setSystemTime(start + 119_000);
+    expect(await runAutoRelease()).toMatchObject({ released: 0, failed: 0 });
+    expect(mockSend).toHaveBeenCalledOnce();
+    expect(await db.serviceTransaction.findMany({ where: { txHash: originalHash } })).toMatchObject(
+      [{ txHash: originalHash, state: "PENDING", ledger: null }],
+    );
+  });
 
   it("records a legacy timelock on first sight and does not probe one that is not due", async () => {
     const { deployment, address } = await makeTimelockDeployment({ unlockAt: future() });

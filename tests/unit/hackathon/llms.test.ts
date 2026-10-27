@@ -18,7 +18,7 @@ const routes = new Set(
 );
 
 describe("hackathon AI context pack", () => {
-  it("reports non-JSON HTTP failures with the request id in the documented helper", () => {
+  it("preserves SDK errors and refuses unsupported payment deployments", () => {
     const helper = guide.match(/```ts\n(import "server-only";[\s\S]*?)\n```/)?.[1];
     expect(helper).toBeDefined();
     const code = transpileModule(helper!.replace('import "server-only";', ""), {
@@ -28,37 +28,26 @@ describe("hackathon AI context pack", () => {
       input: `
         import assert from "node:assert/strict";
         ${code}
-        process.env.PAIFLOW_BASE_URL = "https://beta.app.paiflow.xyz";
-        process.env.PAIFLOW_DEPLOYMENT_ID = "test-deployment";
-        process.env.PAIFLOW_API_TOKEN = "test-token";
-        process.env.PAIFLOW_MODE = "prepare";
-        globalThis.fetch = async () => assert.fail("Preparation must not call Paiflow");
-        await assert.rejects(prepareExecute({ from: "test-account", amount: "1" }), {
-          message: "Select team mode for this team API example",
+        let calls = 0;
+        const capability = { network: "testnet", inputAsset: { kind: "native" }, triggerType: "deposit", operations: { execute: { status: "supported" } } };
+        const failure = Object.assign(new Error("Uncertain SDK response"), {
+          status: 502, metadata: { requestId: "sdk-request-123", retryAfter: "60" },
         });
-        process.env.PAIFLOW_MODE = "team";
-        for (const requestId of ["proxy-request-123", null]) {
-          globalThis.fetch = async () => new Response("<html>Bad gateway</html>", {
-            status: 502,
-            headers: requestId ? { "x-request-id": requestId } : {},
-          });
-          await assert.rejects(prepareExecute({ from: "test-account", amount: "1" }), {
-            message: "Unexpected Paiflow HTTP 502" +
-              (requestId ? " (x-request-id: " + requestId + ")" : ""),
-          });
-        }
-        globalThis.fetch = async () => Response.json({ data: { xdr: "prepared" } });
-        assert.deepEqual(await prepareExecute({ from: "test-account", amount: "1" }), { xdr: "prepared", preparationRequestId: null });
-        globalThis.fetch = async () => Response.json({ error: { code: "RATE_LIMITED", message: "Slow down" } }, {
-          status: 429, headers: { "x-request-id": "api-request-123", "Retry-After": "60" },
-        });
-        await assert.rejects(prepareExecute({ from: "test-account", amount: "1" }), (error) => {
-          assert.ok(error instanceof PaiflowError);
-          assert.equal(error.status, 429);
-          assert.equal(error.requestId, "api-request-123");
-          assert.equal(error.retryAfter, "60");
-          return true;
-        });
+        const deployment = {
+          capabilities: { get: async () => ({ data: capability }) },
+          execute: { prepare: async () => { calls++; throw failure; } },
+        };
+        await assert.rejects(prepareExecute(deployment, "customer"), error => error === failure);
+        assert.equal(calls, 1);
+        capability.network = "mainnet";
+        await assert.rejects(prepareExecute(deployment, "customer"));
+        capability.network = "testnet";
+        capability.inputAsset.kind = "known";
+        await assert.rejects(prepareExecute(deployment, "customer"));
+        capability.inputAsset.kind = "native";
+        capability.operations.execute.status = "unsupported";
+        await assert.rejects(prepareExecute(deployment, "customer"));
+        assert.equal(calls, 1);
       `,
       stdio: ["pipe", "pipe", "pipe"],
     });

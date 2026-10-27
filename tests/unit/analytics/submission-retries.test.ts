@@ -166,8 +166,21 @@ describe("tracked RPC retry paths", () => {
     async (kind) => {
       const f = await fixture(kind);
       const submit = kind === "DEPLOY" ? submitDeployTx : submitTriggerTx;
+      const expectAmbiguity = async (pending: Promise<unknown>) => {
+        if (kind === "TRIGGER") {
+          await expect(pending).rejects.toMatchObject({
+            code: "UPSTREAM_RPC",
+            message: expect.stringContaining(f.txHash),
+          });
+          await expect(pending).rejects.toThrow("Check this original transaction hash");
+        } else
+          await expect(pending).resolves.toMatchObject({
+            txHash: f.txHash,
+            failureCode: "FINALITY_UNKNOWN",
+          });
+      };
       server.sendTransaction.mockRejectedValueOnce(new Error("Synthetic send ambiguity"));
-      await expect(submit(f.signedXdr)).rejects.toThrow("Synthetic send ambiguity");
+      await expectAmbiguity(submit(f.signedXdr));
       expect(await f.row()).toMatchObject({ outcome: "UNRESOLVED", submissionRevision: 1 });
       server.sendTransaction.mockResolvedValueOnce({ status: "TRY_AGAIN_LATER", hash: f.txHash });
       if (kind === "DEPLOY")
@@ -179,7 +192,7 @@ describe("tracked RPC retry paths", () => {
         submissionRevision: 2,
       });
       server.sendTransaction.mockRejectedValueOnce(new Error("Synthetic send ambiguity"));
-      await expect(submit(f.signedXdr)).rejects.toThrow();
+      await expectAmbiguity(submit(f.signedXdr));
       server.sendTransaction.mockResolvedValueOnce({ status: "ERROR", hash: f.txHash });
       await expect(submit(f.signedXdr)).resolves.toMatchObject({ status: "FAILED" });
       expect(await f.row()).toMatchObject({

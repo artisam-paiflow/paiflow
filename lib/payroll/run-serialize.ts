@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { EmployeePayoutMode, OffRampPayoutJobStatus } from "@prisma/client";
+import { integerNumber } from "@/lib/validation/number";
 
 /**
  * Serialization helpers + Zod contracts for the pay-run list/detail endpoints
@@ -48,8 +49,8 @@ export const RunListItemSchema = z.object({
   txHash: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
-  payoutCount: z.number().int(),
-  completedPayoutCount: z.number().int(),
+  payoutCount: integerNumber(),
+  completedPayoutCount: integerNumber(),
 });
 
 export const RunListResponseSchema = z.object({
