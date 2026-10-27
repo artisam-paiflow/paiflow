@@ -21,6 +21,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Allow anonymous visitors and signed-in non-owners to load the public embed's customer payment-page QR while retaining deployment retirement checks and public read limits (#577).
+
 - Hydrate stored deployment events consistently across server and browser locales/timezones, then show event timestamps in the browser’s local time with UTC available on hover (#1119).
 
 - Reconcile develop deployment preparation/resumption with Lantern integration signing guards: retain unknown hashes, resume only proven-safe original preparations, and retry explicitly unaccepted submissions using identical in-memory signed bytes (#1106).
