@@ -90,6 +90,11 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Restore sign-only Lantern Apps-tab support for public Testnet trigger and
+  Subscription allowance pages, adapting the preserved bridge to pre-sign recovery
+  and scoped approval intents. Trusted frames bypass WalletConnect and wallet
+  navigation; real Android/extension acceptance remains pending (#930, #931, #933).
+
 - Enable the pinned Lantern desktop module in the Testnet wallet picker, with
   synchronous account/network/revocation invalidation, sign-only validation and
   controlled recovery errors. Mobile and mainnet Lantern remain unavailable;

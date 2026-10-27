@@ -34,6 +34,7 @@ import {
   type SigningRecovery,
   type SigningAttempt,
 } from "@/lib/wallet-signing-recovery";
+import { selectLanternWallet, trustedLanternOrigin, type LanternWallet } from "./lantern-wallet";
 import { mobileWalletLink } from "./mobile-wallet-links";
 import { mobilePickerWallets } from "./mobile-wallet-registry";
 import { approvedMobileSession, type MobileWalletSession } from "./mobile-wallet-session";
@@ -76,7 +77,7 @@ type Pairing = {
 type Signer = {
   signTransaction: (
     xdr: string,
-    options: { address: string; networkPassphrase: string },
+    options: { address: string; networkPassphrase: string; signal?: AbortSignal },
   ) => Promise<{ signedTxXdr: string }>;
 };
 function isMobile() {
@@ -119,6 +120,20 @@ export function TriggerButton({
   const pairingInFlightRef = useRef<Promise<void> | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prewarmEpochRef = useRef(0);
+  const lanternRef = useRef<LanternWallet | null>(null);
+  const lanternFrameRef = useRef(false);
+  useLayoutEffect(() => {
+    lanternFrameRef.current = Boolean(trustedLanternOrigin());
+    const wallet =
+      network === "testnet" && !(mode === "allowance" && templateKind === "PAYROLL")
+        ? selectLanternWallet(network)
+        : null;
+    lanternRef.current = wallet;
+    return () => {
+      wallet?.disconnect();
+      if (lanternRef.current === wallet) lanternRef.current = null;
+    };
+  }, [network, mode, templateKind]);
   const pollTxStatus = usePollTxStatus();
   const isPublicAllowance = mode === "allowance" && templateKind !== "PAYROLL";
   const allowanceStorageKey = allowancePendingKey(deploymentId, network);
@@ -471,7 +486,7 @@ export function TriggerButton({
     if (typeof xdr !== "string" || !xdr || typeof passphrase !== "string")
       throw new Error("Invalid prepared transaction response.");
     try {
-      localStorage.removeItem("WALLETCONNECT_DEEPLINK_CHOICE");
+      if (!lanternFrameRef.current) localStorage.removeItem("WALLETCONNECT_DEEPLINK_CHOICE");
     } catch {
       /* No redirect hints are needed. */
     }
@@ -517,7 +532,12 @@ export function TriggerButton({
         isPublicAllowance
           ? rejectAllowanceSigning(signing)
           : rejectPendingContractCallSigning(pendingKey, signing),
-      sign: () => signer.signTransaction(xdr, { address, networkPassphrase: passphrase }),
+      sign: () =>
+        signer.signTransaction(xdr, {
+          address,
+          networkPassphrase: passphrase,
+          ...(lanternRef.current ? { signal: attempt.controller.signal } : {}),
+        }),
     });
     check(attempt);
     const { txHash } = signed.attempt;
@@ -697,7 +717,7 @@ export function TriggerButton({
     readyRef.current = null;
     pairingInFlightRef.current = null;
     setConnectedWallet(null);
-    if (isMobile())
+    if (!lanternFrameRef.current && isMobile())
       void getWalletKit(network)
         .then(({ client }) => {
           if (prewarmEpochRef.current !== epoch) return;
@@ -878,7 +898,7 @@ export function TriggerButton({
     }
   }
   useEffect(() => {
-    if (disabled) return;
+    if (disabled || lanternFrameRef.current) return;
     let raw: string | null = null;
     try {
       raw = sessionStorage.getItem(PENDING_WALLET_RETURN_KEY);
@@ -960,10 +980,42 @@ export function TriggerButton({
       toast.error("Enter a valid amount");
       return;
     }
+    if (lanternFrameRef.current && mode === "allowance" && templateKind === "PAYROLL") {
+      toast.error(
+        "Payroll wallet actions inside Lantern require the authenticated-app milestone. Open Paiflow in your browser.",
+      );
+      return;
+    }
+    if (lanternFrameRef.current && network !== "testnet") {
+      toast.error(
+        "Lantern public payments currently support Testnet only. Open a Testnet deployment in Lantern.",
+      );
+      return;
+    }
+    if (lanternFrameRef.current && !lanternRef.current) {
+      toast.error("Lantern is unavailable in this frame. Reload Paiflow in Lantern's Apps tab.");
+      return;
+    }
     const attempt = createAttempt();
     setShowOpenWallet(false);
     track("trigger_started", { deployment_id: deploymentId, mode, amount_stroops: amount });
-    if (isMobile()) {
+    if (lanternRef.current) {
+      const wallet = lanternRef.current;
+      selectedWalletRef.current = "lantern";
+      setBusy(true);
+      try {
+        await withAttempt(attempt, async () => {
+          const { address } = await wallet.getAddress({ signal: attempt.controller.signal });
+          check(attempt);
+          void trackWalletConnection({ address, network, walletId: "lantern", surface: "trigger" });
+          await submitTrigger(address, wallet, attempt);
+        });
+      } catch (error) {
+        fail(error, attempt, isDeposit ? "Deposit failed" : "Trigger failed");
+      } finally {
+        finish(attempt);
+      }
+    } else if (isMobile()) {
       setShowPicker(true);
       if (connectedWallet) return;
       if (readyRef.current?.network === network && isPairingFresh(readyRef.current.expiresAt))
@@ -1135,7 +1187,7 @@ export function TriggerButton({
         </button>
       )}
 
-      {isMobile() && showOpenWallet && selectedWalletRef.current && (
+      {!lanternFrameRef.current && isMobile() && showOpenWallet && selectedWalletRef.current && (
         <div>
           <button
             onClick={() => {
