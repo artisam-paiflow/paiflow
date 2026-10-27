@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { cn, formatAmount, shortAddr, shortAddrExtraShort } from "@/lib/utils";
 import { stellarExpertTxUrl, type StellarNetwork } from "@/lib/stellar/explorer";
@@ -854,7 +854,7 @@ function EventDetails({
               )}
               {d?.startTime !== undefined && d?.startTime !== null && (
                 <DetailField label="Start">
-                  {new Date(Number(d.startTime) * 1000).toLocaleString()}
+                  <EventTime value={Number(d.startTime) * 1000} />
                 </DetailField>
               )}
               {d?.intervalSeconds !== undefined && d?.intervalSeconds !== null && (
@@ -862,7 +862,7 @@ function EventDetails({
               )}
               {d?.endTime !== undefined && d?.endTime !== null && (
                 <DetailField label="End">
-                  {new Date(Number(d.endTime) * 1000).toLocaleString()}
+                  <EventTime value={Number(d.endTime) * 1000} />
                 </DetailField>
               )}
               {isNonEmptyString(d?.recipient) && (
@@ -956,6 +956,28 @@ function EventIcon({ kind }: { kind: string }) {
   );
 }
 
+// SSR and the first browser render must use the same text. Localize only
+// after hydration; the UTC value remains available for precise inspection.
+function EventTime({ value, timeOnly = false }: { value: string | number; timeOnly?: boolean }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return <span>Invalid Date</span>;
+  const iso = date.toISOString();
+  const text = mounted
+    ? timeOnly
+      ? date.toLocaleTimeString()
+      : date.toLocaleString()
+    : timeOnly
+      ? `${iso.slice(11, 19)} UTC`
+      : iso;
+  return (
+    <time dateTime={iso} title={`${iso} (UTC)`}>
+      {text}
+    </time>
+  );
+}
+
 function EventRow({
   evt,
   network,
@@ -987,12 +1009,12 @@ function EventRow({
             {meta.label}
           </span>
           <span className="text-label-sm text-on-surface-variant font-mono">
-            ledger #{evt.ledger.toLocaleString()}
+            ledger #{evt.ledger.toLocaleString("en-US")}
           </span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-label-sm text-on-surface-variant font-mono">
-            {new Date(evt.occurredAt).toLocaleTimeString()}
+            <EventTime value={evt.occurredAt} timeOnly />
           </span>
           {explorerBase && (
             <a
@@ -1057,7 +1079,7 @@ function EventRow({
             </div>
             <div className="text-label-sm text-on-surface-variant font-mono">
               <span className="text-on-surface">Occurred:</span>{" "}
-              {new Date(evt.occurredAt).toLocaleString()}
+              <EventTime value={evt.occurredAt} />
             </div>
           </div>
           {evt.decodedData && (
