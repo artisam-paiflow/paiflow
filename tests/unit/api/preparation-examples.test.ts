@@ -97,54 +97,46 @@ describe("documented preparation correlation", () => {
       run("Submit execute", "prerequest"); assert.equal(headers.has("x-preparation-request-id"), false);
     `);
   });
-  it.each(["docs/hackathon/llms.md", "docs/hackathon/web3-iloilo/llms.md"])(
-    "%s keeps concurrent execute preparations and retries separate",
-    (file) => {
-      const source = readFileSync(file, "utf8");
-      const helper = source.match(/```ts\n(import "server-only";[\s\S]*?)\n```/)![1]!;
-      execute(`
-        ${compile(helper.replace('import "server-only";', ""))}
-        process.env.PAIFLOW_MODE = "team";
-        process.env.PAIFLOW_BASE_URL = "https://beta.app.paiflow.xyz";
-        process.env.PAIFLOW_DEPLOYMENT_ID = "test-deployment";
-        process.env.PAIFLOW_API_TOKEN = "test-token";
-        const ids = ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"];
-        let preparedCount = 0, failedOnce = false;
-        const submits = [];
-        globalThis.fetch = async (url, options) => {
-          if (url.pathname.endsWith("/submit")) {
-            submits.push({ path: url.pathname, headers: options.headers, body: JSON.parse(options.body) });
-            if (!failedOnce) {
-              failedOnce = true;
-              return Response.json({ error: { code: "UPSTREAM_RPC", message: "Uncertain" } }, { status: 502 });
-            }
-            return Response.json({ data: { status: "SUCCESS", txHash: "synthetic" } }, {
-              headers: { "x-history-request-id": "33333333-3333-4333-8333-333333333333" },
-            });
-          }
-          const id = ids[preparedCount++];
-          return Response.json({ data: { xdr: "prepared-" + preparedCount } }, {
-            headers: id ? { "x-history-request-id": id } : {},
-          });
-        };
-        const first = await prepareExecute({ from: "source", amount: "1" });
-        const second = await prepareExecute({ from: "source", amount: "2" });
-        const firstSubmit = { signedXdr: "signed-first", preparationRequestId: first.preparationRequestId };
-        await assert.rejects(submitExecute(firstSubmit), { message: "Uncertain" });
-        await submitExecute(firstSubmit, false);
-        await submitExecute({ signedXdr: "signed-second", preparationRequestId: second.preparationRequestId });
-        assert.deepEqual(submits.map(s => s.headers["x-preparation-request-id"]), [ids[0], ids[0], ids[1]]);
-        assert.deepEqual(submits.map(s => s.body), [{ signedXdr: "signed-first" }, { signedXdr: "signed-first" }, { signedXdr: "signed-second" }]);
-        const legacy = await prepareExecute({ from: "source", amount: "1" });
-        assert.equal(legacy.preparationRequestId, null);
-        await submitExecute({ signedXdr: "legacy", preparationRequestId: legacy.preparationRequestId });
-        assert.equal(submits.at(-1).headers["x-preparation-request-id"], undefined);
-      `);
-    },
-  );
+  it("the SDK context keeps concurrent preparation metadata and exact-envelope retries separate", () => {
+    const source = readFileSync("docs/hackathon/llms.md", "utf8");
+    const helper = source.match(/```ts\n(import "server-only";[\s\S]*?)\n```/)![1]!;
+    execute(`
+      ${compile(helper.replace('import "server-only";', ""))}
+      const ids = ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"];
+      let preparedCount = 0, failedOnce = false;
+      const submits = [];
+      const deployment = {
+        capabilities: { get: async () => ({ data: { network: "testnet", inputAsset: { kind: "native" }, triggerType: "deposit", operations: { execute: { status: "supported" } } } }) },
+        execute: {
+          prepare: async body => {
+            assert.deepEqual(body, { from: "customer", amount: "10000000" });
+            return { data: { xdr: "unsigned-" + preparedCount }, metadata: { historyRequestId: ids[preparedCount++] } };
+          },
+          submit: async (body, options) => {
+            submits.push({ body, options });
+            if (!failedOnce) { failedOnce = true; throw new Error("Uncertain"); }
+            return { data: { status: "PENDING" }, metadata: {} };
+          },
+        },
+      };
+      const first = await prepareExecute(deployment, "customer");
+      const second = await prepareExecute(deployment, "customer");
+      await assert.rejects(submitExecute(deployment, first, "signed-first"), { message: "Uncertain" });
+      await submitExecute(deployment, first, "signed-first");
+      await submitExecute(deployment, second, "signed-second");
+      assert.deepEqual(submits.map(s => s.options.preparationRequestId), [ids[0], ids[0], ids[1]]);
+      assert.deepEqual(submits.map(s => s.body), [{ signedXdr: "signed-first" }, { signedXdr: "signed-first" }, { signedXdr: "signed-second" }]);
+      assert.ok(submits.every(s => s.options.wait === false));
+      const uncorrelated = await prepareExecute(deployment, "customer");
+      await submitExecute(deployment, uncorrelated, "same-original");
+      assert.equal(submits.at(-1).options.preparationRequestId, undefined);
+    `);
+  });
 
-  it("the quickstart server forwards only a validated ID and keeps bearer tokens server-side", () => {
-    const source = readFileSync("docs/hackathon/developer-api-quickstart.md", "utf8");
+  it("the HTTP README server example forwards only a validated ID and keeps bearer tokens server-side", () => {
+    const source = readFileSync("docs/api/README.md", "utf8").split(
+      "## Custom browser and server integration",
+    )[1]!;
     const route = source.match(/```javascript\n([\s\S]*?)\n```/)![1]!;
     execute(`
       ${route.replace('import "server-only";', "")}
@@ -170,6 +162,9 @@ describe("documented preparation correlation", () => {
         assert.equal(calls.at(-1).options.headers["x-preparation-request-id"], id);
         assert.deepEqual(JSON.parse(calls.at(-1).options.body), { signedXdr: "synthetic-envelope" });
       }
+      process.env.PAIFLOW_API_TOKEN = "pfd_" + "b".repeat(64);
+      assert.equal((await POST(request({ action: "prepare", from: "G" + "A".repeat(55) }))).status, 200);
+      assert.equal(calls.at(-1).options.headers.Authorization, "Bearer " + process.env.PAIFLOW_API_TOKEN);
       const before = calls.length;
       for (const preparationRequestId of ["not-a-uuid", {}, 123]) {
         assert.equal((await POST(request({ action: "submit", signedXdr: "synthetic-envelope", preparationRequestId }))).status, 422);
@@ -180,8 +175,10 @@ describe("documented preparation correlation", () => {
     `);
   });
 
-  it("the quickstart browser retains the preparation ID after an uncertain submit and refreshes it for a new payment", () => {
-    const source = readFileSync("docs/hackathon/developer-api-quickstart.md", "utf8");
+  it("the HTTP README browser example retains the preparation ID after an uncertain submit and refreshes it for a new payment", () => {
+    const source = readFileSync("docs/api/README.md", "utf8").split(
+      "## Custom browser and server integration",
+    )[1]!;
     const page = source
       .match(/```jsx\n([\s\S]*?)\n```/)![1]!
       .replace(/import \{ useRef, useState \} from "react";/, "")

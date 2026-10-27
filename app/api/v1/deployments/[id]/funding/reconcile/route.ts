@@ -1,5 +1,6 @@
 import { linkApiTransaction } from "@/lib/api/request-history/context";
 import { NextResponse } from "next/server";
+import { withInteractiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
 import { v1Route } from "@/lib/api/v1/handler";
 import { V1_RATE_LIMITS } from "@/lib/api/v1/limits";
 import { fundingBody } from "@/lib/api/v1/funding-body";
@@ -9,7 +10,9 @@ export const POST = v1Route(
   { operation: "POST funding/reconcile", rateLimit: V1_RATE_LIMITS.fundingSubmit },
   async ({ req, deployment }) => {
     const input = FundingReconcileSchema.parse(await fundingBody(req));
-    const intent = await reconcileControlIntent(input.intent, deployment.id, input.action);
+    const intent = await withInteractiveRpcBudget(() =>
+      reconcileControlIntent(input.intent, deployment.id, input.action),
+    );
     linkApiTransaction(intent.txHash);
     return NextResponse.json(
       {

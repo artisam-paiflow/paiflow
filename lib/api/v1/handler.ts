@@ -39,7 +39,8 @@ export type V1Context<P extends V1Params> = DeploymentTokenAuth & {
   params: P;
 };
 
-export const isUuid = (v: string) => z.string().uuid().safeParse(v).success;
+export const isUuid = (v: string) =>
+  z.string().guid({ error: "Invalid uuid" }).safeParse(v).success;
 
 // A client-supplied id is echoed only if it looks like one; anything else is
 // replaced rather than reflected back. When the client sends none, the id
@@ -207,8 +208,10 @@ function createV1Route<P extends { id?: string }, A extends ApiCredentialAuth>(
         txHash: history.txHash,
         preparationRequestId:
           auth && new URL(req.url).pathname.endsWith("/submit")
-            ? (z.string().uuid().safeParse(req.headers.get("x-preparation-request-id")).data ??
-              null)
+            ? (z
+                .string()
+                .guid({ error: "Invalid uuid" })
+                .safeParse(req.headers.get("x-preparation-request-id")).data ?? null)
             : null,
         callerType: auth?.tokenType ?? "unknown",
         method: ApiRequestRecordSchema.shape.method.parse(req.method),

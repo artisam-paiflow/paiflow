@@ -67,12 +67,14 @@
     "sdk:build": "pnpm --dir packages/sdk run build",
     "sdk:typecheck": "pnpm --dir packages/sdk run typecheck",
     "sdk:test:package": "pnpm --dir packages/sdk run test:package",
-    "sdk:test": "pnpm --dir packages/sdk run test"
+    "sdk:test": "pnpm --dir packages/sdk run test",
+    "sdk:docs": "node packages/sdk/scripts/generate-reference.mjs",
+    "sdk:docs:check": "node packages/sdk/scripts/generate-reference.mjs --check"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",
     "@creit.tech/stellar-wallets-kit": "^1.9.5",
-    "@hookform/resolvers": "^3.9.1",
+    "@hookform/resolvers": "^5.9.2",
     "@prisma/client": "^6.1.0",
     "@simplewebauthn/browser": "^14.0.0",
     "@simplewebauthn/server": "^14.0.1",
@@ -89,7 +91,7 @@
     "ioredis": "^5.4.1",
     "lucide-react": "^0.469.0",
     "minio": "^8.0.3",
-    "next": "^15.5.27",
+    "next": "^15.5.28",
     "next-auth": "5.0.0-beta.32",
     "pino": "^9.5.0",
     "posthog-js": "^1.433.4",
@@ -102,7 +104,7 @@
     "server-only": "^0.0.1",
     "sonner": "^1.7.1",
     "tailwind-merge": "^2.5.5",
-    "zod": "^3.24.1",
+    "zod": "^4.6.6",
     "zustand": "^5.0.2"
   },
   "devDependencies": {
@@ -128,8 +130,10 @@
     "railway": "^3.11.0",
     "tailwindcss": "^4.0.0-beta.8",
     "tsx": "^4.19.2",
+    "typedoc": "0.28.20",
+    "typedoc-plugin-markdown": "4.14.0",
     "typescript": "^5.7.2",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs}": [
@@ -149,19 +153,21 @@
     "overrides": {
       "protobufjs": ">=7.6.3 <8",
       "axios": ">=1.18.0 <2",
+      "follow-redirects": ">=1.16.1 <2",
       "ws": ">=8.21.0 <9",
       "form-data": ">=4.0.6 <5",
       "ua-parser-js": ">=2.0.10 <3",
       "uuid": ">=11.1.1 <12",
       "postcss": ">=8.5.23 <9",
       "js-yaml": ">=4.3.2 <5",
-      "vite": ">=6.4.3 <7",
+      "vite": ">=6.4.4 <7",
+      "jsdom>undici": ">=8.12.2 <9",
       "esbuild": ">=0.28.1 <0.29",
       "brace-expansion": ">=1.1.21 <2",
-      "dompurify": ">=3.4.16 <4",
+      "dompurify": ">=3.4.17 <4",
       "nanoid": ">=3.3.19 <4",
-      "ip-address": ">=10.7.1 <11",
-      "toml": ">=4.2.0 <5",
+      "ip-address": ">=10.7.4 <11",
+      "toml": ">=5.0.1 <6",
       "browserslist": ">=4.28.7 <5",
       "baseline-browser-mapping": ">=2.11.22 <3",
       "deepmerge-ts": ">=8.0.0 <9",
@@ -173,7 +179,8 @@
       "jayson": ">=5.0.0 <6",
       "stream-json": ">=3.6.0 <4",
       "@creit.tech/stellar-wallets-kit>@walletconnect/sign-client": "2.26.0",
-      "@creit.tech/stellar-wallets-kit>@walletconnect/modal": "2.7.0"
+      "@creit.tech/stellar-wallets-kit>@walletconnect/modal": "2.7.0",
+      "minimatch@10>brace-expansion": ">=5.0.12 <6"
     },
     "patchedDependencies": {
       "minio@8.0.7": "patches/minio@8.0.7.patch"

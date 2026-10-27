@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { withErrorHandler, AppError } from "@/lib/errors";
+import {
+  withInteractiveRpcBudget,
+  interactiveRpcBudgetExpired,
+} from "@/lib/stellar/interactive-rpc-budget";
+import { allowanceRpcCall } from "@/lib/stellar/allowance-rpc";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { stellarPassphrase } from "@/lib/env";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
@@ -22,12 +27,13 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
       limit: 40,
       windowSeconds: 60,
     });
-    const state = await subscriptionState(id);
+    const state = await subscriptionState(id, { classifyRpcFailures: true });
     const allowance = state.subscriber
       ? await readTokenAllowance({
           tokenContractAddress: state.tokenContractAddress,
           owner: state.subscriber,
           spender: state.contractAddress,
+          classifyRpcFailures: true,
         })
       : 0n;
     return NextResponse.json(
@@ -46,19 +52,22 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
       windowSeconds: 60,
     });
     const body = AllowancePrepareSchema.parse(await req.json());
-    const state = await subscriptionState(id);
+    const state = await subscriptionState(id, { classifyRpcFailures: true });
     const subscriber = requireSubscriber(state, body.userAddress);
     const currentAllowance = await readTokenAllowance({
       tokenContractAddress: state.tokenContractAddress,
       owner: subscriber,
       spender: state.contractAddress,
+      classifyRpcFailures: true,
     });
     const amount = currentAllowance + BigInt(body.amount);
     if (currentAllowance < 0n || amount > MAX_ALLOWANCE)
       throw new AppError("VALIDATION", "Cumulative allowance would exceed the maximum i128 value");
     // Capture before the envelope is exposed to the customer. Any possible
     // inclusion must follow this ledger; wall-clock time is not a safe bound.
-    const { sequence: preparationLedger } = await sorobanRpc().getLatestLedger();
+    const { sequence: preparationLedger } = await allowanceRpcCall("getLatestLedger", () =>
+      sorobanRpc().getLatestLedger(),
+    );
     if (
       !Number.isInteger(preparationLedger) ||
       preparationLedger <= 0 ||
@@ -71,6 +80,11 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
       spender: state.contractAddress,
       amount: amount.toString(),
     });
+    if (interactiveRpcBudgetExpired())
+      throw new AppError(
+        "UPSTREAM_RPC",
+        "Approval preparation exceeded its RPC deadline; try preparing again",
+      );
     const prepared = createAllowanceIntent(
       xdr,
       {
@@ -97,6 +111,12 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
   });
 }
 
-export const GET = deploymentServiceRoute(GETHandler, "public");
+export const GET = deploymentServiceRoute(
+  (req, ctx) => withInteractiveRpcBudget(() => GETHandler(req, ctx)),
+  "public",
+);
 
-export const POST = deploymentServiceRoute(POSTHandler, "public");
+export const POST = deploymentServiceRoute(
+  (req, ctx) => withInteractiveRpcBudget(() => POSTHandler(req, ctx)),
+  "public",
+);

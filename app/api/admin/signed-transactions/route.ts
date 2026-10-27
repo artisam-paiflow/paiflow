@@ -7,14 +7,14 @@ import { requireSession } from "@/lib/auth";
 import { withErrorHandler } from "@/lib/errors";
 
 const Query = z.object({
-  cursor: z.string().uuid().optional(),
+  cursor: z.string().guid({ error: "Invalid uuid" }).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   address: z
     .string()
     .refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar address")
     .optional(),
-  userId: z.string().uuid().optional(),
-  deploymentId: z.string().uuid().optional(),
+  userId: z.string().guid({ error: "Invalid uuid" }).optional(),
+  deploymentId: z.string().guid({ error: "Invalid uuid" }).optional(),
   txHash: z
     .string()
     .regex(/^[0-9a-fA-F]{64}$/, "txHash must be 64 hex characters")

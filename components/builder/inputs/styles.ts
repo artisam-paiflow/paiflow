@@ -10,7 +10,7 @@
  */
 export const inputClass = [
   "bg-surface-container-lowest border-outline-variant/50 text-on-surface",
-  "w-full rounded border px-3 py-2 font-mono text-[16px] md:text-[14px]",
+  "min-w-0 w-full rounded border px-3 py-2 font-mono text-[16px] md:text-[14px]",
   "transition-colors focus:outline-none",
   "focus-visible:border-primary focus-visible:ring-primary focus-visible:ring-1",
   "pointer-coarse:min-h-11",
@@ -32,7 +32,8 @@ export const labelClass =
 
 export const hintClass = "text-label-sm text-on-surface-muted font-body leading-snug";
 
-export const errorClass = "text-label-sm text-error font-mono leading-snug";
+export const errorClass =
+  "text-label-sm text-error font-body leading-snug [overflow-wrap:anywhere]";
 
 /** A unit beside a control (`USDC`, `%`): laid out, not positioned over it. */
 export const suffixClass = "text-label-sm text-on-surface-muted shrink-0 font-mono";

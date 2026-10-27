@@ -1,30 +1,47 @@
+/** Node client configuration. Tokens belong only on your trusted server. */
 export interface PaiflowOptions {
+  /** Trusted HTTPS origin, without path/query/credentials; HTTP loopback is allowed. */
   baseUrl: string;
-  /** Server-side developer (pfd_) or deployment (pfk_) credential. */
+  /** Server-side developer (`pfd_`) or deployment (`pfk_`) credential. */
   token?: string;
+  /** Optional fetch implementation; must honour redirect refusal and omitted cookies. */
   fetch?: typeof globalThis.fetch;
+  /** Positive timeout in milliseconds, covering fetch and response parsing; default 30000. */
   timeoutMs?: number;
 }
+/** Per-request cancellation and correlation. No option enables automatic retries. */
 export interface RequestOptions {
+  /** Cancels the local request; cancellation does not establish transaction failure. */
   signal?: AbortSignal;
+  /** Positive timeout in milliseconds, covering fetch and response parsing; default 30000. */
   timeoutMs?: number;
+  /** Caller diagnostic ID: 1–128 letters, digits, dots, underscores, colons or hyphens. */
   requestId?: string;
+  /** Original preparation history UUID. Preserve it for explicit submit correlation. */
   preparationRequestId?: string;
 }
+/** HTTP diagnostics retained on responses and typed API errors. */
 export interface ResponseMetadata {
+  /** HTTP status, not transaction finality. */
   status: number;
+  /** Server-returned diagnostic request ID. */
   requestId?: string;
+  /** Server history UUID; persist it with the preparation before signing. */
   historyRequestId?: string;
+  /** Raw Retry-After header; no retry is performed automatically. */
   retryAfter?: string;
 }
+/** Parsed workflow data plus HTTP metadata; inspect financial status inside data. */
 export interface ApiResponse<T> {
   data: T;
   metadata: ResponseMetadata;
 }
+/** Explicit authentication. Public requests omit configured bearer credentials. */
 export type RequestAuth =
   | { kind: "public" }
   | { kind: "token" }
   | { kind: "webhook"; secret: string; idempotencyKey?: string };
+/** Low-level JSON request; prefer typed deployment workflow methods. */
 export interface JsonRequest<T> {
   path: string;
   method: "GET" | "POST";
@@ -36,30 +53,35 @@ export interface JsonRequest<T> {
   maxResponseBytes?: number;
   parse: (value: unknown) => T;
 }
+/** Network/transport failure with no raw response body or cause attached. */
 export class PaiflowTransportError extends Error {
   constructor(message = "Paiflow request failed") {
     super(message);
     this.name = "PaiflowTransportError";
   }
 }
+/** Local deadline exceeded. Preserve and reconcile any existing financial operation. */
 export class PaiflowTimeoutError extends PaiflowTransportError {
   constructor() {
     super("Paiflow request timed out; transaction outcome may be uncertain");
     this.name = "PaiflowTimeoutError";
   }
 }
+/** Caller cancelled. A sent transaction may still succeed. */
 export class PaiflowAbortError extends PaiflowTransportError {
   constructor() {
     super("Paiflow request cancelled; transaction outcome may be uncertain");
     this.name = "PaiflowAbortError";
   }
 }
+/** Invalid or oversized success response, retaining safe HTTP metadata. */
 export class PaiflowMalformedResponseError extends PaiflowTransportError {
   constructor(readonly metadata: ResponseMetadata) {
     super("Invalid Paiflow response");
     this.name = "PaiflowMalformedResponseError";
   }
 }
+/** HTTP API refusal with open-ended code and sanitised fields/details. */
 export class PaiflowApiError extends Error {
   constructor(
     readonly status: number,
@@ -86,7 +108,7 @@ const duration = (value: number) => {
     throw new TypeError("Invalid timeoutMs");
   return value;
 };
-/** Shared JSON foundation. Workflow methods are added in subsequent issues. No retries. */
+/** Shared JSON/SSE transport. No automatic retries, redirects or ambient cookies. */
 export class PaiflowTransport {
   readonly origin: string;
   #token: string | undefined;
@@ -117,6 +139,12 @@ export class PaiflowTransport {
     this.#fetch = options.fetch ?? globalThis.fetch;
     this.#timeout = duration(options.timeoutMs ?? 30000);
   }
+  /**
+   * Send one explicit JSON request and parse its response.
+   * @param request - Canonical API path, explicit auth and parser from unknown.
+   * @param options - Cancellation, timeout and diagnostic/history correlation.
+   * @returns Parsed data and HTTP metadata; success does not establish finality.
+   */
   async request<T>(request: JsonRequest<T>, options: RequestOptions = {}): Promise<ApiResponse<T>> {
     // Restrict paths to canonical API routes: no absolute URL, traversal or encoded separators.
     if (

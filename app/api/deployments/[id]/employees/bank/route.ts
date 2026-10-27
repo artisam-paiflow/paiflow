@@ -11,7 +11,7 @@ import { updateBankByRelayer } from "@/lib/stellar/dev-mutate";
 import { requireDevConfiguration } from "@/lib/features";
 
 const BankDetailSchema = z.object({
-  employeeId: z.string().uuid().optional(),
+  employeeId: z.string().guid({ error: "Invalid uuid" }).optional(),
   address: z
     .string()
     .refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar address")
@@ -164,7 +164,7 @@ async function DELETEHandler(req: NextRequest, ctx: { params: Promise<{ id: stri
     const employeeId = searchParams.get("employeeId");
 
     if (employeeId) {
-      if (!z.string().uuid().safeParse(employeeId).success) {
+      if (!z.string().guid({ error: "Invalid uuid" }).safeParse(employeeId).success) {
         throw new AppError("VALIDATION", "Invalid employeeId");
       }
     } else if (!address || !StrKey.isValidEd25519PublicKey(address)) {
@@ -173,7 +173,7 @@ async function DELETEHandler(req: NextRequest, ctx: { params: Promise<{ id: stri
 
     let employee;
     if (employeeId) {
-      if (!z.string().uuid().safeParse(employeeId).success) {
+      if (!z.string().guid({ error: "Invalid uuid" }).safeParse(employeeId).success) {
         throw new AppError("VALIDATION", "Invalid employeeId");
       }
       employee = await db.employee.findUnique({

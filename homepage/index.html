@@ -42,6 +42,13 @@
               ></span
             ></a
           >
+          <nav aria-label="Main navigation" class="ml-auto">
+            <a
+              href="hackathons.html"
+              class="text-label-sm text-on-surface-variant hover:text-primary focus-visible:outline-primary inline-flex min-h-11 items-center font-mono focus-visible:outline-2 focus-visible:outline-offset-4"
+              >Hackathons</a
+            >
+          </nav>
         </div>
       </header>
       <section class="px-margin pb-xl relative pt-[160px]">
@@ -420,6 +427,113 @@
           </div>
         </div>
       </section>
+      <section id="hackathons" aria-labelledby="hackathons-title" class="px-margin pb-xl relative">
+        <div class="mx-auto max-w-7xl">
+          <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p class="text-label-sm text-secondary font-mono">/ COMMUNITY</p>
+              <h2
+                id="hackathons-title"
+                class="font-display text-headline-md md:text-headline-lg mt-3"
+              >
+                Paiflow at hackathons.
+              </h2>
+              <p class="text-body-lg text-on-surface-variant mt-4 max-w-2xl">
+                Meet the student builders exploring what programmable payments can do.
+              </p>
+            </div>
+            <a
+              href="hackathons.html"
+              class="text-label-md text-primary focus-visible:outline-primary inline-flex min-h-11 items-center gap-2 font-mono focus-visible:outline-2 focus-visible:outline-offset-4"
+              >All hackathons <span aria-hidden="true">→</span></a
+            >
+          </div>
+          <div class="grid gap-6 md:grid-cols-2">
+            <article class="glass-panel overflow-hidden rounded-xl">
+              <a
+                href="hackathon-jru.html"
+                class="group focus-visible:outline-primary block h-full focus-visible:outline-2 focus-visible:outline-offset-[-3px]"
+                ><img
+                  src="images/hackathons/jru-group-1280.webp"
+                  srcset="
+                    images/hackathons/jru-group-640.webp   640w,
+                    images/hackathons/jru-group-1280.webp 1280w,
+                    images/hackathons/jru-group-1800.webp 1800w
+                  "
+                  sizes="(min-width: 1280px) 592px, (min-width: 768px) calc((100vw - 120px) / 2), calc(100vw - 32px)"
+                  width="1280"
+                  height="853"
+                  alt="JRU hackathon participants gathered for a group photo in the computer lab."
+                  loading="lazy"
+                  decoding="async"
+                  class="block aspect-[3/2] w-full object-cover"
+                />
+                <div class="p-md md:p-lg">
+                  <p class="text-label-sm text-secondary font-mono">
+                    <time datetime="2026-10-14">October 14, 2026</time>
+                  </p>
+                  <h3
+                    class="font-display text-headline-md group-hover:text-primary mt-3 transition-colors"
+                  >
+                    First JRU Hackathon
+                  </h3>
+                  <p class="text-body-md text-on-surface-variant mt-2">José Rizal University</p>
+                  <p class="text-body-md text-on-surface-variant mt-4 max-w-xl">
+                    Our first JRU hackathon, bringing student builders together around programmable
+                    payments.
+                  </p>
+                  <span
+                    class="text-label-md text-primary mt-6 inline-flex min-h-11 items-center gap-2 font-mono"
+                    >Explore the event <span aria-hidden="true">→</span></span
+                  >
+                </div></a
+              >
+            </article>
+            <article class="glass-panel overflow-hidden rounded-xl">
+              <a
+                href="hackathon-nvc-aklan.html"
+                class="group focus-visible:outline-primary block h-full focus-visible:outline-2 focus-visible:outline-offset-[-3px]"
+                ><img
+                  src="images/hackathons/nvc-lab-1280.webp"
+                  srcset="
+                    images/hackathons/nvc-lab-640.webp   640w,
+                    images/hackathons/nvc-lab-1280.webp 1280w,
+                    images/hackathons/nvc-lab-1800.webp 1800w
+                  "
+                  sizes="(min-width: 1280px) 592px, (min-width: 768px) calc((100vw - 120px) / 2), calc(100vw - 32px)"
+                  width="1280"
+                  height="961"
+                  alt="NVC Aklan participants working at computers during the hackathon."
+                  loading="lazy"
+                  decoding="async"
+                  class="block aspect-[3/2] w-full object-cover"
+                />
+                <div class="p-md md:p-lg">
+                  <p class="text-label-sm text-secondary font-mono">
+                    <time datetime="2026-10-20">October 20, 2026</time>
+                  </p>
+                  <h3
+                    class="font-display text-headline-md group-hover:text-primary mt-3 transition-colors"
+                  >
+                    NVC Aklan Hackathon
+                  </h3>
+                  <p class="text-body-md text-on-surface-variant mt-2">
+                    Northwestern Visayan Colleges · Aklan
+                  </p>
+                  <p class="text-body-md text-on-surface-variant mt-4 max-w-xl">
+                    A look inside the computer lab as builders work on their Paiflow integrations in
+                    Aklan.
+                  </p>
+                  <span
+                    class="text-label-md text-primary mt-6 inline-flex min-h-11 items-center gap-2 font-mono"
+                    >Explore the event <span aria-hidden="true">→</span></span
+                  >
+                </div></a
+              >
+            </article>
+          </div>
+        </div>
+      </section>
       <section class="px-margin pb-xl relative">
         <div class="mx-auto max-w-7xl">
           <div
@@ -464,7 +578,9 @@
             <a href="about.html" class="hover:text-primary transition-colors">ABOUT</a
             ><a href="privacy.html" class="hover:text-primary transition-colors">PRIVACY</a
             ><a href="terms.html" class="hover:text-primary transition-colors">TERMS</a
-            ><a href="https://beta.app.paiflow.xyz" class="text-primary underline-offset-4 hover:underline"
+            ><a
+              href="https://beta.app.paiflow.xyz"
+              class="text-primary underline-offset-4 hover:underline"
               >OPEN THE APP ↗</a
             >
           </nav>

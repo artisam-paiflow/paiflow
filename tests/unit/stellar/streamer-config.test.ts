@@ -1,31 +1,43 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Address, Keypair, StrKey, nativeToScVal } from "@stellar/stellar-sdk";
+import { Address, Keypair, StrKey, nativeToScVal, xdr } from "@stellar/stellar-sdk";
 const mocks = vi.hoisted(() => ({ ledger: vi.fn() }));
-vi.mock("@/lib/stellar/client", () => ({ sorobanRpc: () => ({ getLedgerEntries: mocks.ledger }) }));
+vi.mock("@/lib/stellar/client", () => ({
+  sorobanRpc: () => ({ _getLedgerEntries: mocks.ledger }),
+}));
 import { readStreamerConfig } from "@/lib/stellar/streamer-config";
 const contract = StrKey.encodeContract(Buffer.alloc(32, 1));
 const asset = StrKey.encodeContract(Buffer.alloc(32, 2));
 const admin = Keypair.random().publicKey();
-const field = (name: string, value: string) => ({
-  key: () => nativeToScVal([name], { type: ["symbol"] }),
-  val: () => new Address(value).toScVal(),
-});
-let storage: ReturnType<typeof field>[];
+const field = (name: string, value: string) =>
+  new xdr.ScMapEntry({
+    key: nativeToScVal([name], { type: ["symbol"] }),
+    val: new Address(value).toScVal(),
+  });
+let storage: xdr.ScMapEntry[];
 beforeEach(() => {
   storage = [field("Admin", admin), field("Asset", asset)];
-  mocks.ledger
-    .mockReset()
-    .mockImplementation(async (key) => ({
-      latestLedger: 100,
-      entries: [
-        {
-          key,
-          val: {
-            contractData: () => ({ val: () => ({ instance: () => ({ storage: () => storage }) }) }),
-          },
-        },
-      ],
-    }));
+  mocks.ledger.mockReset().mockImplementation(async (key: xdr.LedgerKey) => ({
+    latestLedger: 100,
+    entries: [
+      {
+        key: key.toXDR("base64"),
+        xdr: xdr.LedgerEntryData.contractData(
+          new xdr.ContractDataEntry({
+            ext: new xdr.ExtensionPoint(0),
+            contract: new Address(contract).toScAddress(),
+            key: xdr.ScVal.scvLedgerKeyContractInstance(),
+            durability: xdr.ContractDataDurability.persistent(),
+            val: xdr.ScVal.scvContractInstance(
+              new xdr.ScContractInstance({
+                executable: xdr.ContractExecutable.contractExecutableWasm(Buffer.alloc(32)),
+                storage,
+              }),
+            ),
+          }),
+        ).toXDR("base64"),
+      },
+    ],
+  }));
 });
 describe("STREAMER instance config", () => {
   it("reads exactly typed Admin and Asset without nonexistent ABI methods", async () => {
@@ -59,7 +71,7 @@ describe("STREAMER instance config", () => {
   it("does not leak RPC/storage error details", async () => {
     mocks.ledger.mockRejectedValue(new Error("private raw storage"));
     await expect(readStreamerConfig(contract)).rejects.toMatchObject({
-      message: "Current Schedule controller and asset could not be read",
+      message: "Current Schedule data could not be verified. Please try again.",
     });
   });
   it("rejects malformed contract before RPC", async () => {

@@ -14,7 +14,7 @@ export async function PATCH(_req: NextRequest, { params }: { params: Promise<{ i
     await enforceWriteRateLimit("adminWrite", admin.id);
     const id = z
       .string()
-      .uuid()
+      .guid({ error: "Invalid uuid" })
       .parse((await params).id);
     const row = await db.googleSignupCode.update({
       where: { id },

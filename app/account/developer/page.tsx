@@ -12,8 +12,13 @@ export default async function DeveloperPage() {
   return (
     <>
       <Topbar username={user.username} />
-      <main className="px-margin py-lg mx-auto max-w-4xl">
-        <p className="text-on-surface-muted font-mono text-sm">/ ACCOUNT · DEVELOPER API</p>
+      <main className="px-margin py-lg mx-auto max-w-6xl">
+        <a
+          href="/account"
+          className="text-on-surface-variant hover:text-on-surface inline-flex min-h-11 items-center font-mono text-sm"
+        >
+          ← Account / Developer API
+        </a>
         <h1 className="font-display text-on-surface mt-2 text-4xl font-semibold">Developer API</h1>
         <DeveloperTokenPanel />
       </main>

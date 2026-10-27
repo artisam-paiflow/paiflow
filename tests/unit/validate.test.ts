@@ -2141,7 +2141,7 @@ describe("validateFlow", () => {
   });
 
   // ── schema-error friendly messages (#307) ──
-  it("names the recipient and bad value when a split address is invalid", () => {
+  it("names the recipient and explains the required address when a split address is invalid", () => {
     const r = validateFlow({
       nodes: [
         { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
@@ -2164,7 +2164,10 @@ describe("validateFlow", () => {
       const issue = r.errors.find((e) => e.path.includes("recipients"));
       expect(issue).toBeDefined();
       expect(issue!.friendlyMessage).toContain('recipient "Bob"');
-      expect(issue!.friendlyMessage).toContain("NOTAVALIDSTELLARADDRESS123");
+      expect(issue!.friendlyMessage).toContain(
+        "wallet (G…) or contract (C…) address, 56 characters",
+      );
+      expect(issue!.path).toBe("nodes.a.config.recipients.1.address");
       expect(issue!.friendlyMessage).not.toContain("flow structure is invalid");
     }
   });
@@ -2215,7 +2218,8 @@ describe("validateFlow", () => {
       const issue = r.errors.find((e) => e.path.includes("recipient"));
       expect(issue).toBeDefined();
       expect(issue!.friendlyMessage).toContain("Pay step's recipient");
-      expect(issue!.friendlyMessage).toContain("NOTAVALIDSTELLARADDRESS123");
+      expect(issue!.friendlyMessage).toContain("wallet address (G…, 56 characters)");
+      expect(issue!.path).toBe("nodes.a.config.recipient");
     }
   });
 });

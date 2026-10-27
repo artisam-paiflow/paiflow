@@ -574,7 +574,7 @@ function schedulePaths(): Record<string, Record<string, unknown>> {
       operationId: "getScheduleState",
       summary: "Read live Schedule state and control eligibility",
       description:
-        "Uncached reads of snapshot-selected STREAMER controller/asset instance fields, state and permission getters, and token holding balance. availableStroops is vested unpaid payout entitlement, not token balance or a guarantee of sufficient funding; claimedStroops is cumulative claimed entitlement. unvestedStroops is max(balance minus available, zero); retrievableStroops is that difference only while paused and retrieval-permitted. Retrieval returns funds to the contract-configured controller. Reads occur across RPC calls, not an atomic ledger snapshot; amounts are indicative and simulation/execution are authoritative. Contract-address controllers can be read but cannot use this account-wallet signing protocol. Errors never masquerade as zero balances. Active service required; hosted testnet verification remains pending. " +
+        "Uncached reads of snapshot-selected STREAMER controller/asset instance fields, state and permission getters, and token holding balance. availableStroops is vested unpaid payout entitlement, not token balance or a guarantee of sufficient funding; claimedStroops is cumulative claimed entitlement. unvestedStroops is max(balance minus available, zero); retrievableStroops is that difference only while paused and retrieval-permitted. Retrieval returns funds to the contract-configured controller. Reads occur across RPC calls, not an atomic ledger snapshot; amounts are indicative and simulation/execution are authoritative. Contract-address controllers can be read but cannot use this account-wallet signing protocol. Errors never masquerade as zero balances. Active service required; Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. " +
         rate(V1_RATE_LIMITS.scheduleState, "per token"),
       security,
       parameters: [
@@ -612,7 +612,7 @@ function schedulePaths(): Record<string, Record<string, unknown>> {
         operationId: `prepareSchedule${action}`,
         summary: `Prepare wallet-authorized Schedule ${action}`,
         description:
-          "The deployment token grants API access, not wallet consent. Select deployed nodeId when ambiguous. Requires current controller account wallet and live state/permissions. Pause only unpaused permitted schedules; resume only paused pause-permitted schedules; retrieve only paused retrieval-permitted schedules with holding balance greater than vested unpaid entitlement. Simulation uses the server network and 180-second envelope; return unsignedXdr, intent, txHash and expiresAt. For retrieval, recipient is the deployed controller and estimatedAmountStroops is indicative; no caller recipient/amount is accepted. Sign unchanged in the wallet; no keys belong in request bodies. One unresolved intent per node across controls/funding; conflicts include the existing intent/hash for reconciliation. Hosted testnet verification remains pending. " +
+          "The deployment token grants API access, not wallet consent. Select deployed nodeId when ambiguous. Requires current controller account wallet and live state/permissions. Pause only unpaused permitted schedules; resume only paused pause-permitted schedules; retrieve only paused retrieval-permitted schedules with holding balance greater than vested unpaid entitlement. Simulation uses the server network and 180-second envelope; return unsignedXdr, intent, txHash and expiresAt. For retrieval, recipient is the deployed controller and estimatedAmountStroops is indicative; no caller recipient/amount is accepted. Sign unchanged in the wallet; no keys belong in request bodies. One unresolved intent per node across controls/funding; conflicts include the existing intent/hash for reconciliation. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. " +
           rate(V1_RATE_LIMITS.schedulePrepare, "per token"),
         security,
         parameters: [deploymentIdParam],
@@ -757,7 +757,7 @@ export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: "Paiflow API v1",
-    version: "1.1.0",
+    version: "1.2.0",
     description: [
       "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.",
       "",
@@ -785,8 +785,8 @@ export const openApiDocument = {
         "minute is refused again without a lookup. Refusal of a live developer credential for a missing grant is never negatively cached, so selection edits take effect immediately. So one caller's bad token does not lock out " +
         "others on the same network.",
       "",
-      "No account? `POST /api/v1/demo-token` hands you a short-lived token for a shared demo " +
-        "flow, so every call above can be tried straight away.",
+      "`POST /api/v1/demo-token` explicitly requests a short-lived token for an operator-configured shared demo deployment. " +
+        "Availability depends on environment configuration; it may be disabled. A demo token does not guarantee every operation is eligible.",
       "",
       "The public instance runs on Stellar **testnet**. Guide: `docs/api/README.md`.",
     ].join("\n"),
@@ -852,11 +852,24 @@ export const openApiDocument = {
       ),
     },
     "/api/developer-tokens/deployments": {
-      get: developerManagementOperation(
-        "listDeveloperTokenCandidates",
-        "List eligible owned deployment choices",
-        "DeveloperTokenDeploymentList",
-      ),
+      get: {
+        ...developerManagementOperation(
+          "listDeveloperTokenCandidates",
+          "List eligible owned deployment choices",
+          "DeveloperTokenDeploymentList",
+        ),
+        parameters: [
+          ...developerTokenPagination,
+          {
+            name: "search",
+            in: "query",
+            required: false,
+            description:
+              "Trimmed case-insensitive flow-name substring or exact full deployment UUID, within owned CONFIRMED ACTIVE deployments. Applied before pagination; reset cursor when changing search.",
+            schema: { type: "string", maxLength: 100 },
+          },
+        ],
+      },
     },
     "/api/developer-tokens/{tokenId}": {
       get: developerManagementOperation(
@@ -941,7 +954,7 @@ export const openApiDocument = {
         operationId: "discoverFunding",
         summary: "Discover live funding assets",
         description:
-          "Deployment bearer token required; no session. Active, confirmed deployment on the environment network. Any consenting funding wallet may fund; no owner/admin requirement. Funding adds funds only, never executes a Schedule payout or Webhook callback. Public /trigger, /submit-trigger and hosted /trigger/{deploymentId} alternatives remain available. One unresolved preparation per node blocks other actions; reconcile the original before replacement. UNKNOWN, timeout, REJECTED or missing history alone never permits another deposit. Hosted testnet evidence remains pending." +
+          "Deployment bearer token required; no session. Active, confirmed deployment on the environment network. Any consenting funding wallet may fund; no owner/admin requirement. Funding adds funds only, never executes a Schedule payout or Webhook callback. Public /trigger, /submit-trigger and hosted /trigger/{deploymentId} alternatives remain available. One unresolved preparation per node blocks other actions; reconcile the original before replacement. UNKNOWN, timeout, REJECTED or missing history alone never permits another deposit. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability. " +
           rate(V1_RATE_LIMITS.funding, "per token"),
         security: [{ bearerAuth: [] }],
         parameters: [deploymentIdParam],
@@ -970,7 +983,7 @@ export const openApiDocument = {
         operationId: "prepareFunding",
         summary: "Prepare wallet-authorized funding",
         description:
-          "Deployment bearer token required; no session. Active, confirmed deployment on the environment network. Any consenting funding wallet may fund; no owner/admin requirement. Funding adds funds only, never executes a Schedule payout or Webhook callback. Public /trigger, /submit-trigger and hosted /trigger/{deploymentId} alternatives remain available. One unresolved preparation per node blocks other actions; reconcile the original before replacement. UNKNOWN, timeout, REJECTED or missing history alone never permits another deposit. Hosted testnet evidence remains pending." +
+          "Deployment bearer token required; no session. Active, confirmed deployment on the environment network. Any consenting funding wallet may fund; no owner/admin requirement. Funding adds funds only, never executes a Schedule payout or Webhook callback. Public /trigger, /submit-trigger and hosted /trigger/{deploymentId} alternatives remain available. One unresolved preparation per node blocks other actions; reconcile the original before replacement. UNKNOWN, timeout, REJECTED or missing history alone never permits another deposit. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability. " +
           rate(V1_RATE_LIMITS.funding, "per token"),
         security: [{ bearerAuth: [] }],
         parameters: [deploymentIdParam],
@@ -1005,7 +1018,7 @@ export const openApiDocument = {
         operationId: "submitFunding",
         summary: "Submit the exact signed funding envelope",
         description:
-          "Deployment bearer token required; no session. Active, confirmed deployment on the environment network. Any consenting funding wallet may fund; no owner/admin requirement. Funding adds funds only, never executes a Schedule payout or Webhook callback. Public /trigger, /submit-trigger and hosted /trigger/{deploymentId} alternatives remain available. One unresolved preparation per node blocks other actions; reconcile the original before replacement. UNKNOWN, timeout, REJECTED or missing history alone never permits another deposit. Hosted testnet evidence remains pending." +
+          "Deployment bearer token required; no session. Active, confirmed deployment on the environment network. Any consenting funding wallet may fund; no owner/admin requirement. Funding adds funds only, never executes a Schedule payout or Webhook callback. Public /trigger, /submit-trigger and hosted /trigger/{deploymentId} alternatives remain available. One unresolved preparation per node blocks other actions; reconcile the original before replacement. UNKNOWN, timeout, REJECTED or missing history alone never permits another deposit. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability. " +
           rate(V1_RATE_LIMITS.fundingSubmit, "per token"),
         security: [{ bearerAuth: [] }],
         parameters: [deploymentIdParam],
@@ -1037,7 +1050,7 @@ export const openApiDocument = {
         operationId: "reconcileFunding",
         summary: "Reconcile funding finality and ledger-proven expiry",
         description:
-          "Deployment bearer token required; no session. Active, confirmed deployment on the environment network. Any consenting funding wallet may fund; no owner/admin requirement. Funding adds funds only, never executes a Schedule payout or Webhook callback. Public /trigger, /submit-trigger and hosted /trigger/{deploymentId} alternatives remain available. One unresolved preparation per node blocks other actions; reconcile the original before replacement. UNKNOWN, timeout, REJECTED or missing history alone never permits another deposit. Hosted testnet evidence remains pending." +
+          "Deployment bearer token required; no session. Active, confirmed deployment on the environment network. Any consenting funding wallet may fund; no owner/admin requirement. Funding adds funds only, never executes a Schedule payout or Webhook callback. Public /trigger, /submit-trigger and hosted /trigger/{deploymentId} alternatives remain available. One unresolved preparation per node blocks other actions; reconcile the original before replacement. UNKNOWN, timeout, REJECTED or missing history alone never permits another deposit. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability. " +
           rate(V1_RATE_LIMITS.fundingSubmit, "per token"),
         security: [{ bearerAuth: [] }],
         parameters: [deploymentIdParam],
@@ -1097,7 +1110,7 @@ export const openApiDocument = {
                   "Preparation reads the deployed current subscriber, asset and cancellation state. Only that configured wallet can cancel an active subscription or reactivate a cancelled subscription. The builder simulates on the server network with finite transaction bounds. Cancellation revokes allowance; reactivation grants no allowance, creates no subscriber and never immediately charges or changes billing.",
                   "Sign exactly the returned xdr in the subscriber wallet on networkPassphrase; submit intent and signedXdr. Changed envelopes, wrong signers and fee-bumps are refused. Submission rechecks live eligibility on the first send and durably admits the exact hash before broadcasting. Retrying an already claimed intent returns status, even when successful cancellation changed state.",
                   "UNKNOWN, REJECTED, timeouts and expired clocks never authorize replacement. Poll the deployment transaction endpoint and explicitly POST the action's reconcile endpoint with intent. Recovery adopts externally submitted ledger results and proves expiry only with complete RPC history. PREPARED or SUBMITTING retains the reservation; SUCCESS, FAILED or proven EXPIRED sets replacementAllowed:true, subject to current eligibility for a new preparation. RPC/history gaps retain reservations. No generic or token-only wallet consent.",
-                  "Hosted testnet rehearsal remains required before advertising event availability; these paths describe the implemented API surface.",
+                  "Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established.",
                   rate(
                     V1_RATE_LIMITS[
                       step === "prepare"
@@ -1169,7 +1182,7 @@ export const openApiDocument = {
         operationId: "getDeploymentBalances",
         summary: "Read deployment contract balances with freshness",
         description:
-          "Deployment-scoped display reads of current token contracts from supported on-chain instance storage. Schedule, Webhook, time/oracle conditions, Pay, Split and Swap balances are supported candidates; mutable Pay/Split require Dev mode enabled. Swap reports both input and output tokens. No owner account balances or private configuration. Multisig and unsupported kinds are excluded and, when present beside supported nodes, reported as errors making totals incomplete. Token contract addresses are asset identity; graph asset labels are not authoritative. Balances are not Schedule payout availability or evidence of payment success. The 10-second process-local single-flight cache preserves original readAt/attemptedAt; a Redis per-deployment refresh lease spans replicas (another replica without cached data answers 429), configured unavailable Redis fails closed for refreshes, and no Redis means process-local coordination; poll no faster than every 10 seconds. Each refresh admits at most four workers and 64 contracts, stops scheduling at 25 seconds, with existing finite HTTP timeouts. Errors use null balances and stale:true; partial totals sum only successful reads, never stand for complete balances. Fresh means all supported/holding targets read successfully within the display window, not a ledger-consistent atomic snapshot. Hosted testnet verification remains pending before participant support is claimed. " +
+          "Deployment-scoped display reads of current token contracts from supported on-chain instance storage. Schedule, Webhook, time/oracle conditions, Pay, Split and Swap balances are supported candidates; mutable Pay/Split require Dev mode enabled. Swap reports both input and output tokens. No owner account balances or private configuration. Multisig and unsupported kinds are excluded and, when present beside supported nodes, reported as errors making totals incomplete. Token contract addresses are asset identity; graph asset labels are not authoritative. Balances are not Schedule payout availability or evidence of payment success. The 10-second process-local single-flight cache preserves original readAt/attemptedAt; a Redis per-deployment refresh lease spans replicas (another replica without cached data answers 429), configured unavailable Redis fails closed for refreshes, and no Redis means process-local coordination; poll no faster than every 10 seconds. Each refresh admits at most four workers and 64 contracts, stops scheduling at 25 seconds, with existing finite HTTP timeouts. Errors use null balances and stale:true; partial totals sum only successful reads, never stand for complete balances. Fresh means all supported/holding targets read successfully within the display window, not a ledger-consistent atomic snapshot. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. " +
           rate(V1_RATE_LIMITS.balances, "per token"),
         security: [{ bearerAuth: [] }],
         parameters: [deploymentIdParam],
@@ -1200,7 +1213,7 @@ export const openApiDocument = {
         description: [
           "Requires this deployment's bearer token, confirmed deployment on the environment network and active service. Select a standard SWAPPER from pipelineSnapshot; nodeId is required if several exist. Only amountStroops and nodeId are accepted; arbitrary assets, router, slippage and routes are rejected. Live asset_in/asset_out/router/slippage_bps getters determine quote configuration; the router must match the environment's configured router.",
           "Returns exact integer stroop strings, current slippage, live readStartedAt/quotedAt and estimate:true with scope:selected_node. Reads are a sequence of simulations, not an atomic ledger snapshot; live means read during this request, not cached reserves or guaranteed freshness at execution. amountOutMinStroops is the spot-less-slippage estimate at quote time, not a guaranteed payout or the final minimum for a later transaction. meetsMinimumAtQuote only compares estimated output to that estimate; false means the quote currently falls below that bound, true does not establish full-flow readiness. No full-flow prediction or new execution path; final preparation, simulation and execution remain authoritative. Cache-Control:no-store.",
-          "Fixed RPC work: four configuration getters and at most five pool/router reads. Deployment-wide 20/min quote budget across tokens, with functioning shared Redis required in production. RPC/provider failures return errors, never a zero quote. Hosted testnet quote-versus-execution verification remains pending; this source API must be deployed and verified before claiming hosted support.",
+          "Fixed RPC work: four configuration getters and at most five pool/router reads. Deployment-wide 20/min quote budget across tokens, with functioning shared Redis required in production. RPC/provider failures return errors, never a zero quote. A bounded testnet Swap execution was verified on October 15, 2026; see https://github.com/artisam-paiflow/paiflow/blob/develop/docs/testing/2026-10-15-sdk-swap-execution-982.md. It consumed a one-attempt high-fee authorization, not a future fee guarantee. Verify configuration, capabilities and fees in the target environment.",
           rate(V1_RATE_LIMITS.swapQuote, "per token"),
         ].join("\n\n"),
         security: [{ bearerAuth: [] }],

@@ -12,7 +12,7 @@ export const SwapQuoteQuerySchema = z
 const contract = z.string().refine(StrKey.isValidContract);
 export const SwapQuoteSchema = z
   .object({
-    deploymentId: z.string().uuid(),
+    deploymentId: z.string().guid({ error: "Invalid uuid" }),
     network: z.enum(["testnet", "mainnet"]),
     nodeId: z.string().min(1),
     contractAddress: contract,

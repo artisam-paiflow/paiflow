@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withInteractiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
 import { linkApiTransaction } from "@/lib/api/request-history/context";
 import { AppError } from "@/lib/errors";
 import { v1Route } from "@/lib/api/v1/handler";
@@ -10,28 +11,29 @@ import { submitPreparedDeposit } from "@/lib/stellar/submit-deposit";
 
 export const POST = v1Route(
   { operation: "POST execute/submit", rateLimit: V1_RATE_LIMITS.executeSubmit },
-  async ({ req, params, token, tokenType, deployment }) => {
-    const input = ExecuteSubmitSchema.parse(
-      await req.json().catch(() => {
-        throw new AppError("VALIDATION", "Request body must be valid JSON");
-      }),
-    );
-    const { wait } = ExecuteSubmitQuerySchema.parse({
-      wait: new URL(req.url).searchParams.get("wait") ?? undefined,
-    });
-    const { nodes, triggerAddress } = resolveExecutablePipeline(deployment);
-    const tx = assertDepositEnvelope(input.signedXdr, triggerAddress);
-    linkApiTransaction(tx.hash().toString("hex"));
-    const data = await submitPreparedDeposit({
-      tx,
-      wait,
-      tokenId: token.id,
-      tokenType,
-      deploymentId: params.id,
-      deployment,
-      nodes,
-      ip: clientIp(req),
-    });
-    return NextResponse.json({ data });
-  },
+  async ({ req, params, token, tokenType, deployment }) =>
+    withInteractiveRpcBudget(async () => {
+      const input = ExecuteSubmitSchema.parse(
+        await req.json().catch(() => {
+          throw new AppError("VALIDATION", "Request body must be valid JSON");
+        }),
+      );
+      const { wait } = ExecuteSubmitQuerySchema.parse({
+        wait: new URL(req.url).searchParams.get("wait") ?? undefined,
+      });
+      const { nodes, triggerAddress } = resolveExecutablePipeline(deployment);
+      const tx = assertDepositEnvelope(input.signedXdr, triggerAddress);
+      linkApiTransaction(tx.hash().toString("hex"));
+      const data = await submitPreparedDeposit({
+        tx,
+        wait,
+        tokenId: token.id,
+        tokenType,
+        deploymentId: params.id,
+        deployment,
+        nodes,
+        ip: clientIp(req),
+      });
+      return NextResponse.json({ data });
+    }),
 );

@@ -8,6 +8,14 @@ import { recordTransactionOutcome } from "@/lib/analytics/outcomes";
 import { confirmDeployment } from "@/lib/deployments/confirm";
 import { extractCreatedContract } from "./deploy";
 import { sorobanRpc } from "./client";
+
+// A recently submitted deployment must not disappear behind exponential
+// NOT_FOUND backoff while the browser is gone. The minute scheduler can then
+// observe finality promptly; older unknown hashes retain bounded backoff and
+// remain unresolved when RPC history expires.
+const RECENT_DEPLOYMENT_MS = 15 * 60_000;
+const RECENT_DEPLOYMENT_RECHECK_MS = 60_000;
+
 /** Reads only future-policy attempts, bounded by rows, per-RPC timeout and total budget. */
 export async function reconcileTransactions({
   batch = CRON_LIMITS.reconcileTransactions.batch,
@@ -115,7 +123,11 @@ export async function reconcileTransactions({
               Date.now() - row.createdAt.getTime() >= 6 * 24 * 3600_000
                 ? null
                 : new Date(
-                    Date.now() + Math.min(3600_000, 30_000 * 2 ** Math.min(row.checkAttempts, 7)),
+                    Date.now() +
+                      (row.kind === "DEPLOY" &&
+                      Date.now() - row.createdAt.getTime() < RECENT_DEPLOYMENT_MS
+                        ? RECENT_DEPLOYMENT_RECHECK_MS
+                        : Math.min(3600_000, 30_000 * 2 ** Math.min(row.checkAttempts, 7))),
                   ),
           },
         });

@@ -90,11 +90,13 @@ function deploymentResponse(d: {
   network: string;
   pipelineSnapshot: unknown;
   createdAt: Date;
+  deployTxHash?: string | null;
 }) {
   return {
     deploymentId: d.id,
     status: d.status,
     network: d.network,
+    deployTxHash: d.deployTxHash ?? null,
     subscriptionDevContractAddress: pipelineAddress(
       d.pipelineSnapshot,
       TemplateKind.SUBSCRIPTION_DEV,
@@ -135,9 +137,8 @@ export async function POST(req: NextRequest) {
     // deployment (whatever its status) instead of deploying a second,
     // independent set of contracts. To re-attempt a genuinely FAILED deploy,
     // the caller must supply a new idempotency key.
-    // A stale BUILDING row means a previous worker crashed before any on-chain
-    // success; recover by deleting it and its orphan flow so this request can
-    // safely retry with the same key.
+    // Only a hashless stale BUILDING row uses the existing orphan cleanup.
+    // A row with a transaction hash retains its original identity for recovery.
     const existing = await db.deployment.findUnique({
       where: {
         ownerId_idempotencyKey: { ownerId: user.id, idempotencyKey: body.idempotencyKey },
@@ -151,6 +152,7 @@ export async function POST(req: NextRequest) {
         );
       if (
         existing.status === "BUILDING" &&
+        !existing.deployTxHash &&
         Date.now() - existing.createdAt.getTime() > BUILDING_TIMEOUT_MS
       ) {
         await db.$transaction([
@@ -311,11 +313,10 @@ export async function POST(req: NextRequest) {
       // On-chain rejection: the tx was submitted but did not succeed. Record the
       // attempted hash for reconciliation, then fail.
       if (result.status !== "SUCCESS") {
-        const isTimeout = result.errorMessage === "Timed out waiting for finality";
+        const isTimeout = result.failureCode === "FINALITY_UNKNOWN";
         if (isTimeout) {
-          // The tx was accepted by the network but finality polling timed out.
-          // Keep the row BUILDING so the idempotency key is not poisoned with a
-          // false FAILED status; persist the txHash for reconciliation.
+          // Neither a missing acknowledgement nor a polling timeout proves failure.
+          // Keep BUILDING and the original hash instead of recording a false failure.
           await db.deployment
             .update({
               where: { id: deployment.id },

@@ -2,19 +2,36 @@ import { Account, Keypair, Networks, StrKey, TransactionBuilder } from "@stellar
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import { flowToPipeline } from "@/lib/flows/to-params";
+import { paymentAccountResponse } from "./payment-account-fixture";
 
-const { getAccount, simulate, assemble, prepareSubmission, send, buildRelayer } = vi.hoisted(
-  () => ({
-    getAccount: vi.fn(),
-    simulate: vi.fn(),
-    assemble: vi.fn(),
-    prepareSubmission: vi.fn(),
-    send: vi.fn(),
-    buildRelayer: vi.fn(),
-  }),
-);
+const {
+  getAccount,
+  simulate,
+  assemble,
+  prepareSubmission,
+  send,
+  buildRelayer,
+  trackPending,
+  clearPending,
+  getTransaction,
+} = vi.hoisted(() => ({
+  getAccount: vi.fn(),
+  trackPending: vi.fn(),
+  clearPending: vi.fn(),
+  getTransaction: vi.fn(),
+  simulate: vi.fn(),
+  assemble: vi.fn(),
+  prepareSubmission: vi.fn(),
+  send: vi.fn(),
+  buildRelayer: vi.fn(),
+}));
 vi.mock("@/lib/stellar/client", () => ({
-  sorobanRpc: () => ({ getAccount, simulateTransaction: simulate, sendTransaction: send }),
+  sorobanRpc: () => ({
+    _getLedgerEntries: getAccount,
+    simulateTransaction: simulate,
+    sendTransaction: send,
+    getTransaction,
+  }),
   horizon: () => ({}),
 }));
 vi.mock("@/lib/stellar/config", () => ({
@@ -31,7 +48,8 @@ vi.mock("@/lib/analytics/outcomes", () => ({
   transactionObservation: vi.fn(),
 }));
 vi.mock("@/lib/stellar/relayer-channels", () => ({
-  withRelayerChannel: (fn: (channel: object) => Promise<unknown>) => fn({}),
+  withRelayerChannel: (fn: (channel: object) => Promise<unknown>) =>
+    fn({ trackPending, clearPending }),
   buildRelayerTx: buildRelayer,
 }));
 import { preparePipelineDeployTx } from "@/lib/stellar/deploy";
@@ -61,7 +79,7 @@ const graph = FlowGraphSchema.parse({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  getAccount.mockResolvedValue(new Account(ACCOUNT, "1"));
+  getAccount.mockResolvedValue(paymentAccountResponse(ACCOUNT, "1"));
   simulate.mockResolvedValue({});
   assemble.mockImplementation((tx: TransactionBuilder) => ({ build: () => tx }));
 });
@@ -145,6 +163,48 @@ it.each([false, true])(
         pipeline: expect.any(Array),
       });
       expect(send).toHaveBeenCalledOnce();
+    }
+  },
+);
+
+it.each(["send-timeout", "read-timeout", "deadline"])(
+  "retains the relayer lane for deployment %s",
+  async (failure) => {
+    const relayer = Keypair.random();
+    process.env.STELLAR_RELAYER_ADDRESS = relayer.publicKey();
+    process.env.STELLAR_RELAYER_SECRET_KEY = relayer.secret();
+    vi.resetModules();
+    const { deployPipelineByRelayer } = await import("@/lib/stellar/deploy");
+    const nodes = flowToPipeline(graph).map((node) => ({ ...node, wasmHash: "a".repeat(64) }));
+    buildRelayer.mockImplementation(async ({ operation }) =>
+      new TransactionBuilder(new Account(relayer.publicKey(), "1"), {
+        fee: "100",
+        networkPassphrase: Networks.TESTNET,
+      })
+        .addOperation(operation)
+        .setTimeout(180)
+        .build(),
+    );
+    prepareSubmission.mockImplementation(() => undefined);
+    send.mockImplementation(async (tx) => {
+      expect(trackPending).toHaveBeenCalledWith(tx.hash().toString("hex"), tx.timeBounds.maxTime);
+      if (failure === "send-timeout") throw new Error("Acknowledgement timeout");
+      return { status: "PENDING", hash: tx.hash().toString("hex") };
+    });
+    if (failure === "read-timeout") getTransaction.mockRejectedValue(new Error("Read timeout"));
+    else getTransaction.mockResolvedValue({ status: "NOT_FOUND" });
+    if (failure === "deadline") vi.useFakeTimers();
+    try {
+      const result = deployPipelineByRelayer({ graph, nodes });
+      if (failure === "deadline") await vi.advanceTimersByTimeAsync(31_000);
+      expect(await result).toMatchObject({
+        failureCode: "FINALITY_UNKNOWN",
+        txHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      });
+      expect(clearPending).not.toHaveBeenCalled();
+      expect(send).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
     }
   },
 );

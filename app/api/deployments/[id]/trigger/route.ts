@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
+import { withInteractiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
 import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { AppError, withErrorHandler } from "@/lib/errors";
@@ -93,4 +94,7 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
   });
 }
 
-export const POST = deploymentServiceRoute(POSTHandler, "public");
+export const POST = deploymentServiceRoute(
+  (req, ctx) => withInteractiveRpcBudget(() => POSTHandler(req, ctx)),
+  "public",
+);

@@ -6,6 +6,7 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 import { z } from "zod";
 import { audit } from "@/lib/audit";
+import { preparedDeploymentRecovery } from "@/lib/stellar/deployment-recovery";
 
 const PatchSchema = z.object({
   distributeAmountStroops: z.string().regex(/^\d+$/),
@@ -34,7 +35,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
           retirementBlocker: deployment.retirementBlocker,
         },
       });
-    return NextResponse.json({ data: deployment });
+    return NextResponse.json({
+      data: { ...deployment, preparedRecovery: await preparedDeploymentRecovery(deployment) },
+    });
   });
 }
 

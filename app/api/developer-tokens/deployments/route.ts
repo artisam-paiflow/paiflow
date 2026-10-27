@@ -9,6 +9,6 @@ import { tokenListQuery, tokenResponse } from "@/lib/developer-tokens/http";
 export async function GET(req: NextRequest) {
   return withErrorHandler(async () => {
     const user = await requireDeveloperTokenManager();
-    return tokenResponse(await listEligibleDeployments(user.id, tokenListQuery(req)));
+    return tokenResponse(await listEligibleDeployments(user.id, tokenListQuery(req, true)));
   });
 }

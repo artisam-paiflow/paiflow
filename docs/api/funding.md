@@ -1,11 +1,17 @@
 # Deployment funding
 
 Issue #916 adds deployment-token funding discovery and wallet preparation, submission and
-reconciliation for deployed STREAMER Schedule and WEBHOOK pool nodes. Hosted testnet verification
-remains pending; these endpoints have local automated coverage. No contract ABI change is needed.
+reconciliation for deployed STREAMER Schedule and WEBHOOK pool nodes. Bounded Schedule top-up
+and Webhook pool funding passed in the October 14–15, 2026 hosted testing/testnet SDK rehearsals.
+See the [verification summary](README.md#hosted-testnet-verification) for dated evidence,
+the later fee-blocked Schedule claim and target-environment limits. Funding success does not
+establish payout or unattended scheduler success. No contract ABI change is needed.
 
-All four calls require `Authorization: Bearer pfk_…` bound to the deployment, a confirmed deployment
-on the environment network and active service. A token authorizes API access. Any consenting funder
+All four calls require a server-side bearer credential: a deployment-bound `pfk_…` token
+or a developer `pfd_…` token explicitly selecting the deployment. Developer Read only permits
+funding discovery; preparation, submission and reconciliation require Read and operate.
+The deployment must be confirmed on the environment network with active service.
+A token authorizes API access. Any consenting funder
 may sign, including wallets other than the owner or Schedule controller. Funders need funded accounts
 and the required asset/trustline. Customer keys remain with the wallet; the API never accepts secrets.
 

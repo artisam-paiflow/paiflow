@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { integerNumber } from "@/lib/validation/number";
 import type { PublicEmbedEvent } from "./public-embed";
 
 export const PublicEventSchema = z.object({
@@ -18,7 +19,7 @@ export const PublicEventSchema = z.object({
     "RECIPIENT_UPDATED",
     "CASH_OUT",
   ]),
-  ledger: z.number().int().nonnegative(),
+  ledger: integerNumber().nonnegative(),
   txHash: z.string().regex(/^[a-f0-9]{64}$/i),
   occurredAt: z.string().datetime({ offset: true }),
   amountStroops: z

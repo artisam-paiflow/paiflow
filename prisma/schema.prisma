@@ -336,6 +336,7 @@ model Flow {
   deployments Deployment[]
 
   @@index([ownerId, updatedAt(sort: Desc)])
+  @@index([name])
 }
 
 model ContractTemplate {
@@ -410,6 +411,9 @@ model Deployment {
   chargeRelayerAddress    String?
   nextChargeAt            DateTime?
   lastChargedAt           DateTime?
+  // Maintained by a DB trigger for every schedule/config/lifecycle write.
+  // History-only projection does not invalidate a current schedule observation.
+  chargeScheduleRevision  Int                    @default(0)
   chargeEndAt             DateTime?
   offRampEnabled          Boolean                @default(false)
   // Client-supplied key that makes deploy creation idempotent per owner. A
@@ -777,6 +781,7 @@ model AuditLog {
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([action, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
 }
 
 /// Who signed a transaction this app submitted, and under which app account.
@@ -1048,18 +1053,22 @@ model DeploymentWork {
 }
 
 model ServiceTransaction {
-  id        String                  @id @default(uuid()) @db.Uuid
-  workId    String                  @db.Uuid
-  txHash    String
-  transport String
-  state     ServiceTransactionState @default(PENDING)
-  ledger    Int?
-  createdAt DateTime                @default(now())
-  work      DeploymentWork          @relation(fields: [workId], references: [id], onDelete: Restrict)
+  nextCheckAt   DateTime                @default(now())
+  lastCheckedAt DateTime?
+  checkAttempts Int                     @default(0)
+  id            String                  @id @default(uuid()) @db.Uuid
+  workId        String                  @db.Uuid
+  txHash        String
+  transport     String
+  state         ServiceTransactionState @default(PENDING)
+  ledger        Int?
+  createdAt     DateTime                @default(now())
+  work          DeploymentWork          @relation(fields: [workId], references: [id], onDelete: Restrict)
 
   @@unique([workId, txHash])
   @@index([txHash, state])
   @@index([state, createdAt])
+  @@index([state, nextCheckAt, id])
 }
 
 // Reusable event invitations. The raw code is shown only when created.

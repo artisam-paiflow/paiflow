@@ -17,9 +17,11 @@ import { format, resolveConfig } from "prettier";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import { flowToPipeline } from "@/lib/flows/to-params";
+import { paymentAccountResponse } from "./payment-account-fixture";
 
 const mocks = vi.hoisted(() => ({
   getAccount: vi.fn(),
+  entries: vi.fn(),
   simulate: vi.fn(),
   latest: vi.fn(),
   random: vi.fn(),
@@ -31,6 +33,7 @@ vi.mock("node:crypto", async (original) => ({
 vi.mock("@/lib/stellar/client", () => ({
   sorobanRpc: () => ({
     getAccount: mocks.getAccount,
+    _getLedgerEntries: mocks.entries,
     simulateTransaction: mocks.simulate,
     getLatestLedger: mocks.latest,
   }),
@@ -118,6 +121,7 @@ beforeEach(() => {
   vi.stubEnv("STELLAR_NETWORK", "testnet");
   // Deterministic public bytes only. No account keypair is created or used.
   mocks.getAccount.mockImplementation(async (address: string) => new Account(address, "41"));
+  mocks.entries.mockResolvedValue(paymentAccountResponse(source, "41"));
   mocks.latest.mockResolvedValue({ sequence: 1000 });
   let salt = 0x20;
   mocks.random.mockImplementation((size: number) => Buffer.alloc(size, salt++));

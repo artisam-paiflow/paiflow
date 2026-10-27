@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
   pollEventsFor: vi.fn(),
   cursorFindUnique: vi.fn(),
   eventFindMany: vi.fn(),
-  redisClient: null as null | { set: ReturnType<typeof vi.fn> },
+  redisClient: null as null | { set: ReturnType<typeof vi.fn>; eval: ReturnType<typeof vi.fn> },
 }));
 
 vi.mock("@/lib/api/v1/auth", async (importOriginal) => ({
@@ -50,6 +50,7 @@ import {
   EVENTS_STALE_AFTER_MS,
   refreshEventsIfStale,
 } from "@/lib/api/v1/events-freshness";
+import { withInteractiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
 import { GET } from "@/app/api/v1/deployments/[id]/events/route";
 
 const NOW = new Date("2026-09-29T00:00:00Z").getTime();
@@ -121,6 +122,106 @@ describe("refreshEventsIfStale", () => {
     expect(mocks.pollEventsFor).not.toHaveBeenCalled();
   });
 
+  it("uses ledger coverage instead of a recent timestamp after financial confirmation", async () => {
+    mocks.cursorFindUnique.mockResolvedValue({ updatedAt: new Date(), lastLedger: 100 });
+    await refreshEventsIfStale(id, 101);
+    expect(mocks.pollEventsFor).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not poll a stored confirmation once its ledger is covered", async () => {
+    mocks.cursorFindUnique.mockResolvedValue({ updatedAt: new Date(0), lastLedger: 101 });
+    await refreshEventsIfStale(id, 101);
+    expect(mocks.pollEventsFor).not.toHaveBeenCalled();
+  });
+
+  it("lets a newly confirmed ledger bypass only a completed cooldown", async () => {
+    mocks.cursorFindUnique.mockResolvedValue({ updatedAt: new Date(), lastLedger: 100 });
+    mocks.pollEventsFor.mockRejectedValueOnce(new Error("RPC unavailable"));
+    await refreshEventsIfStale(id, 101);
+    await refreshEventsIfStale(id, 101);
+    expect(mocks.pollEventsFor).toHaveBeenCalledTimes(1);
+    await refreshEventsIfStale(id, 102);
+    expect(mocks.pollEventsFor).toHaveBeenCalledTimes(2);
+  });
+
+  it("follows an older in-flight scan once for a newer ledger without extending the caller deadline", async () => {
+    mocks.cursorFindUnique.mockResolvedValue({ updatedAt: new Date(), lastLedger: 100 });
+    let finishOlder!: () => void;
+    let finishNewer!: () => void;
+    mocks.pollEventsFor
+      .mockImplementationOnce(
+        () =>
+          new Promise<number>((resolve) => {
+            finishOlder = () => {
+              mocks.cursorFindUnique.mockResolvedValue({ updatedAt: new Date(), lastLedger: 101 });
+              resolve(1);
+            };
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<number>((resolve) => {
+            finishNewer = () => resolve(1);
+          }),
+      );
+    let firstDone = false;
+    const first = refreshEventsIfStale(id, 101).then(() => {
+      firstDone = true;
+    });
+    await vi.advanceTimersByTimeAsync(1_000);
+    const joined = refreshEventsIfStale(id, 102);
+    await vi.advanceTimersByTimeAsync(3_000);
+    finishOlder();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mocks.pollEventsFor).toHaveBeenCalledTimes(2);
+    expect(firstDone).toBe(false);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await Promise.all([first, joined]);
+    expect(firstDone).toBe(true);
+    finishNewer();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mocks.pollEventsFor).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(Array.from({ length: 16 }, (_, delay) => delay))(
+    "catches up a newer ledger joining %i microtasks after poll completion",
+    async (delay) => {
+      let lastLedger = 100;
+      let finishOlder: (() => void) | undefined;
+      mocks.cursorFindUnique.mockImplementation(async () => ({
+        updatedAt: new Date(),
+        lastLedger,
+      }));
+      mocks.pollEventsFor
+        .mockReset()
+        .mockImplementationOnce(
+          () =>
+            new Promise<number>((resolve) => {
+              finishOlder = () => {
+                lastLedger = 101;
+                resolve(1);
+              };
+            }),
+        )
+        .mockImplementationOnce(async () => {
+          lastLedger = 102;
+          return 1;
+        });
+
+      const older = refreshEventsIfStale(id, 101);
+      for (let turn = 0; turn < 20 && !finishOlder; turn++) await Promise.resolve();
+      if (!finishOlder) throw new Error("Original event scan did not start");
+      finishOlder();
+      // Exercise both active-worker joins and the worker/promise-cleanup handoff.
+      for (let turn = 0; turn < delay; turn++) await Promise.resolve();
+      const newer = refreshEventsIfStale(id, 102);
+      await Promise.all([older, newer]);
+
+      expect(lastLedger).toBe(102);
+      expect(mocks.pollEventsFor).toHaveBeenCalledTimes(2);
+    },
+  );
+
   it("shares one poll between concurrent callers", async () => {
     cursorAgedMs(60_000);
     let finish!: () => void;
@@ -169,6 +270,25 @@ describe("refreshEventsIfStale", () => {
     expect(mocks.pollEventsFor).toHaveBeenCalledTimes(2);
   });
 
+  it("caps an interactive join by its own budget without cancelling another caller's worker", async () => {
+    cursorAgedMs(EVENTS_STALE_AFTER_MS + 1);
+    let finish!: () => void;
+    mocks.pollEventsFor.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const first = refreshEventsIfStale(id);
+    await vi.advanceTimersByTimeAsync(0);
+    const joined = withInteractiveRpcBudget(() => refreshEventsIfStale(id), 1_000);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await joined;
+    expect(mocks.pollEventsFor).toHaveBeenCalledTimes(1);
+    finish();
+    await first;
+  });
+
   it("makes a caller that joins a running poll wait only for what is left of the deadline", async () => {
     cursorAgedMs(60_000);
     mocks.pollEventsFor.mockReturnValue(new Promise<number>(() => {}));
@@ -207,46 +327,126 @@ describe("refreshEventsIfStale", () => {
     expect(mocks.pollEventsFor).not.toHaveBeenCalled();
   });
 
+  it("allows a later refresh after a synchronous cursor error", async () => {
+    mocks.cursorFindUnique
+      .mockImplementationOnce(() => {
+        throw new Error("Cursor read could not start");
+      })
+      .mockResolvedValue({ updatedAt: new Date(), lastLedger: 100 });
+    await expect(refreshEventsIfStale(id, 101)).resolves.toBeUndefined();
+    await refreshEventsIfStale(id, 102);
+    expect(mocks.pollEventsFor).toHaveBeenCalledTimes(1);
+  });
+
   describe("with Redis", () => {
     it("leases the deployment across replicas for the poll, then cuts it to the window", async () => {
       const set = vi.fn(async () => "OK");
-      mocks.redisClient = { set };
+      const evalClaim = vi.fn(async (..._args: unknown[]) => 1);
+      mocks.redisClient = { set, eval: evalClaim };
       cursorAgedMs(60_000);
       await refreshEventsIfStale(id);
-      expect(set.mock.calls).toEqual([
-        [`v1:events-refresh:${id}`, "1", "PX", EVENTS_REFRESH_LEASE_MS, "NX"],
-        [`v1:events-refresh:${id}`, "1", "PX", EVENTS_STALE_AFTER_MS],
-      ]);
+      expect(set).toHaveBeenCalledWith(
+        `v1:events-refresh:${id}`,
+        expect.stringMatching(/^running:/),
+        "PX",
+        EVENTS_REFRESH_LEASE_MS,
+        "NX",
+      );
+      expect(evalClaim).toHaveBeenCalledWith(
+        expect.any(String),
+        1,
+        `v1:events-refresh:${id}`,
+        expect.stringMatching(/^running:/),
+        "cooldown:0",
+        EVENTS_STALE_AFTER_MS,
+      );
       expect(mocks.pollEventsFor).toHaveBeenCalledTimes(1);
     });
 
     it("cuts the lease back even when the poll fails", async () => {
       const set = vi.fn(async () => "OK");
-      mocks.redisClient = { set };
+      const evalClaim = vi.fn(async (..._args: unknown[]) => 1);
+      mocks.redisClient = { set, eval: evalClaim };
       cursorAgedMs(60_000);
       mocks.pollEventsFor.mockRejectedValueOnce(new Error("rpc down"));
       await refreshEventsIfStale(id);
-      expect(set).toHaveBeenLastCalledWith(
+      expect(evalClaim).toHaveBeenLastCalledWith(
+        expect.any(String),
+        1,
         `v1:events-refresh:${id}`,
-        "1",
-        "PX",
+        expect.stringMatching(/^running:/),
+        "cooldown:0",
         EVENTS_STALE_AFTER_MS,
       );
     });
 
     it("does not poll when another replica holds the claim", async () => {
-      mocks.redisClient = { set: vi.fn(async () => null) };
+      mocks.redisClient = { set: vi.fn(async () => null), eval: vi.fn(async () => 0) };
       cursorAgedMs(60_000);
       await refreshEventsIfStale(id);
       expect(mocks.pollEventsFor).not.toHaveBeenCalled();
     });
 
     it("falls back to the in-process claim when Redis errors", async () => {
-      mocks.redisClient = { set: vi.fn().mockRejectedValue(new Error("redis down")) };
+      mocks.redisClient = {
+        set: vi.fn().mockRejectedValue(new Error("redis down")),
+        eval: vi.fn(),
+      };
       cursorAgedMs(60_000);
       await refreshEventsIfStale(id);
       await refreshEventsIfStale(id);
       expect(mocks.pollEventsFor).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not bypass another replica's running claim for a newer confirmation", async () => {
+      mocks.redisClient = { set: vi.fn(async () => null), eval: vi.fn(async () => 0) };
+      mocks.cursorFindUnique.mockResolvedValue({ updatedAt: new Date(), lastLedger: 100 });
+      await refreshEventsIfStale(id, 102);
+      expect(mocks.pollEventsFor).not.toHaveBeenCalled();
+      expect(mocks.redisClient.eval).toHaveBeenCalledWith(
+        expect.any(String),
+        1,
+        `v1:events-refresh:${id}`,
+        102,
+        expect.stringMatching(/^running:/),
+        EVENTS_REFRESH_LEASE_MS,
+      );
+    });
+
+    it("atomically replaces only an older cooldown and finishes with its owner token", async () => {
+      const set = vi.fn(async () => null);
+      const evalClaim = vi.fn(async (..._args: unknown[]) => 1);
+      mocks.redisClient = { set, eval: evalClaim };
+      mocks.cursorFindUnique.mockResolvedValue({ updatedAt: new Date(), lastLedger: 100 });
+      await refreshEventsIfStale(id, 102);
+      expect(mocks.pollEventsFor).toHaveBeenCalledTimes(1);
+      const token = evalClaim.mock.calls[0]?.[4];
+      expect(evalClaim).toHaveBeenLastCalledWith(
+        expect.any(String),
+        1,
+        `v1:events-refresh:${id}`,
+        token,
+        "cooldown:102",
+        EVENTS_STALE_AFTER_MS,
+      );
+      expect(set).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not unconditionally overwrite a claim after its ownership expired", async () => {
+      const set = vi.fn(async () => "OK");
+      const evalClaim = vi.fn(async () => 0);
+      mocks.redisClient = { set, eval: evalClaim };
+      cursorAgedMs(60_000);
+      await refreshEventsIfStale(id, 101);
+      expect(set).toHaveBeenCalledTimes(1);
+      expect(evalClaim).toHaveBeenCalledWith(
+        expect.any(String),
+        1,
+        `v1:events-refresh:${id}`,
+        expect.stringMatching(/^running:/),
+        "cooldown:101",
+        EVENTS_STALE_AFTER_MS,
+      );
     });
   });
 });

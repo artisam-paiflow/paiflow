@@ -127,6 +127,15 @@ A trigger is the root of the graph and decides **when** money moves. Exactly one
 | ◦   | `webhook`      | A named relayer address invokes the contract                        | The Stellar-native variant of the above. Superseded by `web2_webhook`; hidden.                    |
 | ◦   | `oracle`       | A relayer reports a value that crosses the configured threshold     | Payment conditional on external state. The value is relayer-reported, not read from a feed.       |
 
+`on_schedule` uses a fixed start/end window, including when an occurrence count determines the
+end. Whole intervals of active time vest; partial active intervals carry across pauses. Pausing
+freezes earned entitlement, which remains claimable. Resume counts only paused time inside the
+window: time before the start or after the end cannot reduce earned entitlement. Pauses do not
+extend the end and can reduce the number of payments. Repeated pause/resume calls are idempotent
+after the contract checks controller authorization and pause permission. Permitted retrieval
+while paused returns only holdings above vested, unpaid entitlement to the controller. Invalid
+stored accounting must fail closed rather than reduce earned entitlement or inflate retrieval.
+
 ### 3.2 Actions
 
 An action decides **where** money goes. A flow must contain at least one.
