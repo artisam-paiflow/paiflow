@@ -22,4 +22,4 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
   });
 }
 
-export const GET = deploymentServiceRoute(GETHandler, "owner");
+export const GET = deploymentServiceRoute(GETHandler, "public");
