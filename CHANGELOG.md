@@ -13,6 +13,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Security
 
+- Require Node.js 22.23.4 or newer in the 22.x line, pin the Nixpacks runtime including the shared Brotli decoder security fix and the daily-report image, and reject unsupported Node versions or missing decoder API markers during install/build and before deployed startup (#1096).
+
 - Update jsdom's transitive `undici` dependency to 8.12.3 to fix EventSource parser resource exhaustion and mixed-case Subresource Integrity verification ([GHSA-4qv8-2p9j-2685](https://github.com/advisories/GHSA-4qv8-2p9j-2685), [GHSA-f72v-6w45-q472](https://github.com/advisories/GHSA-f72v-6w45-q472)).
 
 - Upgrade Zod's runtime collection parser and its form resolver to address oversized constrained-collection resource exhaustion, preserving existing identifier, integer, default and form validation behavior ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)).
@@ -20,6 +22,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 - Update the Rust contract workspace's transitive `serde_with` and `serde_with_macros` dependencies to 3.21.0 to fix the KeyValueMap serialization panic ([GHSA-7gcf-g7xr-8hxj](https://github.com/advisories/GHSA-7gcf-g7xr-8hxj)).
 
 ### Fixed
+
+- Allow anonymous visitors and signed-in non-owners to load the public embed's customer payment-page QR while retaining deployment retirement checks and public read limits (#577).
+
+- Hydrate stored deployment events consistently across server and browser locales/timezones, then show event timestamps in the browser’s local time with UTC available on hover (#1119).
 
 - Reconcile develop deployment preparation/resumption with Lantern integration signing guards: retain unknown hashes, resume only proven-safe original preparations, and retry explicitly unaccepted submissions using identical in-memory signed bytes (#1106).
 

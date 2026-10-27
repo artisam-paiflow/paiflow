@@ -145,7 +145,7 @@ Key boundaries:
 
 ## 🚀 How to Run Locally
 
-Install Node.js **22.22.2 or newer in the 22.x line** (`>=22.22.2 <23`). On macOS/Linux, install [nvm](https://github.com/nvm-sh/nvm#installing-and-updating), reopen your terminal, then run `nvm install 22` and `nvm use 22`. On Windows, select **22.x** in the [Node.js downloads](https://nodejs.org/en/download), install it and reopen your terminal. Check `node --version` before continuing.
+Install Node.js **22.23.4 or newer in the 22.x line** (`>=22.23.4 <23`). On macOS/Linux, install [nvm](https://github.com/nvm-sh/nvm#installing-and-updating), reopen your terminal, then run `nvm install 22` and `nvm use 22`. On Windows, select **22.x** in the [Node.js downloads](https://nodejs.org/en/download), install it and reopen your terminal. Check `node --version` before continuing.
 
 ```bash
 # 1. Clone
@@ -201,7 +201,7 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 
 | Layer         | Tech                                                                                         |
 | ------------- | -------------------------------------------------------------------------------------------- |
-| Runtime       | Node.js 22 LTS (`>=22.22.2 <23`), pnpm 10.4.1                                                |
+| Runtime       | Node.js 22 LTS (`>=22.23.4 <23`), pnpm 10.4.1                                                |
 | Language      | TypeScript 5.7 — `strict`, `noUncheckedIndexedAccess`                                        |
 | Framework     | Next.js 15 (App Router, RSC, Route Handlers), React 19                                       |
 | UI            | Tailwind 4 beta (CSS-first `@theme`), Material Symbols (self-hosted), `@xyflow/react` 12     |
@@ -235,7 +235,7 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 
 Downloads need an internet connection. With nvm, run `nvm use 22` in each new terminal.
 
-- Node `>=22.22.2 <23` — use the latest Node 22 patch; see the installation steps above
+- Node `>=22.23.4 <23` — use the latest Node 22 patch; see the installation steps above
 - pnpm `10.4.1` — `npm install --global pnpm@10.4.1`; verify with `pnpm --version`
 - Docker (for Postgres / Redis / MinIO)
 - _(Optional)_ A [Resend](https://resend.com) account for outbound transactional email (password reset). When unset, emails are logged to the dev console.
