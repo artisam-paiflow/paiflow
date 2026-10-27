@@ -61,6 +61,41 @@ No changes were planned for the app, homepage, databases, archive, Redis or volu
 No apply, deployment, restart, database mutation or ownership change was performed.
 Raw imported metadata and plan JSON are not committed.
 
+## Node runtime requirement
+
+The app requires Node `>=22.23.4 <23` (#1096, tracked by #1113).
+`nixpacks.toml` pins the Nixpkgs archive to
+[`fb7f563bfe8c946201d132e50c9b0f526f983890`](https://github.com/NixOS/nixpkgs/commit/fb7f563bfe8c946201d132e50c9b0f526f983890),
+whose `nodejs_22` package is 22.23.4. That package uses **shared Brotli**; the
+archive's unpatched Brotli 1.2.0 would retain CVE-2026-111497 despite the Node
+version. [`nix/node-runtime.nix`](../nix/node-runtime.nix) appends the exact
+[upstream decoder fix](https://github.com/google/brotli/commit/0ed4268a4401abcb4472096340477cf4af7d1a2b)
+with a fixed SHA-256 and preserves the existing architecture patch. The override
+applies to the package fixed point, covering both Node and Corepack's Node
+interpreter with matching patched Brotli headers/library.
+
+Nixpacks copies this expression before installing Nix packages. The provider's
+mutable npm overlay is explicitly disabled; the runtime uses only the pinned
+archive plus the checksum-pinned security patch. `corepack_22` honors the existing
+`pnpm@10.4.1` package-manager pin, and OpenSSL remains available for Prisma.
+Nixpacks supports an explicit
+[archive override](https://nixpacks.com/docs/configuration/file#nixpkgs-archive);
+Node major-version selectors alone do not establish decoder safety.
+
+Strict pnpm engine checking rejects unsupported Node versions during installation.
+The dependency-free lifecycle/startup check also requires the expected Brotli
+block-switch error marker before migrations or job execution. That is an API/header
+sanity check, **not proof of the linked decoder implementation**; the pinned patch
+and effective package graph establish provenance. The daily-report image uses
+Node 22.23.4 with its bundled patched decoder and runs the same checks.
+
+These source changes do not upgrade running services. After an authorized
+promotion/deployment, record the deployed commit, Node version, effective linked
+Brotli library/patch provenance and successful runtime checks for every affected
+replica/job. Brotli's version string alone is insufficient for this backport. The
+snapshot above sources `staging`; merging a PR into `develop` does not deploy that
+service.
+
 The root README already points to `.railway/railway.ts`; the historical
 `railway.toml` documentation finding in #529 was already resolved on `testing`.
 

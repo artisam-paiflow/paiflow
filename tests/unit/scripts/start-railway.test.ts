@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -13,7 +13,11 @@ beforeEach(() => {
   writeFileSync(
     join(fixture, "node"),
     `#!/bin/sh
+if [ "$1" = "scripts/check-node-version.cjs" ]; then
+  exit "$RUNTIME_EXIT"
+fi
 if [ "$1" = "node_modules/prisma/build/index.js" ]; then
+  : > "$MIGRATION_MARKER"
   exit "$MIGRATION_EXIT"
 fi
 if [ "$1" != "node_modules/next/dist/bin/next" ]; then exit 99; fi
@@ -33,12 +37,25 @@ function environment(port?: string): NodeJS.ProcessEnv {
   return {
     NODE_ENV: "test",
     MIGRATION_EXIT: "0",
+    MIGRATION_MARKER: join(fixture, "migrations-ran"),
+    RUNTIME_EXIT: "0",
     PATH: `${fixture}${delimiter}${process.env.PATH ?? ""}`,
     ...(port === undefined ? {} : { PORT: port }),
   };
 }
 
 describe("Railway startup", () => {
+  it("does not run migrations or start the server when the runtime is unsupported", () => {
+    const result = spawnSync("sh", [startup], {
+      env: { ...environment(), RUNTIME_EXIT: "18" },
+      encoding: "utf8",
+    });
+
+    expect(result.status).toBe(18);
+    expect(result.stdout).toBe("");
+    expect(existsSync(join(fixture, "migrations-ran"))).toBe(false);
+  });
+
   it("does not start the server when migrations fail", () => {
     const result = spawnSync("sh", [startup], {
       env: { ...environment(), MIGRATION_EXIT: "17" },
