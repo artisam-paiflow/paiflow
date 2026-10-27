@@ -10,8 +10,18 @@ export const PreparedRecoverySchema = z.discriminatedUnion("status", [
       .string()
       .refine((value): boolean => isAccountId(value), "Invalid Stellar account"),
     network: z.enum(["testnet", "mainnet"]),
+    networkPassphrase: z.string().min(1),
   }),
-  z.object({ status: z.literal("EXPIRED") }),
+  z.object({
+    status: z.literal("EXPIRED"),
+    unsignedXdr: z.string().min(10),
+    txHash: z.string().regex(/^[a-f0-9]{64}$/),
+    sourceAccount: z
+      .string()
+      .refine((value): boolean => isAccountId(value), "Invalid Stellar account"),
+    network: z.enum(["testnet", "mainnet"]),
+    networkPassphrase: z.string().min(1),
+  }),
   z.object({ status: z.literal("BLOCKED") }),
 ]);
 export type PreparedRecovery = z.infer<typeof PreparedRecoverySchema>;

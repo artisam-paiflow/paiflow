@@ -159,7 +159,7 @@ it("reconciles a delayed original deployment on minute ticks after reload and re
       new Request(`https://paiflow.test/api/deployments/${deploymentId}/status`) as NextRequest,
       context(),
     );
-  expect(await (await readStatus()).json()).toEqual({ status: "SUBMITTED" });
+  expect(await (await readStatus()).json()).toEqual({ status: "SUBMITTED", txHash });
   expect((await (await POST(request(), context())).json()).data).toEqual({
     status: "SUBMITTED",
     txHash,
@@ -169,7 +169,7 @@ it("reconciles a delayed original deployment on minute ticks after reload and re
   rpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 123 });
   vi.setSystemTime(started + 5 * 60_000);
   expect(await reconcileTransactions()).toMatchObject({ checked: 1, confirmed: 1 });
-  expect(await (await readStatus()).json()).toEqual({ status: "CONFIRMED" });
+  expect(await (await readStatus()).json()).toEqual({ status: "CONFIRMED", txHash });
   const confirmed = await db.deployment.findUniqueOrThrow({ where: { id: deploymentId } });
   expect(confirmed).toMatchObject({
     deployTxHash: txHash,

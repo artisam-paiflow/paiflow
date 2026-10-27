@@ -1,9 +1,13 @@
 import type { NextConfig } from "next";
+import { FRAME_ANCESTORS_CSP } from "./lib/csp";
 
 const SECURITY_HEADERS = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "X-Frame-Options", value: "DENY" },
+  // Also protect paths excluded from middleware (for example, static assets).
+  // Middleware replaces this fallback with its full nonce-bearing CSP. XFO has
+  // no allowlist form that can express both approved Lantern parent origins.
+  { key: "Content-Security-Policy", value: FRAME_ANCESTORS_CSP },
   {
     key: "Strict-Transport-Security",
     value: "max-age=63072000; includeSubDomains; preload",

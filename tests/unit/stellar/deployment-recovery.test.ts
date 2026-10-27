@@ -29,6 +29,7 @@ function deployment(maxTime = now + 180) {
     .build();
   return {
     id: "deployment-id",
+    createdAt: new Date((now - 180) * 1000),
     status: "PENDING_SIGNATURE",
     serviceState: "ACTIVE",
     network: "testnet",
@@ -40,7 +41,12 @@ function deployment(maxTime = now + 180) {
 beforeEach(() => {
   vi.resetAllMocks();
   signed.mockResolvedValue(null);
-  getTransaction.mockResolvedValue({ status: "NOT_FOUND" });
+  getTransaction.mockResolvedValue({
+    status: "NOT_FOUND",
+    oldestLedger: 100,
+    oldestLedgerCloseTime: now - 240,
+    latestLedger: 123,
+  });
   getLatestLedger.mockResolvedValue({ sequence: 123 });
   getLedgers.mockResolvedValue({ ledgers: [{ sequence: 123, ledgerCloseTime: String(now) }] });
 });
@@ -98,7 +104,10 @@ it("resumes an authoritative refusal without preparing another transaction", asy
 it("permits deliberate replacement only after ledger expiry and rechecking durable evidence", async () => {
   const d = deployment(now - 60);
   current.mockResolvedValue(d);
-  expect(await preparedDeploymentRecovery(d)).toEqual({ status: "EXPIRED" });
+  expect(await preparedDeploymentRecovery(d)).toMatchObject({
+    status: "EXPIRED",
+    networkPassphrase: Networks.TESTNET,
+  });
   expect(getTransaction).toHaveBeenCalledTimes(2);
   expect(signed).toHaveBeenCalledTimes(2);
 });
@@ -114,7 +123,12 @@ it.each(["old-ledger", "rpc-failure", "success", "concurrent-submit", "concurren
     if (failure === "rpc-failure") getLatestLedger.mockRejectedValue(new Error("RPC unavailable"));
     if (failure === "success")
       getTransaction
-        .mockResolvedValueOnce({ status: "NOT_FOUND" })
+        .mockResolvedValueOnce({
+          status: "NOT_FOUND",
+          oldestLedger: 100,
+          oldestLedgerCloseTime: now - 240,
+          latestLedger: 123,
+        })
         .mockResolvedValueOnce({ status: "SUCCESS" });
     if (failure === "concurrent-submit")
       current.mockResolvedValue({ ...d, status: "SUBMITTED", deployTxHash: "a".repeat(64) });
@@ -135,6 +149,49 @@ it("rejects malformed recovery metadata", () => {
       unsignedXdr: "short",
       txHash: "wrong",
       sourceAccount: "wrong",
+      network: "testnet",
+    }).success,
+  ).toBe(false);
+});
+
+it.each([
+  {},
+  { oldestLedger: 100, oldestLedgerCloseTime: now - 120, latestLedger: 123 },
+  { oldestLedger: 100, oldestLedgerCloseTime: now - 240, latestLedger: 122 },
+  { oldestLedger: 0, oldestLedgerCloseTime: now - 240, latestLedger: 123 },
+  { oldestLedger: 100, oldestLedgerCloseTime: Number.NaN, latestLedger: 123 },
+])("blocks expiry without complete available history %j", async (history) => {
+  const d = deployment(now - 60);
+  current.mockResolvedValue(d);
+  getTransaction.mockResolvedValue({ status: "NOT_FOUND", ...history });
+  expect(await preparedDeploymentRecovery(d)).toEqual({ status: "BLOCKED" });
+});
+it("blocks expiry if history is evicted between the two exact-hash reads", async () => {
+  const d = deployment(now - 60);
+  current.mockResolvedValue(d);
+  getTransaction
+    .mockResolvedValueOnce({
+      status: "NOT_FOUND",
+      oldestLedger: 100,
+      oldestLedgerCloseTime: now - 240,
+      latestLedger: 123,
+    })
+    .mockResolvedValueOnce({
+      status: "NOT_FOUND",
+      oldestLedger: 120,
+      oldestLedgerCloseTime: now - 90,
+      latestLedger: 123,
+    });
+  expect(await preparedDeploymentRecovery(d)).toEqual({ status: "BLOCKED" });
+});
+it("rejects bare expiry and missing server network metadata", () => {
+  expect(PreparedRecoverySchema.safeParse({ status: "EXPIRED" }).success).toBe(false);
+  expect(
+    PreparedRecoverySchema.safeParse({
+      status: "RESUMABLE",
+      unsignedXdr: deployment().unsignedXdr,
+      txHash: "a".repeat(64),
+      sourceAccount: account.publicKey(),
       network: "testnet",
     }).success,
   ).toBe(false);

@@ -2,9 +2,29 @@ name: CI
 
 on:
   push:
-    branches: [develop, staging, main, hackathon, hackathon-staging, testing, dev-token]
+    branches:
+      [
+        develop,
+        staging,
+        main,
+        hackathon,
+        hackathon-staging,
+        testing,
+        lantern-integration,
+        dev-token,
+      ]
   pull_request:
-    branches: [develop, staging, main, hackathon, hackathon-staging, testing, dev-token]
+    branches:
+      [
+        develop,
+        staging,
+        main,
+        hackathon,
+        hackathon-staging,
+        testing,
+        lantern-integration,
+        dev-token,
+      ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

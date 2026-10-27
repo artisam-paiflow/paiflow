@@ -6,7 +6,12 @@ import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
-import { env, soroswapRouterAddress, SWAP_ROUTER_UNSET_MESSAGE } from "@/lib/env";
+import {
+  env,
+  stellarPassphrase,
+  soroswapRouterAddress,
+  SWAP_ROUTER_UNSET_MESSAGE,
+} from "@/lib/env";
 import {
   FlowGraphSchema,
   migrateFlowGraph,
@@ -189,6 +194,7 @@ export async function POST(req: NextRequest) {
           data: {
             deploymentId: deployment.id,
             xdr: prepared.xdr,
+            networkPassphrase: stellarPassphrase(network),
             expectedContractAddress: triggerNode?.contractAddress ?? null,
             pipeline: prepared.pipeline,
           },

@@ -35,8 +35,11 @@ describe("cspHeader", () => {
     expect(frame).toContain("https://verify.walletconnect.org");
   });
 
-  it("keeps the page itself unframeable", () => {
-    expect(directive(PROD, "frame-ancestors")).toEqual(["'none'"]);
+  it("allows only the two approved Lantern parents to frame the page", () => {
+    expect(directive(PROD, "frame-ancestors")).toEqual([
+      "https://android.golantern.xyz",
+      "chrome-extension://iflpkjgolcbleombhldiibhojohjpnmd",
+    ]);
   });
 
   it("does not leak dev-only sources into a production header", () => {
