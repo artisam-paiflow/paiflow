@@ -1,6 +1,5 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import {
-  Account,
   Keypair,
   Networks,
   SorobanDataBuilder,
@@ -21,6 +20,7 @@ import {
 } from "@/lib/stellar/invoke";
 import { trackWalletConnection } from "@/lib/wallet-tracking";
 import { toast } from "sonner";
+import { paymentAccountResponse } from "../stellar/payment-account-fixture";
 const mocks = vi.hoisted(() => ({
   frame: null as Window | null,
   poll: vi.fn(),
@@ -28,7 +28,7 @@ const mocks = vi.hoisted(() => ({
   init: vi.fn(),
   sdk: vi.fn(),
   modal: vi.fn(),
-  server: { getAccount: vi.fn(), simulateTransaction: vi.fn(), getLatestLedger: vi.fn() },
+  server: { _getLedgerEntries: vi.fn(), simulateTransaction: vi.fn(), getLatestLedger: vi.fn() },
 }));
 vi.mock("@/lib/stellar/client", () => ({
   sorobanRpc: () => mocks.server,
@@ -255,7 +255,9 @@ beforeEach(() => {
     value: { request: vi.fn(async (_key, _opts, action) => action({})) },
   });
   mocks.poll.mockResolvedValue({ status: "SUCCESS" });
-  mocks.server.getAccount.mockImplementation(async () => new Account(address, "1"));
+  mocks.server._getLedgerEntries.mockImplementation(async () =>
+    paymentAccountResponse(address, "1"),
+  );
   mocks.server.getLatestLedger.mockResolvedValue({ sequence: 1000 });
   mocks.server.simulateTransaction.mockResolvedValue({
     _parsed: true,
