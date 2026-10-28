@@ -7,6 +7,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Run Node CI checks, the full unit suite, and build/SSE verification in parallel while retaining the required `node` gate and all existing checks; cache Next.js build data between compatible host builds (#1129).
+
 - Add 20-entry pagination to the admin audit log, display timestamps in the admin’s browser timezone with UTC available on hover, and fix skipped events between pages (#1102).
 
 - Reorganize Developer API around a compact token list, expandable details, dedicated creation panel and Quickstart. Search eligible deployments across pages while preserving explicit selections and one-time token reveal protections. Add the flow-name index migration; OpenAPI revision 1.2.0 documents the optional owner-session deployment search parameter.
