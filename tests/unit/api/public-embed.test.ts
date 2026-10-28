@@ -13,8 +13,15 @@ vi.mock("@/lib/deployments/service-work", () => ({
   observeServiceTransaction: vi.fn(async () => undefined),
 }));
 import { EventEmitter } from "node:events";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+
+const PUBLIC_ORIGIN = vi.hoisted(() => {
+  const origin = "https://customer.paiflow.test";
+  vi.stubEnv("NEXT_PUBLIC_APP_URL", origin);
+  return origin;
+});
+afterAll(() => vi.unstubAllEnvs());
 
 const mocks = vi.hoisted(() => ({
   deployment: vi.fn(),
@@ -136,11 +143,11 @@ describe("public embed reads", () => {
     expect(mocks.deployment).not.toHaveBeenCalled();
     expect(mocks.rate.mock.calls[0]?.[0]).toBe("public-embed:reads:198.51.100.1");
   });
-  it("encodes only the customer payment page on the request origin", async () => {
+  it("encodes only the customer payment page on the configured public origin", async () => {
     const res = await qr(req("qr"), ctx());
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("image/svg+xml");
-    expect(mocks.qr.mock.calls[0]?.[0]).toBe(`https://paiflow.test/trigger/${ID}`);
+    expect(mocks.qr.mock.calls[0]?.[0]).toBe(`${PUBLIC_ORIGIN}/trigger/${ID}`);
   });
   it.each(["invoke", "allowance", "trigger", "pay"])(
     "rejects generic QR mode %s",
