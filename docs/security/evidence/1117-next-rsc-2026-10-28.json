@@ -1,0 +1,305 @@
+{
+  "issue": 1117,
+  "scope": {
+    "project": "paiflow",
+    "environment": "staging",
+    "service": "paiflow-app",
+    "deployment": "7457b26e-b03c-4fa2-85a3-a60002acb5f9",
+    "commit": "3c2e5a5f2da5fda4ae09b1d08e78e389939c547e",
+    "rscObservedAt": "2026-10-28T11:25:36.577Z",
+    "nextRuntimeObservedAt": "2026-10-28T11:26:35.309Z",
+    "nextVersion": "15.5.28",
+    "publicHealthCommit": "3c2e5a5",
+    "publicHealthStatus": {
+      "paiflow.xyz": 200,
+      "beta.app.paiflow.xyz": 200
+    },
+    "runtimeObservedAt": "2026-10-28T11:30:05.484Z",
+    "replica": "3e3aa3c5-6379-4c9c-a757-e57ceeb31ede",
+    "nodeVersion": "22.23.4"
+  },
+  "actionManifest": {
+    "path": ".next/server/server-reference-manifest.json",
+    "nodeEntries": 0,
+    "edgeEntries": 0
+  },
+  "nextRelease": {
+    "tag": "v15.5.28",
+    "commit": "195cd6a714086ee0e442cb551da376ad71f37035",
+    "rscPatchCommit": "a2021b3e50527eb3d324c21455faabbd813066e9",
+    "sourceArtifactComparison": [
+      {
+        "path": "dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-server.browser.development.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-server.browser.development.js",
+        "sha256": "de342546fdd5422de18dfa58abeeebb0718a0bd748b79895a877460b26911e45",
+        "bytes": 205055,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-server.browser.production.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-server.browser.production.js",
+        "sha256": "878d43fb0ebfde6ce7ce450b4cde3213d8134027b3425065f6a1782e12f71487",
+        "bytes": 113937,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-server.edge.development.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-server.edge.development.js",
+        "sha256": "32ed48ec2e5f207c6336dcf9a8faf0b631cdc3cb117346e11837bfb76f3c9bd0",
+        "bytes": 209600,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-server.edge.production.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-server.edge.production.js",
+        "sha256": "87960e4d1ad5b6659353490653afc0a1467f8dbbc43fcadc4e88d194e4e87de6",
+        "bytes": 115834,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-server.node.development.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-server.node.development.js",
+        "sha256": "a8e416aabe4469fa0fa25d3f2c6e7055e0686728779afe0bb34367d934274ad1",
+        "bytes": 238544,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-server.node.production.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-server.node.production.js",
+        "sha256": "def0c4c3e41e5b3ea9c97daceebce422395d3845f1d5ea9b2ab69498d5c6206f",
+        "bytes": 123874,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-server.browser.development.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-server.browser.development.js",
+        "sha256": "1f7f6205b7294295aca8af06fb1c3fe5aee5561f7c081a15d8dd42d76ffd9587",
+        "bytes": 212612,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-server.browser.production.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-server.browser.production.js",
+        "sha256": "a037f98b910d08d3617abcda11547771a1895fbe5069bd977dff15881bb2e7c6",
+        "bytes": 119464,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-server.edge.development.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-server.edge.development.js",
+        "sha256": "185f95b45cd8782fac0bfe59e0ab82eb799a25e552fe1c44dbc3661371c18ca5",
+        "bytes": 217509,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-server.edge.production.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-server.edge.production.js",
+        "sha256": "aaec1ad6fa59b0ed79819b2d8f1ed2177187e6c5744c6953b283f8d0be1e2264",
+        "bytes": 121449,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-server.node.development.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-server.node.development.js",
+        "sha256": "4f8f5c8b84fa20ed651ea2c9a91032e86e1d9e526b405e9b3b6514fcf1b8f11c",
+        "bytes": 246094,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-server.node.production.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-server.node.production.js",
+        "sha256": "95bab3c667f7655a52ffd1351b64d91c4d402707b342acf56b6102d2a3d226bc",
+        "bytes": 129370,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-server.browser.development.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-server.browser.development.js",
+        "sha256": "d51efbd24946c30b69a91ae7c0d4b240d8ae9719d1eb2c29e48a3e7b74cfb576",
+        "bytes": 205635,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-server.browser.production.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-server.browser.production.js",
+        "sha256": "3c6f4f8c976d9dcbfa7d3fabd06433b4638b08521b99e0f1ff9c85dca2f4fd6b",
+        "bytes": 114386,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-server.edge.development.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-server.edge.development.js",
+        "sha256": "c31ee36bf9de7455de03897f63afbe9854c5474d1a34476e425337fbb1a64d2e",
+        "bytes": 209703,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-server.edge.production.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-server.edge.production.js",
+        "sha256": "41c1b83bac04dd6ba81f11c3e6884c32af92df30f64415c7b72b832b8c0e46f2",
+        "bytes": 115929,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-server.node.development.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-server.node.development.js",
+        "sha256": "1b8f2703fa95955ed287da3539a871066b2d6d6ba6921d9e0ebc88a2eeec30b4",
+        "bytes": 238597,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-server.node.production.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-server.node.production.js",
+        "sha256": "6763f7382ec0249b684688a25702380a7ed7b7d7948a00f81f621e68135b0e2f",
+        "bytes": 123949,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-server.node.unbundled.development.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-server.node.unbundled.development.js",
+        "sha256": "2bc56c8c5756f99ced1c1c6c1274d35849dc4021a94db33aede19219f006653c",
+        "bytes": 213153,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-server.node.unbundled.production.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-server.node.unbundled.production.js",
+        "sha256": "69a1da34e6fc155bdf1b9e7655adebf7969f5f95ed5dcbeed4fef8efdefd5e96",
+        "bytes": 101926,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-server.browser.development.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-server.browser.development.js",
+        "sha256": "be8a3a5ad4b2bcea94044349b655eaa06c21e789199584eea6e989d1ef07a4bc",
+        "bytes": 213192,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-server.browser.production.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-server.browser.production.js",
+        "sha256": "5fc2cd4cfc48005af3f17079fe1f24388c45cf80e1dc238136aed50738eba09b",
+        "bytes": 119913,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-server.edge.development.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-server.edge.development.js",
+        "sha256": "b496f1693d29f4dd9bad8e1739040dc51ae156a00200f984584fa8d79d53857b",
+        "bytes": 217612,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-server.edge.production.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-server.edge.production.js",
+        "sha256": "f38f52a0f4bf7e7f0fc28d7f4580f05c67b5ab16b8c42bd475e3ac6e50c53e03",
+        "bytes": 121544,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-server.node.development.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-server.node.development.js",
+        "sha256": "4efdb8633629d9f72ec881fd95bbf344d2d12b07979eab6ff08f77672033b913",
+        "bytes": 246147,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-server.node.production.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-server.node.production.js",
+        "sha256": "f5ac26c29ac1fcc6142530b492880b728167232394a7185c9f3c269d41639b3b",
+        "bytes": 129445,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-server.node.unbundled.development.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-server.node.unbundled.development.js",
+        "sha256": "8a1e0e2f06aa4a7d9a5e2e978967740e908362676e81aac0bd9baf2cd04aeacd",
+        "bytes": 220675,
+        "matchesDeployed": true
+      },
+      {
+        "path": "dist/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-server.node.unbundled.production.js",
+        "url": "https://raw.githubusercontent.com/vercel/next.js/195cd6a714086ee0e442cb551da376ad71f37035/packages/next/src/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-server.node.unbundled.production.js",
+        "sha256": "f78f321409e4d88f0f6db39e66ea33e34c00fc6218f740be554ac512db918e8d",
+        "bytes": 107422,
+        "matchesDeployed": true
+      }
+    ],
+    "npmTarball": "https://registry.npmjs.org/next/-/next-15.5.28.tgz",
+    "npmTarballIntegrity": "sha512-JjhLBBY1PNnuwPtcZ7t8yxVeJVYvD2Jyp633J+gRCNbzSt7N0E+xqCf6uQiff3+3qmUkwcF/ksfSsK1xsZ76Tw==",
+    "npmIntegrityVerified": true,
+    "runtimeArtifactComparison": [
+      {
+        "path": "dist/compiled/next-server/app-page-experimental.runtime.dev.js",
+        "bytes": 1364845,
+        "sha256": "cb12306ab69dfbfeab3e7238027a96e9426cb11d31a46fe691e38943ef613469",
+        "releaseSha256": "cb12306ab69dfbfeab3e7238027a96e9426cb11d31a46fe691e38943ef613469",
+        "matchesRelease": true
+      },
+      {
+        "path": "dist/compiled/next-server/app-page-experimental.runtime.prod.js",
+        "bytes": 552719,
+        "sha256": "2dc1647f4912cdf6890e050b8fe163b874f67c8e73ac5698de11cc8e53e649cc",
+        "releaseSha256": "2dc1647f4912cdf6890e050b8fe163b874f67c8e73ac5698de11cc8e53e649cc",
+        "matchesRelease": true
+      },
+      {
+        "path": "dist/compiled/next-server/app-page-turbo-experimental.runtime.dev.js",
+        "bytes": 1367698,
+        "sha256": "03dea105d1fbec2e0d7a5f43416b70d857dcfa5600bed936f79ea88cd4d8f2e8",
+        "releaseSha256": "03dea105d1fbec2e0d7a5f43416b70d857dcfa5600bed936f79ea88cd4d8f2e8",
+        "matchesRelease": true
+      },
+      {
+        "path": "dist/compiled/next-server/app-page-turbo-experimental.runtime.prod.js",
+        "bytes": 552730,
+        "sha256": "76d82321902dfd1085526857c1f0e66b2353073d5ae0985014ee956cc7e026ea",
+        "releaseSha256": "76d82321902dfd1085526857c1f0e66b2353073d5ae0985014ee956cc7e026ea",
+        "matchesRelease": true
+      },
+      {
+        "path": "dist/compiled/next-server/app-page-turbo.runtime.dev.js",
+        "bytes": 1301740,
+        "sha256": "47edaa6c4103575d56d9d8daff3eb9bc5305942c9a6c42e937f6799726bdb987",
+        "releaseSha256": "47edaa6c4103575d56d9d8daff3eb9bc5305942c9a6c42e937f6799726bdb987",
+        "matchesRelease": true
+      },
+      {
+        "path": "dist/compiled/next-server/app-page-turbo.runtime.prod.js",
+        "bytes": 527723,
+        "sha256": "c96561acf87d985b6b0ef1044988822249ee337b38e7acf4f728c539a22f281e",
+        "releaseSha256": "c96561acf87d985b6b0ef1044988822249ee337b38e7acf4f728c539a22f281e",
+        "matchesRelease": true
+      },
+      {
+        "path": "dist/compiled/next-server/app-page.runtime.dev.js",
+        "bytes": 1298887,
+        "sha256": "af7582780be6510cb6c51b33b9fc24fb7d506959d8566531ec6a1aa2ccdea6dd",
+        "releaseSha256": "af7582780be6510cb6c51b33b9fc24fb7d506959d8566531ec6a1aa2ccdea6dd",
+        "matchesRelease": true
+      },
+      {
+        "path": "dist/compiled/next-server/app-page.runtime.prod.js",
+        "bytes": 527714,
+        "sha256": "f6a559388d081c6008ab5af67237915830973b3d3971422452812119520109b0",
+        "releaseSha256": "f6a559388d081c6008ab5af67237915830973b3d3971422452812119520109b0",
+        "matchesRelease": true
+      },
+      {
+        "path": "dist/server/app-render/action-handler.js",
+        "bytes": 54013,
+        "sha256": "b64f7197fc062a7f61d8fb9dc61049a916e70c22687aaebaec7144e0534b362a",
+        "releaseSha256": "b64f7197fc062a7f61d8fb9dc61049a916e70c22687aaebaec7144e0534b362a",
+        "matchesRelease": true
+      },
+      {
+        "path": "dist/server/app-render/react-server.node.js",
+        "bytes": 1111,
+        "sha256": "dc284f03403f0e08d2d4ef0ec797a08cbe682cdf009971771f00e7528ac9fbd5",
+        "releaseSha256": "dc284f03403f0e08d2d4ef0ec797a08cbe682cdf009971771f00e7528ac9fbd5",
+        "matchesRelease": true
+      }
+    ]
+  },
+  "method": "Read-only SSH hashing and action-entry counts; HTTPS upstream source/npm comparisons. No payload, state mutation or manifest encryption key output."
+}
