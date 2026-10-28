@@ -80,10 +80,16 @@ an unmounted `/data/files` without making its parent world-writable. Externally
 mounted storage can replace image ownership and must grant UID 1000 write access
 before rollout.
 
-[`railway.json`](../railway.json) explicitly selects `DOCKERFILE`, clears the old
+[`.railway/app.json`](app.json) explicitly selects `DOCKERFILE`, clears the old
 provider build command, and retains the startup command, 30-second drain and
-healthcheck path. Railway [config as code](https://docs.railway.com/config-as-code/reference)
-overrides dashboard settings for the deployment; it does not mutate the dashboard.
+healthcheck path. The app service must explicitly select `/.railway/app.json` as
+its **Config File** path before this configuration is used. Do not set it on the
+homepage or daily-report service. There is no repository-root default Railway
+config: a service's root directory does not scope config-file discovery, so app
+settings must not be published as sibling services' defaults. Source changes alone
+do not set the app service's selector. Railway
+[config as code](https://docs.railway.com/config-as-code/reference) overrides
+dashboard settings for the deployment; it does not mutate the dashboard.
 The historical staging IaC snapshot above still describes the earlier NIXPACKS
 service and **must not be applied** to reconcile this image rollout. Updating or
 applying that snapshot remains separate work under #529. The app's obsolete
