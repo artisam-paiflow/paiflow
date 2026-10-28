@@ -25,6 +25,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Keep the app Docker configuration in `.railway/app.json` with explicit app-service selection, avoiding app build settings as repository-wide defaults for sibling services (#1113).
+
 - Prepare `/data/files` for the non-root app image so the configured file-storage path remains writable without changing deployment settings (#1113).
 
 - Allow anonymous visitors and signed-in non-owners to load the public embed's customer payment-page QR while retaining deployment retirement checks and public read limits (#577).

@@ -528,12 +528,14 @@ true, and this one had already fallen four sections behind.
 
 ### Deployment infrastructure
 
-Configured for **Railway** (`railway.json`, `Dockerfile`):
+Configured for **Railway** (`.railway/app.json`, `Dockerfile`):
 
 - The app image uses the digest-pinned official Node 22.23.4 Debian image, with its bundled
   Brotli security correction. It installs pnpm 10.4.1 and builds the ordinary Next.js production
-  output without compiling Node from source. `railway.json` selects the Dockerfile and clears
-  the old provider build command; the homepage and daily-report job retain their separate builds.
+  output without compiling Node from source. Select `/.railway/app.json` explicitly as the
+  **app service's** Config File path; it selects the Dockerfile and clears the old provider build
+  command. No repository-root default config is supplied, so sibling services do not inherit app
+  settings. The homepage and daily-report job retain their separate builds.
 - `.dockerignore` allowlists app build source and excludes local environment files, Git/worktrees,
   credentials and private evidence. Deployment credentials are supplied only at runtime; public
   `NEXT_PUBLIC_*` configuration and `RAILWAY_GIT_COMMIT_SHA` are declared build arguments.
@@ -560,11 +562,12 @@ Configured for **Railway** (`railway.json`, `Dockerfile`):
   `prisma/schema.prisma` for Prisma 6.
 - File storage swaps from MinIO to a Railway Volume via `FILE_STORAGE_DRIVER`.
 - The homepage is a separate Railway service serving `homepage/` as static files at
-  `beta.paiflow.xyz`: root directory `/homepage`, config file path `/homepage/railway.json`
-  (absolute: Railway does not resolve it from the root directory), watch paths `homepage/**`, no
-  variables. The app redirects `/about`, `/privacy` and `/terms` there (`next.config.ts`). After
-  editing its HTML, run `pnpm homepage:css` to regenerate `homepage/styles.css` from the app's brand
-  tokens.
+  `beta.paiflow.xyz`: root directory `/homepage`, watch paths `homepage/**`, no variables. Its
+  checked-in config is `/homepage/railway.json`; using it requires that explicit service Config
+  File selection because Railway does not resolve the config path from the root directory.
+  This app-image change does not set the homepage's selector. The app redirects `/about`, `/privacy`
+  and `/terms` there (`next.config.ts`). After editing its HTML, run `pnpm homepage:css` to regenerate
+  `homepage/styles.css` from the app's brand tokens.
 - Stellar network pinned per environment via `STELLAR_NETWORK` (staging → `testnet`, production → `mainnet`). See [`docs/mainnet-cutover.md`](./docs/mainnet-cutover.md) for the cutover runbook.
 
 ### Further reading
