@@ -1,7 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import QRCode from "qrcode";
 import { AppError } from "@/lib/errors";
+
+const PUBLIC_ORIGIN = vi.hoisted(() => {
+  const origin = "https://customer.paiflow.test";
+  vi.stubEnv("NEXT_PUBLIC_APP_URL", origin);
+  return origin;
+});
+afterAll(() => vi.unstubAllEnvs());
 
 // Keep the actual route wrapper and durable service-work implementation: the
 // public-embed domain suite mocks the wrapper and cannot catch an owner gate.
@@ -54,8 +61,8 @@ const row = () => ({
     edges: [],
   },
 });
-const request = (id = ID, query = "") =>
-  GET(new NextRequest(`https://paiflow.test/api/deployments/${id}/embed/qr${query}`), {
+const request = (id = ID, query = "", origin = "https://paiflow.test", headers?: HeadersInit) =>
+  GET(new NextRequest(`${origin}/api/deployments/${id}/embed/qr${query}`, { headers }), {
     params: Promise.resolve({ id }),
   });
 const expectCleanedUp = () => {
@@ -88,7 +95,7 @@ describe("public embed QR through real service admission", () => {
       expect(res.headers.get("cache-control")).toBe("no-store");
       const svg = await res.text();
       expect(svg).toBe(
-        await QRCode.toString(`https://paiflow.test/trigger/${ID}`, {
+        await QRCode.toString(`${PUBLIC_ORIGIN}/trigger/${ID}`, {
           type: "svg",
           width: 256,
           margin: 2,
@@ -103,6 +110,32 @@ describe("public embed QR through real service admission", () => {
       expectCleanedUp();
     },
   );
+
+  it.each([
+    ["internal request origin", "https://localhost:8080", {}],
+    [
+      "spoofed proxy headers",
+      "https://localhost:8080",
+      {
+        host: "attacker.invalid",
+        "x-forwarded-host": "attacker.invalid",
+        "x-forwarded-proto": "http",
+      },
+    ],
+  ])("encodes the configured public customer URL despite %s", async (_label, origin, headers) => {
+    const res = await request(ID, "", origin, headers);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe(
+      await QRCode.toString(`${PUBLIC_ORIGIN}/trigger/${ID}`, {
+        type: "svg",
+        width: 256,
+        margin: 2,
+      }),
+    );
+    expect(mocks.session).not.toHaveBeenCalled();
+    expect(mocks.owned).not.toHaveBeenCalled();
+    expectCleanedUp();
+  });
 
   it("rejects malformed ids before SQL or durable admission", async () => {
     expect((await request("bad-id")).status).toBe(404);
