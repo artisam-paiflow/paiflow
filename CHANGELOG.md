@@ -25,6 +25,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Prepare `/data/files` for the non-root app image so the configured file-storage path remains writable without changing deployment settings (#1113).
+
 - Allow anonymous visitors and signed-in non-owners to load the public embed's customer payment-page QR while retaining deployment retirement checks and public read limits (#577).
 
 - Hydrate stored deployment events consistently across server and browser locales/timezones, then show event timestamps in the browser’s local time with UTC available on hover (#1119).

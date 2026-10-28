@@ -42,7 +42,8 @@ ENV NODE_ENV=production
 # Retain the installed Prisma CLI and generated client used by the existing
 # migration-first startup script. No standalone-server or shutdown behavior change.
 COPY --from=build --chown=node:node /app /app
-RUN mkdir -p /app/.docker/files && chown node:node /app/.docker /app/.docker/files
+RUN mkdir -p /app/.docker/files /data/files \
+    && chown node:node /app/.docker /app/.docker/files /data/files
 USER node
 EXPOSE 3000
 CMD ["sh", "scripts/start-railway.sh"]

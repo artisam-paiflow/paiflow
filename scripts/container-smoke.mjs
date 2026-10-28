@@ -41,6 +41,10 @@ const environment = [
   `PORT=${appPort}`,
   "-e",
   "LOG_LEVEL=error",
+  "-e",
+  "FILE_STORAGE_DRIVER=volume",
+  "-e",
+  "FILE_STORAGE_PATH=/data/files",
 ];
 const request = async (pathname) =>
   fetch(`http://127.0.0.1:${appPort}${pathname}`, { signal: AbortSignal.timeout(3000) });
@@ -68,8 +72,11 @@ assert.deepEqual(zlib.brotliDecompressSync(zlib.brotliCompressSync(input)), inpu
 for (const name of ['.env.container-smoke', 'lib/.env.container-smoke', '.worktrees/container-smoke-canary', '.git', '.aws', '.codex']) {
   assert.equal(fs.existsSync('/app/' + name), false, name + ' leaked into image');
 }
-fs.writeFileSync('/app/.docker/files/container-smoke', 'local fixture');
-fs.unlinkSync('/app/.docker/files/container-smoke');
+for (const directory of ['/app/.docker/files', '/data/files']) {
+  const file = directory + '/container-smoke';
+  fs.writeFileSync(file, 'local fixture');
+  fs.unlinkSync(file);
+}
 require('@prisma/client');
 require('argon2').hash('synthetic-smoke-password').then(async hash => {
   assert.equal(await require('argon2').verify(hash, 'synthetic-smoke-password'), true);
