@@ -15,6 +15,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Security
 
+- Remove the obsolete stream-json audit exception because the lockfile resolves patched version 3.7.0; retain the separately accepted elliptic exception and all dependency versions (#1110, #753).
+
 - Request uncompressed tenant-relayer responses for subscription and payroll charging, rejecting other response encodings before JSON parsing or response-driven submission with safe errors. This protocol hardening complements the required patched Node runtime (#1109).
 
 - Build the app from a digest-pinned official Node 22.23.4 image with the bundled Brotli fix, avoiding custom Node source compilation; validate the actual deployment image and migration-first startup in CI (#1113).
