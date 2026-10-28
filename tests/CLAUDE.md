@@ -55,6 +55,11 @@ shared authentication files or connect to an application.
 
 ## CI
 
-`pnpm test:ci` runs both vitest projects and uploads the junit report as the `vitest-junit`
-artifact, with a job summary. Contracts: each crate carries its own `#[test]` module using
-`soroban-sdk`'s test env; CI runs `cargo test --workspace`.
+The `node-tests` CI job runs the full, unsharded `pnpm test:ci` suite for both Vitest
+projects against dedicated Postgres and Redis services. It uploads the junit report
+as the `vitest-junit` artifact and writes a per-project job summary, including after
+test failure unless cancelled. Test setup and its per-file environment isolation
+are unchanged. Static/SDK checks and host build/SSE checks run in separate parallel
+jobs; the required `node` aggregate passes only when all three workers succeed.
+Contracts: each crate carries its own `#[test]` module using `soroban-sdk`'s test env;
+CI runs `cargo test --workspace`.
