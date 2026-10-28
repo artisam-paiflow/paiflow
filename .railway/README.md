@@ -61,40 +61,78 @@ No changes were planned for the app, homepage, databases, archive, Redis or volu
 No apply, deployment, restart, database mutation or ownership change was performed.
 Raw imported metadata and plan JSON are not committed.
 
-## Node runtime requirement
+## App image and Node runtime requirement
 
-The app requires Node `>=22.23.4 <23` (#1096, tracked by #1113).
-`nixpacks.toml` pins the Nixpkgs archive to
-[`fb7f563bfe8c946201d132e50c9b0f526f983890`](https://github.com/NixOS/nixpkgs/commit/fb7f563bfe8c946201d132e50c9b0f526f983890),
-whose `nodejs_22` package is 22.23.4. That package uses **shared Brotli**; the
-archive's unpatched Brotli 1.2.0 would retain CVE-2026-111497 despite the Node
-version. [`nix/node-runtime.nix`](../nix/node-runtime.nix) appends the exact
-[upstream decoder fix](https://github.com/google/brotli/commit/0ed4268a4401abcb4472096340477cf4af7d1a2b)
-with a fixed SHA-256 and preserves the existing architecture patch. The override
-applies to the package fixed point, covering both Node and Corepack's Node
-interpreter with matching patched Brotli headers/library.
+The app requires Node `>=22.23.4 <23` (#1096, tracked by #1113). The root
+[`Dockerfile`](../Dockerfile) uses the official `node:22.23.4-bookworm-slim` image,
+pinned to multi-platform index digest
+`sha256:de170b39439eb0e5a3444ad7d60b015614a381e10fecae2e30ec9e735122f38d`.
+The [official release](https://nodejs.org/en/blog/release/v22.23.4) includes the
+Brotli decoder correction. This uses the prebuilt Node distribution instead of
+rebuilding Node and its Nix dependency closure inside Railway.
 
-Nixpacks copies this expression before installing Nix packages. The provider's
-mutable npm overlay is explicitly disabled; the runtime uses only the pinned
-archive plus the checksum-pinned security patch. `corepack_22` honors the existing
-`pnpm@10.4.1` package-manager pin, and OpenSSL remains available for Prisma.
-Nixpacks supports an explicit
-[archive override](https://nixpacks.com/docs/configuration/file#nixpkgs-archive);
-Node major-version selectors alone do not establish decoder safety.
+The image installs OpenSSL/CA certificates and pnpm 10.4.1, retains the generated
+Prisma client and migration CLI, and runs the existing migration-first startup
+script as UID 1000 (`node`). The shell still replaces itself with Next.js for
+SIGTERM handling. The default `/app/.docker/files` path is writable; externally
+mounted storage must grant UID 1000 write access before rollout.
 
-Strict pnpm engine checking rejects unsupported Node versions during installation.
-The dependency-free lifecycle/startup check also requires the expected Brotli
-block-switch error marker before migrations or job execution. That is an API/header
-sanity check, **not proof of the linked decoder implementation**; the pinned patch
-and effective package graph establish provenance. The daily-report image uses
-Node 22.23.4 with its bundled patched decoder and runs the same checks.
+[`railway.json`](../railway.json) explicitly selects `DOCKERFILE`, clears the old
+provider build command, and retains the startup command, 30-second drain and
+healthcheck path. Railway [config as code](https://docs.railway.com/config-as-code/reference)
+overrides dashboard settings for the deployment; it does not mutate the dashboard.
+The historical staging IaC snapshot above still describes the earlier NIXPACKS
+service and **must not be applied** to reconcile this image rollout. Updating or
+applying that snapshot remains separate work under #529. The app's obsolete
+`nixpacks.toml`/custom Nix runtime expression are removed. The homepage and
+`.railway/api-daily-report.json` keep their separate build configurations.
 
-These source changes do not upgrade running services. After an authorized
-promotion/deployment, record the deployed commit, Node version, effective linked
-Brotli library/patch provenance and successful runtime checks for every affected
-replica/job. Brotli's version string alone is insufficient for this backport. The
-snapshot above sources `staging`; merging a PR into `develop` does not deploy that
-service.
+Only public `NEXT_PUBLIC_*` values and `RAILWAY_GIT_COMMIT_SHA` are declared build
+arguments. Railway [injects declared build variables](https://docs.railway.com/builds/dockerfiles#using-variables-at-build-time).
+Browser configuration is frozen by Next.js at build time; runtime changes to
+those values require a rebuild. The commit argument tags health/API/analytics
+with the actual source revision. Build-time schema parsing uses fixed synthetic
+AUTH_SECRET/DATABASE_URL values scoped to the build command. No deployment secret
+is supplied to the build, persisted as a default runtime value, or copied from a
+local `.env` file. `.dockerignore` allowlists required source and then excludes
+credential/private/generated paths within those source directories too.
+
+Strict engine checks and the dependency-free runtime/startup check remain. The
+Brotli error marker is API sanity only; the pinned official release supplies
+provenance. After an authorized rollout, verify the deployed commit and actual
+runtime on every affected replica; passing CI alone is not a deployment claim.
+The separate daily-report image remains outside this app-image change.
+
+## Local image validation
+
+Build without hosted credentials or environment files:
+
+```bash
+docker build --build-arg RAILWAY_GIT_COMMIT_SHA=0123456789abcdef0123456789abcdef01234567 --tag paiflow-image:local .
+```
+
+The `app-image` CI job builds the actual deployment image with synthetic secret-file
+canaries in its context, then runs [`scripts/container-smoke.mjs`](../scripts/container-smoke.mjs)
+against disposable PostgreSQL/Redis services. It verifies canaries/private checkout
+paths are absent, Node/Brotli API/native argon2 and Prisma modules load, pnpm is
+available to the non-root user, default storage is writable, a migration failure
+blocks startup, successful migration/startup exposes HTTP with the baked commit,
+DB/Redis reads work, owner routes remain guarded, and SIGTERM exits cleanly.
+
+To run the same smoke on Linux, provide disposable local PostgreSQL with
+user/password/database `paiflow_image` and Redis (no hosted connection). Optional
+arguments after the image and commit specify loopback DB, Redis and app ports:
+
+```bash
+node scripts/container-smoke.mjs paiflow-image:local 0123456789abcdef0123456789abcdef01234567 5432 6379 4321
+```
+
+The smoke deliberately points Stellar RPC/Horizon to an unavailable loopback port,
+asserts RPC `down`/overall `degraded`, and never calls a hosted blockchain service.
+It removes only its own named app containers. It does not prove wallet signing,
+full application acceptance, runtime upgrade of existing services, mounted-volume
+permissions, or active-SSE draining; the existing `test:sse-shutdown` remains a
+separate required CI check, and hosted replacement acceptance remains separate.
 
 The root README already points to `.railway/railway.ts`; the historical
 `railway.toml` documentation finding in #529 was already resolved on `testing`.

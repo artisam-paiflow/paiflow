@@ -528,9 +528,18 @@ true, and this one had already fallen four sections behind.
 
 ### Deployment infrastructure
 
-Configured for **Railway** (`.railway/railway.ts`, `nixpacks.toml`):
+Configured for **Railway** (`railway.json`, `Dockerfile`):
 
-- `pnpm build` produces the standalone Next.js bundle.
+- The app image uses the digest-pinned official Node 22.23.4 Debian image, with its bundled
+  Brotli security correction. It installs pnpm 10.4.1 and builds the ordinary Next.js production
+  output without compiling Node from source. `railway.json` selects the Dockerfile and clears
+  the old provider build command; the homepage and daily-report job retain their separate builds.
+- `.dockerignore` allowlists app build source and excludes local environment files, Git/worktrees,
+  credentials and private evidence. Deployment credentials are supplied only at runtime; public
+  `NEXT_PUBLIC_*` configuration and `RAILWAY_GIT_COMMIT_SHA` are declared build arguments.
+- The image runs as UID 1000 (`node`). Its default file-storage directory is writable; any mounted
+  `FILE_STORAGE_PATH` must grant that user write access. See [local image validation](.railway/README.md#local-image-validation).
+- `pnpm build` produces the ordinary Next.js production output; startup retains `next start`.
 - `pnpm start` runs migrations through `scripts/start-railway.sh` before starting Next.js.
   Railway uses `sh scripts/start-railway.sh` directly so the script can replace itself with
   the Next.js process, which receives shutdown signals without a package-manager wrapper.
