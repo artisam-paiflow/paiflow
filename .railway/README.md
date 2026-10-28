@@ -74,8 +74,11 @@ rebuilding Node and its Nix dependency closure inside Railway.
 The image installs OpenSSL/CA certificates and pnpm 10.4.1, retains the generated
 Prisma client and migration CLI, and runs the existing migration-first startup
 script as UID 1000 (`node`). The shell still replaces itself with Next.js for
-SIGTERM handling. The default `/app/.docker/files` path is writable; externally
-mounted storage must grant UID 1000 write access before rollout.
+SIGTERM handling. Both the default `/app/.docker/files` path and the configured
+`/data/files` path are created and owned by UID 1000 in the image. This supports
+an unmounted `/data/files` without making its parent world-writable. Externally
+mounted storage can replace image ownership and must grant UID 1000 write access
+before rollout.
 
 [`railway.json`](../railway.json) explicitly selects `DOCKERFILE`, clears the old
 provider build command, and retains the startup command, 30-second drain and
@@ -115,7 +118,8 @@ The `app-image` CI job builds the actual deployment image with synthetic secret-
 canaries in its context, then runs [`scripts/container-smoke.mjs`](../scripts/container-smoke.mjs)
 against disposable PostgreSQL/Redis services. It verifies canaries/private checkout
 paths are absent, Node/Brotli API/native argon2 and Prisma modules load, pnpm is
-available to the non-root user, default storage is writable, a migration failure
+available to the non-root user, both storage directories support write/unlink,
+a migration failure
 blocks startup, successful migration/startup exposes HTTP with the baked commit,
 DB/Redis reads work, owner routes remain guarded, and SIGTERM exits cleanly.
 
@@ -127,7 +131,9 @@ arguments after the image and commit specify loopback DB, Redis and app ports:
 node scripts/container-smoke.mjs paiflow-image:local 0123456789abcdef0123456789abcdef01234567 5432 6379 4321
 ```
 
-The smoke deliberately points Stellar RPC/Horizon to an unavailable loopback port,
+The app smoke explicitly uses `FILE_STORAGE_DRIVER=volume` and
+`FILE_STORAGE_PATH=/data/files`, matching the configured app path. The smoke
+deliberately points Stellar RPC/Horizon to an unavailable loopback port,
 asserts RPC `down`/overall `degraded`, and never calls a hosted blockchain service.
 It removes only its own named app containers. It does not prove wallet signing,
 full application acceptance, runtime upgrade of existing services, mounted-volume

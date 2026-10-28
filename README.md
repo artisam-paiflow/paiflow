@@ -537,8 +537,9 @@ Configured for **Railway** (`railway.json`, `Dockerfile`):
 - `.dockerignore` allowlists app build source and excludes local environment files, Git/worktrees,
   credentials and private evidence. Deployment credentials are supplied only at runtime; public
   `NEXT_PUBLIC_*` configuration and `RAILWAY_GIT_COMMIT_SHA` are declared build arguments.
-- The image runs as UID 1000 (`node`). Its default file-storage directory is writable; any mounted
-  `FILE_STORAGE_PATH` must grant that user write access. See [local image validation](.railway/README.md#local-image-validation).
+- The image runs as UID 1000 (`node`). Its default file-storage directory and the configured
+  `/data/files` directory are prepared for that user; any mounted `FILE_STORAGE_PATH` must grant
+  that user write access. See [local image validation](.railway/README.md#local-image-validation).
 - `pnpm build` produces the ordinary Next.js production output; startup retains `next start`.
 - `pnpm start` runs migrations through `scripts/start-railway.sh` before starting Next.js.
   Railway uses `sh scripts/start-railway.sh` directly so the script can replace itself with
