@@ -15,6 +15,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Security
 
+- Request uncompressed tenant-relayer responses for subscription and payroll charging, rejecting other response encodings before JSON parsing or response-driven submission with safe errors. This protocol hardening complements the required patched Node runtime (#1109).
+
 - Build the app from a digest-pinned official Node 22.23.4 image with the bundled Brotli fix, avoiding custom Node source compilation; validate the actual deployment image and migration-first startup in CI (#1113).
 
 - Require Node.js 22.23.4 or newer in the 22.x line, require the Brotli decoder security fix and update the daily-report image, and reject unsupported Node versions or missing decoder API markers during install/build and before deployed startup (#1096).

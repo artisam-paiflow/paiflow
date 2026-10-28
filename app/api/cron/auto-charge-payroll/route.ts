@@ -782,6 +782,7 @@ async function runPayrollCharges() {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
+                  "Accept-Encoding": "identity",
                   ...(d.chargeRelayerToken
                     ? { Authorization: `Bearer ${d.chargeRelayerToken}` }
                     : {}),
@@ -806,6 +807,16 @@ async function runPayrollCharges() {
                 name === "TimeoutError" || name === "AbortError"
                   ? `User relayer did not respond within ${TENANT_RELAYER_TIMEOUT_MS}ms`
                   : "User relayer could not be reached",
+              );
+            }
+
+            // Node fetch can start decompressing before returning headers; this
+            // protocol check requires the patched runtime and cannot replace it (#1109).
+            const encoding = res.headers.get("content-encoding")?.trim().toLowerCase();
+            if (encoding && encoding !== "identity") {
+              await discardBody(res);
+              throw new RelayerResponseError(
+                "User relayer returned an unsupported response encoding",
               );
             }
 
