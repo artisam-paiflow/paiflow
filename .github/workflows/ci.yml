@@ -91,6 +91,48 @@ jobs:
       - name: pnpm audit
         run: pnpm audit
 
+  app-image:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: paiflow_image
+          POSTGRES_PASSWORD: paiflow_image
+          POSTGRES_DB: paiflow_image
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U paiflow_image"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+      - name: Add synthetic build-context canaries
+        run: |
+          test ! -e .env.container-smoke
+          test ! -e lib/.env.container-smoke
+          test ! -e .worktrees/container-smoke-canary
+          mkdir -p .worktrees
+          printf 'synthetic context canary\n' > .env.container-smoke
+          printf 'synthetic context canary\n' > lib/.env.container-smoke
+          printf 'synthetic context canary\n' > .worktrees/container-smoke-canary
+      - name: Build the deployment image
+        run: docker build --build-arg RAILWAY_GIT_COMMIT_SHA=${{ github.sha }} --tag paiflow-image:ci .
+      - name: Exercise the deployment image
+        run: node scripts/container-smoke.mjs paiflow-image:ci ${{ github.sha }}
+
   rust:
     runs-on: ubuntu-latest
     defaults:

@@ -13,7 +13,9 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Security
 
-- Require Node.js 22.23.4 or newer in the 22.x line, pin the Nixpacks runtime including the shared Brotli decoder security fix and the daily-report image, and reject unsupported Node versions or missing decoder API markers during install/build and before deployed startup (#1096).
+- Build the app from a digest-pinned official Node 22.23.4 image with the bundled Brotli fix, avoiding custom Node source compilation; validate the actual deployment image and migration-first startup in CI (#1113).
+
+- Require Node.js 22.23.4 or newer in the 22.x line, require the Brotli decoder security fix and update the daily-report image, and reject unsupported Node versions or missing decoder API markers during install/build and before deployed startup (#1096).
 
 - Update jsdom's transitive `undici` dependency to 8.12.3 to fix EventSource parser resource exhaustion and mixed-case Subresource Integrity verification ([GHSA-4qv8-2p9j-2685](https://github.com/advisories/GHSA-4qv8-2p9j-2685), [GHSA-f72v-6w45-q472](https://github.com/advisories/GHSA-f72v-6w45-q472)).
 
