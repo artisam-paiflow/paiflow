@@ -503,15 +503,20 @@ should start with [AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md).
 | `develop`               | Integration branch, and **the base branch for PRs** (`CLAUDE.md` §17). |
 | `claude/*`, `feat/*`, … | Short-lived feature branches.                                          |
 
-CI (`.github/workflows/ci.yml`) runs on every push to `main` and every PR:
+CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on pushes and PRs
+targeting the branches listed in that workflow. Node work runs in parallel:
 
-- **node** lane — `pnpm install --frozen-lockfile`, `db:generate`, `db:migrate:deploy`, `typecheck`, `test:ci` (uploads the `vitest-junit` artifact and writes a job summary), `db:seed`, `build`, `pnpm audit`
-- **rust** lane — `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --workspace`
+- **node-checks** — frozen install, Prisma generation, app typecheck, SDK documentation/typecheck/tests/package checks, and full `pnpm audit`.
+- **node-tests** — frozen install, Prisma generation, migrations, and the full `pnpm test:ci` suite against dedicated Postgres and Redis services. Uploads the `vitest-junit` artifact and writes a per-project summary, including after test failure unless cancelled.
+- **node-build** — frozen install, Prisma generation, migrations, seed, host `pnpm build`, then the separate production SSE shutdown fixture. Uses its own Postgres service and caches only `.next/cache`, scoped to the OS, resolved Node version, lockfile and build configuration.
+- **node** — required aggregate; succeeds only when all three workers succeed. A failed, skipped, or cancelled worker fails this check.
 
-Both lanes must be green before merge — except the audit step, which runs as
-`pnpm audit --prod || true` and can never fail the build
-([#373](https://github.com/webnxt-2030/pinkraft/issues/373)). There is **no** Playwright job; e2e
-runs locally only.
+The **app-image** job builds and smoke-tests the deployment Docker image. The
+**rust** job runs `cargo fmt --all -- --check`,
+`cargo clippy --all-targets -- -D warnings`, and `cargo test --workspace`.
+All checks must pass before merge. Audit checks production and development
+dependencies and fails on advisories except the accepted GHSA exceptions in
+`package.json`. Playwright e2e runs locally only.
 
 ### Environment variables
 

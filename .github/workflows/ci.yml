@@ -31,7 +31,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  node:
+  node-checks:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://paiflow:paiflow@localhost:5432/paiflow?schema=public
+      AUTH_SECRET: ci-secret-not-for-production-32chars-min-padding-aaaaaa
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm typecheck
+      - run: pnpm sdk:docs:check
+      - run: pnpm sdk:typecheck
+      - run: pnpm sdk:test
+      - run: pnpm sdk:test:package
+      - name: pnpm audit
+        run: pnpm audit
+
+  node-tests:
     runs-on: ubuntu-latest
     services:
       redis:
@@ -57,7 +80,6 @@ jobs:
     env:
       DATABASE_URL: postgresql://paiflow:paiflow@localhost:5432/paiflow?schema=public
       AUTH_SECRET: ci-secret-not-for-production-32chars-min-padding-aaaaaa
-      ADMIN_SEED_PASSWORD: ci-admin-password-12chars
       NODE_ENV: test
     steps:
       - uses: actions/checkout@v4
@@ -69,13 +91,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:generate
       - run: pnpm db:migrate:deploy
-      - run: pnpm typecheck
-      - run: pnpm sdk:docs:check
-      - run: pnpm sdk:typecheck
-      - run: pnpm sdk:test
-      - run: pnpm sdk:test:package
       - run: pnpm test:ci
-      - run: pnpm test:sse-shutdown
       - name: Upload test report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
@@ -86,10 +102,65 @@ jobs:
       - name: Test summary
         if: ${{ !cancelled() }}
         run: pnpm exec tsx scripts/vitest-junit-summary.ts >> "$GITHUB_STEP_SUMMARY"
+
+  node-build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: paiflow
+          POSTGRES_PASSWORD: paiflow
+          POSTGRES_DB: paiflow
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U paiflow"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://paiflow:paiflow@localhost:5432/paiflow?schema=public
+      AUTH_SECRET: ci-secret-not-for-production-32chars-min-padding-aaaaaa
+      ADMIN_SEED_PASSWORD: ci-admin-password-12chars
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        id: node
+        with:
+          node-version-file: package.json
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm db:migrate:deploy
       - run: pnpm db:seed
+      - name: Cache Next.js build data
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-next-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'package.json', 'next.config.*', 'tsconfig.json', 'postcss.config.*', '.github/workflows/ci.yml') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-next-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'package.json', 'next.config.*', 'tsconfig.json', 'postcss.config.*', '.github/workflows/ci.yml') }}-
       - run: pnpm build
-      - name: pnpm audit
-        run: pnpm audit
+      - run: pnpm test:sse-shutdown
+
+  # Keep the required check stable, including when a worker fails or is skipped.
+  node:
+    runs-on: ubuntu-latest
+    needs: [node-checks, node-tests, node-build]
+    if: ${{ always() }}
+    steps:
+      - name: Require every Node worker to succeed
+        env:
+          CHECKS_RESULT: ${{ needs.node-checks.result }}
+          TESTS_RESULT: ${{ needs.node-tests.result }}
+          BUILD_RESULT: ${{ needs.node-build.result }}
+        run: |
+          if [[ "$CHECKS_RESULT" != success || "$TESTS_RESULT" != success || "$BUILD_RESULT" != success ]]; then
+            printf 'Node workers: checks=%s tests=%s build=%s\n' "$CHECKS_RESULT" "$TESTS_RESULT" "$BUILD_RESULT"
+            exit 1
+          fi
 
   app-image:
     runs-on: ubuntu-latest
