@@ -3,8 +3,22 @@
 Chain finality and the application's stored confirmation are separate observations.
 The normal submit request waits for finality; if its acknowledgement or finality
 read is unavailable, the deployment remains `SUBMITTED` under the original hash.
-The owner status route reads stored state. Closing or reloading the browser does
-not stop the scheduled reconciler.
+Closing or reloading the browser does not stop the scheduled reconciler. At the
+October 20 revision below, the owner status route read stored state. Current
+`GET /api/deployments/{id}/status` is rate-limited and calls
+`reconcileOwnerDeployment` before returning stored status. Its finality read has
+a three-second deadline; a verified original-hash result can run deployment
+confirmation and outcome bookkeeping. The helper checks ownership-bound signer
+evidence, prepared transaction identity and durable pipeline references before
+confirming. Missing results and read failures preserve pending uncertainty.
+
+An owner status request can therefore cause recovery and must be recorded as a
+confounder when measuring automatic-only reconciliation. Keep deployment pages
+closed during that observation and use select-only database snapshots plus
+independent chain reads. `GET /api/deployments/{id}` does not call this submitted
+deployment reconciler; its `preparedRecovery` check can read chain state for an
+expired `PENDING_SIGNATURE` preparation, so it is not a substitute for an
+independent database witness. Neither route submits a transaction.
 
 ## October 20 investigation
 
