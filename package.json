@@ -149,8 +149,7 @@
   "pnpm": {
     "auditConfig": {
       "ignoreGhsas": [
-        "GHSA-848j-6mx2-7j84",
-        "GHSA-528h-pc64-c93x"
+        "GHSA-848j-6mx2-7j84"
       ]
     },
     "overrides": {

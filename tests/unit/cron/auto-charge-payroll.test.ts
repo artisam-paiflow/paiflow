@@ -14,6 +14,8 @@ vi.mock("@/lib/deployments/service-work", () => ({
 }));
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ChargeRelayerMode, PayrollRunStatus } from "@prisma/client";
+import { observeExternalRelayer } from "@/lib/deployments/service-work";
+import { log } from "@/lib/log";
 
 const { mockDb, mockEnv, mockRelayer, mockInvoke, mockClient, mockJobs, mockUrlGuard } = vi.hoisted(
   () => {
@@ -462,6 +464,79 @@ describe("auto-charge-payroll", () => {
       // The validated URL is what gets fetched, not the raw column value.
       expect(fetchMock.mock.calls[0]?.[0]).toBeInstanceOf(URL);
     });
+
+    // These are application-behavior tests: mocked fetch does not exercise
+    // Undici's decoder, which may run before fetch returns on an unpatched runtime.
+    it.each([undefined, "", "identity", "IDENTITY"])(
+      "accepts response encoding %s and requests identity encoding",
+      async (encoding) => {
+        primeUserDeployment();
+        const headers = new Headers();
+        if (encoding !== undefined) headers.set("Content-Encoding", encoding);
+        const fetchMock = stubFetch(
+          new Response(JSON.stringify({ status: "SUCCESS", txHash: TX_HASH_OK }), {
+            status: 200,
+            headers,
+          }),
+        );
+
+        const json = await (await POST(makeRequest("cron-secret"))).json();
+
+        const requestHeaders = new Headers(fetchMock.mock.calls[0]?.[1].headers);
+        expect(requestHeaders.get("accept-encoding")).toBe("identity");
+        expect(requestHeaders.get("content-type")).toBe("application/json");
+        expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ redirect: "manual" });
+        expect(json.data.userCharged).toBe(1);
+        expect(json.data.failed).toBe(0);
+      },
+    );
+
+    it.each([
+      ["br", false],
+      ["gzip", false],
+      ["identity, gzip", false],
+      ["insufficient-SECRET_HEADER", true],
+    ])(
+      "rejects response encoding %s before parsing or submitting",
+      async (encoding, cancelFails) => {
+        primeUserDeployment();
+        // A benign pending payload would reach submission if the encoding guard failed.
+        const response = new Response(
+          JSON.stringify({
+            status: "PENDING",
+            signedXdr: "benign-placeholder",
+            txHash: TX_HASH_OK,
+          }),
+          { status: 200, headers: { "Content-Encoding": String(encoding) } },
+        );
+        const readJson = vi.spyOn(response, "json");
+        const cancel = vi.spyOn(response.body!, "cancel");
+        if (cancelFails) cancel.mockRejectedValue(new Error("SECRET_CANCEL_ERROR"));
+        const fetchMock = stubFetch(response);
+
+        const json = await (await POST(makeRequest("cron-secret"))).json();
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(cancel).toHaveBeenCalledTimes(1);
+        expect(readJson).not.toHaveBeenCalled();
+        expect(mockRelayer.submitPayrollChargeByRelayerTx).not.toHaveBeenCalled();
+        expect(observeExternalRelayer).not.toHaveBeenCalled();
+        expect(json.data).toMatchObject({ userCharged: 0, failed: 1, skipped: 0 });
+        expect(json.data.details[0]).toMatchObject({
+          status: "failed",
+          error: "User relayer returned an unsupported response encoding",
+        });
+        expect(lastErrorOf()).toBe("User relayer returned an unsupported response encoding");
+        expect(mockDb.payrollPayout.create).not.toHaveBeenCalled();
+        const reported =
+          JSON.stringify(json) +
+          JSON.stringify(mockDb.payrollRun.update.mock.calls) +
+          JSON.stringify(vi.mocked(log.warn).mock.calls);
+        expect(reported).not.toContain("SECRET_HEADER");
+        expect(reported).not.toContain("SECRET_CANCEL_ERROR");
+        expect(reported).not.toContain("benign-placeholder");
+      },
+    );
 
     it("fails the run and stops scheduling when the URL is refused for good", async () => {
       primeUserDeployment({ chargeRelayerUrl: "https://redis.railway.internal/charge" });

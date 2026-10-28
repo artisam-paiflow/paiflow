@@ -413,6 +413,7 @@ async function runSubscriptionCharges() {
 
             const headers: Record<string, string> = {
               "Content-Type": "application/json",
+              "Accept-Encoding": "identity",
             };
             if (d.chargeRelayerToken) {
               headers["Authorization"] = `Bearer ${d.chargeRelayerToken}`;
@@ -450,6 +451,16 @@ async function runSubscriptionCharges() {
                 name === "TimeoutError" || name === "AbortError"
                   ? `User relayer did not respond within ${TENANT_RELAYER_TIMEOUT_MS}ms`
                   : "User relayer could not be reached",
+              );
+            }
+
+            // Node fetch can start decompressing before returning headers; this
+            // protocol check requires the patched runtime and cannot replace it (#1109).
+            const encoding = response.headers.get("content-encoding")?.trim().toLowerCase();
+            if (encoding && encoding !== "identity") {
+              await discardBody(response);
+              throw new RelayerResponseError(
+                "User relayer returned an unsupported response encoding",
               );
             }
 
