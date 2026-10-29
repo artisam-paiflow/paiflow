@@ -178,27 +178,6 @@ export function flowToEnglish(graph: FlowGraph): string {
     const amount =
       subscriptionAmountPerPeriodStroops(graph) ?? trigger.config.amountPerPeriodStroops;
     triggerText = `When subscription pulls ${formatStroops(amount)} ${assetLabel(trigger.config.asset)} ${intervalLabel(trigger.config.intervalAmount ?? 1, trigger.config.intervalUnit ?? "day")}`;
-  } else if (trigger.type === "payroll") {
-    const employer = needsAddress(trigger.config.employer)
-      ? "(needs employer address)"
-      : shortAddr(trigger.config.employer);
-    const schedule = intervalLabel(
-      trigger.config.intervalAmount ?? 1,
-      trigger.config.intervalUnit ?? "week",
-    );
-    const assetStr = assetLabel(trigger.config.asset);
-    const pullAmountStroops =
-      action.type === "split"
-        ? action.config.recipients
-            .filter((r) => r.mode === "fixed")
-            .reduce((sum, r) => sum + BigInt(r.amountStroops || "0"), 0n)
-            .toString()
-        : action.type === "pay"
-          ? (action.config.amountStroops ?? "0")
-          : "0";
-    const pullText =
-      pullAmountStroops === "0" ? "" : `${formatStroops(pullAmountStroops)} ${assetStr} `;
-    triggerText = `When payroll pulls ${pullText}from ${employer} ${schedule}`;
   } else if (trigger.type === "oracle") {
     triggerText = `When oracle price meets threshold (${trigger.config.threshold}) for ${assetLabel(trigger.config.asset)}`;
   } else {

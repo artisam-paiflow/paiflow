@@ -1,5 +1,4 @@
 import "server-only";
-import { FlowGraphSchema } from "@/lib/flows/schema";
 import crypto from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { ChargeRelayerMode } from "@prisma/client";
@@ -50,20 +49,19 @@ export async function confirmDeployment(
   const hasWeb2Webhook = graph?.nodes.some((n) => n.type === "web2_webhook") ?? false;
   const webhookSecret = hasWeb2Webhook ? `whsec_${crypto.randomBytes(32).toString("hex")}` : null;
   const isSubscription = deployment.flow?.templateKind === "SUBSCRIPTION";
-  const isPayroll = deployment.flow?.templateKind === "PAYROLL";
   const schedule: {
     chargeRelayerMode?: ChargeRelayerMode;
     chargeRelayerAddress?: string | null;
     nextChargeAt?: Date | null;
     chargeEndAt?: Date | null;
   } = {};
-  if (isSubscription || isPayroll) {
+  if (isSubscription) {
     const paramsPipeline = deployment.paramsSnapshot as Array<{
       nodeId: string;
       templateKind: string;
       params: Record<string, unknown>;
     }> | null;
-    const scheduleKinds = isSubscription ? ["SUBSCRIPTION"] : ["PAYROLL", "SUBSCRIPTION"];
+    const scheduleKinds = ["SUBSCRIPTION"];
     const scheduleNode = paramsPipeline?.find((n) => scheduleKinds.includes(n.templateKind));
     const relayer =
       typeof scheduleNode?.params?.relayer === "string" ? scheduleNode.params.relayer : null;
@@ -192,9 +190,6 @@ export async function confirmDeployment(
     metadata: { deploymentId: id, txHash: result.txHash },
   });
   captureDeployConfirmed(deployment.ownerId, deployment, pipeline, result.txHash, signerAddress);
-  if (isPayroll) {
-    await createPayrollEmployees(id);
-  }
   return updatedDeployment;
 }
 // Runs after the chain has confirmed, so nothing in here may throw into the
@@ -229,34 +224,4 @@ function captureDeployConfirmed(
   } catch (err) {
     log.warn({ err, deploymentId: deployment.id }, "submit: analytics capture failed");
   }
-}
-async function createPayrollEmployees(deploymentId: string) {
-  const deployment = await db.deployment.findUnique({
-    where: { id: deploymentId },
-    include: { flow: { select: { templateKind: true } } },
-  });
-  if (!deployment || deployment.flow?.templateKind !== "PAYROLL") return;
-  const pipeline = deployment.pipelineSnapshot as Array<{ templateKind: string }> | null;
-  if (
-    !pipeline?.some((n) => n.templateKind === "SUBSCRIPTION") ||
-    pipeline.some((n) => n.templateKind === "PAYROLL")
-  )
-    return;
-  const graph = FlowGraphSchema.parse(deployment.graphSnapshot);
-  const pay = graph.nodes.find((n) => n.type === "pay");
-  const split = graph.nodes.find((n) => n.type === "split");
-  const recipients =
-    pipeline.some((n) => n.templateKind === "PAYER") && pay?.type === "pay"
-      ? [{ address: pay.config.recipient, amountStroops: pay.config.amountStroops ?? "0" }]
-      : split?.type === "split"
-        ? split.config.recipients.map((r) => ({
-            address: r.address,
-            amountStroops: r.mode === "fixed" ? r.amountStroops : "0",
-            label: r.label,
-          }))
-        : [];
-  await db.employee.createMany({
-    data: recipients.map((r) => ({ deploymentId, ...r })),
-    skipDuplicates: true,
-  });
 }

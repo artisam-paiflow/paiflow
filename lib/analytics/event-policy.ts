@@ -73,7 +73,6 @@ const NODES = new Set([
   "on_receive",
   "on_schedule",
   "subscription",
-  "payroll",
   "web2_webhook",
   "webhook",
   "oracle",
@@ -108,7 +107,6 @@ const KINDS = new Set([
   "SPLITTER",
   "STREAMER",
   "SUBSCRIPTION",
-  "PAYROLL",
   "WEBHOOK",
   "WEB2_WEBHOOK",
   "ORACLE",
@@ -145,7 +143,6 @@ const VALUES = new Set([
   "deploy_review",
   "trigger",
   "contract_call",
-  "payroll",
   "panel",
   "keyboard",
   "wallet",
@@ -283,7 +280,7 @@ function approvedValue(key: string, value: unknown): unknown {
   if (key === "message_key") return "structured_error";
   if (key === "error_key")
     return typeof value === "string" &&
-      /^(?:edges|graph|node|on_receive|on_schedule|subscription|payroll|webhook|web2_webhook|oracle|pay|split|swap|condition|yield|hold|return_to_owner)(?:\.(?:config|recipients|address|amountStroops|bps|asset|assetIn|assetOut|slippageBps|minimumOutput|kind|threshold|deadline|signers|#|startTs|endTs|intervalSeconds))*$/.test(
+      /^(?:edges|graph|node|on_receive|on_schedule|subscription|webhook|web2_webhook|oracle|pay|split|swap|condition|yield|hold|return_to_owner)(?:\.(?:config|recipients|address|amountStroops|bps|asset|assetIn|assetOut|slippageBps|minimumOutput|kind|threshold|deadline|signers|#|startTs|endTs|intervalSeconds))*$/.test(
         value,
       )
       ? value

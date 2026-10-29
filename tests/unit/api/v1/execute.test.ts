@@ -5,7 +5,7 @@ vi.mock("@/lib/deployments/service-route", () => ({
 }));
 vi.mock("@/lib/deployments/service-work", () => ({
   assertDeploymentService: vi.fn(async () => undefined),
-  withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  withDeploymentWork: vi.fn(async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn()),
   runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
   beforeExternalRelayer: vi.fn(async () => undefined),
   observeExternalRelayer: vi.fn(async () => undefined),
@@ -53,6 +53,7 @@ vi.mock("@/lib/audit", () => ({
   wasTxSubmittedFor: vi.fn(async () => true),
 }));
 vi.mock("@/lib/signed-tx", () => ({ recordSignedTransaction: vi.fn(async () => undefined) }));
+import { withDeploymentWork } from "@/lib/deployments/service-work";
 import { interactiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
 import { recordTransactionOutcome } from "@/lib/analytics/outcomes";
 import { POST as prepare } from "@/app/api/v1/deployments/[id]/execute/route";
@@ -239,11 +240,6 @@ describe("pipeline scope", () => {
       "a retired subscription kind",
       [{ nodeId: "s", contractAddress: TRIGGER, templateKind: "SUBSCRIPTION_DEV" }],
       "starts with a SUBSCRIPTION_DEV step",
-    ],
-    [
-      "a payroll head",
-      [{ nodeId: "s", contractAddress: TRIGGER, templateKind: "PAYROLL" }],
-      "starts with a payroll step",
     ],
     [
       "a head kind this release has never heard of",
@@ -979,4 +975,21 @@ describe("shared interactive submit budget", () => {
     expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
     expect(pollEventsFor).toHaveBeenCalledOnce();
   });
+});
+
+it("refuses historical PAYROLL flow classification before financial admission even with an ordinary deposit snapshot", async () => {
+  authorize({ flow: { templateKind: "PAYROLL" } });
+  expect((await callPrepare()).status).toBe(404);
+  expect(withDeploymentWork).not.toHaveBeenCalled();
+  expect(mockPrepareTriggerTx).not.toHaveBeenCalled();
+  expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+  expect(mockDb.deploymentApiToken.findUnique).toHaveBeenCalledWith(
+    expect.objectContaining({
+      include: {
+        deployment: {
+          include: expect.objectContaining({ flow: { select: { templateKind: true } } }),
+        },
+      },
+    }),
+  );
 });

@@ -50,7 +50,13 @@ const SUGGESTIONS_ROWS = [
     "Add a split",
     "Change pay amount",
   ],
-  ["Set up payroll", "Remove a condition", "Change asset to USDC", "Make Bob 30%", "Set to hourly"],
+  [
+    "Set up a subscription",
+    "Remove a condition",
+    "Change asset to USDC",
+    "Make Bob 30%",
+    "Set to hourly",
+  ],
 ];
 
 function patchSummary(patch: unknown[]): string {

@@ -34,40 +34,6 @@ describe("validateFlow", () => {
       expect(r.pipeline).toEqual([TemplateKind.DEPOSIT_TRIGGER, TemplateKind.SPLITTER]);
     }
   });
-  it("accepts a payroll → split (fixed) flow as PAYROLL", () => {
-    const r = validateFlow({
-      nodes: [
-        {
-          id: "t",
-          type: "payroll",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            employer: ADDR_A,
-            intervalAmount: 1,
-            intervalUnit: "week",
-          },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [
-              { address: ADDR_A, mode: "fixed", amountStroops: "60000000" },
-              { address: ADDR_B, mode: "fixed", amountStroops: "40000000" },
-            ],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      // Flow-level label stays PAYROLL; the deploy pipeline is the immutable preset.
-      expect(r.templateKind).toBe(TemplateKind.PAYROLL);
-      expect(r.pipeline).toEqual([TemplateKind.SUBSCRIPTION, TemplateKind.SPLITTER]);
-    }
-  });
   it("rejects non-dev split with empty recipients", () => {
     const r = validateFlow({
       nodes: [
@@ -82,35 +48,6 @@ describe("validateFlow", () => {
           config: {
             asset: { kind: "known", symbol: "USDC" },
             recipients: [],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(false);
-  });
-  it("rejects payroll → split with percentage recipients", () => {
-    const r = validateFlow({
-      nodes: [
-        {
-          id: "t",
-          type: "payroll",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            employer: ADDR_A,
-            intervalAmount: 1,
-            intervalUnit: "week",
-          },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [
-              { address: ADDR_A, mode: "percentage", bps: 6000 },
-              { address: ADDR_B, mode: "percentage", bps: 4000 },
-            ],
           },
         },
       ],

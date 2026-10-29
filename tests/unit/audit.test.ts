@@ -19,7 +19,7 @@ describe("wasTxSubmittedFor", () => {
     await db.auditLog.deleteMany({
       where: {
         action: {
-          in: ["DEPLOY_TRIGGER", "DEPLOY_INVOKE", "API_EXECUTE_SUBMITTED", "PAYROLL_UPDATE_BANK"],
+          in: ["DEPLOY_TRIGGER", "DEPLOY_INVOKE", "API_EXECUTE_SUBMITTED", "FLOW_UPDATE"],
         },
       },
     });
@@ -69,7 +69,7 @@ describe("wasTxSubmittedFor", () => {
 
   it("ignores actions that are not a submission, even with the right pair", async () => {
     await audit({
-      action: "PAYROLL_UPDATE_BANK",
+      action: "FLOW_UPDATE",
       metadata: { deploymentId: DEPLOYMENT_ID, txHash: TX_HASH },
     });
     expect(await wasTxSubmittedFor(DEPLOYMENT_ID, TX_HASH)).toBe(false);

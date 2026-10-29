@@ -17,7 +17,6 @@ export type ContractErrorKey =
   | "stellar_asset"
   | "yield"
   | "payer"
-  | "payroll"
   | "conditional"
   | "router"
   | "timelock"
@@ -236,29 +235,6 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
       friendly: "The payment amount must be positive (or a percentage must be configured).",
     },
   },
-  payroll: {
-    1: ALREADY_INITIALIZED,
-    2: { name: "Unauthorized", friendly: "This action isn't authorized." },
-    3: {
-      name: "InvalidAmount",
-      friendly:
-        "The payroll configuration is invalid: the end time must be after the start time and recipient amounts must be positive.",
-    },
-    4: {
-      name: "AlreadyCancelled",
-      friendly: "This payroll has already been cancelled.",
-    },
-    5: {
-      name: "NotYetDue",
-      friendly: "The next payroll charge isn't due yet.",
-    },
-    6: { name: "PayrollEnded", friendly: "This payroll has ended." },
-    7: { name: "NotCancelled", friendly: "This payroll isn't cancelled." },
-    8: {
-      name: "NoRecipients",
-      friendly: "The payroll needs at least one recipient.",
-    },
-  },
   conditional: {
     1: ALREADY_INITIALIZED,
     2: {
@@ -448,8 +424,6 @@ export function contractKeyForTemplate(templateKind: string): ContractErrorKey |
       return "yield";
     case "PAYER":
       return "payer";
-    case "PAYROLL":
-      return "payroll";
     default:
       return undefined; // FACTORY has no error enum
   }
@@ -461,8 +435,6 @@ export function contractKeyForParamsKind(kind: string): ContractErrorKey | undef
       return "webhook";
     case "subscription_trigger":
       return "subscription";
-    case "payroll_trigger":
-      return "payroll";
     case "oracle_trigger":
       return "oracle";
     default:

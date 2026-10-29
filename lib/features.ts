@@ -1,6 +1,7 @@
 import "server-only";
-import { hasRetiredPayoutInput } from "@/lib/flows/retired-inputs";
 import type { TemplateKind } from "@prisma/client";
+import { hasRetiredPayrollInput, PAYROLL_RETIRED_MESSAGE } from "@/lib/flows/retired-payroll";
+import { hasRetiredPayoutInput } from "@/lib/flows/retired-inputs";
 import { env } from "@/lib/env";
 import { log } from "@/lib/log";
 import { AppError } from "@/lib/errors";
@@ -38,7 +39,6 @@ export function serverFeatures(): FeatureFlags {
   const e = env();
   // A caller holding a partial env (a test double) reads unset, so ON.
   return {
-    payroll: switchOn("FEATURE_PAYROLL_ENABLED", e.FEATURE_PAYROLL_ENABLED),
     aiAssistant: switchOn("FEATURE_AI_ASSISTANT_ENABLED", e.FEATURE_AI_ASSISTANT_ENABLED),
     oracleCondition: switchOn(
       "FEATURE_ORACLE_CONDITION_ENABLED",
@@ -87,6 +87,11 @@ export function assertNoHiddenSurfaces(
     pipelineKinds.some((kind) => kind === "CASH_OUT" || kind === "CASH_OUT_DEV")
   )
     throw new AppError("VALIDATION", "Fiat off-ramping has been retired.");
+  if (
+    hasRetiredPayrollInput(graph) ||
+    pipelineKinds.some((kind) => kind === "PAYROLL" || kind === "PAYROLL_DEV")
+  )
+    throw new AppError("VALIDATION", PAYROLL_RETIRED_MESSAGE);
   const issues = hiddenSurfaceIssues(graph, features);
   if (issues.length > 0) {
     throw new AppError("VALIDATION", issues[0]!.friendlyMessage, issuesToFields(issues));
@@ -110,7 +115,10 @@ export function assertPreparedDeploymentAllowed(
   graphSnapshot: unknown,
   pipelineSnapshot: unknown,
   features: FeatureFlags = serverFeatures(),
+  paramsSnapshot?: unknown,
 ): void {
+  if ([graphSnapshot, pipelineSnapshot, paramsSnapshot].some(hasRetiredPayrollInput))
+    throw new AppError("VALIDATION", PAYROLL_RETIRED_MESSAGE);
   if (hasRetiredPayoutInput(graphSnapshot) || hasRetiredPayoutInput(pipelineSnapshot))
     throw new AppError("VALIDATION", "Fiat off-ramping has been retired.");
   const parsed = FlowGraphSchema.safeParse(migrateFlowGraph(graphSnapshot));

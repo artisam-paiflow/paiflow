@@ -61,7 +61,6 @@ Their new version-5 artifacts require coordinated upload/hash sync before new de
 | Splitter        | Action    | `201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417` |
 | Streamer        | Action    | `625cc073ec1ae4d6ed6f55d9f99c4d743153752b1d2667524123f8b0284c0467` |
 | Payer           | Action    | `88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2` |
-| Payroll         | Action    | `055bb5c94bc0dac259f08a6adc97e9305fbf901d5facbdcbbedf799810f474bd` |
 | Timelock        | Condition | `5529d368e5305f7688dd8d2d655fe48c4123be0110cdc9c167bce025d8d11c20` |
 | Conditional     | Condition | `addd86767bd2691b26110b1c5fec071f48047ebc3ce7611a46a59b70c3329922` |
 
@@ -86,7 +85,7 @@ Long-term, Paiflow is the canonical "no-code Stellar surface": the layer between
 
 ## 🎯 Purpose
 
-We picked this problem because the Stellar Soroban toolchain is genuinely excellent for backend developers and genuinely opaque to everyone else. A fixed library of unit-tested templates (splitter, streamer, conditional, subscription, payroll) covers the long tail of real-world payment workflows — most "programmable payment" use cases reduce to one of them. By shipping them as visual blocks instead of as Rust libraries, we put the chain's full power in the hands of the operators who have the use case but not the engineering team.
+We picked this problem because the Stellar Soroban toolchain is genuinely excellent for backend developers and genuinely opaque to everyone else. A fixed library of unit-tested templates (splitter, streamer, conditional, subscription) covers the long tail of real-world payment workflows — most "programmable payment" use cases reduce to one of them. By shipping them as visual blocks instead of as Rust libraries, we put the chain's full power in the hands of the operators who have the use case but not the engineering team.
 
 The mission: **make Stellar the easiest chain on which to ship a payment flow**, full stop, without changing what makes Stellar good (fast, cheap, atomic, non-custodial).
 
@@ -98,7 +97,7 @@ The mission: **make Stellar the easiest chain on which to ship a payment flow**,
 
 ## ✨ Features
 
-- **Visual flow builder** — drag triggers (`On Receive`, `On Schedule`, `HTTP Webhook`, `Subscription`, `Payroll`), actions (`Pay`, `Split`, `Swap`), and logic blocks (`Condition`) onto a `@xyflow/react` canvas, wire them up, validate, deploy.
+- **Visual flow builder** — drag triggers (`On Receive`, `On Schedule`, `HTTP Webhook`, `Subscription`), actions (`Pay`, `Split`, `Swap`), and logic blocks (`Condition`) onto a `@xyflow/react` canvas, wire them up, validate, deploy.
 - **Non-custodial deploy** — the backend prepares simulated XDR; the user's wallet — Freighter on desktop, or xBull / LOBSTR / Freighter over WalletConnect, via `@creit.tech/stellar-wallets-kit` — signs. Private keys never touch the server.
 - **Lantern preparation (experimental)** — the desktop picker lists Lantern as unavailable while its browser provider contract and real-extension acceptance remain unverified. Installing Lantern does not enable Paiflow signing yet. See [the provisional adapter contract](docs/lantern-wallet-provider.md); Freighter and existing WalletConnect wallets remain the available paths.
 - **QR-triggered execution** — every deployment renders a public QR / dApp URL. Anyone with a wallet can scan it, sign, and fire `distribute()` — useful for audience-funded demos, public crowdpay flows, and self-fund-back tests. Rate-limited + audit-logged on the public endpoints.
@@ -111,7 +110,7 @@ Fiat off-ramping is retired (#1141). See [the removal and cutover notes](docs/of
 
 ## 🏗️ System Architecture
 
-A single Next.js 15 app (App Router) is the whole control plane: it serves the visual builder, prepares (but never signs) Stellar transactions, and runs cron-style automation over relayer-signed contracts. Wallets sign anything that moves user funds; a server-side relayer account signs only scheduled/automated actions (streamer claims, subscription and payroll charges, timelock releases, webhooks).
+A single Next.js 15 app (App Router) is the whole control plane: it serves the visual builder, prepares (but never signs) Stellar transactions, and runs cron-style automation over relayer-signed contracts. Wallets sign anything that moves user funds; a server-side relayer account signs only scheduled/automated actions (streamer claims, subscription charges, timelock releases, webhooks).
 
 ![System architecture](docs/diagrams/system-architecture.svg)
 
@@ -119,7 +118,7 @@ A single Next.js 15 app (App Router) is the whole control plane: it serves the v
 
 Key boundaries:
 
-- **Non-custodial by construction** — the server only ever builds and simulates XDR (`lib/stellar/deploy.ts`, `lib/stellar/invoke.ts`). User funds move only on transactions signed by the user's wallet. The relayer key (server-side) can only execute the _automation_ surface: scheduled streamer claims, subscription/payroll charges, timelock releases, and webhook-triggered executes — all serialized through a global relayer lock (`withRelayerLock`).
+- **Non-custodial by construction** — the server only ever builds and simulates XDR (`lib/stellar/deploy.ts`, `lib/stellar/invoke.ts`). User funds move only on transactions signed by the user's wallet. The relayer key (server-side) can only execute the _automation_ surface: scheduled streamer claims, subscription charges, timelock releases, and webhook-triggered executes — all serialized through a global relayer lock (`withRelayerLock`).
 - **Deploys go through a factory contract** — the app pre-computes child contract addresses (deterministic salts, CAP-46), then submits one `deploy_pipeline` invocation that deploys them all in one transaction. The
   wiring itself is TypeScript-side: each child's address is computed before the call and passed to
   its neighbours as a constructor argument, so one transaction lands a fully-connected pipeline.
@@ -459,12 +458,11 @@ cargo test --workspace
 
 ```
 app/             Next.js App Router (routes + layouts; no Server Actions)
-  api/             Route handlers (deployments, payroll, cron, auth, …)
+  api/             Route handlers (deployments, cron, auth, …)
   flows/           Visual builder canvas
   deployments/     Deployment list + detail (with live event feed)
   trigger/         Public trigger page (QR target)
   allowance/       Public allowance-approval page
-  payroll/         Crypto payroll recipient management
   admin/           Admin console (users, templates, audit log)
 components/      Hand-rolled React components, grouped by feature
 lib/             Server + shared utilities (auth, db, stellar, validation, …)
@@ -472,7 +470,7 @@ prisma/          schema.prisma, migrations, seed.ts
 contracts/       Soroban smart contracts (Rust workspace)
   triggers/         deposit_trigger, webhook, subscription, oracle
   conditions/       conditional, router, timelock, multisig
-  actions/          splitter, streamer, payer, payroll, swapper, yield
+  actions/          splitter, streamer, payer, swapper, yield
   factory/          deploys a whole pipeline in one transaction (kind-agnostic)
 scripts/         Operational scripts (upload-wasm, deploy-factory, update-hashes, …)
 tests/

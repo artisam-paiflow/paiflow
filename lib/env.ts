@@ -165,7 +165,6 @@ const EnvSchema = z.object({
   // Hide a surface and refuse new use of it; existing deployments keep running.
   // Read on the server and passed to the client as props, so a restart (not a
   // rebuild) applies a change. See lib/feature-flags.ts.
-  FEATURE_PAYROLL_ENABLED: featureSwitch,
   FEATURE_AI_ASSISTANT_ENABLED: featureSwitch,
   FEATURE_ORACLE_CONDITION_ENABLED: featureSwitch,
   DATABASE_URL: z.string().url(),
@@ -217,8 +216,6 @@ const EnvSchema = z.object({
   STELLAR_WASM_HASH_YIELD_MAINNET: optionalWasmHash,
   STELLAR_WASM_HASH_PAYER_TESTNET: optionalWasmHash,
   STELLAR_WASM_HASH_PAYER_MAINNET: optionalWasmHash,
-  STELLAR_WASM_HASH_PAYROLL_TESTNET: optionalWasmHash,
-  STELLAR_WASM_HASH_PAYROLL_MAINNET: optionalWasmHash,
   STELLAR_FACTORY_ADDRESS_TESTNET: optionalString,
   STELLAR_FACTORY_ADDRESS_MAINNET: optionalString,
   // ---- Soroswap ----
@@ -295,7 +292,6 @@ const EnvSchema = z.object({
   GROQ_STT_MODEL_PRIMARY: optionalString,
   GROQ_STT_MODEL_FALLBACK: optionalString,
   // ---- Cron tuning ----
-  PAYROLL_MAX_CATCHUP_PER_RUN: optionalPositiveInt(5),
   SUBSCRIPTION_MAX_CATCHUP_PER_RUN: optionalPositiveInt(5),
   CONTRACT_READ_CACHE_ENABLED: boolishDefault(true),
   CONTRACT_READ_CACHE_TTL_SECONDS: optionalPositiveInt(300),
@@ -542,8 +538,7 @@ export function stellarWasmHash(
     | "MULTISIG"
     | "SWAPPER"
     | "YIELD"
-    | "PAYER"
-    | "PAYROLL",
+    | "PAYER",
 ): string | undefined {
   const e = env();
   const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";

@@ -65,19 +65,16 @@ describe("customer payment eligibility", () => {
       mode,
     });
   });
-  it.each(["SUBSCRIPTION", "PAYROLL", "ORACLE", "SCHEDULER"])(
-    "does not advertise %s",
-    (templateKind) => {
-      expect(
-        publicPayment({
-          id: "id",
-          network: "testnet",
-          pipelineSnapshot: [{ templateKind }],
-          flow: { templateKind },
-        }),
-      ).toBeNull();
-    },
-  );
+  it.each(["SUBSCRIPTION", "ORACLE", "SCHEDULER"])("does not advertise %s", (templateKind) => {
+    expect(
+      publicPayment({
+        id: "id",
+        network: "testnet",
+        pipelineSnapshot: [{ templateKind }],
+        flow: { templateKind },
+      }),
+    ).toBeNull();
+  });
   it("omits payment for an unknown network or malformed metadata", () => {
     expect(
       publicPayment({ id: "id", network: "unknown", flow: { templateKind: "SPLITTER" } }),

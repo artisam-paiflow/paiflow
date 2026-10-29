@@ -28,31 +28,6 @@ const GRAPHS: Record<
     graph: unknown;
   }
 > = {
-  "payroll trigger": {
-    surface: "payroll",
-    node: "t",
-    graph: {
-      nodes: [
-        {
-          id: "t",
-          type: "payroll",
-          config: { asset: USDC, employer: ADDR_A, intervalAmount: 1, intervalUnit: "week" },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: USDC,
-            recipients: [
-              { address: ADDR_A, mode: "fixed", amountStroops: "60000000" },
-              { address: ADDR_B, mode: "fixed", amountStroops: "40000000" },
-            ],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    },
-  },
   "oracle_gte condition": {
     surface: "oracleCondition",
     node: "c",
@@ -106,38 +81,11 @@ describe("validateFlow with surface switches (#722)", () => {
       });
     });
   }
-  it("names payroll in the message a student reads", () => {
-    const r = validateFlow(GRAPHS["payroll trigger"]!.graph, { features: off("payroll") });
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.errors[0]!.friendlyMessage).toBe(
-        "Payroll is turned off on this server. Use a Subscription or On Schedule trigger instead.",
-      );
-    }
-  });
-  it("puts the switch issue first, ahead of the flow's other issues", () => {
-    const graph = {
-      nodes: [
-        {
-          id: "t",
-          type: "payroll",
-          config: { asset: USDC, employer: ADDR_A, intervalAmount: 1, intervalUnit: "week" },
-        },
-      ],
-      edges: [],
-    };
-    const r = validateFlow(graph, { features: off("payroll") });
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.errors[0]!.code).toBe("FEATURE_DISABLED");
-      expect(r.errors.length).toBeGreaterThan(1);
-    }
-  });
   it("leaves a graph that fails to parse with its schema errors", () => {
     const r = validateFlow(
       { nodes: [{ id: "x", type: "nope" }], edges: [] },
       {
-        features: off("payroll"),
+        features: off("oracleCondition"),
       },
     );
     expect(r.ok).toBe(false);
@@ -146,7 +94,6 @@ describe("validateFlow with surface switches (#722)", () => {
   it("maps each switched-off surface to the contract kinds prepare refuses", () => {
     expect(disabledTemplateKinds(ALL_FEATURES_ON)).toEqual([]);
     expect(disabledTemplateKinds(off("oracleCondition"))).toEqual([TemplateKind.CONDITIONAL]);
-    expect(disabledTemplateKinds(off("payroll"))).toEqual([TemplateKind.PAYROLL]);
     expect(disabledTemplateKinds(off("aiAssistant"))).toEqual([]);
   });
 });

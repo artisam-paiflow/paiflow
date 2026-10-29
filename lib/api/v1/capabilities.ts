@@ -2,6 +2,7 @@ import "server-only";
 import type { Deployment } from "@prisma/client";
 import { StrKey } from "@stellar/stellar-sdk";
 import { z } from "zod";
+import { hasRetiredPayrollInput, PAYROLL_RETIRED_MESSAGE } from "@/lib/flows/retired-payroll";
 import { BalancePipelineSnapshotSchema } from "@/lib/pipeline-snapshot";
 import { balanceCandidates } from "./balance-targets";
 import { AppError } from "@/lib/errors";
@@ -44,6 +45,7 @@ export function deploymentCapabilities(
   const network = env().STELLAR_NETWORK;
   if (deployment.network !== network)
     throw new AppError("VALIDATION", "Deployment network does not match this environment");
+  if (hasRetiredPayrollInput(deployment)) throw new AppError("NOT_FOUND", PAYROLL_RETIRED_MESSAGE);
   const pipeline = PipelineSchema.safeParse(deployment.pipelineSnapshot);
   const nodes = pipeline.success ? pipeline.data : [];
   const head = nodes[0];
@@ -60,10 +62,7 @@ export function deploymentCapabilities(
       triggerType = "webhook";
       break;
     case "SUBSCRIPTION":
-      triggerType = headBlock?.type === "payroll" ? "payroll" : "subscription";
-      break;
-    case "PAYROLL":
-      triggerType = "payroll";
+      triggerType = "subscription";
       break;
     case "STREAMER":
       triggerType = "schedule";
@@ -221,7 +220,7 @@ export function deploymentCapabilities(
             [head!.nodeId],
           )
         : operation("unsupported", [
-            "Requires an unambiguous subscription-headed deployment; payroll and malformed snapshots are refused.",
+            "Requires an unambiguous subscription-headed deployment; retired and malformed snapshots are refused.",
           ]),
       subscriptionCancel: operation(
         stateCandidate ? "conditional" : "unsupported",
@@ -254,7 +253,7 @@ export function deploymentCapabilities(
         : operation(
             "unsupported",
             [
-              "Wallet-only subscription approval requires a subscription deployment; payroll and schedule flows use separate workflows.",
+              "Wallet-only subscription approval requires a subscription deployment; schedule flows use separate workflows.",
             ],
             [],
             "subscriber_wallet",

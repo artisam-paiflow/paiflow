@@ -29,7 +29,7 @@ export type ErrorClass =
   | "validation"
   | "unknown";
 
-export type WalletSurface = "deploy_review" | "trigger" | "contract_call" | "payroll";
+export type WalletSurface = "deploy_review" | "trigger" | "contract_call";
 
 /** Node types the alpha guide (§5) asks testers to build with. */
 export const IN_SCOPE_NODE_TYPES = ["on_receive", "pay", "split", "swap"] as const;
@@ -137,7 +137,7 @@ export type EventMap = {
   /**
    * One per envelope the app submitted, captured server-side from the same
    * code path that writes the `SignedTransaction` row, so it covers the
-   * payroll and contract-call panels (which emit no browser events), anonymous
+   * contract-call panels (which emit no browser events), anonymous
    * signers, and browsers with an ad blocker. `distinct_id` is the signer's
    * `User.id`, or `wallet:G…` with no person profile.
    */

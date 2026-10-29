@@ -85,7 +85,6 @@ function nodeToReactFlow(n: FlowNode, index: number, positions?: FlowGraph["posi
     case "webhook":
     case "web2_webhook":
     case "subscription":
-    case "payroll":
     case "oracle":
       type = "trigger";
       break;
@@ -123,7 +122,6 @@ function nodeBorderColor(n: FlowNode | undefined): string {
     case "webhook":
     case "web2_webhook":
     case "subscription":
-    case "payroll":
     case "oracle":
       return "#98cbff";
     case "pay":
@@ -1045,8 +1043,6 @@ function nodeLabel(n: FlowNode | undefined): string {
       return `HTTP Webhook (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "subscription":
       return `Subscription (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
-    case "payroll":
-      return `Payroll (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "oracle":
       return `Oracle (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "hold":

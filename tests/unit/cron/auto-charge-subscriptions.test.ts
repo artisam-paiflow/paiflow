@@ -17,7 +17,7 @@ vi.mock("@/lib/deployments/service-work", () => ({
  * everything its endpoint answers, so this cron must refuse a non-public URL
  * before connecting, never follow a redirect, and never quote upstream text back
  * — here into the cron's own result payload and the logs rather than a DB column,
- * since subscriptions have no `PayrollRun` equivalent.
+ * since subscriptions have no separate run-record table.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ChargeRelayerMode } from "@prisma/client";
@@ -484,5 +484,49 @@ describe("auto-charge-subscriptions state preflight", () => {
       where: { id: "dep-sub", serviceState: "ACTIVE", chargeScheduleRevision: 0 },
       data: { nextChargeAt: new Date((duePast + 86400) * 1000) },
     });
+  });
+});
+
+describe("retired payroll cannot fall back to subscription automation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockEnv.STELLAR_RELAYER_ADDRESS = "GDRELAYER";
+  });
+  it.each([
+    { flow: { templateKind: "PAYROLL" } },
+    { graphSnapshot: { nodes: [{ type: "payroll" }] } },
+    { paramsSnapshot: [{ params: { kind: "payroll_trigger" } }] },
+    { pipelineSnapshot: [{ templateKind: "PAYROLL", contractAddress: "C123" }] },
+  ])("skips already selected payroll work before RPC or tenant submission: %j", async (retired) => {
+    mockDb.deployment.findMany.mockResolvedValue([
+      {
+        id: "former-payroll",
+        chargeRelayerMode: ChargeRelayerMode.PLATFORM,
+        nextChargeAt: now,
+        pipelineSnapshot: [
+          { nodeId: "sub", templateKind: "SUBSCRIPTION", contractAddress: "C123" },
+        ],
+        ...retired,
+      },
+    ]);
+    const result = await (await POST(makeRequest("cron-secret"))).json();
+    expect(mockDb.deployment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ flow: { templateKind: { not: "PAYROLL" } } }),
+        select: expect.objectContaining({ flow: { select: { templateKind: true } } }),
+        take: expect.any(Number),
+      }),
+    );
+    expect(result.data.platformCharged).toBe(0);
+    expect(result.data.userCharged).toBe(0);
+    expect(result.data.details).toEqual([
+      expect.objectContaining({ status: "skipped", error: "Retired payroll instructions" }),
+    ]);
+    expect(mockRelayer.readSubscriptionIsCancelled).not.toHaveBeenCalled();
+    expect(mockRelayer.readSubscriptionState).not.toHaveBeenCalled();
+    expect(mockRelayer.prepareSubscriptionChargeByRelayerTx).not.toHaveBeenCalled();
+    expect(mockInvoke.prepareSubscriptionChargeByRelayerUnsigned).not.toHaveBeenCalled();
+    expect(mockRelayer.submitSubscriptionChargeByRelayerTx).not.toHaveBeenCalled();
+    expect(mockDb.deployment.updateMany).not.toHaveBeenCalled();
   });
 });

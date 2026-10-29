@@ -114,15 +114,16 @@ it("persists the prepared implementation bindings with their resolved addresses"
 it.each([undefined, "PENDING:owner", "invalid"])(
   "returns 422 VALIDATION for Return to owner with deploying wallet %s",
   async (sourceAccount) => {
-    const payrollGraph = {
+    const subscriptionGraph = {
       ...graph,
       nodes: [
         {
           id: "t",
-          type: "payroll",
+          type: "subscription",
           config: {
             asset: { kind: "native" },
-            employer: SOURCE,
+            subscriber: SOURCE,
+            amountPerPeriodStroops: "10000000",
             intervalAmount: 1,
             intervalUnit: "month",
           },
@@ -130,7 +131,7 @@ it.each([undefined, "PENDING:owner", "invalid"])(
         ...graph.nodes.slice(1),
       ],
     };
-    mockDb.flow.findFirst.mockResolvedValue({ id: FLOW, ownerId: "u", graph: payrollGraph });
+    mockDb.flow.findFirst.mockResolvedValue({ id: FLOW, ownerId: "u", graph: subscriptionGraph });
     const res = await POST({
       json: async () => ({ flowId: FLOW, sourceAccount }),
     } as unknown as import("next/server").NextRequest);

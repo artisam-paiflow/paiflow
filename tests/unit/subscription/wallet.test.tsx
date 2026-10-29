@@ -44,7 +44,7 @@ vi.mock("@creit.tech/stellar-wallets-kit", () => ({
 }));
 const hash = "a".repeat(64);
 const key = "paiflow_allowance_pending:deployment-id:testnet";
-function mount(kind: "SUBSCRIPTION" | "PAYROLL" = "SUBSCRIPTION") {
+function mount(kind: "SUBSCRIPTION" = "SUBSCRIPTION") {
   return render(
     <TriggerButton
       deploymentId="deployment-id"
@@ -221,13 +221,5 @@ describe("wallet-only subscription browser flow", () => {
     await approve();
     expect(mocks.poll).not.toHaveBeenCalled();
     expect(localStorage.getItem(key)).toBeNull();
-  });
-  it("retains payroll submission through its existing protected route", async () => {
-    mount("PAYROLL");
-    await approve();
-    expect(mocks.fetch.mock.calls.map((call) => call[0])).toEqual([
-      "/api/deployments/deployment-id/payroll-allowance",
-      "/api/deployments/deployment-id/submit-invoke",
-    ]);
   });
 });

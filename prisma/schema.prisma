@@ -14,6 +14,8 @@ enum Role {
 }
 
 enum TemplateKind {
+  /// Historical classification only. Payroll creation and execution remain retired.
+  PAYROLL
   SPLITTER
   STREAMER
   CONDITIONAL
@@ -28,7 +30,6 @@ enum TemplateKind {
   SWAPPER
   YIELD
   PAYER
-  PAYROLL
   /// A timelock with a "before" and an "after" next step (#721). Its own kind,
   /// so TIMELOCK contracts already deployed keep their ABI.
   TIMELOCK_BRANCH
@@ -56,13 +57,6 @@ enum ChargeRelayerMode {
   PLATFORM
   USER
   MANUAL
-}
-
-enum PayrollRunStatus {
-  PENDING
-  CHARGED
-  FAILED
-  CANCELLED
 }
 
 enum EventKind {
@@ -403,18 +397,18 @@ model Deployment {
   // Position within a large durable pipeline; each inventory reads one instance.
   ttlScanOffset           Int                    @default(0)
 
-  flow                 Flow                  @relation(fields: [flowId], references: [id], onDelete: Restrict)
-  owner                User                  @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  events               ContractEvent[]
-  cursor               EventCursor?
-  streamerClaimJobs    StreamerClaimJob[]
-  employees            Employee[]
-  payrollRuns          PayrollRun[]
-  apiTokens            DeploymentApiToken[]
-  signedTransactions   SignedTransaction[]
-  timelockReleases     TimelockRelease[]
-  webhookAttempts      WebhookAttempt[]
-  walletControlIntents WalletControlIntent[]
+  flow                  Flow                  @relation(fields: [flowId], references: [id], onDelete: Restrict)
+  owner                 User                  @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  historicalEmployees   Employee[]            @ignore
+  historicalPayrollRuns PayrollRun[]          @ignore
+  events                ContractEvent[]
+  cursor                EventCursor?
+  streamerClaimJobs     StreamerClaimJob[]
+  apiTokens             DeploymentApiToken[]
+  signedTransactions    SignedTransaction[]
+  timelockReleases      TimelockRelease[]
+  webhookAttempts       WebhookAttempt[]
+  walletControlIntents  WalletControlIntent[]
 
   @@unique([ownerId, idempotencyKey])
   @@index([ownerId, status, serviceState, id])
@@ -512,61 +506,6 @@ enum SignedTxKind {
   TRIGGER
   INVOKE
   API_EXECUTE
-}
-
-model Employee {
-  id            String   @id @default(uuid()) @db.Uuid
-  deploymentId  String   @db.Uuid
-  address       String
-  amountStroops String
-  label         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  deployment Deployment      @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
-  payouts    PayrollPayout[]
-
-  @@unique([deploymentId, address])
-  @@index([deploymentId])
-}
-
-model PayrollRun {
-  id           String           @id @default(uuid()) @db.Uuid
-  deploymentId String           @db.Uuid
-  runAt        DateTime
-  status       PayrollRunStatus @default(PENDING)
-  attemptCount Int              @default(0)
-  lastError    String?
-  txHash       String?          @unique
-  totalStroops String
-  chargedAt    DateTime?
-  failedAt     DateTime?
-  cancelledAt  DateTime?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-
-  deployment Deployment      @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
-  payouts    PayrollPayout[]
-
-  @@index([deploymentId, runAt])
-  @@index([deploymentId, createdAt])
-  @@index([status, runAt])
-  @@index([runAt])
-}
-
-model PayrollPayout {
-  id            String   @id @default(uuid()) @db.Uuid
-  payrollRunId  String   @db.Uuid
-  employeeId    String   @db.Uuid
-  amountStroops String
-  txHash        String?
-  createdAt     DateTime @default(now())
-
-  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
-  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-
-  @@index([payrollRunId])
-  @@index([employeeId])
 }
 
 model ContractEvent {
@@ -942,4 +881,73 @@ model WalletControlIntent {
   completedAt       DateTime?
 
   @@index([deploymentId, network, nodeId, state])
+}
+
+/// Historical storage only: excluded from generated runtime CRUD.
+enum PayrollRunStatus {
+  PENDING
+  CHARGED
+  FAILED
+  CANCELLED
+}
+
+/// Historical storage only: excluded from generated runtime CRUD.
+model Employee {
+  id            String   @id @default(uuid()) @db.Uuid
+  deploymentId  String   @db.Uuid
+  address       String
+  amountStroops String
+  label         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  deployment Deployment      @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  payouts    PayrollPayout[] @ignore
+
+  @@unique([deploymentId, address])
+  @@index([deploymentId])
+  @@ignore
+}
+
+/// Historical storage only: excluded from generated runtime CRUD.
+model PayrollRun {
+  id           String           @id @default(uuid()) @db.Uuid
+  deploymentId String           @db.Uuid
+  runAt        DateTime
+  status       PayrollRunStatus @default(PENDING)
+  attemptCount Int              @default(0)
+  lastError    String?
+  txHash       String?          @unique
+  totalStroops String
+  chargedAt    DateTime?
+  failedAt     DateTime?
+  cancelledAt  DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  deployment Deployment      @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  payouts    PayrollPayout[] @ignore
+
+  @@index([deploymentId, runAt])
+  @@index([deploymentId, createdAt])
+  @@index([status, runAt])
+  @@index([runAt])
+  @@ignore
+}
+
+/// Historical storage only: excluded from generated runtime CRUD.
+model PayrollPayout {
+  id            String   @id @default(uuid()) @db.Uuid
+  payrollRunId  String   @db.Uuid
+  employeeId    String   @db.Uuid
+  amountStroops String
+  txHash        String?
+  createdAt     DateTime @default(now())
+
+  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade) @ignore
+  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade) @ignore
+
+  @@index([payrollRunId])
+  @@index([employeeId])
+  @@ignore
 }

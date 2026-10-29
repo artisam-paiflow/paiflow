@@ -122,7 +122,6 @@ A trigger is the root of the graph and decides **when** money moves. Exactly one
 | ●   | `on_receive`   | The contract receives the configured asset (optional minimum)       | The default. Turns an address into a programmable inbox — the QR-code demo path.                  |
 | ●   | `on_schedule`  | A recurring interval elapses (minute … month, optional end / count) | Push payments the payer does not want to initiate by hand. Optionally pausable and reclaimable.   |
 | ●   | `subscription` | A period elapses **and** the subscriber has authorized an allowance | Pull payments. The subscriber consents once; the relayer charges per period without them signing. |
-| ●   | `payroll`      | A payroll period elapses, charged against the employer's allowance  | Subscription semantics with a recipient roster that changes between runs.                         |
 | ●   | `web2_webhook` | An authenticated HTTP call arrives at the deployment's trigger URL  | For callers with no Stellar key at all. Labelled **"HTTP Webhook"** in the builder.               |
 | ◦   | `webhook`      | A named relayer address invokes the contract                        | The Stellar-native variant of the above. Superseded by `web2_webhook`; hidden.                    |
 | ◦   | `oracle`       | A relayer reports a value that crosses the configured threshold     | Payment conditional on external state. The value is relayer-reported, not read from a feed.       |
@@ -135,6 +134,10 @@ extend the end and can reduce the number of payments. Repeated pause/resume call
 after the contract checks controller authorization and pause permission. Permitted retrieval
 while paused returns only holdings above vested, unpaid entitlement to the controller. Invalid
 stored accounting must fail closed rather than reduce earned entitlement or inflate retrieval.
+
+Payroll is retired (#1144): payroll graphs and prepared payroll deployments are refused, and
+there are no payroll management or automation surfaces. See [the retirement procedure](docs/payroll-retirement.md).
+Ordinary subscriptions and crypto splits remain supported.
 
 ### 3.2 Actions
 
@@ -256,16 +259,15 @@ The block library is what a user assembles. This is the rest of the product surf
 have no palette entry. Each is one line plus where the truth lives; nothing here restates an
 implementation.
 
-| Surface                    | What it is                                                                                                                                                                          | Where it lives                                                                           |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| **Relayer automation**     | Why `on_schedule`, `subscription`, `payroll` and timelock conditions fire at all. Paiflow's own key signs `*_by_relayer` calls on a cron so the user doesn't sign every period.     | `app/api/cron/*`, `lib/stellar/relayer.ts`; [`CLAUDE.md` §2](./CLAUDE.md#2-architecture) |
-| **Payroll**                | A recipient roster that changes between runs: employees, crypto recipients, per-run payout records, and a catch-up limit so a lapsed schedule can't fire a year of charges at once. | `Employee`, `PayrollRun`, `PayrollPayout`; `cron/auto-charge-payroll`                    |
-| **QR-triggered execution** | Every deployment renders a public SEP-7 URL. Anyone with a wallet can scan, sign, and fire it — no account on Paiflow required.                                                     | `/trigger/[deploymentId]`                                                                |
-| **Live event feed**        | On-chain events are ingested, never trusted from the client: cron poll → `ContractEvent` → Redis → SSE to the open page.                                                            | [`CLAUDE.md` §2](./CLAUDE.md#2-architecture)                                             |
-| **Raft Log**               | Edit a flow by voice or text. Speech → transcript → a JSON patch that must pass the same validator as a hand-drawn edit before it touches the graph.                                | `/api/transcribe`, `/api/flows/[id]/edit`                                                |
-| **Address book**           | Saved labels for Stellar addresses, reused by the builder and given to the AI so "pay Alice" resolves.                                                                              | `AddressBookEntry`, `lib/address-book.ts`                                                |
-| **Admin console**          | Users and the audit log.                                                                                                                                                            | `/admin/*`                                                                               |
-| **Deploys via a factory**  | One transaction deploys a whole pipeline, with child addresses pre-computed from deterministic salts.                                                                               | [`docs/soroban-smart-contracts.md`](./docs/soroban-smart-contracts.md) §4                |
+| Surface                    | What it is                                                                                                                                                           | Where it lives                                                                           |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **Relayer automation**     | Why `on_schedule`, `subscription` and timelock conditions fire at all. Paiflow's own key signs `*_by_relayer` calls on a cron so the user doesn't sign every period. | `app/api/cron/*`, `lib/stellar/relayer.ts`; [`CLAUDE.md` §2](./CLAUDE.md#2-architecture) |
+| **QR-triggered execution** | Every deployment renders a public SEP-7 URL. Anyone with a wallet can scan, sign, and fire it — no account on Paiflow required.                                      | `/trigger/[deploymentId]`                                                                |
+| **Live event feed**        | On-chain events are ingested, never trusted from the client: cron poll → `ContractEvent` → Redis → SSE to the open page.                                             | [`CLAUDE.md` §2](./CLAUDE.md#2-architecture)                                             |
+| **Raft Log**               | Edit a flow by voice or text. Speech → transcript → a JSON patch that must pass the same validator as a hand-drawn edit before it touches the graph.                 | `/api/transcribe`, `/api/flows/[id]/edit`                                                |
+| **Address book**           | Saved labels for Stellar addresses, reused by the builder and given to the AI so "pay Alice" resolves.                                                               | `AddressBookEntry`, `lib/address-book.ts`                                                |
+| **Admin console**          | Users and the audit log.                                                                                                                                             | `/admin/*`                                                                               |
+| **Deploys via a factory**  | One transaction deploys a whole pipeline, with child addresses pre-computed from deterministic salts.                                                                | [`docs/soroban-smart-contracts.md`](./docs/soroban-smart-contracts.md) §4                |
 
 Two things deliberately absent: there is **no** per-deploy network picker (the network is pinned per
 environment — [`CLAUDE.md` §7.5](./CLAUDE.md#75-networks)), and **no** in-app changelog. Feature
@@ -365,7 +367,7 @@ Consequences worth stating as product requirements rather than implementation de
 - **Amounts are integers, always.** Stroops as strings at every boundary; a float loses precision at
   exactly the resolution a stroop encodes.
 - **Deployment configuration is validated before signing.** There is no dev-mode contract
-  family or deferred-configuration bypass. Supported standard controls and payroll operations
+  family or deferred-configuration bypass. Supported standard controls
   retain their explicit authorization rules.
 - **Generic auth errors, specific audit logs.** The user learns nothing from a failed login; the
   audit log records everything about it.

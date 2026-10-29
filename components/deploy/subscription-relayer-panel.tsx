@@ -20,11 +20,9 @@ type RelayerConfig = {
 export default function SubscriptionRelayerPanel({
   deploymentId,
   network,
-  kind = "subscription",
 }: {
   deploymentId: string;
   network: StellarNetwork;
-  kind?: "subscription" | "payroll";
 }) {
   const [config, setConfig] = useState<RelayerConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,7 +39,7 @@ export default function SubscriptionRelayerPanel({
 
   const fetchConfig = async () => {
     try {
-      const res = await fetch(`/api/deployments/${deploymentId}/${kind}-relayer`);
+      const res = await fetch(`/api/deployments/${deploymentId}/subscription-relayer`);
       if (!res.ok) throw new Error("Failed to load relayer config");
       const json = (await res.json()) as { data: RelayerConfig };
       setConfig(json.data);
@@ -69,7 +67,7 @@ export default function SubscriptionRelayerPanel({
         payload.token = token || undefined;
         payload.relayerAddress = relayerAddress;
       }
-      const res = await fetch(`/api/deployments/${deploymentId}/${kind}-relayer`, {
+      const res = await fetch(`/api/deployments/${deploymentId}/subscription-relayer`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
@@ -266,7 +264,7 @@ export default function SubscriptionRelayerPanel({
           <ContractCallButton
             deploymentId={deploymentId}
             network={network}
-            actionKey={`${kind}-relayer:${pendingXdr}:${pendingPassphrase}`}
+            actionKey={`subscription-relayer:${pendingXdr}:${pendingPassphrase}`}
             label="CONFIRM ON-CHAIN RELAYER"
             busyLabel="CONFIRMING…"
             icon="verified"

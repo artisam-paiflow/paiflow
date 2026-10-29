@@ -234,26 +234,6 @@ describe("deployment capabilities", () => {
       expect(JSON.stringify(result)).not.toContain(ACCOUNT);
     },
   );
-  it("does not mistake decomposed payroll for public subscription approval", async () => {
-    authorize({
-      graphSnapshot: {
-        ...graph,
-        nodes: [
-          {
-            id: "trigger",
-            type: "payroll",
-            config: { asset: { kind: "native" }, employer: ACCOUNT },
-          },
-          pay,
-        ],
-      },
-      pipelineSnapshot: [{ ...pipeline[0], templateKind: "SUBSCRIPTION" }, pipeline[1]],
-    });
-    const result = await data();
-    expect(result.triggerType).toBe("payroll");
-    expect(result.operations.subscriptionState.status).toBe("unsupported");
-    expect(result.operations.subscriptionAllowance.status).toBe("unsupported");
-  });
   it.each(["STREAMER", "ORACLE"])("does not offer execute for %s", async (kind) => {
     authorize({ pipelineSnapshot: [{ ...pipeline[0], templateKind: kind }] });
     expect((await data()).operations.execute.status).toBe("unsupported");

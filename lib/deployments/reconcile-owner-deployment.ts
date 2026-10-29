@@ -71,20 +71,11 @@ export async function reconcileOwnerDeployment(deployment: Deployment): Promise<
   )
     return;
   const historicalKind =
-    triggers[0]!.type === "payroll"
-      ? TemplateKind.PAYROLL
-      : triggers[0]!.type === "subscription"
-        ? TemplateKind.SUBSCRIPTION
-        : (first.templateKind as TemplateKind);
-  if (
-    !["payroll", "subscription"].includes(triggers[0]!.type) &&
-    [TemplateKind.PAYROLL, TemplateKind.SUBSCRIPTION].some((kind) => kind === historicalKind)
-  )
-    return;
-  if (triggers[0]!.type === "subscription" && !["SUBSCRIPTION"].includes(first.templateKind))
-    return;
-  if (triggers[0]!.type === "payroll" && !["PAYROLL", "SUBSCRIPTION"].includes(first.templateKind))
-    return;
+    triggers[0]!.type === "subscription"
+      ? TemplateKind.SUBSCRIPTION
+      : (first.templateKind as TemplateKind);
+  if (triggers[0]!.type !== "subscription" && historicalKind === TemplateKind.SUBSCRIPTION) return;
+  if (triggers[0]!.type === "subscription" && first.templateKind !== "SUBSCRIPTION") return;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let got;
   try {

@@ -93,22 +93,6 @@ export const TEMPLATES: Template[] = [
       },
     }),
   },
-  {
-    group: "Triggers",
-    label: "Payroll",
-    icon: "group",
-    feature: "payroll",
-    make: () => ({
-      id: makeId("payroll"),
-      type: "payroll",
-      config: {
-        asset: { kind: "known", symbol: "USDC" },
-        employer: "PENDING:employer",
-        intervalAmount: 1,
-        intervalUnit: "week",
-      },
-    }),
-  },
   // Hidden: Oracle trigger.
   {
     group: "Triggers",

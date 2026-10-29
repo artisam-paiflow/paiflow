@@ -322,92 +322,6 @@ const SUBSCRIPTION_REGISTRY: EventRegistry = {
     },
   },
 };
-const PAYROLL_REGISTRY: EventRegistry = {
-  charge: {
-    kind: EventKind.RECEIVE,
-    decode: (topics, value) => {
-      const employer = topics[1] ?? null;
-      const amount = value ?? null;
-      return employer && amount !== null ? { employer, amount } : null;
-    },
-  },
-  payout: {
-    kind: EventKind.PAYOUT,
-    decode: (topics, value) => {
-      const employer = topics[1] ?? null;
-      const recipients = value ?? null;
-      return employer && recipients !== null ? { employer, recipients } : null;
-    },
-  },
-  recipient_updated: {
-    kind: EventKind.RECIPIENT_UPDATED,
-    decode: (topics, value) => {
-      const admin = topics[1] ?? null;
-      const recipients = value ?? null;
-      return admin && recipients !== null ? { admin, recipients } : null;
-    },
-  },
-  cancel: {
-    kind: EventKind.STATUS_CHANGE,
-    decode: (topics) => {
-      const employer = topics[1] ?? null;
-      return employer ? { employer } : null;
-    },
-  },
-  subscribe: {
-    kind: EventKind.STATUS_CHANGE,
-    decode: (topics) => {
-      const employer = topics[1] ?? null;
-      return employer ? { employer } : null;
-    },
-  },
-  set_relayer: {
-    kind: EventKind.STATUS_CHANGE,
-    decode: (topics, value) => {
-      const admin = topics[1] ?? null;
-      const relayer = value ?? null;
-      return admin && relayer !== null ? { admin, relayer } : null;
-    },
-  },
-  subscriber_updated: {
-    kind: EventKind.STATUS_CHANGE,
-    decode: (topics, value) => {
-      const admin = topics[1] ?? null;
-      const subscriber = value ?? null;
-      return admin ? { admin, subscriber } : null;
-    },
-  },
-  amount_updated: {
-    kind: EventKind.STATUS_CHANGE,
-    decode: (topics, value) => {
-      const admin = topics[1] ?? null;
-      const amount = value ?? null;
-      return admin ? { admin, amount } : null;
-    },
-  },
-  schedule_updated: {
-    kind: EventKind.STATUS_CHANGE,
-    decode: (topics, value) => {
-      const admin = topics[1] ?? null;
-      if (!admin || value === null) return null;
-      let startTime: ScValNative | undefined;
-      let intervalSeconds: ScValNative | undefined;
-      let endTime: ScValNative | undefined;
-      if (Array.isArray(value)) {
-        const v = value as ScValNative[];
-        [startTime, intervalSeconds, endTime] = v;
-      } else if (typeof value === "object") {
-        const v = value as Record<string, ScValNative>;
-        startTime = v[0];
-        intervalSeconds = v[1];
-        endTime = v[2];
-      }
-      return startTime !== undefined && intervalSeconds !== undefined && endTime !== undefined
-        ? { admin, startTime, intervalSeconds, endTime }
-        : { admin };
-    },
-  },
-};
 const ORACLE_REGISTRY: EventRegistry = {
   execute: {
     kind: EventKind.RECEIVE,
@@ -506,8 +420,6 @@ function getRegistry(templateKind: TemplateKind): EventRegistry {
       return WEBHOOK_REGISTRY;
     case TemplateKind.SUBSCRIPTION:
       return SUBSCRIPTION_REGISTRY;
-    case TemplateKind.PAYROLL:
-      return PAYROLL_REGISTRY;
     case TemplateKind.ORACLE:
       return ORACLE_REGISTRY;
     case TemplateKind.ROUTER:
@@ -866,7 +778,7 @@ function resolveAssetSymbols(
 }
 /**
  * Most inbound events carry no asset topic — deposit_trigger, webhook,
- * subscription, payroll, streamer deposit and yield all keep the asset in
+ * subscription, streamer deposit and yield all keep the asset in
  * instance storage and publish only the sender and the amount. Stamp the
  * emitting node's inbound asset so the row is self-describing: the live feed and
  * the partner API both read `decodedData` with no access to the graph.

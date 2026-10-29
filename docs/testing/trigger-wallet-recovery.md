@@ -1,6 +1,6 @@
 # Trigger wallet safety and recovery (#1003)
 
-Payment triggers, deposits, and payroll allowance approvals use the same
+Payment triggers, deposits, and subscription allowance approvals use the same
 hash-only recovery marker and browser Web Lock as contract controls. The marker
 contains only the signed transaction's locally verified hash; signed envelopes
 are never persisted. A browser without reliable recovery storage or Web Locks

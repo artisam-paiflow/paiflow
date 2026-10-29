@@ -226,12 +226,7 @@ describe("a sandbox session cannot deploy a relayer-driven pipeline", () => {
   it("names only wallet-signed kinds as deployable", () => {
     // Guards the production constant: adding a relayer-driven kind to it would
     // reopen the hole, so the list is asserted rather than trusted.
-    for (const kind of [
-      TemplateKind.SUBSCRIPTION,
-      TemplateKind.PAYROLL,
-      TemplateKind.STREAMER,
-      TemplateKind.WEBHOOK,
-    ]) {
+    for (const kind of [TemplateKind.SUBSCRIPTION, TemplateKind.STREAMER, TemplateKind.WEBHOOK]) {
       expect(SANDBOX_TEMPLATE_KINDS).not.toContain(kind);
     }
   });

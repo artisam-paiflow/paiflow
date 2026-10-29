@@ -7,6 +7,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Removed
 
+- Payroll trigger, owner management APIs, scheduled payroll charges, contract build target and payroll capability/SDK metadata (#1144). Preserve historical payroll storage and the reviewed cancelled TESTNET fixture while refusing new or resumed payroll work. See [payroll retirement](docs/payroll-retirement.md) for the corrective migration disposition, cutover requirements and intentional compatibility exception.
+
 - Retire fiat off-ramping, bank/KYC editors, provider processing and callbacks, Cash Out
   contracts and deployment support (#1141). New Pay/Split/payroll flows use crypto recipients.
   Remove verified blank bank fields from saved graphs/deployment graph snapshots and drop
@@ -54,6 +56,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 - Update the Rust contract workspace's transitive `serde_with` and `serde_with_macros` dependencies to 3.21.0 to fix the KeyValueMap serialization panic ([GHSA-7gcf-g7xr-8hxj](https://github.com/advisories/GHSA-7gcf-g7xr-8hxj)).
 
 ### Fixed
+
+- Preserve the reviewed cancelled payroll deployment, roster, original transaction identities and audit history during payroll retirement; retain historical schema without active payroll CRUD and block payroll recovery, ordinary-subscription admission and TTL spending. Support both unapplied and completed original-cleanup migration histories with explicit checksum checks and a forward schema restoration (#1144, #1146).
 
 - Encode public embed customer-payment QR links using the configured public app URL so reverse-proxy container addresses do not reach customers (#577).
 

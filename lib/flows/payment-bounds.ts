@@ -14,8 +14,6 @@ function rangeIssue(path: string): ValidationIssue {
 }
 /** Deployment checks only: incomplete amounts must remain saveable as drafts. */
 export function paymentAmountIssues(graph: FlowGraph): ValidationIssue[] {
-  // Mutable contract improvements and payroll are separate workstreams (#795).
-  if (graph.nodes.some((n) => n.type === "payroll")) return [];
   const issues: ValidationIssue[] = [];
   const scheduled = graph.nodes.some((n) => n.type === "on_schedule");
   for (const node of graph.nodes) {

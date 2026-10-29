@@ -152,18 +152,15 @@ describe("public embed reads", () => {
       expect(mocks.qr).not.toHaveBeenCalled();
     },
   );
-  it.each(["SUBSCRIPTION", "PAYROLL", "SCHEDULER", "ORACLE"])(
-    "omits payment QR for %s",
-    async (kind) => {
-      mocks.deployment.mockResolvedValue({
-        ...row(),
-        flow: { templateKind: kind },
-        pipelineSnapshot: [{ templateKind: kind }],
-      });
-      expect((await qr(req("qr"), ctx())).status).toBe(404);
-      expect(mocks.qr).not.toHaveBeenCalled();
-    },
-  );
+  it.each(["SUBSCRIPTION", "SCHEDULER", "ORACLE"])("omits payment QR for %s", async (kind) => {
+    mocks.deployment.mockResolvedValue({
+      ...row(),
+      flow: { templateKind: kind },
+      pipelineSnapshot: [{ templateKind: kind }],
+    });
+    expect((await qr(req("qr"), ctx())).status).toBe(404);
+    expect(mocks.qr).not.toHaveBeenCalled();
+  });
 });
 describe("public SSE lifecycle", () => {
   it("subscribes before safe catch-up, then catches later Redis notifications", async () => {

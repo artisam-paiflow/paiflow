@@ -146,10 +146,7 @@ export async function apiRequestReport(input: z.infer<typeof ApiRequestReportSch
             AND environment=${options.environment} AND audience=${options.audience}::"AnalyticsAudience"
             AND "occurredAt">=${start} AND "occurredAt"<${end}), jobs AS (
           SELECT 'streamer' AS kind, j.status::text AS status, j."attemptCount" AS attempts, j."runAt", j."claimedAt" AS finished
-          FROM "StreamerClaimJob" j JOIN deployments d ON d.id=j."deploymentId" WHERE j."runAt">=${start} AND j."runAt"<${end}
-          UNION ALL
-          SELECT 'payroll', j.status::text, j."attemptCount", j."runAt", j."chargedAt"
-          FROM "PayrollRun" j JOIN deployments d ON d.id=j."deploymentId" WHERE j."runAt">=${start} AND j."runAt"<${end})
+          FROM "StreamerClaimJob" j JOIN deployments d ON d.id=j."deploymentId" WHERE j."runAt">=${start} AND j."runAt"<${end})
         SELECT kind, status, count(*)::text AS jobs, sum(attempts)::text AS attempts,
           avg(EXTRACT(EPOCH FROM (finished-"runAt"))) FILTER (WHERE finished IS NOT NULL) AS mean_completion_lag_seconds
         FROM jobs GROUP BY kind,status ORDER BY kind,status`;
@@ -194,10 +191,10 @@ export async function apiRequestReport(input: z.infer<typeof ApiRequestReportSch
       recovery:
         "Failed submit HTTP responses followed by successful same-hash HTTP submit within 24h and confirmed chain outcome at report time; failure requests are denominator, not distinct intents.",
       scheduled_jobs:
-        "Jobs due in window on deployments with recorded requests in the selected environment/audience; streamer and payroll only. Excludes other cron schedules; completion lag is finish minus scheduled runAt.",
+        "Jobs due in window on deployments with recorded requests in the selected environment/audience; streamer only. Excludes other cron schedules; completion lag is finish minus scheduled runAt.",
       weeks: "UTC Monday weeks; confirmed accounts linked to requests in that week",
       limitations:
-        "Wrapper-only; no openapi/demo-token, middleware refusals, interrupted handlers or undelivered telemetry. Retention is 30 days. Preparation links are opt-in, not proof of abandonment; 24h recovery covers same hashes only. Jobs cover streamer/payroll jobs on deployments observed in this request window; no complete scheduled-payment or cost coverage is claimed. Existing usage-v2 report covers broader flow/deploy/execution adoption.",
+        "Wrapper-only; no openapi/demo-token, middleware refusals, interrupted handlers or undelivered telemetry. Retention is 30 days. Preparation links are opt-in, not proof of abandonment; 24h recovery covers same hashes only. Jobs cover streamer jobs on deployments observed in this request window; no complete scheduled-payment or cost coverage is claimed. Existing usage-v2 report covers broader flow/deploy/execution adoption.",
     },
   };
 }

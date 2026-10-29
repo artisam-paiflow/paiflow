@@ -7,7 +7,7 @@ export const WalletConnectionSchema = z
     address: z.string().refine(StrKey.isValidEd25519PublicKey, "Invalid Stellar address"),
     network: z.enum(["testnet", "mainnet"]),
     walletId: z.string().trim().min(1).max(64),
-    surface: z.enum(["deploy_review", "trigger", "contract_call", "payroll"]),
+    surface: z.enum(["deploy_review", "trigger", "contract_call"]),
   })
   .strict();
 export type WalletConnectionInput = z.infer<typeof WalletConnectionSchema>;
