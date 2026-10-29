@@ -1,15 +1,32 @@
 # Hackathon showcase — pending content
 
-2026-10-24 · Issue #1090
+Updated 2026-10-29 · Issue #1090
 
-The repository's required `.codex/pending-questions/` location is read-only in the
-working sandbox and absent from the escalated filesystem. This note preserves the
-nonblocking questions until it can be moved to that location.
+## Content decisions resolved
 
-- **JRU team-to-project attribution:** Which team/photo belongs to each winning project, and what are the approved team display names? Project placements and repositories are confirmed, but their mapping to the supplied team photos is not. Winners remain separate from the neutral team gallery. Team captions use YOLO, FourKey, UhmTryLang and TypeShift, as visible on the supplied photos' presentation screens; filename numbers are not treated as award placements. Confirm team spelling and mapping before combining photos with winner cards.
-- **JRU project spelling:** The second-place project's display name uses “Streamer Tip Jar” from its README rather than the supplied “Steamer TipJar”; confirm if another public spelling is preferred.
-- **Photo credits:** Are photographer credits required for any supplied photos? User-provided images are used in the local draft; no photographer attribution is invented. Confirm credits and final photo selection before publication.
-- **NVC results:** Winner details and repositories are unavailable. The NVC Aklan page presents event photos and an overview without winner sections or empty placeholders.
+On October 29, the user confirmed the JRU teams in order from first through fourth:
+
+| Placement      | Team       | Project          |
+| -------------- | ---------- | ---------------- |
+| Champion / 1st | YOLO       | Hima × Paiflow   |
+| 2nd            | FourKey    | Streamer Tip Jar |
+| 3rd            | UhmTryLang | Padala-Pabalik   |
+| 4th            | TypeShift  | Not supplied     |
+
+The JRU page now names the teams on the three winning-project cards and shows
+placements on all four team photos. No fourth-place project name or repository
+is inferred.
+
+The second-place project retains its repository's spelling, “Streamer Tip Jar.”
+The user authorized this content update after that spelling was explained.
+Photographer credits and final photo/copy approval were explicitly removed as
+blockers by the user on October 29. No content questions block the initial showcase.
+
+## Optional future content
+
+NVC winner details and repositories remain unavailable. The NVC Aklan page
+presents event photos and an overview without winner sections or empty
+placeholders; results can be added later when supplied.
 
 Dates and challenge summaries come from the existing JRU and Aklan event primers.
 NVC's expanded name and Kalibo location are visible on the entrance photograph.

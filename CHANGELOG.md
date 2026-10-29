@@ -7,6 +7,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Add confirmed JRU team names to winning-project cards and first-through-fourth placements to the team photo gallery (#1090).
+
 - Run Node CI checks, the full unit suite, and build/SSE verification in parallel while retaining the required `node` gate and all existing checks; cache Next.js build data between compatible host builds (#1129).
 
 - Add 20-entry pagination to the admin audit log, display timestamps in the admin’s browser timezone with UTC available on hover, and fix skipped events between pages (#1102).
