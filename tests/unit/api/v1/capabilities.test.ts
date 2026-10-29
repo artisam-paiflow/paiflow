@@ -289,7 +289,7 @@ describe("deployment capabilities", () => {
             config: {
               ...pay.config,
               email: "private-recipient@example.test",
-              accountNumber: "private-bank-value",
+              privateCustomerReference: "private-bank-value",
             },
           },
         ],

@@ -8,10 +8,7 @@ function renderPreview(overrides: Partial<React.ComponentProps<typeof EnglishPre
   const props = {
     english: SENTENCE,
     showValidBadge: true,
-    hasFiatPayout: false,
-    hasSenderKyc: false,
     errorCount: 0,
-    onOpenKyc: vi.fn(),
     onOpenErrors: vi.fn(),
     ...overrides,
   };
@@ -41,13 +38,8 @@ describe("EnglishPreview", () => {
     await userEvent.click(errors);
     expect(props.onOpenErrors).toHaveBeenCalledOnce();
   });
-  it("shows the Sender KYC button for fiat payouts", async () => {
-    const props = renderPreview({ hasFiatPayout: true });
-    await userEvent.click(screen.getByRole("button", { name: /Sender KYC/ }));
-    expect(props.onOpenKyc).toHaveBeenCalledOnce();
-  });
   it("has no axe violations", async () => {
-    renderPreview({ hasFiatPayout: true, errorCount: 1, showValidBadge: false });
+    renderPreview({ errorCount: 1, showValidBadge: false });
     const results = await axe.run(document.body, { rules: { region: { enabled: false } } });
     expect(results.violations).toEqual([]);
   });

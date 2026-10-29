@@ -32,6 +32,7 @@ vi.mock("@/components/deploy/deployment-canvas", () => ({
 }));
 vi.mock("@/components/deploy/deployment-view", () => ({ default: () => <div>Owner view</div> }));
 vi.mock("@/components/deploy/api-access-panel", () => ({ default: () => null }));
+vi.mock("@/components/deploy/retirement-panel", () => ({ default: () => null }));
 vi.mock("@/components/app/topbar", () => ({ default: () => null }));
 
 import EmbedPage from "@/app/deployments/[deploymentId]/embed/page";
@@ -46,14 +47,7 @@ const ADDRESS = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const PRIVATE = "synthetic-private-marker";
 const graph = {
   notify: { mode: "every_transaction", sendTo: `${PRIVATE}@example.com` },
-  senderKyc: {
-    firstName: PRIVATE,
-    lastName: PRIVATE,
-    countryOrigin: "PH",
-    sourceOfFunds: PRIVATE,
-    phoneNumber: PRIVATE,
-    nationalIdentityNumber: PRIVATE,
-  },
+  privateMetadata: PRIVATE,
   nodes: [
     {
       id: "hook",
@@ -68,9 +62,7 @@ const graph = {
         asset: { kind: "native" },
         fullAmount: true,
         email: `${PRIVATE}@example.com`,
-        accountName: PRIVATE,
-        accountNumber: PRIVATE,
-        bankCode: PRIVATE,
+        privateCustomerReference: PRIVATE,
       },
     },
     {
@@ -85,7 +77,7 @@ const graph = {
             bps: 10000,
             email: `${PRIVATE}@example.com`,
             label: PRIVATE,
-            accountNumber: PRIVATE,
+            privateCustomerReference: PRIVATE,
           },
         ],
       },
@@ -97,6 +89,7 @@ function fixture() {
   return {
     id: ID,
     status: "CONFIRMED",
+    serviceState: "ACTIVE",
     contractAddress: "C" + "A".repeat(55),
     network: "testnet",
     webhookSecret: PRIVATE,
@@ -238,6 +231,13 @@ describe("public embed server/browser boundary", () => {
     const before = JSON.stringify(row);
     projectPublicEmbed(row);
     expect(JSON.stringify(row)).toBe(before);
+  });
+  it("refuses retired bank configuration instead of publishing a new payment link", async () => {
+    const row = fixture();
+    row.graphSnapshot = { ...row.graphSnapshot, senderKyc: { firstName: PRIVATE } } as typeof graph;
+    db.deployment.findUnique.mockResolvedValue(row);
+    expect(projectPublicEmbed(row)).toBeNull();
+    await expect(EmbedPage({ params: params() })).rejects.toThrow("NOT_FOUND");
   });
 });
 

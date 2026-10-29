@@ -26,7 +26,7 @@ describe("irreversible service confirmation schemas", () => {
   });
   it("requires a specific recovery record, verification, and meaningful evidence", () => {
     const valid = {
-      kind: "offramp",
+      kind: "work",
       id: "11111111-1111-4111-8111-111111111111",
       evidence: "Provider recovery record verified by operator",
       confirmation: "Verified no remaining obligation",
@@ -95,4 +95,15 @@ it("requires explicit worker fencing evidence separately from obligation complet
     { ...valid, outcome: "SUCCESS" },
   ])
     expect(SettlementVerificationSchema.safeParse(body).success).toBe(false);
+});
+
+it("rejects the retired off-ramp settlement mutation", () => {
+  expect(
+    SettlementVerificationSchema.safeParse({
+      kind: "offramp",
+      id: "11111111-1111-4111-8111-111111111111",
+      evidence: "Archived provider evidence",
+      confirmation: "Verified no remaining obligation",
+    }).success,
+  ).toBe(false);
 });

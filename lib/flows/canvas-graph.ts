@@ -35,8 +35,6 @@ function nodeLabel(n: FlowNode): string {
       return `Swap (${assetLabel(n.config.assetIn)} → ${assetLabel(n.config.assetOut)})`;
     case "yield":
       return `Yield (${assetLabel(n.config.asset)})`;
-    case "cash_out":
-      return `Cash Out (${assetLabel(n.config.asset)})`;
     case "condition":
       return `Condition (${n.config.kind})`;
     default:

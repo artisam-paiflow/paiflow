@@ -64,7 +64,7 @@ async function GETHandler(
       const byWallet = new Map(employees.map((e) => [e.address, e]));
       const recipients = rawRecipients.map((r) => {
         const employee = byWallet.get(r.address);
-        const payoutMode: "crypto" | "fiat" = employee?.payoutMode === "FIAT" ? "fiat" : "crypto";
+        const payoutMode = "crypto" as const;
         return {
           address: r.address,
           amount: r.amount,
@@ -92,32 +92,12 @@ async function GETHandler(
       where: { deploymentId: id },
     });
     const byWallet = new Map(employees.map((e) => [e.address, e]));
-    const byCashOut = new Map(
-      employees.filter((e) => e.cashOutContractAddress).map((e) => [e.cashOutContractAddress!, e]),
-    );
-    const recipients = chainRecipients.map((r) => {
-      const fiatEmployee = byCashOut.get(r.address);
-      if (fiatEmployee) {
-        return {
-          address: fiatEmployee.address,
-          amount: r.amount,
-          payoutMode: "fiat" as const,
-          label: fiatEmployee.label ?? undefined,
-        };
-      }
-      const cryptoEmployee = byWallet.get(r.address);
-      const isContract = r.address.length > 0 && r.address.startsWith("C");
-      const payoutMode: "crypto" | "fiat" =
-        cryptoEmployee?.payoutMode === "FIAT" || (isContract && !cryptoEmployee)
-          ? "fiat"
-          : "crypto";
-      return {
-        address: cryptoEmployee?.address ?? r.address,
-        amount: r.amount,
-        payoutMode,
-        label: cryptoEmployee?.label ?? undefined,
-      };
-    });
+    const recipients = chainRecipients.map((r) => ({
+      address: r.address,
+      amount: r.amount,
+      payoutMode: "crypto" as const,
+      label: byWallet.get(r.address)?.label ?? undefined,
+    }));
     return NextResponse.json({
       data: {
         recipients,

@@ -40,7 +40,6 @@ function Owned({
       trigger={TRIGGER}
       sourceAmount={undefined}
       addressBook={[]}
-      offrampEnabled={false}
       sandbox
       fieldErrors={errors}
       onChange={(next) => {
@@ -123,68 +122,5 @@ describe("Split on shared inputs", () => {
     );
     const { violations } = await axe.run(container, { rules: { region: { enabled: false } } });
     expect(violations.map((v) => v.id)).toEqual([]);
-  });
-});
-
-it("lets a payroll author enter every immutable bank field and displays recipient field errors", async () => {
-  const user = userEvent.setup();
-  const spy = vi.fn<(node: SplitNode) => void>();
-  const payroll: FlowNode = {
-    id: "t",
-    type: "payroll",
-    config: {
-      asset: { kind: "known", symbol: "USDC" },
-      employer: "PENDING:employer",
-      intervalAmount: 1,
-      intervalUnit: "week",
-    },
-  };
-  const errors = new Map([
-    ["recipients.0.accountName", "Enter the account name for this fiat recipient."],
-    ["recipients.0.accountNumber", "Enter the account number for this fiat recipient."],
-    ["recipients.0.bankCode", "Enter the bank code for this fiat recipient."],
-  ]);
-  function PayrollEditor() {
-    const [node, setNode] = useState<SplitNode>({
-      id: "s",
-      type: "split",
-      config: {
-        asset: { kind: "known", symbol: "USDC" },
-        recipients: [
-          {
-            address: "PENDING:salary",
-            label: "Employee",
-            mode: "fixed",
-            amountStroops: "10000000",
-            payoutMode: "fiat",
-          },
-        ],
-      },
-    });
-    return (
-      <SplitRecipientsEditor
-        node={node}
-        trigger={payroll}
-        sourceAmount={undefined}
-        addressBook={[]}
-        offrampEnabled
-        fieldErrors={errors}
-        onChange={(next) => {
-          if (next.type !== "split") throw new Error("Expected Split");
-          spy(next);
-          setNode(next);
-        }}
-      />
-    );
-  }
-  render(<PayrollEditor />);
-  for (const message of errors.values()) expect(screen.getByText(message)).toBeTruthy();
-  await user.type(screen.getByRole("textbox", { name: /Account name/ }), "Recipient");
-  await user.type(screen.getByRole("textbox", { name: /Account number/ }), "1234567890");
-  await user.selectOptions(screen.getByRole("combobox", { name: /^Bank/ }), "BASECPH");
-  expect(latest(spy).config.recipients[0]).toMatchObject({
-    accountName: "Recipient",
-    accountNumber: "1234567890",
-    bankCode: "BASECPH",
   });
 });

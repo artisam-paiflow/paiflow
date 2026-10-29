@@ -8,7 +8,6 @@ export function changesDashboardBalance(kind: string): boolean {
     "SHORTFALL",
     "FORWARD",
     "RETRIEVE",
-    "CASH_OUT",
     "ALLOWANCE",
   ].includes(kind);
 }

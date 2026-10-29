@@ -16,7 +16,8 @@ their token tooling and v1 per-payment-recipient payouts are removed. The scoped
 `pfk_` credential families remain supported for their documented operations. Retained payroll
 management requires an authenticated owner session, with its existing sandbox restrictions;
 it has no legacy dev-token fallback. Standard payment execution still uses configured recipients.
-Shared native treasury deposits and refunds remain financial operations independent of dev mode.
+At that removal, native treasury deposits and refunds remained independent of dev mode.
+The subsequent [off-ramp retirement](offramp-retirement.md) removes their remaining provider-only call sites.
 
 The maintainer explicitly discontinued existing-client support for these removed surfaces.
 This is an intentional breaking removal; no compatibility adapters or client deprecation

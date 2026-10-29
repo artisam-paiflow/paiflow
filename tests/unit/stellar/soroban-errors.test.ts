@@ -140,7 +140,7 @@ describe("contract key mappings", () => {
   it("maps template kinds", () => {
     expect(contractKeyForTemplate("STREAMER")).toBe("streamer");
     expect(contractKeyForTemplate("SPLITTER_DEV")).toBeUndefined();
-    expect(contractKeyForTemplate("CASH_OUT")).toBe("cash_out");
+    expect(contractKeyForTemplate("CASH_OUT")).toBeUndefined();
     expect(contractKeyForTemplate("FACTORY")).toBeUndefined();
   });
   it("maps params kinds", () => {

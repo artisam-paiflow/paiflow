@@ -1,7 +1,6 @@
 /**
- * `timingSafeEqualString` replaces two hand-rolled copies (webhooks/[id] and
- * webhooks/offramp). The 128-byte case below is the bug in the copy it
- * replaced: that one wrote into a fixed 128-byte buffer, so two distinct
+ * `timingSafeEqualString` replaces legacy hand-rolled webhook comparisons.
+ * The 128-byte case below is the bug in the copy it replaced: that one wrote into a fixed 128-byte buffer, so two distinct
  * secrets sharing a 128-byte prefix compared equal.
  */
 import { describe, expect, it } from "vitest";

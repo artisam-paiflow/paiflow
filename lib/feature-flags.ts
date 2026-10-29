@@ -1,10 +1,9 @@
 import { TemplateKind } from "@prisma/client";
 
-export const FEATURE_SURFACES = ["offramp", "payroll", "aiAssistant", "oracleCondition"] as const;
+export const FEATURE_SURFACES = ["payroll", "aiAssistant", "oracleCondition"] as const;
 export type FeatureSurface = (typeof FEATURE_SURFACES)[number];
 export type FeatureFlags = Readonly<Record<FeatureSurface, boolean>>;
 export const ALL_FEATURES_ON: FeatureFlags = {
-  offramp: true,
   payroll: true,
   aiAssistant: true,
   oracleCondition: true,
@@ -18,7 +17,6 @@ export const ALL_FEATURES_ON: FeatureFlags = {
  *
  * - `nodeTypes`: flow node types refused outright.
  * - `conditionKinds`: `condition` node kinds refused.
- * - `fiatPayout`: pay nodes and split recipients with `payoutMode: "fiat"`.
  * - `templateKinds`: contract kinds refused in a generated pipeline, the second
  *   line of defence at prepare/submit (the graph check comes first).
  */
@@ -32,39 +30,26 @@ export const FEATURE_GATED_BLOCKS: Readonly<
       remedy: string;
       nodeTypes: readonly string[];
       conditionKinds: readonly string[];
-      fiatPayout: boolean;
       templateKinds: readonly TemplateKind[];
     }
   >
 > = {
-  offramp: {
-    envVar: "FEATURE_OFFRAMP_ENABLED",
-    label: "Fiat off-ramp",
-    remedy: "Pay out in crypto instead, or remove the step.",
-    nodeTypes: ["cash_out"],
-    conditionKinds: [],
-    fiatPayout: true,
-    templateKinds: [TemplateKind.CASH_OUT],
-  },
   payroll: {
     envVar: "FEATURE_PAYROLL_ENABLED",
     label: "Payroll",
     remedy: "Use a Subscription or On Schedule trigger instead.",
     nodeTypes: ["payroll"],
     conditionKinds: [],
-    fiatPayout: false,
     templateKinds: [TemplateKind.PAYROLL],
   },
   // Not a block: the assistant has no node, so every block list is empty and
   // it is gated on its routes and UI alone. A guide listing visible blocks
-  // reads only the surfaces with nodeTypes, conditionKinds or fiatPayout.
   aiAssistant: {
     envVar: "FEATURE_AI_ASSISTANT_ENABLED",
     label: "The AI assistant",
     remedy: "",
     nodeTypes: [],
     conditionKinds: [],
-    fiatPayout: false,
     templateKinds: [],
   },
   oracleCondition: {
@@ -73,7 +58,6 @@ export const FEATURE_GATED_BLOCKS: Readonly<
     remedy: "Pick another condition kind, or remove the condition.",
     nodeTypes: [],
     conditionKinds: ["oracle_gte"],
-    fiatPayout: false,
     // Only an oracle_gte condition compiles to the CONDITIONAL contract.
     templateKinds: [TemplateKind.CONDITIONAL],
   },

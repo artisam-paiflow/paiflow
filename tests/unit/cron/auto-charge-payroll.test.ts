@@ -16,68 +16,63 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ChargeRelayerMode, PayrollRunStatus } from "@prisma/client";
 import { observeExternalRelayer } from "@/lib/deployments/service-work";
 import { log } from "@/lib/log";
-const { mockDb, mockEnv, mockRelayer, mockInvoke, mockClient, mockJobs, mockUrlGuard } = vi.hoisted(
-  () => {
-    const mockDb = {
-      deployment: {
-        findMany: vi.fn(),
-        update: vi.fn(),
-      },
-      payrollRun: {
-        create: vi.fn(),
-        update: vi.fn(),
-      },
-      employee: {
-        findMany: vi.fn(),
-        upsert: vi.fn(),
-      },
-      payrollPayout: {
-        create: vi.fn(),
-      },
-      $transaction: vi.fn((cb: any) => cb(mockDb)),
-    };
-    const mockEnv = {
-      CRON_SECRET: "cron-secret",
-      STELLAR_NETWORK: "testnet",
-      STELLAR_RELAYER_ADDRESS: "GDRELAYER" as string | undefined,
-      PAYROLL_MAX_CATCHUP_PER_RUN: 5,
-      CONTRACT_READ_CACHE_ENABLED: true,
-      CONTRACT_READ_CACHE_TTL_SECONDS: 300,
-    };
-    const mockRelayer = {
-      preparePayrollChargeByRelayerTx: vi.fn(),
-      submitPayrollChargeByRelayerTx: vi.fn(),
-      readPayrollIsCancelled: vi.fn(),
-      readPayrollNextChargeAt: vi.fn(),
-      readPayrollEmployer: vi.fn(),
-      readPayrollAsset: vi.fn(),
-      readPayrollRecipients: vi.fn(),
-      readPayrollRelayer: vi.fn(),
-      readTokenAllowance: vi.fn(),
-      prepareSubscriptionChargeByRelayerTx: vi.fn(),
-      submitSubscriptionChargeByRelayerTx: vi.fn(),
-      readSubscriptionIsCancelled: vi.fn(),
-      readSubscriptionNextChargeAt: vi.fn(),
-      readSubscriptionAmountPerPeriod: vi.fn(),
-      readSubscriptionSubscriberNullable: vi.fn(),
-      readSubscriptionAsset: vi.fn(),
-      readSubscriptionRelayer: vi.fn(),
-      readSplitterDevRecipients: vi.fn(),
-    };
-    const mockInvoke = {
-      preparePayrollChargeByRelayerUnsigned: vi.fn(),
-    };
-    const mockClient = {
-      withRelayerLock: vi.fn((fn: any) => fn()),
-      TENANT_RELAYER_TIMEOUT_MS: 25,
-    };
-    const mockJobs = {
-      createOffRampJobsForPayrollRun: vi.fn(),
-    };
-    const mockUrlGuard = { assertPublicUrl: vi.fn() };
-    return { mockDb, mockEnv, mockRelayer, mockInvoke, mockClient, mockJobs, mockUrlGuard };
-  },
-);
+const { mockDb, mockEnv, mockRelayer, mockInvoke, mockClient, mockUrlGuard } = vi.hoisted(() => {
+  const mockDb = {
+    deployment: {
+      findMany: vi.fn(),
+      update: vi.fn(),
+    },
+    payrollRun: {
+      create: vi.fn(),
+      update: vi.fn(),
+    },
+    employee: {
+      findMany: vi.fn(),
+      upsert: vi.fn(),
+    },
+    payrollPayout: {
+      create: vi.fn(),
+    },
+    $transaction: vi.fn((cb: any) => cb(mockDb)),
+  };
+  const mockEnv = {
+    CRON_SECRET: "cron-secret",
+    STELLAR_NETWORK: "testnet",
+    STELLAR_RELAYER_ADDRESS: "GDRELAYER" as string | undefined,
+    PAYROLL_MAX_CATCHUP_PER_RUN: 5,
+    CONTRACT_READ_CACHE_ENABLED: true,
+    CONTRACT_READ_CACHE_TTL_SECONDS: 300,
+  };
+  const mockRelayer = {
+    preparePayrollChargeByRelayerTx: vi.fn(),
+    submitPayrollChargeByRelayerTx: vi.fn(),
+    readPayrollIsCancelled: vi.fn(),
+    readPayrollNextChargeAt: vi.fn(),
+    readPayrollEmployer: vi.fn(),
+    readPayrollAsset: vi.fn(),
+    readPayrollRecipients: vi.fn(),
+    readPayrollRelayer: vi.fn(),
+    readTokenAllowance: vi.fn(),
+    prepareSubscriptionChargeByRelayerTx: vi.fn(),
+    submitSubscriptionChargeByRelayerTx: vi.fn(),
+    readSubscriptionIsCancelled: vi.fn(),
+    readSubscriptionNextChargeAt: vi.fn(),
+    readSubscriptionAmountPerPeriod: vi.fn(),
+    readSubscriptionSubscriberNullable: vi.fn(),
+    readSubscriptionAsset: vi.fn(),
+    readSubscriptionRelayer: vi.fn(),
+    readSplitterDevRecipients: vi.fn(),
+  };
+  const mockInvoke = {
+    preparePayrollChargeByRelayerUnsigned: vi.fn(),
+  };
+  const mockClient = {
+    withRelayerLock: vi.fn((fn: any) => fn()),
+    TENANT_RELAYER_TIMEOUT_MS: 25,
+  };
+  const mockUrlGuard = { assertPublicUrl: vi.fn() };
+  return { mockDb, mockEnv, mockRelayer, mockInvoke, mockClient, mockUrlGuard };
+});
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/env", () => ({
   env: () => mockEnv,
@@ -91,7 +86,6 @@ vi.mock("@/lib/stellar/client", () => mockClient);
 vi.mock("@/lib/stellar/relayer-channels", () => ({
   withRelayerChannel: (fn: (channel: unknown) => unknown) => fn({}),
 }));
-vi.mock("@/lib/offramp/jobs", () => mockJobs);
 // The guard resolves DNS for real, and these fixtures use reserved `.example`
 // hostnames that never resolve. `importActual` keeps the real `UnsafeUrlError`,
 // so `instanceof` in the route still holds when a case throws one.
@@ -129,7 +123,6 @@ function makeDeployment(overrides: Record<string, unknown> = {}) {
     nextChargeAt: now,
     chargeEndAt: null,
     lastChargedAt: null,
-    offRampEnabled: false,
     ...overrides,
   };
 }
@@ -218,72 +211,6 @@ describe("auto-charge-payroll", () => {
         data: expect.objectContaining({ status: PayrollRunStatus.FAILED }),
       }),
     );
-  });
-  it("creates off-ramp jobs for non-dev payroll when a fiat employee has bank details", async () => {
-    mockDb.deployment.findMany.mockResolvedValue([makeDeployment({ offRampEnabled: false })]);
-    mockRelayer.readPayrollIsCancelled.mockResolvedValue(false);
-    mockRelayer.readPayrollNextChargeAt
-      .mockResolvedValueOnce(BigInt(nextChargeAt))
-      .mockResolvedValue(BigInt(nextChargeAt + 86400));
-    mockRelayer.readPayrollRecipients.mockResolvedValue([{ address: "GEMP1", amount: "5000000" }]);
-    mockRelayer.readPayrollEmployer.mockResolvedValue("GEMPLOYER");
-    mockRelayer.readPayrollAsset.mockResolvedValue("CASSET");
-    mockRelayer.readTokenAllowance.mockResolvedValue(10000000n);
-    mockRelayer.readPayrollRelayer.mockResolvedValue("GDRELAYER");
-    mockRelayer.preparePayrollChargeByRelayerTx.mockResolvedValue({ xdr: "xdr-1" });
-    mockRelayer.submitPayrollChargeByRelayerTx.mockResolvedValue({
-      status: "SUCCESS",
-      txHash: "tx-1",
-    });
-    mockDb.employee.findMany.mockResolvedValue([
-      {
-        id: "emp-1",
-        address: "GEMP1",
-        payoutMode: "FIAT",
-        cashOutContractAddress: null,
-        bankDetail: { accountName: "A", accountNumber: "123", bankCode: "B" },
-      },
-    ]);
-    mockDb.payrollRun.create.mockResolvedValue({ id: "run-1" });
-    mockDb.employee.upsert.mockResolvedValue({ id: "emp-1" });
-    mockDb.payrollPayout.create.mockResolvedValue({ id: "payout-1" });
-    mockJobs.createOffRampJobsForPayrollRun.mockResolvedValue(["job-1"]);
-    const res = await POST(makeRequest("cron-secret"));
-    await res.json();
-    expect(mockJobs.createOffRampJobsForPayrollRun).toHaveBeenCalledWith(mockDb, "run-1");
-  });
-  it("does not create off-ramp jobs when no fiat employee has bank details", async () => {
-    mockDb.deployment.findMany.mockResolvedValue([makeDeployment({ offRampEnabled: false })]);
-    mockRelayer.readPayrollIsCancelled.mockResolvedValue(false);
-    mockRelayer.readPayrollNextChargeAt
-      .mockResolvedValueOnce(BigInt(nextChargeAt))
-      .mockResolvedValue(BigInt(nextChargeAt + 86400));
-    mockRelayer.readPayrollRecipients.mockResolvedValue([{ address: "GEMP1", amount: "5000000" }]);
-    mockRelayer.readPayrollEmployer.mockResolvedValue("GEMPLOYER");
-    mockRelayer.readPayrollAsset.mockResolvedValue("CASSET");
-    mockRelayer.readTokenAllowance.mockResolvedValue(10000000n);
-    mockRelayer.readPayrollRelayer.mockResolvedValue("GDRELAYER");
-    mockRelayer.preparePayrollChargeByRelayerTx.mockResolvedValue({ xdr: "xdr-1" });
-    mockRelayer.submitPayrollChargeByRelayerTx.mockResolvedValue({
-      status: "SUCCESS",
-      txHash: "tx-1",
-    });
-    mockDb.employee.findMany.mockResolvedValue([
-      {
-        id: "emp-1",
-        address: "GEMP1",
-        payoutMode: "CRYPTO",
-        cashOutContractAddress: null,
-        bankDetail: null,
-      },
-    ]);
-    mockDb.payrollRun.create.mockResolvedValue({ id: "run-1" });
-    mockDb.employee.upsert.mockResolvedValue({ id: "emp-1" });
-    mockDb.payrollPayout.create.mockResolvedValue({ id: "payout-1" });
-    mockJobs.createOffRampJobsForPayrollRun.mockResolvedValue(["job-1"]);
-    const res = await POST(makeRequest("cron-secret"));
-    await res.json();
-    expect(mockJobs.createOffRampJobsForPayrollRun).not.toHaveBeenCalled();
   });
   it("fails a USER deployment whose relayer never answers and carries on to the next", async () => {
     const user = {

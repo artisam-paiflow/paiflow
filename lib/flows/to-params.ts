@@ -31,7 +31,6 @@ export type PipelineRecipient = {
   address: string;
   bps: number;
   amount: string;
-  isCashOut?: boolean;
 };
 export type SplitterParams = {
   kind: "splitter";
@@ -185,22 +184,7 @@ export type PayerNodeParams = {
   amountStroops: string;
   mode: "fixed" | "percentage";
   percentageBps?: number;
-  // true => recipient is a generated cash-out contract; the payer invokes its
-  // receive_and_forward after paying so the share sinks to the off-ramp treasury.
-  isCashOut?: boolean;
   nextStepNodeIds: string[];
-};
-export type CashOutNodeParams = {
-  kind: "cash_out";
-  asset: Asset;
-  // Bank destination is immutable after deploy; validation requires it at design time.
-  accountName: string;
-  accountNumber: string;
-  bankCode: string;
-  treasury: string;
-  relayer?: string;
-  nextStepNodeIds: string[]; // always empty — cash_out is terminal
-  parentNodeId?: string;
 };
 export type PipelineNodeParams =
   | DepositTriggerNodeParams
@@ -217,8 +201,7 @@ export type PipelineNodeParams =
   | MultisigNodeParams
   | SwapperNodeParams
   | YieldNodeParams
-  | PayerNodeParams
-  | CashOutNodeParams;
+  | PayerNodeParams;
 export type PipelineNode = {
   implementation?: PipelineImplementation;
   nodeId: string;
@@ -236,11 +219,10 @@ function toRecipients(action: ContractActionNode): PipelineRecipient[] {
       address: r.address,
       bps: r.mode === "percentage" ? r.bps : 0,
       amount: r.mode === "fixed" ? r.amountStroops : "0",
-      isCashOut: r.payoutMode === "fiat",
     }));
   }
   if (action.type === "pay") {
-    return [{ address: action.config.recipient, bps: TOTAL_BPS, amount: "0", isCashOut: false }];
+    return [{ address: action.config.recipient, bps: TOTAL_BPS, amount: "0" }];
   }
   return [];
 }
@@ -253,7 +235,7 @@ function toRecipients(action: ContractActionNode): PipelineRecipient[] {
  */
 function toStreamerRecipients(action: ContractActionNode): PipelineRecipient[] {
   if (action.type === "pay") {
-    return [{ address: action.config.recipient, bps: TOTAL_BPS, amount: "0", isCashOut: false }];
+    return [{ address: action.config.recipient, bps: TOTAL_BPS, amount: "0" }];
   }
   if (action.type !== "split") return [];
   const recipients = action.config.recipients;
@@ -282,7 +264,6 @@ function toStreamerRecipients(action: ContractActionNode): PipelineRecipient[] {
       address: r.address,
       bps,
       amount,
-      isCashOut: r.payoutMode === "fiat",
     };
   });
 }
@@ -296,7 +277,6 @@ function toPayrollRecipients(action: ContractActionNode): PipelineRecipient[] {
       address: r.address,
       bps: 0,
       amount: r.mode === "fixed" ? r.amountStroops : "0",
-      isCashOut: r.payoutMode === "fiat",
     }));
   }
   if (action.type === "pay") {
@@ -305,7 +285,6 @@ function toPayrollRecipients(action: ContractActionNode): PipelineRecipient[] {
         address: action.config.recipient,
         bps: 0,
         amount: action.config.amountStroops ?? "0",
-        isCashOut: action.config.payoutMode === "fiat",
       },
     ];
   }
@@ -477,83 +456,10 @@ function streamerAmountPerInterval(
  * wire deterministic addresses later.
  */
 
-function synthesizeCashOutNodes(
-  action: ContractActionNode,
-  relayerAddress?: string,
-  treasuryAddress?: string,
-): {
-  action: ContractActionNode;
-  cashOutNodes: PipelineNode[];
-} {
-  const cashOutNodes: PipelineNode[] = [];
-  const pushCashOutNode = (
-    nodeId: string,
-    recipientIndex: number,
-    bank: {
-      accountName: string;
-      accountNumber: string;
-      bankCode: string;
-    },
-  ) => {
-    const shared = {
-      asset: getAsset(action),
-      accountName: bank.accountName,
-      accountNumber: bank.accountNumber,
-      bankCode: bank.bankCode,
-      treasury: treasuryAddress ?? relayerAddress ?? "",
-      relayer: relayerAddress,
-      nextStepNodeIds: [] as string[],
-      parentNodeId: action.id,
-    };
-    cashOutNodes.push({
-      nodeId,
-      templateKind: TemplateKind.CASH_OUT,
-      params: { kind: "cash_out" as const, ...shared },
-      implementation: {
-        version: 1,
-        bindings: [
-          { blockId: action.id, blockType: action.type, role: "payout_sink", recipientIndex },
-        ],
-      },
-    });
-  };
-  if (action.type === "split") {
-    let changed = false;
-    const recipients = action.config.recipients.map((r, index) => {
-      if (r.payoutMode !== "fiat") return r;
-      changed = true;
-      const nodeId = `${action.id}-cashout-${index}`;
-      pushCashOutNode(nodeId, index, {
-        accountName: r.accountName ?? "",
-        accountNumber: r.accountNumber ?? "",
-        bankCode: r.bankCode ?? "",
-      });
-      return { ...r, address: nodeId } as SplitRecipient;
-    });
-    if (!changed) return { action, cashOutNodes };
-    return {
-      action: { ...action, config: { ...action.config, recipients } },
-      cashOutNodes,
-    };
-  }
-  if (action.type === "pay" && action.config.payoutMode === "fiat") {
-    const nodeId = `${action.id}-cashout-0`;
-    pushCashOutNode(nodeId, 0, {
-      accountName: action.config.accountName ?? "",
-      accountNumber: action.config.accountNumber ?? "",
-      bankCode: action.config.bankCode ?? "",
-    });
-    return {
-      action: { ...action, config: { ...action.config, recipient: nodeId } },
-      cashOutNodes,
-    };
-  }
-  return { action, cashOutNodes };
-}
 /** Compatibility helper; absorption is read from the compiler's own bindings. */
 export function absorbedActionIds(graph: FlowGraph): Set<string> {
   return new Set(
-    flowToPipeline(graph, undefined, undefined, { forValidation: true })
+    flowToPipeline(graph, undefined, { forValidation: true })
       .filter((node) => node.templateKind === TemplateKind.CONDITIONAL)
       .flatMap((node) =>
         node.implementation.bindings
@@ -587,7 +493,6 @@ export type CompiledPipelineNode = PipelineNode & {
 export function flowToPipeline(
   graph: FlowGraph,
   relayerAddress?: string,
-  treasuryAddress?: string,
   options: {
     ownerAddress?: string;
     forValidation?: boolean;
@@ -693,24 +598,13 @@ export function flowToPipeline(
       }
       // Subscription pulls are forwarded to standard action contracts that
       // implement receive_and_forward (payer, splitter, swapper, yield).
-      const cashOutNodes: PipelineNode[] = [];
       const seenActions = new Set<string>();
       const actionQueue: ContractActionNode[] = [action];
       while (actionQueue.length > 0) {
         const current = actionQueue.shift()!;
         if (seenActions.has(current.id)) continue;
         seenActions.add(current.id);
-        const synthesized = synthesizeCashOutNodes(current, relayerAddress, treasuryAddress);
-        cashOutNodes.push(...synthesized.cashOutNodes);
-        emit(
-          contractActionToPipelineNode(
-            synthesized.action,
-            trigger,
-            children,
-            relayerAddress,
-            treasuryAddress,
-          ),
-        );
+        emit(contractActionToPipelineNode(current, trigger, children, relayerAddress));
         for (const childId of children.get(current.id) ?? []) {
           const childNode = graph.nodes.find((n) => n.id === childId);
           if (childNode && isContractAction(childNode) && !seenActions.has(childNode.id)) {
@@ -718,18 +612,14 @@ export function flowToPipeline(
           }
         }
       }
-      emit(...cashOutNodes);
       return pipeline;
     }
     if (trigger.type === "payroll") {
       const recipients = toPayrollRecipients(action);
       const amountPerPeriod = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n).toString();
 
-      // Non-dev payroll mirrors the dev decomposition but uses immutable
-      // contracts: SUBSCRIPTION pulls from the employer, SPLITTER distributes
-      // fixed salaries, and each fiat employee gets a dedicated CASH_OUT sink
-      // with bank details baked in at deploy time.
-      const cashOutNodes: PipelineNode[] = [];
+      // Immutable payroll: SUBSCRIPTION pulls from the employer and SPLITTER
+      // distributes fixed salaries.
       emit({
         nodeId: trigger.id,
         templateKind: TemplateKind.SUBSCRIPTION,
@@ -751,17 +641,7 @@ export function flowToPipeline(
         const current = actionQueue.shift()!;
         if (seenActions.has(current.id)) continue;
         seenActions.add(current.id);
-        const synthesized = synthesizeCashOutNodes(current, relayerAddress, treasuryAddress);
-        cashOutNodes.push(...synthesized.cashOutNodes);
-        emit(
-          contractActionToPipelineNode(
-            synthesized.action,
-            trigger,
-            children,
-            relayerAddress,
-            treasuryAddress,
-          ),
-        );
+        emit(contractActionToPipelineNode(current, trigger, children, relayerAddress));
         for (const childId of children.get(current.id) ?? []) {
           const childNode = graph.nodes.find((n) => n.id === childId);
           if (childNode && isContractAction(childNode) && !seenActions.has(childNode.id)) {
@@ -769,7 +649,6 @@ export function flowToPipeline(
           }
         }
       }
-      emit(...cashOutNodes);
       return pipeline;
     }
     // on_schedule flows use the streamer contract as the action because the
@@ -983,24 +862,13 @@ export function flowToPipeline(
   }
   // Action(s)
   if (!terminal) {
-    const cashOutNodes: PipelineNode[] = [];
     const seenActions = new Set<string>();
     const actionQueue: ContractActionNode[] = [action, ...branchActions];
     while (actionQueue.length > 0) {
       const current = actionQueue.shift()!;
       if (seenActions.has(current.id)) continue;
       seenActions.add(current.id);
-      const synthesized = synthesizeCashOutNodes(current, relayerAddress, treasuryAddress);
-      cashOutNodes.push(...synthesized.cashOutNodes);
-      emit(
-        contractActionToPipelineNode(
-          synthesized.action,
-          trigger,
-          children,
-          relayerAddress,
-          treasuryAddress,
-        ),
-      );
+      emit(contractActionToPipelineNode(current, trigger, children, relayerAddress));
       for (const childId of children.get(current.id) ?? []) {
         const childNode = graph.nodes.find((n) => n.id === childId);
         if (childNode && isContractAction(childNode) && !seenActions.has(childNode.id)) {
@@ -1008,7 +876,6 @@ export function flowToPipeline(
         }
       }
     }
-    emit(...cashOutNodes);
   }
   return pipeline;
 }
@@ -1017,26 +884,9 @@ function contractActionToPipelineNode(
   trigger: TriggerNode,
   children: Map<string, string[]>,
   relayerAddress?: string,
-  treasuryAddress?: string,
 ): PipelineNode {
   const nextStepNodeIds = children.get(action.id) ?? [];
   switch (action.type) {
-    case "cash_out": {
-      return {
-        nodeId: action.id,
-        templateKind: TemplateKind.CASH_OUT,
-        params: {
-          kind: "cash_out",
-          asset: action.config.asset,
-          accountName: action.config.accountName ?? "",
-          accountNumber: action.config.accountNumber ?? "",
-          bankCode: action.config.bankCode ?? "",
-          treasury: treasuryAddress ?? relayerAddress ?? "",
-          relayer: relayerAddress,
-          nextStepNodeIds: [],
-        },
-      };
-    }
     case "swap":
       return {
         nodeId: action.id,
@@ -1069,7 +919,6 @@ function contractActionToPipelineNode(
           kind: "payer" as const,
           asset: getAsset(action),
           recipient: action.config.recipient,
-          isCashOut: action.config.payoutMode === "fiat",
           nextStepNodeIds,
         },
       };
@@ -1156,7 +1005,6 @@ export function getPayrollPreviewFromPipeline(pipeline: PipelineNode[]) {
       totalStroops,
     };
   }
-  // Payroll decomposition: SUBSCRIPTION → SPLITTER → optional CASH_OUT.
   const sub = pipeline.find((n) => n.templateKind === TemplateKind.SUBSCRIPTION);
   const split = pipeline.find((n) => n.templateKind === TemplateKind.SPLITTER);
   if (

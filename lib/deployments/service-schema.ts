@@ -59,13 +59,5 @@ export const SettlementVerificationSchema = z.discriminatedUnion("kind", [
       confirmation: z.literal("Verified no remaining obligation"),
     })
     .strict(),
-  z
-    .object({
-      kind: z.literal("offramp"),
-      id: z.string().guid({ error: "Invalid uuid" }),
-      evidence: z.string().trim().min(20).max(2000),
-      confirmation: z.literal("Verified no remaining obligation"),
-    })
-    .strict(),
 ]);
 export type SettlementVerification = z.infer<typeof SettlementVerificationSchema>;

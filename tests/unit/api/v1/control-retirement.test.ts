@@ -27,7 +27,6 @@ vi.mock("@/lib/stellar/client", () => ({
 vi.mock("@/lib/redis", () => ({ redis: () => null }));
 vi.mock("@/lib/stellar/events", () => ({
   pollEventsForWithOutcome: vi.fn(),
-  reconcileStoredCashOutObligations: vi.fn(async () => true),
 }));
 import {
   createControlIntent,

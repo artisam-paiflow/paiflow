@@ -9,7 +9,7 @@ import {
 export function deployPreviewFromGraph(graph: FlowGraph) {
   // The deploying wallet is not known until preparation; previews only read
   // schedule and amount parameters, so use the same mode as flow validation.
-  const pipeline = flowToPipeline(graph, undefined, undefined, { forValidation: true });
+  const pipeline = flowToPipeline(graph, undefined, { forValidation: true });
   if (graph.nodes.some((node) => node.type === "payroll"))
     return getPayrollPreviewFromPipeline(pipeline);
   return (

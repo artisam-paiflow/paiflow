@@ -39,7 +39,6 @@ export type OffScriptFeature =
   | "ask_ai_voice"
   | "api_token_created"
   | "passkey_add"
-  | "fiat_payout"
   | `node:${string}`;
 
 type DeployStage = "wallet" | "prepare" | "sign" | "submit" | "finality_timeout";

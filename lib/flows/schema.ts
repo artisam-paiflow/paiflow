@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { hasRetiredPayoutInput } from "./retired-inputs";
 import { StrKey } from "@stellar/stellar-sdk";
 import { integerNumber } from "@/lib/validation/number";
 import { formatStroops } from "@/lib/utils";
@@ -13,19 +14,12 @@ export function getPendingLabels(graph: FlowGraph): string[] {
   for (const n of graph.nodes) {
     if (n.type === "split") {
       for (const r of n.config.recipients) {
-        // Fiat split recipients get an auto-generated cash-out contract at
-        // deploy time, so they don't need a wallet address.
-        if (r.payoutMode === "fiat") continue;
         if (isPendingAddress(r.address)) {
           labels.add(r.label ?? "unnamed");
         }
       }
     }
-    if (
-      n.type === "pay" &&
-      n.config.payoutMode !== "fiat" &&
-      isPendingAddress(n.config.recipient)
-    ) {
+    if (n.type === "pay" && isPendingAddress(n.config.recipient)) {
       labels.add(n.config.recipient.slice(PENDING_PREFIX.length) || "unnamed");
     }
     if (n.type === "webhook" && isPendingAddress(n.config.relayer)) {
@@ -79,7 +73,7 @@ export type Asset = z.infer<typeof AssetSchema>;
 // Any string parses. The builder autosaves the whole graph on every keystroke,
 // so a half-typed or cleared address has to save, or every PATCH 422s and the
 // user's other edits are lost with it (#588). `lib/flows/address-rules.ts`
-// holds the real check (a complete G… — or C… for a split recipient — or a
+// holds the real check (a complete G… wallet address or a
 // PENDING: placeholder), and validateFlow applies it, so /deployments/prepare
 // still refuses anything else. A custom asset's issuer is not typed in any
 // panel and stays strict above.
@@ -179,12 +173,10 @@ export const PayAction = z.object({
         .optional(),
       percentage: z.number().min(0).max(100).optional(),
       fullAmount: z.boolean().default(false),
-      // Fiat payout: at deploy time a cash-out contract is generated for the
-      // recipient and the payer sinks their share to the off-ramp treasury.
-      payoutMode: z.enum(["crypto", "fiat"]).optional(),
-      accountName: z.string().optional(),
-      accountNumber: z.string().optional(),
-      bankCode: z.string().optional(),
+      payoutMode: z.literal("crypto").optional(),
+      accountName: z.never().optional(),
+      accountNumber: z.never().optional(),
+      bankCode: z.never().optional(),
     })
     // Only the mode is structural here. A zero or missing amount/percentage is
     // what a half-edited panel autosaves (a cleared field, a fresh switch to
@@ -198,10 +190,10 @@ const SplitRecipientBase = z.object({
   address: splitRecipientAddress,
   email: z.string().max(254).optional(),
   label: z.string().max(64).optional(),
-  payoutMode: z.enum(["crypto", "fiat"]).optional(),
-  accountName: z.string().optional(),
-  accountNumber: z.string().optional(),
-  bankCode: z.string().optional(),
+  payoutMode: z.literal("crypto").optional(),
+  accountName: z.never().optional(),
+  accountNumber: z.never().optional(),
+  bankCode: z.never().optional(),
 });
 export const SplitRecipient = z.discriminatedUnion("mode", [
   SplitRecipientBase.extend({
@@ -215,10 +207,7 @@ export const SplitRecipient = z.discriminatedUnion("mode", [
     amountStroops: z.string().regex(/^\d+$/, "Amount must be a positive integer string"),
   }),
 ]);
-// A C… contract as a crypto recipient used to be refused here, which 422d an
-// autosave the moment one was pasted (#588). `addressIssues` refuses it on
-// the recipient's address field instead: a contract is only ever a fiat
-// (cash-out) destination.
+// Draft address strings remain permissive; addressIssues checks wallets before deploy.
 export type SplitRecipient = z.infer<typeof SplitRecipient>;
 // Backward compatibility: older flows stored recipients with `bps` but no
 // `mode`. Hydrate them to percentage mode before parsing.
@@ -438,16 +427,6 @@ export const EmailNotifyAction = z.object({
     body: z.string().default(""),
   }),
 });
-export const CashOutAction = z.object({
-  id: z.string().min(1),
-  type: z.literal("cash_out"),
-  config: z.object({
-    asset: AssetSchema,
-    accountName: z.string().default(""),
-    accountNumber: z.string().default(""),
-    bankCode: z.string().default(""),
-  }),
-});
 export const ConditionLogic = z.object({
   id: z.string().min(1),
   type: z.literal("condition"),
@@ -500,7 +479,6 @@ export const FlowNodeSchema = z.discriminatedUnion("type", [
   SwapAction,
   YieldAction,
   EmailNotifyAction,
-  CashOutAction,
   ConditionLogic,
   HoldAction,
   ReturnToOwnerAction,
@@ -530,26 +508,6 @@ export const FlowEdgeSchema = z.object({
   sourceHandle: EdgeBranchSchema.optional(),
 });
 export type FlowEdge = z.infer<typeof FlowEdgeSchema>;
-export const SenderKycSchema = z.object({
-  firstName: z.string().min(1).max(128),
-  middleName: z.string().max(128).optional(),
-  lastName: z.string().min(1).max(128),
-  countryOrigin: z.string().min(1).max(128),
-  addressLineOne: z.string().max(256).optional(),
-  addressLineTwo: z.string().max(256).optional(),
-  city: z.string().max(128).optional(),
-  province: z.string().max(128).optional(),
-  country: z.string().max(128).optional(),
-  zipCode: z.string().max(32).optional(),
-  phoneNumber: z.string().max(64).optional(),
-  nationality: z.string().max(128).optional(),
-  nationalIdentityNumber: z.string().max(128).optional(),
-  dob: z.string().max(32).optional(),
-  placeOfBirth: z.string().max(128).optional(),
-  sourceOfFunds: z.string().min(1).max(128),
-  email: z.string().email().max(256).optional(),
-});
-export type SenderKyc = z.infer<typeof SenderKycSchema>;
 export const NotifySchema = z.object({
   mode: z.enum(["off", "every_transaction", "shortfalls_only"]),
   // Drafts autosave on each keystroke; validity is checked separately.
@@ -559,14 +517,19 @@ const FlowGraphShape = z.object({
   nodes: z.array(FlowNodeSchema).max(40),
   edges: z.array(FlowEdgeSchema).max(80),
   notify: NotifySchema.optional(),
-  senderKyc: SenderKycSchema.optional(),
+  senderKyc: z.never().optional(),
   // Canvas layout: node positions keyed by node id. UI-only state — ignored by
   // validation and pipeline compilation, but persisted with the flow so the
   // builder reopens with the same arrangement instead of re-cascading nodes.
   positions: z.record(z.string(), z.object({ x: z.number(), y: z.number() })).optional(),
 });
 // Every stored-graph reader and save boundary converts legacy nodes before parsing.
-export const FlowGraphSchema = z.preprocess(migrateFlowGraph, FlowGraphShape);
+export const FlowGraphSchema = z
+  .unknown()
+  .refine((raw) => !hasRetiredPayoutInput(raw), {
+    message: "Fiat payouts and bank/KYC configuration have been retired.",
+  })
+  .pipe(z.preprocess(migrateFlowGraph, FlowGraphShape));
 export type FlowGraph = z.infer<typeof FlowGraphSchema>;
 export const FlowSaveSchema = z.object({
   name: z.string().min(1).max(80),
@@ -590,7 +553,6 @@ export type ActionNode =
   | z.infer<typeof SwapAction>
   | z.infer<typeof YieldAction>
   | z.infer<typeof EmailNotifyAction>
-  | z.infer<typeof CashOutAction>
   | z.infer<typeof HoldAction>
   | z.infer<typeof ReturnToOwnerAction>;
 export type LogicNode = z.infer<typeof ConditionLogic>;
@@ -619,18 +581,11 @@ export function isAction(n: FlowNode): n is ActionNode {
     n.type === "yield" ||
     n.type === "hold" ||
     n.type === "return_to_owner" ||
-    n.type === "email_notify" ||
-    n.type === "cash_out"
+    n.type === "email_notify"
   );
 }
 export function isContractAction(n: FlowNode): n is ContractActionNode {
-  return (
-    n.type === "pay" ||
-    n.type === "split" ||
-    n.type === "swap" ||
-    n.type === "yield" ||
-    n.type === "cash_out"
-  );
+  return n.type === "pay" || n.type === "split" || n.type === "swap" || n.type === "yield";
 }
 export function isLogic(n: FlowNode): n is LogicNode {
   return n.type === "condition";
@@ -739,11 +694,9 @@ export function sourceAmountStroops(graph: FlowGraph): string | undefined {
 }
 /** Strip personal notification data before handing a graph to a public surface. */
 export function withoutNotificationEmails(graph: FlowGraph): FlowGraph {
-  const { notify: _notify, senderKyc, ...rest } = graph;
-  const publicKyc = senderKyc ? (({ email: _email, ...kyc }) => kyc)(senderKyc) : undefined;
+  const { notify: _notify, ...rest } = graph;
   return {
     ...rest,
-    ...(publicKyc ? { senderKyc: publicKyc } : {}),
     nodes: graph.nodes
       .filter((n) => n.type !== "email_notify")
       .map((n) => {

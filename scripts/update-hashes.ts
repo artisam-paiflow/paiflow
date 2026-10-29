@@ -43,10 +43,6 @@ async function update() {
     { kind: TemplateKind.YIELD, envKey: `STELLAR_WASM_HASH_YIELD_${suffix}` },
     { kind: TemplateKind.PAYER, envKey: `STELLAR_WASM_HASH_PAYER_${suffix}` },
     { kind: TemplateKind.PAYROLL, envKey: `STELLAR_WASM_HASH_PAYROLL_${suffix}` },
-    {
-      kind: TemplateKind.CASH_OUT,
-      envKey: `STELLAR_WASM_HASH_CASH_OUT_${suffix}`,
-    },
   ];
   for (const t of templates) {
     const hash = process.env[t.envKey];

@@ -36,8 +36,7 @@ import { TENANT_RELAYER_TIMEOUT_MS } from "@/lib/stellar/client";
 import { withRelayerChannel } from "@/lib/stellar/relayer-channels";
 import { readTokenAllowance } from "@/lib/stellar/relayer";
 import { stellarRelayerAddress, stellarPassphrase } from "@/lib/env";
-import { ChargeRelayerMode, EmployeePayoutMode, PayrollRunStatus } from "@prisma/client";
-import { createOffRampJobsForPayrollRun } from "@/lib/offramp/jobs";
+import { ChargeRelayerMode, PayrollRunStatus } from "@prisma/client";
 import { requireCronSecret } from "@/lib/auth/cron-secret";
 import { CRON_LIMITS } from "@/lib/cron/config";
 import { cronDeadline } from "@/lib/cron/deadline";
@@ -141,7 +140,6 @@ async function buildSubscriptionRecipientRows(
 async function chargeSubscriptionPayrollDeployment(
   d: {
     id: string;
-    offRampEnabled: boolean;
     chargeEndAt: Date | null;
   },
   subscriptionContractAddress: string,
@@ -154,7 +152,6 @@ async function chargeSubscriptionPayrollDeployment(
       amount: string;
     }>
   >,
-  cashOutContractAddresses: Set<string>,
   readCache: ContractReadCache,
 ): Promise<number> {
   if (d.chargeEndAt && d.chargeEndAt <= now) {
@@ -226,17 +223,8 @@ async function chargeSubscriptionPayrollDeployment(
   }
   const existingEmployees = await db.employee.findMany({
     where: { deploymentId: d.id },
-    include: { bankDetail: true },
   });
-  const employeeByCashOut = new Map(
-    existingEmployees
-      .filter((e) => e.cashOutContractAddress)
-      .map((e) => [e.cashOutContractAddress!, e]),
-  );
   const employeeByWallet = new Map(existingEmployees.map((e) => [e.address, e]));
-  const hasFiatEmployeeWithBank = existingEmployees.some(
-    (e) => e.payoutMode === "FIAT" && e.bankDetail,
-  );
   let chargedCount = 0;
   for (let i = 0; i < MAX_CATCHUP_PER_RUN; i++) {
     const currentNext = await readSubscriptionNextChargeAt(subscriptionContractAddress);
@@ -268,22 +256,17 @@ async function chargeSubscriptionPayrollDeployment(
       },
     });
     for (const r of recipientRows) {
-      const existing = employeeByCashOut.get(r.address) ?? employeeByWallet.get(r.address);
+      const existing = employeeByWallet.get(r.address);
       const walletAddress = existing?.address ?? r.address;
-      const isFiatCashOut = cashOutContractAddresses.has(r.address);
       const employee = await db.employee.upsert({
         where: { deploymentId_address: { deploymentId: d.id, address: walletAddress } },
         create: {
           deploymentId: d.id,
           address: walletAddress,
           amountStroops: r.amount,
-          payoutMode: isFiatCashOut ? EmployeePayoutMode.FIAT : EmployeePayoutMode.CRYPTO,
         },
         update: {
           amountStroops: r.amount,
-          // If this recipient is a known cash-out contract, ensure the
-          // employee is marked fiat so off-ramp jobs are created.
-          ...(isFiatCashOut ? { payoutMode: EmployeePayoutMode.FIAT } : {}),
         },
       });
       await db.payrollPayout.create({
@@ -295,21 +278,7 @@ async function chargeSubscriptionPayrollDeployment(
         },
       });
     }
-    if (hasFiatEmployeeWithBank) {
-      try {
-        const created = await createOffRampJobsForPayrollRun(db, payrollRun.id);
-        log.info(
-          { deploymentId: d.id, payrollRunId: payrollRun.id, created: created.length },
-          "Created off-ramp jobs for payroll run",
-        );
-      } catch (offRampErr) {
-        const message = offRampErr instanceof Error ? offRampErr.message : String(offRampErr);
-        log.warn(
-          { deploymentId: d.id, payrollRunId: payrollRun.id, error: message },
-          "Failed to create off-ramp jobs for payroll run",
-        );
-      }
-    }
+
     chargedCount++;
     const next = await readSubscriptionNextChargeAt(subscriptionContractAddress);
     if (new Date(Number(next) * 1000) > now) break;
@@ -379,7 +348,6 @@ async function runPayrollCharges() {
     },
     select: {
       id: true,
-      offRampEnabled: true,
       chargeEndAt: true,
       chargeRelayerMode: true,
       chargeRelayerUrl: true,
@@ -400,9 +368,7 @@ async function runPayrollCharges() {
   const readCache = createContractReadCache();
   // Only employer/asset are cached: the payroll contract has no setters for
   // them. Recipients (update_recipients) and relayer (set_relayer) are
-  // admin-mutable, so they are read fresh below — caching them could write
-  // stale amounts into PayrollPayout rows and the fiat off-ramp jobs derived
-  // from them.
+  // admin-mutable, so they are read fresh to keep payroll history accurate.
   const readPayrollEmployerCached = readCache(
     "payroll:employer",
     readPayrollEmployer,
@@ -434,9 +400,6 @@ async function runPayrollCharges() {
       const subscriptionNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
       const splitterNode = pipeline?.find((n) => n.templateKind === "SPLITTER");
       const payerNode = pipeline?.find((n) => n.templateKind === "PAYER");
-      const cashOutContractAddresses = new Set(
-        pipeline?.filter((n) => n.templateKind === "CASH_OUT").map((n) => n.contractAddress) ?? [],
-      );
       const isMonolithic =
         payrollNode?.contractAddress &&
         (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM ||
@@ -464,7 +427,6 @@ async function runPayrollCharges() {
             (splitterNode ?? payerNode)!.contractAddress,
             now,
             splitterNode ? readSplitterRecipients : readPayerRecipients,
-            cashOutContractAddresses,
             readCache,
           );
           platformCharged += chargedCount;
@@ -514,11 +476,7 @@ async function runPayrollCharges() {
         const totalAmount = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n);
         const existingEmployees = await db.employee.findMany({
           where: { deploymentId: d.id },
-          include: { bankDetail: true },
         });
-        const hasFiatEmployeeWithBank = existingEmployees.some(
-          (e) => e.payoutMode === "FIAT" && e.bankDetail,
-        );
         const allowance = await readTokenAllowance({
           tokenContractAddress: asset,
           owner: employer,
@@ -828,9 +786,6 @@ async function runPayrollCharges() {
               txHash: chargeTxHashes[0] ?? null,
             },
           });
-          if (hasFiatEmployeeWithBank) {
-            await createOffRampJobsForPayrollRun(tx, payrollRun.id);
-          }
         });
         log.info(
           {
@@ -838,7 +793,7 @@ async function runPayrollCharges() {
             payrollRunId: payrollRun.id,
             chargeTxHashes: chargeTxHashes.length,
           },
-          "Created payroll run and off-ramp jobs",
+          "Created payroll run",
         );
         if (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM) {
           platformCharged += chargedCount;

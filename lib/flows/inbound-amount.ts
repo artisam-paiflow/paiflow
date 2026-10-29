@@ -64,10 +64,8 @@ function consumption(node: FlowNode): bigint | "variable" | "none" {
       return total === null ? "variable" : BigInt(total);
     }
     // A swap changes the denomination, a yield vault deposits whatever arrives,
-    // and a cash-out sinks its whole share to the off-ramp treasury.
     case "swap":
     case "yield":
-    case "cash_out":
     case "return_to_owner":
     case "hold":
       return "variable";

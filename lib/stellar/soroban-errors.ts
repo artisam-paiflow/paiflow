@@ -18,7 +18,6 @@ export type ContractErrorKey =
   | "yield"
   | "payer"
   | "payroll"
-  | "cash_out"
   | "conditional"
   | "router"
   | "timelock"
@@ -260,20 +259,6 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
       friendly: "The payroll needs at least one recipient.",
     },
   },
-  cash_out: {
-    1: ALREADY_INITIALIZED,
-    2: { name: "Paused", friendly: "This cash-out contract is paused." },
-    3: { name: "Unauthorized", friendly: "This action isn't authorized." },
-    4: {
-      name: "InvalidAmount",
-      friendly: "The amount must be positive and the asset must match the configured one.",
-    },
-    5: {
-      name: "InvalidBank",
-      friendly:
-        "The bank details are incomplete — account name, account number, and bank are all required.",
-    },
-  },
   conditional: {
     1: ALREADY_INITIALIZED,
     2: {
@@ -465,8 +450,6 @@ export function contractKeyForTemplate(templateKind: string): ContractErrorKey |
       return "payer";
     case "PAYROLL":
       return "payroll";
-    case "CASH_OUT":
-      return "cash_out";
     default:
       return undefined; // FACTORY has no error enum
   }

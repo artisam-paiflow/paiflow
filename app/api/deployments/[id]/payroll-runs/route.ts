@@ -53,12 +53,6 @@ async function GETHandler(
         payouts: {
           select: {
             txHash: true,
-            employee: { select: { payoutMode: true } },
-            offRampJobs: {
-              select: { status: true },
-              orderBy: { createdAt: "desc" },
-              take: 1,
-            },
           },
         },
       },

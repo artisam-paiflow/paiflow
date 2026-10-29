@@ -16,7 +16,6 @@ export const TEMPLATE_LABELS: Record<TemplateKind, string> = {
   YIELD: "Yield",
   PAYER: "Payer",
   PAYROLL: "Payroll",
-  CASH_OUT: "Cash Out",
 };
 export const TEMPLATE_DESCRIPTIONS: Record<TemplateKind, string> = {
   SPLITTER: "Distributes inbound funds by basis points across recipients.",
@@ -37,6 +36,4 @@ export const TEMPLATE_DESCRIPTIONS: Record<TemplateKind, string> = {
   YIELD: "Deposits incoming funds into a vault or lending pool.",
   PAYER: "Sends a fixed amount to a single recipient.",
   PAYROLL: "Pulls fixed salaries from an employer and distributes to employees on a schedule.",
-  CASH_OUT:
-    "Terminal cash-out: moves on-chain funds to the off-ramp treasury for fiat bank delivery via PDAX. Bank details are locked at deploy time.",
 };

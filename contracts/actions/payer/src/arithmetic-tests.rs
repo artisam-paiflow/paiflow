@@ -29,7 +29,6 @@ fn percentage_payment_handles_i128_max_and_preserves_rounding() {
                 bps,
                 Vec::<WorkflowTarget>::new(&env),
                 parent.clone(),
-                false,
             ),
         );
         token.mint(&id, &amount);
@@ -55,7 +54,6 @@ fn constructor_rejects_percentage_above_100() {
             10_001u32,
             Vec::<WorkflowTarget>::new(&env),
             Address::generate(&env),
-            false,
         ),
     );
 }
@@ -74,7 +72,6 @@ fn constructor_rejects_negative_amount_even_in_percentage_mode() {
             5_000u32,
             Vec::<WorkflowTarget>::new(&env),
             Address::generate(&env),
-            false,
         ),
     );
 }
@@ -95,7 +92,6 @@ fn fixed_pay_still_pays_partial_incoming_amount() {
             0u32,
             Vec::<WorkflowTarget>::new(&env),
             Address::generate(&env),
-            false,
         ),
     );
     let token = WideTokenClient::new(&env, &asset);

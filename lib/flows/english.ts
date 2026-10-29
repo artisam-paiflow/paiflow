@@ -87,21 +87,13 @@ function describeAction(action: ContractActionNode, trigger: TriggerNode): strin
       ? "(needs address)"
       : shortAddr(action.config.vault);
     return `deposit ${assetLabel(action.config.asset)} into yield vault ${vault}`;
-  } else if (action.type === "cash_out") {
-    const bank = action.config.bankCode
-      ? `bank ${action.config.bankCode}`
-      : "a bank (details required)";
-    return `cash out ${assetLabel(action.config.asset)} to ${bank} via off-ramp`;
   } else {
     const mode = action.config.recipients[0]?.mode ?? "percentage";
     const assetStr = assetLabel(action.config.asset);
     const parts = action.config.recipients.map((r) => {
-      const who =
-        r.payoutMode === "fiat"
-          ? (r.accountName ?? r.label ?? "(fiat recipient)")
-          : needsAddress(r.address)
-            ? `${r.label ?? "?"} (needs address)`
-            : (r.label ?? (r.address.trim() === "" ? "(needs address)" : shortAddr(r.address)));
+      const who = needsAddress(r.address)
+        ? `${r.label ?? "?"} (needs address)`
+        : (r.label ?? (r.address.trim() === "" ? "(needs address)" : shortAddr(r.address)));
       if (r.mode === "fixed") {
         return `${formatStroops(r.amountStroops)} ${assetStr} to ${who}`;
       }

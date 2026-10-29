@@ -58,37 +58,6 @@ function recipientsVec(
     ),
   );
 }
-function splitterRecipientsVec(
-  recipients: Array<{
-    address: string;
-    bps: number;
-    amount: string;
-    isCashOut?: boolean;
-  }>,
-  nodeAddresses: Record<string, string>,
-): xdr.ScVal {
-  return xdr.ScVal.scvVec(
-    recipients.map((r) =>
-      xdr.ScVal.scvMap([
-        new xdr.ScMapEntry({
-          key: symbol("address"),
-          val: addr(nodeAddresses[r.address] ?? r.address),
-        }),
-        new xdr.ScMapEntry({ key: symbol("amount"), val: i128(r.amount) }),
-        new xdr.ScMapEntry({ key: symbol("bps"), val: u32(r.bps) }),
-        new xdr.ScMapEntry({
-          key: symbol("is_cash_out"),
-          val: bool(r.isCashOut ?? false),
-        }),
-      ]),
-    ),
-  );
-}
-// Immutable splitter recipients carry the same is_cash_out flag as the dev
-// variant. Kept separate from recipientsVec, which is shared with the
-// streamer/conditional/multisig contracts whose Recipient struct has no such
-// field.
-
 function payrollRecipientsVec(
   recipients: Array<{
     address: string;
@@ -185,7 +154,7 @@ export function pipelineNodeConstructorArgs(
       return [
         addr(admin),
         addr(assetContractId(params.asset)),
-        splitterRecipientsVec(params.recipients, nodeAddresses),
+        recipientsVec(params.recipients, nodeAddresses),
         i128(params.minAmountStroops),
         addr(parentAddress),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
@@ -351,22 +320,6 @@ export function pipelineNodeConstructorArgs(
         u32(params.percentageBps ?? 0),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
         addr(parentAddress),
-        bool(params.isCashOut ?? false),
-      ];
-    }
-    case "cash_out": {
-      if (!parentAddress) throw new Error("Cash out requires a parent address");
-      // __constructor(admin, relayer, asset, treasury, parent,
-      //               account_name, account_number, bank_code)
-      return [
-        addr(admin),
-        addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
-        addr(assetContractId(params.asset)),
-        addr(params.treasury && params.treasury.length > 0 ? params.treasury : admin),
-        addr(parentAddress),
-        string(params.accountName),
-        string(params.accountNumber),
-        string(params.bankCode),
       ];
     }
   }

@@ -42,11 +42,6 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
     icon = "savings";
     title = "Yield";
     detail = `deposit ${assetLabel(n.config.asset)}`;
-  } else if (n.type === "cash_out") {
-    icon = "payments";
-    title = "Cash Out";
-    const label = assetLabel(n.config.asset);
-    detail = n.config.bankCode ? `${label} → ${n.config.bankCode}` : `${label} → bank`;
   } else {
     icon = "call_split";
     title = "Split";
@@ -54,8 +49,7 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
       detail = `${n.config.recipients.length} recipient${n.config.recipients.length === 1 ? "" : "s"}`;
     }
   }
-  const canHaveChildren =
-    n.type !== "cash_out" && n.type !== "hold" && n.type !== "return_to_owner";
+  const canHaveChildren = n.type !== "hold" && n.type !== "return_to_owner";
   return (
     <div
       className={`glass-panel relative min-w-[200px] rounded-xl ${selected ? "neon-glow" : ""}`}

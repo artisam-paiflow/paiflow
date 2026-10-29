@@ -1,10 +1,6 @@
+import "server-only";
 import { db } from "@/lib/db";
-import {
-  synthesizeEvents,
-  decodeCursor,
-  type OffRampJobForEvents,
-  type RunForEvents,
-} from "./event-feed";
+import { synthesizeEvents, decodeCursor, type RunForEvents } from "./event-feed";
 
 const LOOKBACK_DAYS = 90;
 
@@ -17,7 +13,7 @@ function lookbackLowerBound(before: Date): Date {
 /**
  * Prisma select fragments shared by the payroll event-feed endpoints. Kept
  * beside the loader so the fetched shape stays in lockstep with the
- * `RunForEvents` / `OffRampJobForEvents` contracts in `event-feed.ts`.
+ * `RunForEvents` contract in `event-feed.ts`.
  */
 const RUN_INCLUDE = {
   payouts: {
@@ -32,28 +28,9 @@ const RUN_INCLUDE = {
   },
 } as const;
 
-const OFFRAMP_SELECT = {
-  id: true,
-  status: true,
-  amountStroops: true,
-  payrollRunId: true,
-  employeeId: true,
-  payrollPayoutId: true,
-  completedAt: true,
-  quotedAt: true,
-  initiatedAt: true,
-  failedAt: true,
-  cancelledAt: true,
-  updatedAt: true,
-  lastError: true,
-  providerRef: true,
-  employee: { select: { label: true, address: true } },
-} as const;
-
 /**
  * Load and synthesize the payroll event timeline for a deployment, optionally
- * scoped to a single run. Off-ramp jobs are limited to payroll-linked jobs
- * (`payrollRunId` set) so unrelated splitter/dev off-ramps never leak in.
+ * scoped to a single run.
  *
  * Queries are bounded by a 90-day lookback window relative to the cursor (or
  * now) plus a cap well above the requested page size, so polling does not load
@@ -70,34 +47,15 @@ export async function loadPayrollEvents(
   const lowerBound = lookbackLowerBound(before);
   const take = Math.max(limit * 10, 200);
 
-  const [runs, jobs] = await Promise.all([
-    db.payrollRun.findMany({
-      where: {
-        ...(runId ? { id: runId, deploymentId } : { deploymentId }),
-        createdAt: {
-          lte: before,
-          gte: lowerBound,
-        },
-      },
-      orderBy: [{ createdAt: "desc" }],
-      take,
-      include: RUN_INCLUDE,
-    }),
-    db.offRampPayoutJob.findMany({
-      where: {
-        ...(runId
-          ? { deploymentId, payrollRunId: runId }
-          : { deploymentId, payrollRunId: { not: null } }),
-        createdAt: {
-          lte: before,
-          gte: lowerBound,
-        },
-      },
-      orderBy: { createdAt: "desc" },
-      take,
-      select: OFFRAMP_SELECT,
-    }),
-  ]);
+  const runs = await db.payrollRun.findMany({
+    where: {
+      ...(runId ? { id: runId, deploymentId } : { deploymentId }),
+      createdAt: { lte: before, gte: lowerBound },
+    },
+    orderBy: [{ createdAt: "desc" }],
+    take,
+    include: RUN_INCLUDE,
+  });
 
-  return synthesizeEvents(runs as RunForEvents[], jobs as OffRampJobForEvents[]);
+  return synthesizeEvents(runs as RunForEvents[]);
 }

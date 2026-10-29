@@ -19,10 +19,6 @@ import { fieldErrorUnder, nodeIssues } from "@/lib/flows/issue-paths";
 import type { FeatureFlags } from "@/lib/feature-flags";
 import { AssetField, Field } from "./panels/asset-fields";
 import { IntervalField } from "./panels/interval-field";
-import {
-  fiatPayoutAvailable as fiatAvailable,
-  showPayoutModeSelect,
-} from "./panels/payout-mode.utils";
 import SwapPanel from "./panels/swap-panel";
 import { SplitRecipientsEditor } from "./panels/split-recipients-editor";
 import { AmountInput } from "./inputs/amount-input";
@@ -168,10 +164,6 @@ export default function ConfigPanel({
   const trigger = graph.nodes.find(isTrigger);
   const triggerType = trigger?.type ?? null;
   const sourceAmount = sourceAmountStroops(graph);
-  const fiatPayoutAvailable = fiatAvailable(features.offramp, triggerType);
-  const payPayoutSelect =
-    node.type === "pay" &&
-    showPayoutModeSelect(fiatPayoutAvailable, features.offramp, node.config.payoutMode);
   // Payroll distributions must be fixed salary amounts. If a user switches an
   // existing percentage split to a payroll trigger, convert the recipients to
   // fixed amounts so the UI stays consistent and the flow can validate.
@@ -189,9 +181,6 @@ export default function ConfigPanel({
                 address: r.address,
                 label: r.label,
                 payoutMode: r.payoutMode,
-                accountName: r.accountName,
-                accountNumber: r.accountNumber,
-                bankCode: r.bankCode,
                 mode: "fixed" as const,
                 amountStroops: "0",
               }
@@ -487,7 +476,7 @@ export default function ConfigPanel({
         <>
           {!sandbox && (
             <RecipientEmailField
-              shared={triggerType !== "payroll" && node.config.payoutMode !== "fiat"}
+              shared={triggerType !== "payroll" && true}
               value={node.config.email}
               onChange={(email) => onChange({ ...node, config: { ...node.config, email } })}
             />
@@ -501,120 +490,17 @@ export default function ConfigPanel({
             expectedAsset={expectedAsset}
           />
 
-          {!(fiatPayoutAvailable && node.config.payoutMode === "fiat") && (
-            <>
-              {
-                <AddressPicker
-                  label="Recipient (G… or PENDING:)"
-                  error={fieldError("recipient")}
-                  value={node.config.recipient}
-                  onChange={(recipient) =>
-                    onChange({
-                      ...node,
-                      config: { ...node.config, recipient },
-                    })
-                  }
-                  pending={isPendingAddress(node.config.recipient)}
-                  addressBook={addressBook}
-                  onAddressBookChange={refreshAddressBook}
-                  addressBookLoading={addressBookLoading}
-                  addressBookError={addressBookError}
-                />
-              }
-            </>
-          )}
-
-          {payPayoutSelect && (
-            <div className="space-y-2 pt-1">
-              <Field label="Payout mode">
-                <select
-                  className="input text-xs"
-                  value={node.config.payoutMode ?? "crypto"}
-                  onChange={(e) => {
-                    const mode = e.target.value as "crypto" | "fiat";
-                    onChange({
-                      ...node,
-                      config: {
-                        ...node.config,
-                        payoutMode: mode,
-                        // Fiat payouts get an auto-generated cash-out contract,
-                        // so the wallet address is replaced with a sentinel —
-                        // like fiat split recipients.
-                        recipient:
-                          mode === "fiat"
-                            ? "PENDING:fiat"
-                            : isPendingAddress(node.config.recipient)
-                              ? "PENDING:unnamed"
-                              : node.config.recipient,
-                        ...(mode === "fiat"
-                          ? {
-                              accountName: node.config.accountName ?? "",
-                              accountNumber: node.config.accountNumber ?? "",
-                              bankCode: node.config.bankCode ?? "",
-                            }
-                          : {}),
-                      },
-                    } as FlowNode);
-                  }}
-                >
-                  <option value="crypto">Crypto (wallet)</option>
-                  <option value="fiat" disabled={!fiatPayoutAvailable}>
-                    Fiat (bank transfer)
-                  </option>
-                </select>
-              </Field>
-
-              {fiatPayoutAvailable && node.config.payoutMode === "fiat" && (
-                <>
-                  <Field label="Account name" error={fieldError("accountName")}>
-                    <input
-                      className="input text-xs"
-                      value={node.config.accountName ?? ""}
-                      placeholder="Juan Dela Cruz"
-                      onChange={(e) =>
-                        onChange({
-                          ...node,
-                          config: { ...node.config, accountName: e.target.value },
-                        } as FlowNode)
-                      }
-                    />
-                  </Field>
-                  <Field label="Account number" error={fieldError("accountNumber")}>
-                    <input
-                      className="input text-xs"
-                      value={node.config.accountNumber ?? ""}
-                      placeholder="1234567890"
-                      onChange={(e) =>
-                        onChange({
-                          ...node,
-                          config: { ...node.config, accountNumber: e.target.value },
-                        } as FlowNode)
-                      }
-                    />
-                  </Field>
-                  <Field label="Bank" error={fieldError("bankCode")}>
-                    <select
-                      className="input text-xs"
-                      value={node.config.bankCode ?? ""}
-                      onChange={(e) =>
-                        onChange({
-                          ...node,
-                          config: { ...node.config, bankCode: e.target.value },
-                        } as FlowNode)
-                      }
-                    >
-                      <option value="">— select bank —</option>
-                      <option value="BASECPH">BASECPH — BDO</option>
-                      <option value="BACTBPH">BACTBPH — BPI</option>
-                    </select>
-                  </Field>
-                </>
-              )}
-
-              {false}
-            </div>
-          )}
-
+          <AddressPicker
+            label="Recipient (G… or PENDING:)"
+            error={fieldError("recipient")}
+            value={node.config.recipient}
+            onChange={(recipient) => onChange({ ...node, config: { ...node.config, recipient } })}
+            pending={isPendingAddress(node.config.recipient)}
+            addressBook={addressBook}
+            onAddressBookChange={refreshAddressBook}
+            addressBookLoading={addressBookLoading}
+            addressBookError={addressBookError}
+          />
           {false}
 
           {triggerType === "on_schedule" ? (
@@ -823,7 +709,6 @@ export default function ConfigPanel({
               addressBookError={addressBookError}
               fieldErrors={nodeErrors.field}
               onChange={onChange}
-              offrampEnabled={features.offramp}
               sandbox={sandbox}
             />
           )}
@@ -1271,68 +1156,6 @@ export default function ConfigPanel({
             ? "Connect Hold to the before side of a time condition. Funds stay strictly locked until the deadline, then follow the after destination. Early release is impossible."
             : "Returns 100% of the incoming amount to the wallet that signs deployment. The recipient is resolved during preparation and stays immutable. Connect directly after an amount, time, or multisig condition."}
         </p>
-      )}
-
-      {node.type === "cash_out" && (
-        <>
-          <div className="flex items-start gap-1.5 rounded border border-amber-800/40 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-300">
-            <span className="material-symbols-outlined text-[14px]">payments</span>
-            <span>
-              Terminal cash-out. Funds leave the chain to the off-ramp treasury, then a bank payout
-              is made via PDAX. {"Bank details must be set before deploy."}
-            </span>
-          </div>
-          <AssetField
-            asset={node.config.asset}
-            error={assetError}
-            onChange={(asset) =>
-              onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
-            }
-          />
-          <Field label="Account name" error={fieldError("accountName")}>
-            <input
-              className="input"
-              value={node.config.accountName}
-              placeholder="Juan Dela Cruz"
-              onChange={(e) =>
-                onChange({
-                  ...node,
-                  config: { ...node.config, accountName: e.target.value },
-                } as FlowNode)
-              }
-            />
-          </Field>
-          <Field label="Account number" error={fieldError("accountNumber")}>
-            <input
-              className="input"
-              value={node.config.accountNumber}
-              placeholder="1234567890"
-              onChange={(e) =>
-                onChange({
-                  ...node,
-                  config: { ...node.config, accountNumber: e.target.value },
-                } as FlowNode)
-              }
-            />
-          </Field>
-          <Field label="Bank" error={fieldError("bankCode")}>
-            <select
-              className="input"
-              value={node.config.bankCode}
-              onChange={(e) =>
-                onChange({
-                  ...node,
-                  config: { ...node.config, bankCode: e.target.value },
-                } as FlowNode)
-              }
-            >
-              <option value="">{"— select bank —"}</option>
-              <option value="BASECPH">BASECPH — BDO</option>
-              <option value="BACTBPH">BACTBPH — BPI</option>
-            </select>
-          </Field>
-          {null}
-        </>
       )}
 
       {node.type === "condition" && (

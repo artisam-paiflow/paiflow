@@ -799,13 +799,10 @@ function EventDetails({
       );
     }
     case "RECIPIENT_UPDATED": {
-      const topic = getEventTopic(evt);
       const recipients = normalizeRecipients(d?.recipients);
       return (
         <div className="space-y-1">
-          <div className="text-body-sm text-on-surface">
-            {topic === "bank_updated" ? "Bank details updated" : "Recipient details updated"}
-          </div>
+          <div className="text-body-sm text-on-surface">Recipient details updated</div>
           {recipients.length > 0 && (
             <div className="text-body-sm text-on-surface-variant">
               <RecipientList recipients={recipients} asset={getActionAsset(graph)} />

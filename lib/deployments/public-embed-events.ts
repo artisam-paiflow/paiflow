@@ -17,7 +17,6 @@ export const PublicEventSchema = z.object({
     "RETRIEVE",
     "ALLOWANCE",
     "RECIPIENT_UPDATED",
-    "CASH_OUT",
   ]),
   ledger: integerNumber().nonnegative(),
   txHash: z.string().regex(/^[a-f0-9]{64}$/i),

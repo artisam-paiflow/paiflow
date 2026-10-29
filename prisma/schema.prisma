@@ -29,7 +29,6 @@ enum TemplateKind {
   YIELD
   PAYER
   PAYROLL
-  CASH_OUT
   /// A timelock with a "before" and an "after" next step (#721). Its own kind,
   /// so TIMELOCK contracts already deployed keep their ABI.
   TIMELOCK_BRANCH
@@ -59,21 +58,6 @@ enum ChargeRelayerMode {
   MANUAL
 }
 
-enum OffRampJobSource {
-  PAYROLL
-  CASH_OUT
-}
-
-enum OffRampPayoutJobStatus {
-  PENDING
-  RUNNING
-  QUOTED
-  INITIATED
-  COMPLETED
-  FAILED
-  CANCELLED
-}
-
 enum PayrollRunStatus {
   PENDING
   CHARGED
@@ -94,7 +78,6 @@ enum EventKind {
   RETRIEVE
   ALLOWANCE
   RECIPIENT_UPDATED
-  CASH_OUT
 }
 
 enum AnalyticsAudience {
@@ -407,7 +390,6 @@ model Deployment {
   // History-only projection does not invalidate a current schedule observation.
   chargeScheduleRevision  Int                    @default(0)
   chargeEndAt             DateTime?
-  offRampEnabled          Boolean                @default(false)
   // Client-supplied key that makes deploy creation idempotent per owner. A
   // retry with the same key returns the existing deployment instead of
   // deploying a second set of contracts. NULL for endpoints that don't opt in.
@@ -428,9 +410,6 @@ model Deployment {
   streamerClaimJobs    StreamerClaimJob[]
   employees            Employee[]
   payrollRuns          PayrollRun[]
-  offRampPayoutJobs    OffRampPayoutJob[]
-  offRampSenderProfile OffRampSenderProfile?
-  cashOutJobFailures   CashOutJobFailure[]
   apiTokens            DeploymentApiToken[]
   signedTransactions   SignedTransaction[]
   timelockReleases     TimelockRelease[]
@@ -535,44 +514,20 @@ enum SignedTxKind {
   API_EXECUTE
 }
 
-enum EmployeePayoutMode {
-  CRYPTO
-  FIAT
-}
-
 model Employee {
-  id                     String             @id @default(uuid()) @db.Uuid
-  deploymentId           String             @db.Uuid
-  address                String
-  amountStroops          String
-  label                  String?
-  payoutMode             EmployeePayoutMode @default(CRYPTO)
-  cashOutContractAddress String?
-  createdAt              DateTime           @default(now())
-  updatedAt              DateTime           @updatedAt
-
-  deployment  Deployment          @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
-  payouts     PayrollPayout[]
-  bankDetail  EmployeeBankDetail?
-  offRampJobs OffRampPayoutJob[]
-
-  @@unique([deploymentId, address])
-  @@index([deploymentId])
-  @@index([cashOutContractAddress])
-}
-
-model EmployeeBankDetail {
   id            String   @id @default(uuid()) @db.Uuid
-  employeeId    String   @unique @db.Uuid
-  accountName   String
-  accountNumber String
-  bankCode      String
+  deploymentId  String   @db.Uuid
+  address       String
+  amountStroops String
+  label         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  deployment Deployment      @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  payouts    PayrollPayout[]
 
-  @@index([employeeId])
+  @@unique([deploymentId, address])
+  @@index([deploymentId])
 }
 
 model PayrollRun {
@@ -590,9 +545,8 @@ model PayrollRun {
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 
-  deployment  Deployment         @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
-  payouts     PayrollPayout[]
-  offRampJobs OffRampPayoutJob[]
+  deployment Deployment      @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  payouts    PayrollPayout[]
 
   @@index([deploymentId, runAt])
   @@index([deploymentId, createdAt])
@@ -608,120 +562,26 @@ model PayrollPayout {
   txHash        String?
   createdAt     DateTime @default(now())
 
-  payrollRun  PayrollRun         @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
-  employee    Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  offRampJobs OffRampPayoutJob[]
+  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([payrollRunId])
   @@index([employeeId])
-}
-
-model OffRampPayoutJob {
-  originatingEventId   String?                @unique @db.Uuid
-  originatingEvent     ContractEvent?         @relation(fields: [originatingEventId], references: [id], onDelete: Restrict)
-  id                   String                 @id @default(uuid()) @db.Uuid
-  source               OffRampJobSource       @default(PAYROLL)
-  deploymentId         String                 @db.Uuid
-  sourceAddress        String?
-  amountStroops        String
-  bankAccountName      String?
-  bankAccountNumber    String?
-  bankCode             String?
-  payrollRunId         String?                @db.Uuid
-  employeeId           String?                @db.Uuid
-  payrollPayoutId      String?                @db.Uuid
-  status               OffRampPayoutJobStatus @default(PENDING)
-  providerRef          String? // withdrawal identifier
-  tradeRef             String? // order/trade reference
-  requestId            String? // provider request id
-  pdaxDepositTxHash    String? // native-XLM->PDAX deposit tx (idempotency guard)
-  providerQuote        Json?
-  runAt                DateTime
-  lockedAt             DateTime? // lease stamp for the atomic RUNNING claim (see claimOffRampJob)
-  attemptCount         Int                    @default(0)
-  lastError            String?
-  settlementResolvedAt DateTime?
-  settlementEvidence   String?
-  completedAt          DateTime?
-  quotedAt             DateTime?
-  initiatedAt          DateTime?
-  failedAt             DateTime?
-  cancelledAt          DateTime?
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
-
-  deployment    Deployment     @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
-  payrollRun    PayrollRun?    @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
-  employee      Employee?      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  payrollPayout PayrollPayout? @relation(fields: [payrollPayoutId], references: [id], onDelete: Cascade)
-
-  @@index([status, runAt])
-  @@index([runAt])
-  @@index([status, runAt, lockedAt])
-  @@index([deploymentId])
-  @@index([deploymentId, status])
-  @@index([payrollRunId])
-  @@index([employeeId])
-  @@index([providerRef])
-  @@index([tradeRef])
-  @@index([requestId])
-}
-
-model OffRampSenderProfile {
-  id                     String   @id @default(uuid()) @db.Uuid
-  deploymentId           String   @unique @db.Uuid
-  firstName              String
-  middleName             String   @default("n.a.")
-  lastName               String
-  countryOrigin          String
-  addressLineOne         String?
-  addressLineTwo         String?
-  city                   String?
-  province               String?
-  country                String?
-  zipCode                String?
-  phoneNumber            String?
-  nationality            String?
-  nationalIdentityNumber String?
-  dob                    String? // mm-dd-yyyy
-  placeOfBirth           String?
-  sourceOfFunds          String
-  email                  String?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
-
-  @@index([deploymentId])
-}
-
-model OffRampProviderCredential {
-  id          String    @id @default(uuid()) @db.Uuid
-  provider    String    @unique
-  username    String
-  accessToken String
-  idToken     String?
-  apiUrl      String?
-  expiresAt   DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
 }
 
 model ContractEvent {
-  cashOutObligation OffRampPayoutJob?
-  id                String            @id @default(uuid()) @db.Uuid
-  deploymentId      String            @db.Uuid
-  eventId           String            @unique
-  kind              EventKind
-  ledger            Int
-  txHash            String
-  payload           Json
-  decodedData       Json?
-  occurredAt        DateTime
+  id           String    @id @default(uuid()) @db.Uuid
+  deploymentId String    @db.Uuid
+  eventId      String    @unique
+  kind         EventKind
+  ledger       Int
+  txHash       String
+  payload      Json
+  decodedData  Json?
+  occurredAt   DateTime
 
   deployment         Deployment          @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
   emailNotifications EmailNotification[]
-  cashOutJobFailure  CashOutJobFailure?
 
   @@index([deploymentId, txHash])
   @@index([deploymentId, occurredAt(sort: Desc)])
@@ -837,26 +697,6 @@ model SignedTransaction {
   @@index([userId, createdAt(sort: Desc)])
   @@index([deploymentId, createdAt(sort: Desc)])
   @@index([createdAt(sort: Desc), id(sort: Desc)])
-}
-
-model CashOutJobFailure {
-  id                String    @id @default(uuid()) @db.Uuid
-  deploymentId      String    @db.Uuid
-  contractEventId   String    @unique @db.Uuid
-  sourceAddress     String
-  amountStroops     String
-  bankAccountName   String
-  bankAccountNumber String
-  bankCode          String
-  error             String?
-  retriedAt         DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  deployment    Deployment    @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
-  contractEvent ContractEvent @relation(fields: [contractEventId], references: [id], onDelete: Cascade)
-
-  @@index([deploymentId, createdAt])
 }
 
 // Rotates current templates/factory independently of deployments, including failures.

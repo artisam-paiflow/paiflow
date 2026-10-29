@@ -1,7 +1,8 @@
 import "server-only";
+import { FlowGraphSchema } from "@/lib/flows/schema";
 import crypto from "node:crypto";
 import type { Prisma } from "@prisma/client";
-import { ChargeRelayerMode, EmployeePayoutMode } from "@prisma/client";
+import { ChargeRelayerMode } from "@prisma/client";
 import { db } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { audit } from "@/lib/audit";
@@ -11,7 +12,7 @@ import { scheduleNextStreamerClaimJob } from "@/lib/streamer-jobs";
 import { log } from "@/lib/log";
 import { captureServer } from "@/lib/analytics/server";
 import type { StreamerParams } from "@/lib/flows/to-params";
-import { isPendingAddress, SenderKycSchema } from "@/lib/flows/schema";
+
 type DeployWithFlow = Prisma.DeploymentGetPayload<{
   include: {
     flow: {
@@ -194,11 +195,6 @@ export async function confirmDeployment(
   if (isPayroll) {
     await createPayrollEmployees(id);
   }
-  // If the designer captured sender KYC at build time, persist it as this
-  // deployment's OffRampSenderProfile now so the first off-ramp payout can
-  // run without waiting for the post-deploy form. Upsert keeps duplicate
-  // submits idempotent, and the post-deploy form can still overwrite it.
-  await createOffRampSenderProfile(id);
   return updatedDeployment;
 }
 // Runs after the chain has confirmed, so nothing in here may throw into the
@@ -234,198 +230,33 @@ function captureDeployConfirmed(
     log.warn({ err, deploymentId: deployment.id }, "submit: analytics capture failed");
   }
 }
-const OFFRAMP_SENDER_KINDS = new Set(["PAYROLL", "CASH_OUT"]);
-// Persist the design-time sender KYC (graphSnapshot.senderKyc) as the
-// deployment's OffRampSenderProfile. Wrapped in its own try/catch: a
-// profile-write failure must never fail an already-confirmed deploy — the
-// post-deploy form/API remains the fallback.
-async function createOffRampSenderProfile(deploymentId: string) {
-  try {
-    const deployment = await db.deployment.findUnique({
-      where: { id: deploymentId },
-      select: { graphSnapshot: true, pipelineSnapshot: true },
-    });
-    if (!deployment) return;
-    const pipeline = (deployment.pipelineSnapshot ?? []) as Array<{
-      templateKind: string;
-    }>;
-    if (!pipeline.some((n) => OFFRAMP_SENDER_KINDS.has(n.templateKind))) return;
-    const senderKyc = (
-      deployment.graphSnapshot as {
-        senderKyc?: unknown;
-      } | null
-    )?.senderKyc;
-    const parsed = SenderKycSchema.safeParse(senderKyc);
-    if (!parsed.success) return;
-    await db.offRampSenderProfile.upsert({
-      where: { deploymentId },
-      create: { deploymentId, ...parsed.data },
-      update: { ...parsed.data },
-    });
-  } catch (err) {
-    log.warn(
-      {
-        deploymentId,
-        error: err instanceof Error ? err.message : String(err),
-      },
-      "Failed to persist sender KYC profile at deploy time",
-    );
-  }
-}
 async function createPayrollEmployees(deploymentId: string) {
   const deployment = await db.deployment.findUnique({
     where: { id: deploymentId },
     include: { flow: { select: { templateKind: true } } },
   });
   if (!deployment || deployment.flow?.templateKind !== "PAYROLL") return;
-  const pipeline = (deployment.pipelineSnapshot ?? []) as Array<{
-    nodeId: string;
-    contractAddress: string;
-    templateKind: string;
-  }>;
-  const hasPayroll = pipeline.some((n) => n.templateKind === "PAYROLL");
-  const hasSubscription = pipeline.some((n) => n.templateKind === "SUBSCRIPTION");
-  const hasSplitter = pipeline.some((n) => n.templateKind === "SPLITTER");
-  const hasPayer = pipeline.some((n) => n.templateKind === "PAYER");
-  if (hasPayroll || !hasSubscription || (!hasSplitter && !hasPayer)) return;
-  const graph = deployment.graphSnapshot as {
-    nodes: Array<{
-      id: string;
-      type: string;
-      config?: {
-        recipient?: string;
-        payoutMode?: string;
-        accountName?: string;
-        accountNumber?: string;
-        bankCode?: string;
-        amountStroops?: string;
-        recipients?: Array<{
-          address: string;
-          mode?: string;
-          amountStroops?: string;
-          label?: string;
-          payoutMode?: string;
-          accountName?: string;
-          accountNumber?: string;
-          bankCode?: string;
-        }>;
-      };
-    }>;
-  } | null;
-  const cashOutByNodeId = new Map<string, string>();
-  for (const node of pipeline) {
-    if (node.templateKind === "CASH_OUT") {
-      cashOutByNodeId.set(node.nodeId, node.contractAddress);
-    }
-  }
-  // Single-pay payroll: one employee described by the pay node itself. A fiat
-  // pay node is represented on-chain by its generated cash-out contract.
-  const payNode = graph?.nodes.find((n) => n.type === "pay");
-  if (hasPayer && payNode?.config) {
-    const c = payNode.config;
-    const isFiat = c.payoutMode === "fiat";
-    const cashOutAddress = isFiat ? (cashOutByNodeId.get(`${payNode.id}-cashout-0`) ?? null) : null;
-    const employeeAddress = (() => {
-      if (isFiat && cashOutAddress) return cashOutAddress;
-      if (c.recipient && isPendingAddress(c.recipient)) return `${c.recipient}:0`;
-      return c.recipient ?? `PENDING:unnamed:0`;
-    })();
-    try {
-      await db.$transaction(async (tx) => {
-        const employee = await tx.employee.create({
-          data: {
-            deploymentId,
-            address: employeeAddress,
-            amountStroops: c.amountStroops ?? "0",
-            payoutMode: isFiat ? EmployeePayoutMode.FIAT : EmployeePayoutMode.CRYPTO,
-            cashOutContractAddress: cashOutAddress,
-          },
-        });
-        if (isFiat && c.accountName && c.accountNumber && c.bankCode) {
-          await tx.employeeBankDetail.create({
-            data: {
-              employeeId: employee.id,
-              accountName: c.accountName,
-              accountNumber: c.accountNumber,
-              bankCode: c.bankCode,
-            },
-          });
-        }
-      });
-    } catch (err) {
-      if (
-        (
-          err as {
-            code?: string;
-          }
-        ).code === "P2002"
-      ) {
-        const count = await db.employee.count({ where: { deploymentId } });
-        if (count > 0) return;
-      }
-      throw err;
-    }
+  const pipeline = deployment.pipelineSnapshot as Array<{ templateKind: string }> | null;
+  if (
+    !pipeline?.some((n) => n.templateKind === "SUBSCRIPTION") ||
+    pipeline.some((n) => n.templateKind === "PAYROLL")
+  )
     return;
-  }
-  const splitNode = graph?.nodes.find((n) => n.type === "split");
-  if (!splitNode?.config?.recipients?.length) return;
-  const recipients = splitNode.config.recipients;
-  // Create all employees and their bank details in one transaction. If a
-  // duplicate submit request races us, the unique constraint on
-  // (deploymentId, address) fires; in that case the other request already
-  // created the rows and we can safely ignore the conflict.
-  try {
-    await db.$transaction(async (tx) => {
-      for (let i = 0; i < recipients.length; i++) {
-        const r = recipients[i];
-        if (!r) continue;
-        const isFiat = r.payoutMode === "fiat";
-        const cashOutNodeId = `${splitNode.id}-cashout-${i}`;
-        const cashOutAddress = isFiat ? (cashOutByNodeId.get(cashOutNodeId) ?? null) : null;
-        // Fiat employees are represented on-chain by their cash-out contract
-        // address, so use that as the employee address when available. Any
-        // pending placeholder must be made unique per recipient to avoid
-        // colliding on the (deploymentId, address) unique index.
-        const employeeAddress = (() => {
-          if (isFiat && cashOutAddress) return cashOutAddress;
-          if (isPendingAddress(r.address)) return `${r.address}:${i}`;
-          return r.address;
-        })();
-        const employee = await tx.employee.create({
-          data: {
-            deploymentId,
-            address: employeeAddress,
-            amountStroops: r.amountStroops ?? "0",
+  const graph = FlowGraphSchema.parse(deployment.graphSnapshot);
+  const pay = graph.nodes.find((n) => n.type === "pay");
+  const split = graph.nodes.find((n) => n.type === "split");
+  const recipients =
+    pipeline.some((n) => n.templateKind === "PAYER") && pay?.type === "pay"
+      ? [{ address: pay.config.recipient, amountStroops: pay.config.amountStroops ?? "0" }]
+      : split?.type === "split"
+        ? split.config.recipients.map((r) => ({
+            address: r.address,
+            amountStroops: r.mode === "fixed" ? r.amountStroops : "0",
             label: r.label,
-            payoutMode: isFiat ? EmployeePayoutMode.FIAT : EmployeePayoutMode.CRYPTO,
-            cashOutContractAddress: cashOutAddress,
-          },
-        });
-        if (isFiat && r.accountName && r.accountNumber && r.bankCode) {
-          await tx.employeeBankDetail.create({
-            data: {
-              employeeId: employee.id,
-              accountName: r.accountName,
-              accountNumber: r.accountNumber,
-              bankCode: r.bankCode,
-            },
-          });
-        }
-      }
-    });
-  } catch (err) {
-    if (
-      (
-        err as {
-          code?: string;
-        }
-      ).code === "P2002"
-    ) {
-      // Distinguish a duplicate-submit race from a real uniqueness bug. If
-      // employees already exist, another request won the race and we are done.
-      const count = await db.employee.count({ where: { deploymentId } });
-      if (count > 0) return;
-    }
-    throw err;
-  }
+          }))
+        : [];
+  await db.employee.createMany({
+    data: recipients.map((r) => ({ deploymentId, ...r })),
+    skipDuplicates: true,
+  });
 }

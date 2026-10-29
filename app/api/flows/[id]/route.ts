@@ -51,7 +51,7 @@ export async function PATCH(
       const v = validateFlow(body.graph, { ignoreOwnerEmail: true });
       if (v.ok) {
         templateKind = v.templateKind;
-        parameters = flowToPipeline(v.graph, undefined, undefined, {
+        parameters = flowToPipeline(v.graph, undefined, {
           forValidation: true,
         }) as object;
       }

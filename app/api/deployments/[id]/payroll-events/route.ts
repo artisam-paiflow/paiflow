@@ -9,7 +9,7 @@ import { loadPayrollEvents } from "@/lib/payroll/event-feed-source";
  * Live-style event feed for a deployment's payroll activity.
  *
  * Returns a merged, newest-first timeline synthesized from `PayrollRun`,
- * `PayrollPayout`, and `OffRampPayoutJob` rows. Cursor-based pagination on
+ * `PayrollPayout` rows. Cursor-based pagination on
  * (occurredAt, id): pass the returned `nextCursor` back as `?cursor=`.
  */
 async function GETHandler(

@@ -12,12 +12,6 @@ function nodeSurfaces(n: FlowNode, off: readonly FeatureSurface[]): FeatureSurfa
     const gate = FEATURE_GATED_BLOCKS[s];
     if (gate.nodeTypes.includes(n.type)) return true;
     if (n.type === "condition" && gate.conditionKinds.includes(n.config.kind)) return true;
-    if (gate.fiatPayout) {
-      if (n.type === "pay" && n.config.payoutMode === "fiat") return true;
-      if (n.type === "split" && n.config.recipients.some((r) => r.payoutMode === "fiat")) {
-        return true;
-      }
-    }
     return false;
   });
 }

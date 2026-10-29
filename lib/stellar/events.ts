@@ -20,8 +20,6 @@ import { assetLabel, FlowGraphSchema, migrateFlowGraph, type FlowGraph } from "@
 import { stellarPassphrase } from "@/lib/env";
 import { sendEmailNotificationsForTransactions } from "@/lib/flow-notifications";
 import { inboundAssetForContract, type PipelineNodeSnapshot } from "@/lib/flows/event-assets";
-import { createCashOutJob } from "@/lib/offramp/jobs";
-import { bankDetailsFromGraph, eventCreatesOffRampJob } from "@/lib/offramp/cash-out-bank";
 // Paranoia buffer: when polling events for the first time we start a few
 // ledgers before the deployment transaction to avoid missing events emitted
 // at the exact ledger of deployment finalization.
@@ -410,23 +408,6 @@ const PAYROLL_REGISTRY: EventRegistry = {
     },
   },
 };
-const CASH_OUT_REGISTRY: EventRegistry = {
-  cash_out: {
-    kind: EventKind.CASH_OUT,
-    decode: (topics, value) => {
-      const source = topics[1] ?? null;
-      const amount = value ?? null;
-      return source && amount !== null ? { source, amount } : null;
-    },
-  },
-  bank_updated: {
-    kind: EventKind.RECIPIENT_UPDATED,
-    decode: (topics) => {
-      const admin = topics[1] ?? null;
-      return admin ? { admin } : null;
-    },
-  },
-};
 const ORACLE_REGISTRY: EventRegistry = {
   execute: {
     kind: EventKind.RECEIVE,
@@ -537,8 +518,6 @@ function getRegistry(templateKind: TemplateKind): EventRegistry {
       return TIMELOCK_BRANCH_REGISTRY;
     case TemplateKind.MULTISIG:
       return MULTISIG_REGISTRY;
-    case TemplateKind.CASH_OUT:
-      return CASH_OUT_REGISTRY;
     default:
       return {};
   }
@@ -1234,44 +1213,6 @@ async function ingestEventPage(
       // Keep fresh balance invalidation/publish bookkeeping before this fallible projection.
       const billingEmitter = subscriptionBillingEmitter(pipeline, flowTemplateKind);
       if (billingEmitter) await projectSubscriptionCharge(created, billingEmitter);
-      // Persist cash_out obligations before advancing the cursor so the PDAX leg
-      // can run asynchronously. Payroll deployments are excluded: their jobs
-      // are created by the payroll cron (with payrollRunId/employeeId) and
-      // would otherwise be duplicated by the splitter's cash_out events.
-      if (kind === EventKind.CASH_OUT && eventCreatesOffRampJob(flowTemplateKind)) {
-        const bank = await findCashOutBank(deploymentId, graph, contractAddress, pipeline ?? []);
-        const source = typeof resolvedData?.source === "string" ? resolvedData.source : null;
-        const amount =
-          typeof resolvedData?.amount === "bigint"
-            ? resolvedData.amount.toString()
-            : typeof resolvedData?.amount === "string"
-              ? resolvedData.amount
-              : null;
-        if (bank && source && amount) {
-          await createCashOutJob(db, {
-            deploymentId,
-            originatingEventId: created.id,
-            replayingEvent: !fresh,
-            sourceAddress: source,
-            amountStroops: amount,
-            bankAccountName: bank.accountName,
-            bankAccountNumber: bank.accountNumber,
-            bankCode: bank.bankCode,
-          });
-        } else {
-          log.warn(
-            {
-              deploymentId,
-              eventId: created.id,
-              hasBank: !!bank,
-              hasSource: !!source,
-              hasAmount: !!amount,
-            },
-            "cash_out obligation needs bank/source/amount reconciliation",
-          );
-          return { written, failure: { ledger: ev.ledger, reason: "insert-error" } };
-        }
-      }
     } catch (err) {
       const code = (
         err as {
@@ -1290,116 +1231,6 @@ type PipelineNode = {
   contractAddress: string;
   templateKind: TemplateKind;
 };
-type CashOutBank = {
-  accountName: string;
-  accountNumber: string;
-  bankCode: string;
-};
-/**
- * Locate the bank details configured for the cash_out node that owns
- * `contractAddress`. We match by address in the pipeline snapshot, then resolve
- * the destination from the saved graph snapshot (explicit cash_out nodes, or
- * the parent pay/split config for generated terminals). Payroll-generated
- * nodes fall back to the Employee table.
- */
-async function findCashOutBank(
-  deploymentId: string,
-  graph: FlowGraph | null,
-  contractAddress: string,
-  pipeline: PipelineNodeSnapshot[],
-): Promise<CashOutBank | null> {
-  const snapshot = pipeline.find((p) => p.contractAddress === contractAddress);
-  if (graph && snapshot) {
-    const bank = bankDetailsFromGraph(graph, snapshot.nodeId);
-    if (bank) return bank;
-  }
-  // Auto-generated CASH_OUT nodes for immutable payroll flows exist in the
-  // pipeline snapshot but not in the graph snapshot. Fall back to the Employee
-  // table, which is populated at deploy time for those employees.
-  const employee = await db.employee.findFirst({
-    where: { deploymentId, cashOutContractAddress: contractAddress },
-    include: { bankDetail: true },
-  });
-  if (employee?.bankDetail) {
-    return {
-      accountName: employee.bankDetail.accountName,
-      accountNumber: employee.bankDetail.accountNumber,
-      bankCode: employee.bankDetail.bankCode,
-    };
-  }
-  return null;
-}
-/** Bounded recovery of persisted pre-cutoff cash-outs, including payroll events
- * normally serviced by payroll jobs. Link exact run/hash matches before creating
- * obligations; ambiguous legacy matches must be reconciled, never paid twice. */
-export async function reconcileStoredCashOutObligations(
-  deploymentId: string,
-  cutoff: number,
-): Promise<boolean> {
-  const deployment = await db.deployment.findUniqueOrThrow({
-    where: { id: deploymentId },
-    include: { flow: { select: { templateKind: true } } },
-  });
-  const graphResult = FlowGraphSchema.safeParse(deployment.graphSnapshot);
-  const pipeline = (deployment.pipelineSnapshot as PipelineNodeSnapshot[] | null) ?? [];
-  const rows = await db.contractEvent.findMany({
-    where: {
-      deploymentId,
-      kind: EventKind.CASH_OUT,
-      ledger: { lte: cutoff },
-      cashOutObligation: null,
-    },
-    orderBy: [{ ledger: "asc" }, { eventId: "asc" }],
-    take: 20,
-  });
-  for (const row of rows) {
-    const data = row.decodedData as Record<string, unknown> | null;
-    const payload = row.payload as Record<string, unknown> | null;
-    const source = typeof data?.source === "string" ? data.source : null;
-    const amount = typeof data?.amount === "string" ? data.amount : null;
-    const emitter = typeof payload?.contractAddress === "string" ? payload.contractAddress : source;
-    const bank = emitter
-      ? await findCashOutBank(
-          deploymentId,
-          graphResult.success ? graphResult.data : null,
-          emitter,
-          pipeline,
-        )
-      : null;
-    if (!bank || !source || !amount)
-      throw new AppError(
-        "CONFLICT",
-        `Cash-out event ${row.id} requires verified bank/source/amount recovery`,
-      );
-    await createCashOutJob(db, {
-      deploymentId,
-      originatingEventId: row.id,
-      replayingEvent: true,
-      ...(deployment.flow.templateKind === TemplateKind.PAYROLL
-        ? { payrollTxHash: row.txHash }
-        : {}),
-      sourceAddress: source,
-      amountStroops: amount,
-      bankAccountName: bank.accountName,
-      bankAccountNumber: bank.accountNumber,
-      bankCode: bank.bankCode,
-    });
-    await db.cashOutJobFailure.updateMany({
-      where: { contractEventId: row.id, retriedAt: null },
-      data: { retriedAt: new Date() },
-    });
-  }
-  return (
-    (await db.contractEvent.count({
-      where: {
-        deploymentId,
-        kind: EventKind.CASH_OUT,
-        ledger: { lte: cutoff },
-        cashOutObligation: null,
-      },
-    })) === 0
-  );
-}
 /** Compatible inserted-row count for SSE, transaction ingestion and manual/v1 callers. */
 export async function pollEventsFor(deploymentId: string): Promise<number> {
   const result = await pollEventsForWithOutcome(deploymentId);

@@ -17,7 +17,6 @@ const { mockDb } = vi.hoisted(() => {
   const mockDb = {
     deployment: { findFirst: vi.fn() },
     payrollRun: { findFirst: vi.fn(), findMany: vi.fn() },
-    offRampPayoutJob: { findMany: vi.fn() },
   };
   return { mockDb };
 });
@@ -64,7 +63,6 @@ beforeEach(() => {
       ],
     },
   ]);
-  mockDb.offRampPayoutJob.findMany.mockResolvedValue([]);
 });
 describe("GET /api/deployments/:id/payroll-events", () => {
   it("returns a synthesized, newest-first feed", async () => {

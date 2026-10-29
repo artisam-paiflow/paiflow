@@ -1,25 +1,12 @@
 import { z } from "zod";
-import type { OffRampPayoutJobStatus, PayrollRunStatus } from "@prisma/client";
+import type { PayrollRunStatus } from "@prisma/client";
 import {
   decodeCursor as decodeOpaqueCursor,
   encodeCursor as encodeOpaqueCursor,
 } from "@/lib/api/v1/cursor";
 
-/**
- * Event-feed synthesis + Zod contracts for the payroll live-feed endpoints
- * consumed by the external payroll app (`paiflow-payroll`).
- *
- * There is no dedicated event-log table: payroll transitions are not recorded
- * as append-only rows. Instead we *synthesize* a merged timeline from the
- * current state of `PayrollRun`, `PayrollPayout`, and `OffRampPayoutJob` rows.
- *
- * Each synthesized event has a stable `id` of the form `${rowId}:${kind}` so
- * that repeated polls return the same id for the same logical event, and so
- * cursor pagination is deterministic. Run-level and payout-failed events use
- * append-only transition timestamps for `occurredAt`. Off-ramp terminal events
- * (FAILED/CANCELLED/COMPLETED) also persist via append-only timestamps so they
- * do not vanish when a job is retried or reset.
- */
+/** Crypto payroll timelines synthesized from run/payout rows. Stable event IDs
+ * and append-only transition timestamps preserve cursor pagination. */
 
 export const EVENT_KINDS = [
   "PAYROLL_RUN_CREATED",
@@ -30,11 +17,6 @@ export const EVENT_KINDS = [
   "PAYOUT_SENT",
   "PAYOUT_COMPLETED",
   "PAYOUT_FAILED",
-  "OFFRAMP_QUOTED",
-  "OFFRAMP_INITIATED",
-  "OFFRAMP_COMPLETED",
-  "OFFRAMP_FAILED",
-  "OFFRAMP_CANCELLED",
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];
@@ -93,24 +75,6 @@ export type RunForEvents = {
   updatedAt: Date;
   lastError: string | null;
   payouts: PayoutForEvents[];
-};
-
-export type OffRampJobForEvents = {
-  id: string;
-  status: OffRampPayoutJobStatus;
-  amountStroops: string;
-  payrollRunId: string | null;
-  employeeId: string | null;
-  payrollPayoutId: string | null;
-  completedAt: Date | null;
-  quotedAt: Date | null;
-  initiatedAt: Date | null;
-  failedAt: Date | null;
-  cancelledAt: Date | null;
-  updatedAt: Date;
-  lastError: string | null;
-  providerRef: string | null;
-  employee: { label: string | null; address: string } | null;
 };
 
 function employeeLabel(employee: { label: string | null; address: string } | null): string | null {
@@ -178,20 +142,9 @@ function runEvents(run: RunForEvents): PayrollEvent[] {
   return events;
 }
 
-/**
- * Events for a single payout.
- *
- * `PayrollPayout` has no status/timestamp of its own beyond `createdAt`, so the
- * lifecycle is derived: a charge tx means SENT; a pure-crypto payout (no
- * off-ramp job) is COMPLETED once charged; a payout whose parent run FAILED with
- * no charge tx is FAILED. Fiat completion/failure is surfaced by the off-ramp
- * events instead, to avoid duplicating a single logical outcome.
- */
-function payoutEvents(
-  payout: PayoutForEvents,
-  run: RunForEvents,
-  hasOffRamp: boolean,
-): PayrollEvent[] {
+/** A recorded crypto charge emits SENT and COMPLETED; an uncharged failed run
+ * emits FAILED without claiming a successful on-chain payment. */
+function payoutEvents(payout: PayoutForEvents, run: RunForEvents): PayrollEvent[] {
   const base = {
     payrollRunId: run.id,
     payoutId: payout.id,
@@ -220,16 +173,14 @@ function payoutEvents(
       message: null,
       occurredAt: payout.createdAt,
     });
-    if (!hasOffRamp) {
-      events.push({
-        ...base,
-        id: `${payout.id}:PAYOUT_COMPLETED`,
-        kind: "PAYOUT_COMPLETED",
-        txHash: payout.txHash,
-        message: null,
-        occurredAt: payout.createdAt,
-      });
-    }
+    events.push({
+      ...base,
+      id: `${payout.id}:PAYOUT_COMPLETED`,
+      kind: "PAYOUT_COMPLETED",
+      txHash: payout.txHash,
+      message: null,
+      occurredAt: payout.createdAt,
+    });
   } else if (run.status === "FAILED" || run.failedAt) {
     events.push({
       ...base,
@@ -244,99 +195,13 @@ function payoutEvents(
   return events;
 }
 
-const OFFRAMP_KIND: Partial<Record<OffRampPayoutJobStatus, EventKind>> = {
-  QUOTED: "OFFRAMP_QUOTED",
-  INITIATED: "OFFRAMP_INITIATED",
-  COMPLETED: "OFFRAMP_COMPLETED",
-  FAILED: "OFFRAMP_FAILED",
-  CANCELLED: "OFFRAMP_CANCELLED",
-};
-
-function offRampMessage(job: OffRampJobForEvents, kind: EventKind): string | null {
-  if (kind === "OFFRAMP_FAILED") return job.lastError;
-  return job.providerRef ? `ref ${job.providerRef}` : null;
-}
-
-/**
- * Events for an off-ramp job. Terminal events (FAILED/CANCELLED/COMPLETED)
- * use append-only transition timestamps so a delivered event does not vanish
- * when a job is retried or reset; non-terminal events reflect the current
- * status. PENDING/RUNNING emit nothing.
- */
-function offRampEvents(job: OffRampJobForEvents): PayrollEvent[] {
-  const events: PayrollEvent[] = [];
-
-  const base = {
-    payrollRunId: job.payrollRunId,
-    payoutId: job.payrollPayoutId,
-    employeeId: job.employeeId,
-    employeeLabel: employeeLabel(job.employee),
-    amountStroops: job.amountStroops,
-    txHash: null,
-  } as const;
-
-  function push(kind: EventKind, occurredAt: Date, message: string | null) {
-    events.push({
-      ...base,
-      id: `${job.id}:${kind}`,
-      kind,
-      message,
-      occurredAt,
-    });
-  }
-
-  const currentKind = OFFRAMP_KIND[job.status];
-  if (
-    currentKind &&
-    (job.status === "QUOTED" || job.status === "INITIATED" || job.status === "COMPLETED")
-  ) {
-    const ts =
-      job.status === "QUOTED"
-        ? job.quotedAt
-        : job.status === "INITIATED"
-          ? job.initiatedAt
-          : job.completedAt;
-    push(currentKind, ts ?? job.updatedAt, offRampMessage(job, currentKind));
-  }
-
-  if (job.failedAt || job.status === "FAILED") {
-    push("OFFRAMP_FAILED", job.failedAt ?? job.updatedAt, job.lastError);
-  }
-  if (job.cancelledAt || job.status === "CANCELLED") {
-    push(
-      "OFFRAMP_CANCELLED",
-      job.cancelledAt ?? job.updatedAt,
-      offRampMessage(job, "OFFRAMP_CANCELLED"),
-    );
-  }
-
-  return events;
-}
-
-/**
- * Synthesize the full, unpaginated event timeline for a set of runs and their
- * off-ramp jobs, sorted newest-first (`occurredAt DESC`, then `id DESC` as a
- * deterministic tie-break).
- */
-export function synthesizeEvents(
-  runs: RunForEvents[],
-  jobs: OffRampJobForEvents[],
-): PayrollEvent[] {
-  const payoutsWithOffRamp = new Set(
-    jobs.map((j) => j.payrollPayoutId).filter((id): id is string => id !== null),
-  );
-
+/** Synthesize the crypto payroll timeline with stable event IDs. */
+export function synthesizeEvents(runs: RunForEvents[]): PayrollEvent[] {
   const events: PayrollEvent[] = [];
   for (const run of runs) {
     events.push(...runEvents(run));
-    for (const payout of run.payouts) {
-      events.push(...payoutEvents(payout, run, payoutsWithOffRamp.has(payout.id)));
-    }
+    for (const payout of run.payouts) events.push(...payoutEvents(payout, run));
   }
-  for (const job of jobs) {
-    events.push(...offRampEvents(job));
-  }
-
   return sortEventsDesc(events);
 }
 

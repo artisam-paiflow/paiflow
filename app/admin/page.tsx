@@ -48,13 +48,6 @@ export default async function AdminHome() {
             CONTRACT TEMPLATES
           </Link>
           <Link
-            href="/admin/offramp"
-            className="border-outline-variant/40 bg-surface-container-low/40 text-label-md text-on-surface-variant hover:border-primary/40 hover:text-on-surface inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors"
-          >
-            <span className="material-symbols-outlined text-[16px]">account_balance</span>
-            OFF-RAMP
-          </Link>
-          <Link
             href="/admin/submission-proof"
             className="border-outline-variant/40 bg-surface-container-low/40 text-label-md text-on-surface-variant hover:border-primary/40 hover:text-on-surface inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors"
           >

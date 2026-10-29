@@ -22,7 +22,6 @@ import { inputClass } from "../inputs/styles";
 import { Field } from "./asset-fields";
 import { AllocationBar } from "./allocation-bar";
 import { defaultShares } from "./split-shares.utils";
-import { fiatPayoutAvailable as fiatAvailable, showPayoutModeSelect } from "./payout-mode.utils";
 export function SplitRecipientsEditor({
   node,
   trigger,
@@ -33,7 +32,6 @@ export function SplitRecipientsEditor({
   addressBookError,
   fieldErrors,
   onChange,
-  offrampEnabled,
   sandbox,
 }: {
   node: Extract<
@@ -51,8 +49,6 @@ export function SplitRecipientsEditor({
   /** Per-field validation messages for this node, keyed by config path. */
   fieldErrors?: Map<string, string>;
   onChange: (n: FlowNode) => void;
-  /** Off on this server (#722): fiat is not offered, only switched away from. */
-  offrampEnabled: boolean;
   sandbox?: boolean;
 }) {
   const onAddressBookChange = refreshAddressBook ?? (() => {});
@@ -62,7 +58,6 @@ export function SplitRecipientsEditor({
   const triggerType = trigger?.type ?? null;
   const isPayroll = triggerType === "payroll";
   const isStreamer = triggerType === "on_schedule";
-  const fiatPayoutAvailable = fiatAvailable(offrampEnabled, triggerType);
   const mode = isPayroll ? "fixed" : (node.config.recipients[0]?.mode ?? "percentage");
   const totalFixed = splitTotalFixedStroops(node.config.recipients);
   const minAmount = trigger?.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
@@ -137,14 +132,9 @@ export function SplitRecipientsEditor({
     // valid 100% instead of writing 0 into every share (#583).
     const fresh = defaultShares(node.config.recipients.map((_, i) => modeCache.current.bps.get(i)));
     const next = node.config.recipients.map((r, i) => {
-      // Preserve mode-independent fields (payout/bank details) across the switch.
       const base = {
         address: r.address,
         label: r.label,
-        payoutMode: r.payoutMode,
-        accountName: r.accountName,
-        accountNumber: r.accountNumber,
-        bankCode: r.bankCode,
       };
       if (newMode === "percentage") {
         return { ...base, mode: "percentage" as const, bps: fresh[i] ?? 0 };
@@ -217,10 +207,6 @@ export function SplitRecipientsEditor({
       {node.config.recipients.map((r, i) => {
         const isPending = isPendingAddress(r.address);
         const isPercentage = r.mode === "percentage";
-        // Fiat recipients (any trigger) sink through an auto-generated cash-out
-        // contract, so the wallet address and label are irrelevant — the bank
-        // details below are the destination.
-        const isFiatRecipient = r.payoutMode === "fiat";
         const isExpanded = expandedRecipients.has(i);
         const cardHasError = fieldErrors
           ? [...fieldErrors.keys()].some((k) => k.startsWith(`recipients.${i}.`))
@@ -232,11 +218,7 @@ export function SplitRecipientsEditor({
                 node.config.asset,
               )
             : null;
-        const summaryLabel = r.label
-          ? r.label
-          : isFiatRecipient
-            ? r.accountName?.trim() || "Fiat off-ramp"
-            : shortAddr(r.address);
+        const summaryLabel = r.label ? r.label : shortAddr(r.address);
         const summaryAmount = isPercentage
           ? `${bpsToPct(r.bps)}%`
           : r.amountStroops && r.amountStroops !== "0"
@@ -258,7 +240,7 @@ export function SplitRecipientsEditor({
             >
               <div className="flex min-w-0 items-center gap-1.5">
                 <span className="material-symbols-outlined text-[14px] text-zinc-500">
-                  {r.payoutMode === "fiat" ? "account_balance" : "account_circle"}
+                  {"account_circle"}
                 </span>
                 <span className="truncate text-xs text-zinc-300">{summaryLabel}</span>
               </div>
@@ -272,164 +254,132 @@ export function SplitRecipientsEditor({
 
             {isExpanded && (
               <div className="space-y-2 border-t border-zinc-800 p-2 pt-1">
-                {isFiatRecipient ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs text-zinc-400">Fiat off-ramp</span>
-                      <button
-                        onClick={() => deleteRecipient(i)}
-                        className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-400 hover:text-red-300"
-                      >
-                        ×
-                      </button>
+                <>
+                  {/* Row 1: wallet address + delete */}
+                  <div className="grid grid-cols-[1fr_auto] items-start gap-2">
+                    <div className="grid gap-0.5">
+                      <AddressInput
+                        value={r.address}
+                        placeholder="G... or PENDING:label"
+                        onChange={(address) =>
+                          updateRecipient(i, {
+                            ...r,
+                            address,
+                          } as SplitRecipient)
+                        }
+                        onSelectEntry={(entry) =>
+                          updateRecipient(i, {
+                            ...r,
+                            address: entry.address,
+                            label: entry.label || r.label,
+                          } as SplitRecipient)
+                        }
+                        pending={isPendingAddress(r.address)}
+                        label={`Wallet address for recipient ${i + 1}`}
+                        error={recipientError(i, "address")}
+                        addressBook={addressBook}
+                        onAddressBookChange={onAddressBookChange}
+                        addressBookLoading={addressBookLoading}
+                        addressBookError={addressBookError}
+                      />
                     </div>
-                    {isPercentage ? (
-                      <Field label="Share" error={recipientError(i, "bps")}>
-                        <BpsDraftInput
-                          className="input pr-5 text-right"
-                          value={r.bps}
-                          placeholder="0"
-                          onChange={(bps) => updateRecipient(i, { ...r, bps } as SplitRecipient)}
-                        />
-                      </Field>
-                    ) : (
-                      <Field label="Amount" error={recipientError(i, "amountStroops")}>
-                        <StroopsDraftInput
-                          className="input text-right"
-                          value={
-                            (
-                              r as Extract<
-                                SplitRecipient,
-                                {
-                                  mode: "fixed";
-                                }
-                              >
-                            ).amountStroops
-                          }
-                          placeholder="0"
-                          onChange={(stroops) => {
-                            updateRecipient(i, {
-                              ...r,
-                              amountStroops: stroops || "0",
-                            } as SplitRecipient);
-                          }}
-                        />
-                      </Field>
-                    )}
+                    <button
+                      type="button"
+                      aria-label={`Remove recipient ${i + 1}`}
+                      onClick={() => deleteRecipient(i)}
+                      className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-400 hover:text-red-300 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+                    >
+                      ×
+                    </button>
                   </div>
-                ) : (
-                  <>
-                    {/* Row 1: wallet address + delete */}
-                    <div className="grid grid-cols-[1fr_auto] items-start gap-2">
-                      <div className="grid gap-0.5">
-                        <AddressInput
-                          value={r.address}
-                          placeholder="G... or PENDING:label"
-                          onChange={(address) =>
-                            updateRecipient(i, {
-                              ...r,
-                              address,
-                            } as SplitRecipient)
-                          }
-                          onSelectEntry={(entry) =>
-                            updateRecipient(i, {
-                              ...r,
-                              address: entry.address,
-                              label: entry.label || r.label,
-                            } as SplitRecipient)
-                          }
-                          pending={isPendingAddress(r.address)}
-                          label={`Wallet address for recipient ${i + 1}`}
-                          error={recipientError(i, "address")}
-                          addressBook={addressBook}
-                          onAddressBookChange={onAddressBookChange}
-                          addressBookLoading={addressBookLoading}
-                          addressBookError={addressBookError}
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        aria-label={`Remove recipient ${i + 1}`}
-                        onClick={() => deleteRecipient(i)}
-                        className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-400 hover:text-red-300 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
-                      >
-                        ×
-                      </button>
-                    </div>
 
+                  {isPayroll ? (
+                    <>
+                      {" "}
+                      {/* Row 2: share / amount */}
+                      <div className="mt-1 grid gap-0.5">
+                        <span className="text-[10px] text-zinc-500">
+                          {isPercentage ? "Share" : `Amount (${assetLabel(node.config.asset)})`}
+                        </span>
+                        {isPercentage ? (
+                          <BpsDraftInput
+                            className={cn(
+                              "input pr-5 text-right",
+                              recipientError(i, "bps") && "!border-error/70",
+                            )}
+                            aria-label={`Share for ${summaryLabel}`}
+                            value={r.bps}
+                            placeholder="0"
+                            onChange={(bps) => updateRecipient(i, { ...r, bps } as SplitRecipient)}
+                          />
+                        ) : (
+                          <>
+                            <div className="relative">
+                              <StroopsDraftInput
+                                className={cn(
+                                  "input pr-5 text-right",
+                                  recipientError(i, "amountStroops") && "!border-error/70",
+                                )}
+                                value={r.amountStroops}
+                                placeholder="0"
+                                onChange={(stroops) => {
+                                  updateRecipient(i, {
+                                    ...r,
+                                    amountStroops: stroops || "0",
+                                  } as SplitRecipient);
+                                }}
+                              />
+                            </div>
+                            {recipientError(i, "amountStroops") && (
+                              <span className="text-error text-[10px] leading-snug">
+                                {recipientError(i, "amountStroops")}
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </>
+                  ) : isPercentage ? (
+                    <ShareInput
+                      label={`Share for ${summaryLabel}`}
+                      error={recipientError(i, "bps")}
+                      value={r.bps}
+                      onChange={(bps) => updateRecipient(i, { ...r, bps })}
+                    />
+                  ) : (
+                    <AmountInput
+                      label={`Amount for ${summaryLabel}`}
+                      error={recipientError(i, "amountStroops")}
+                      value={r.amountStroops}
+                      asset={node.config.asset}
+                      commit="draft"
+                      echo={false}
+                      placeholder="0"
+                      onChange={(amountStroops) => updateRecipient(i, { ...r, amountStroops })}
+                    />
+                  )}
+                  <div className="grid grid-cols-[1fr_auto] gap-1">
                     {isPayroll ? (
                       <>
                         {" "}
-                        {/* Row 2: share / amount */}
-                        <div className="mt-1 grid gap-0.5">
-                          <span className="text-[10px] text-zinc-500">
-                            {isPercentage ? "Share" : `Amount (${assetLabel(node.config.asset)})`}
-                          </span>
-                          {isPercentage ? (
-                            <BpsDraftInput
-                              className={cn(
-                                "input pr-5 text-right",
-                                recipientError(i, "bps") && "!border-error/70",
-                              )}
-                              aria-label={`Share for ${summaryLabel}`}
-                              value={r.bps}
-                              placeholder="0"
-                              onChange={(bps) =>
-                                updateRecipient(i, { ...r, bps } as SplitRecipient)
-                              }
-                            />
-                          ) : (
-                            <>
-                              <div className="relative">
-                                <StroopsDraftInput
-                                  className={cn(
-                                    "input pr-5 text-right",
-                                    recipientError(i, "amountStroops") && "!border-error/70",
-                                  )}
-                                  value={r.amountStroops}
-                                  placeholder="0"
-                                  onChange={(stroops) => {
-                                    updateRecipient(i, {
-                                      ...r,
-                                      amountStroops: stroops || "0",
-                                    } as SplitRecipient);
-                                  }}
-                                />
-                              </div>
-                              {recipientError(i, "amountStroops") && (
-                                <span className="text-error text-[10px] leading-snug">
-                                  {recipientError(i, "amountStroops")}
-                                </span>
-                              )}
-                            </>
-                          )}
-                        </div>
+                        <input
+                          className="input text-xs"
+                          value={r.label ?? ""}
+                          placeholder="Label (e.g. Alice)"
+                          onChange={(e) =>
+                            updateRecipient(i, {
+                              ...r,
+                              label: e.target.value || undefined,
+                            } as SplitRecipient)
+                          }
+                        />
                       </>
-                    ) : isPercentage ? (
-                      <ShareInput
-                        label={`Share for ${summaryLabel}`}
-                        error={recipientError(i, "bps")}
-                        value={r.bps}
-                        onChange={(bps) => updateRecipient(i, { ...r, bps })}
-                      />
                     ) : (
-                      <AmountInput
-                        label={`Amount for ${summaryLabel}`}
-                        error={recipientError(i, "amountStroops")}
-                        value={r.amountStroops}
-                        asset={node.config.asset}
-                        commit="draft"
-                        echo={false}
-                        placeholder="0"
-                        onChange={(amountStroops) => updateRecipient(i, { ...r, amountStroops })}
-                      />
-                    )}
-                    <div className="grid grid-cols-[1fr_auto] gap-1">
-                      {isPayroll ? (
-                        <>
-                          {" "}
+                      <SharedField label={`Label for recipient ${i + 1}`}>
+                        {(control) => (
                           <input
-                            className="input text-xs"
+                            {...control}
+                            className={inputClass}
                             value={r.label ?? ""}
                             placeholder="Label (e.g. Alice)"
                             onChange={(e) =>
@@ -439,146 +389,35 @@ export function SplitRecipientsEditor({
                               } as SplitRecipient)
                             }
                           />
-                        </>
-                      ) : (
-                        <SharedField label={`Label for recipient ${i + 1}`}>
-                          {(control) => (
-                            <input
-                              {...control}
-                              className={inputClass}
-                              value={r.label ?? ""}
-                              placeholder="Label (e.g. Alice)"
-                              onChange={(e) =>
-                                updateRecipient(i, {
-                                  ...r,
-                                  label: e.target.value || undefined,
-                                } as SplitRecipient)
-                              }
-                            />
-                          )}
-                        </SharedField>
+                        )}
+                      </SharedField>
+                    )}
+                    <div className="flex items-center gap-1 text-[10px]">
+                      {isPending && (
+                        <span className="rounded bg-amber-950 px-1.5 py-0.5 text-amber-400">
+                          needs address
+                        </span>
                       )}
-                      <div className="flex items-center gap-1 text-[10px]">
-                        {isPending && (
-                          <span className="rounded bg-amber-950 px-1.5 py-0.5 text-amber-400">
-                            needs address
-                          </span>
-                        )}
-                        {projected && (
-                          <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
-                            {projected}
-                          </span>
-                        )}
-                        {!isPercentage && r.amountStroops && r.amountStroops !== "0" && (
-                          <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
-                            {stroopsToDisplay(r.amountStroops, node.config.asset)}
-                          </span>
-                        )}
-                      </div>
+                      {projected && (
+                        <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
+                          {projected}
+                        </span>
+                      )}
+                      {!isPercentage && r.amountStroops && r.amountStroops !== "0" && (
+                        <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
+                          {stroopsToDisplay(r.amountStroops, node.config.asset)}
+                        </span>
+                      )}
                     </div>
-                  </>
-                )}
-
-                {showPayoutModeSelect(fiatPayoutAvailable, offrampEnabled, r.payoutMode) && (
-                  <div className="space-y-2 pt-1">
-                    <Field label="Payout mode">
-                      <select
-                        className="input text-xs"
-                        value={r.payoutMode ?? "crypto"}
-                        onChange={(e) => {
-                          const mode = e.target.value as "crypto" | "fiat";
-                          const isFiatNext = mode === "fiat";
-                          const base = {
-                            ...r,
-                            payoutMode: mode,
-                            // Fiat recipients get an auto-generated cash-out
-                            // contract at deploy time, so the wallet address
-                            // and label are hidden and replaced with a
-                            // sentinel. Switching back to crypto restores a
-                            // resolvable pending placeholder.
-                            address: isFiatNext
-                              ? "PENDING:fiat"
-                              : r.address === "PENDING:fiat"
-                                ? "PENDING:unnamed"
-                                : r.address,
-                            label: isFiatNext ? undefined : r.label,
-                          };
-                          updateRecipient(
-                            i,
-                            mode === "fiat"
-                              ? {
-                                  ...base,
-                                  accountName: r.accountName ?? "",
-                                  accountNumber: r.accountNumber ?? "",
-                                  bankCode: r.bankCode ?? "",
-                                }
-                              : base,
-                          );
-                        }}
-                      >
-                        <option value="crypto">Crypto (wallet)</option>
-                        <option value="fiat" disabled={!fiatPayoutAvailable}>
-                          Fiat (bank transfer)
-                        </option>
-                      </select>
-                    </Field>
-
-                    {fiatPayoutAvailable && r.payoutMode === "fiat" && (
-                      <>
-                        <Field label="Account name" error={recipientError(i, "accountName")}>
-                          <input
-                            className="input text-xs"
-                            value={r.accountName ?? ""}
-                            placeholder="Juan Dela Cruz"
-                            onChange={(e) =>
-                              updateRecipient(i, {
-                                ...r,
-                                accountName: e.target.value,
-                              } as SplitRecipient)
-                            }
-                          />
-                        </Field>
-                        <Field label="Account number" error={recipientError(i, "accountNumber")}>
-                          <input
-                            className="input text-xs"
-                            value={r.accountNumber ?? ""}
-                            placeholder="1234567890"
-                            onChange={(e) =>
-                              updateRecipient(i, {
-                                ...r,
-                                accountNumber: e.target.value,
-                              } as SplitRecipient)
-                            }
-                          />
-                        </Field>
-                        <Field label="Bank" error={recipientError(i, "bankCode")}>
-                          <select
-                            className="input text-xs"
-                            value={r.bankCode ?? ""}
-                            onChange={(e) =>
-                              updateRecipient(i, {
-                                ...r,
-                                bankCode: e.target.value,
-                              } as SplitRecipient)
-                            }
-                          >
-                            <option value="">— select bank —</option>
-                            <option value="BASECPH">BASECPH — BDO</option>
-                            <option value="BACTBPH">BACTBPH — BPI</option>
-                          </select>
-                        </Field>
-                      </>
-                    )}
-
-                    {!sandbox && (
-                      <RecipientEmailField
-                        shared={!isPayroll && !isFiatRecipient}
-                        value={r.email}
-                        onChange={(email) => updateRecipient(i, { ...r, email })}
-                      />
-                    )}
-                    {false}
                   </div>
+                </>
+
+                {!sandbox && (
+                  <RecipientEmailField
+                    shared={!isPayroll}
+                    value={r.email}
+                    onChange={(email) => updateRecipient(i, { ...r, email })}
+                  />
                 )}
               </div>
             )}

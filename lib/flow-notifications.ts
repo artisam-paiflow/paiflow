@@ -286,16 +286,8 @@ export async function sendEmailNotificationsForTransactions(params: {
             `Swapped ${input ?? "unknown"} ${String(data.assetIn ?? asset)} for ${output} ${String(data.assetOut ?? asset)}`,
           );
       }
-      if (
-        (row.kind === "CLAIM" ||
-          row.kind === "RETRIEVE" ||
-          row.kind === "CANCEL" ||
-          row.kind === "CASH_OUT") &&
-        amount
-      ) {
-        summaries.push(
-          `${row.kind === "CASH_OUT" ? "Sent for fiat payout" : row.kind === "CLAIM" ? "Claimed" : "Returned"} ${amount} ${asset}`,
-        );
+      if ((row.kind === "CLAIM" || row.kind === "RETRIEVE" || row.kind === "CANCEL") && amount) {
+        summaries.push(`${row.kind === "CLAIM" ? "Claimed" : "Returned"} ${amount} ${asset}`);
       }
       if (row.kind === "PAYOUT" && typeof data.recipient !== "string" && amount && data.branch)
         summaries.push(`Released ${amount} ${asset} (${String(data.branch)})`);

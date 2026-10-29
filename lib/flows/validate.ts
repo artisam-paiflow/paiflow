@@ -22,7 +22,6 @@ import type { FeatureFlags } from "@/lib/feature-flags";
 import { isCatalogueAsset } from "./asset-catalogue";
 import { hiddenSurfaceIssues } from "./feature-gates";
 import type { ValidationIssue } from "./issue";
-import { checkHardLimits } from "./limits";
 import { paymentAmountIssues, scheduledPaymentIssues } from "./payment-bounds";
 import { swapConfigIssues, type SwapNode } from "./swap-rules";
 import { addressIssues, isAcceptedFlowAddress } from "./address-rules";
@@ -129,17 +128,6 @@ const FRIENDLY = {
   YIELD_TERMINAL:
     "A Yield step is the end of the line for now — nothing can come after it except an email notification. Remove the connections coming out of it.",
 } as const;
-// Triggers whose flows route payouts through the payer/splitter contracts,
-// which support cash-out sinking for fiat recipients. on_schedule routes
-// through the streamer, which has no cash-out mechanism.
-export const FIAT_PAYOUT_TRIGGERS = new Set([
-  "on_receive",
-  "webhook",
-  "web2_webhook",
-  "oracle",
-  "subscription",
-  "payroll",
-]);
 // A short, self-describing name for a node, mirroring what the canvas shows so
 // the user can locate the offending step instead of decoding a raw id like
 // "swap-8j756t".
@@ -167,8 +155,6 @@ function nodeDescriptor(n: FlowNode): string {
       return `Swap (${assetLabel(n.config.assetIn)} → ${assetLabel(n.config.assetOut)})`;
     case "yield":
       return `Yield (${assetLabel(n.config.asset)})`;
-    case "cash_out":
-      return "Cash Out";
     case "email_notify":
       return "Email notify";
     case "condition":
@@ -295,18 +281,6 @@ export function computeAssetFlow(graph: FlowGraph): Map<string, Asset | null> {
 }
 const GENERIC_SCHEMA_MESSAGE =
   "The flow structure is invalid. Check your node types and configuration.";
-// True when the flow off-ramps to fiat anywhere: a cash-out sink node, a pay
-// node paid out in fiat, or a split recipient paid out in fiat (both deploy
-// an implicit cash-out contract). Shared by the validator and the builder
-// toolbar.
-export function flowHasFiatPayout(graph: FlowGraph): boolean {
-  return graph.nodes.some(
-    (n) =>
-      n.type === "cash_out" ||
-      (n.type === "pay" && n.config.payoutMode === "fiat") ||
-      (n.type === "split" && n.config.recipients.some((r) => r.payoutMode === "fiat")),
-  );
-}
 /**
  * Rules for the True/False branches of a condition (#720). The router behind
  * an amount condition transfers the whole amount to every step on the side it
@@ -436,10 +410,7 @@ export function validateFlow(rawGraph: unknown, opts: ValidateFlowOptions = {}):
   if (!graph) return result;
   const gated = hiddenSurfaceIssues(graph, opts.features);
   if (gated.length === 0) return result;
-  // With the off-ramp off there is no KYC to collect (the button is hidden),
-  // so the KYC rule would be an instruction the user cannot follow.
-  const offramp = opts.features.offramp;
-  const rest = result.ok ? [] : result.errors.filter((e) => offramp || e.path !== "senderKyc");
+  const rest = result.ok ? [] : result.errors;
   return { ok: false, errors: [...gated, ...rest] };
 }
 function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): ValidationResult {
@@ -590,18 +561,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
             zeroAmountRecipients.push(r);
             continue;
           }
-          // Min/max amount caps are a fiat off-ramp constraint (PDAX limits).
-          // Crypto payouts are not subject to them.
-          if (r.mode === "fixed" && r.amountStroops && r.payoutMode === "fiat") {
-            const limitIssue = checkHardLimits(a.config.asset, r.amountStroops);
-            if (limitIssue) {
-              errors.push({
-                path: `nodes.${a.id}.config.recipients.${idx}.amountStroops`,
-                message: limitIssue.message,
-                friendlyMessage: `${r.label ?? r.address}: ${limitIssue.friendlyMessage}`,
-              });
-            }
-          }
         }
         if (zeroAmountRecipients.length > 0) {
           errors.push({
@@ -621,39 +580,8 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       }
       const seen = new Set<string>();
       for (const [recipientIndex, r] of a.config.recipients.entries()) {
-        const isContract = StrKey.isValidContract(r.address);
-        const isFiat = r.payoutMode === "fiat";
-        const triggerType = triggers[0]?.type;
-        if (isFiat && (!isContract || triggerType === "payroll")) {
-          if (!triggerType || !FIAT_PAYOUT_TRIGGERS.has(triggerType)) {
-            errors.push({
-              path: `nodes.${a.id}.config.recipients`,
-              message: "Wallet addresses cannot use fiat payout in this flow",
-              friendlyMessage:
-                "Fiat payout for wallet addresses is available in receive, webhook, oracle, subscription, and payroll flows. Use a cash-out node for off-ramp here, or switch the address to crypto.",
-            });
-          } else {
-            const fields = [
-              ["accountName", "account name"],
-              ["accountNumber", "account number"],
-              ["bankCode", "bank code"],
-            ] as const;
-            for (const [field, label] of fields) {
-              if (r[field]?.trim()) continue;
-              errors.push({
-                path: `nodes.${a.id}.config.recipients.${recipientIndex}.${field}`,
-                message: `Fiat recipient is missing ${label}`,
-                friendlyMessage: `Enter the ${label} for this fiat recipient.`,
-              });
-            }
-          }
-        }
         if (isPendingAddress(r.address)) {
-          // Fiat recipients get an auto-generated cash-out contract at deploy
-          // time, so a pending wallet address is not required up front.
-          if (!isFiat) {
-            pendingLabels.add(r.label ?? "unnamed");
-          }
+          pendingLabels.add(r.label ?? "unnamed");
         } else if (isAcceptedFlowAddress(r.address, "account_or_contract")) {
           // A blank or half-typed address is reported by addressIssues; two
           // blank rows are not also a "duplicate" (#588).
@@ -670,36 +598,8 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
     }
     if (a.type === "pay") {
       if (isPendingAddress(a.config.recipient)) {
-        // Fiat pay recipients get an auto-generated cash-out contract at deploy
-        // time, so a pending wallet address is not required up front.
-        if (
-          a.config.payoutMode !== "fiat" &&
-          originalGraph.nodes.find((n) => n.id === a.id)?.type !== "return_to_owner"
-        ) {
+        if (originalGraph.nodes.find((n) => n.id === a.id)?.type !== "return_to_owner") {
           pendingLabels.add(a.config.recipient.slice(8) || "unnamed");
-        }
-      }
-      if (a.config.payoutMode === "fiat") {
-        const triggerType = triggers[0]?.type;
-        if (!triggerType || !FIAT_PAYOUT_TRIGGERS.has(triggerType)) {
-          errors.push({
-            path: `nodes.${a.id}.config.payoutMode`,
-            message: "Fiat payout for pay nodes is not supported in this flow",
-            friendlyMessage:
-              "Native fiat payout on a pay step is available in receive, webhook, oracle, subscription, and payroll flows. Use a cash-out node for off-ramp here, or switch to crypto.",
-          });
-        } else {
-          const missing = [];
-          if (!a.config.accountName?.trim()) missing.push("account name");
-          if (!a.config.accountNumber?.trim()) missing.push("account number");
-          if (!a.config.bankCode?.trim()) missing.push("bank code");
-          if (missing.length) {
-            errors.push({
-              path: `nodes.${a.id}.config.payoutMode`,
-              message: `Fiat pay recipient is missing ${missing.join(", ")}`,
-              friendlyMessage: `Enter the ${missing.join(", ")} for this fiat recipient.`,
-            });
-          }
         }
       }
       if (!a.config.fullAmount) {
@@ -712,21 +612,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
             message: "Pay node in fixed mode requires a positive amount",
             friendlyMessage: "Please enter a positive amount for the pay node.",
           });
-        } else if (
-          a.config.mode === "fixed" &&
-          a.config.amountStroops &&
-          a.config.payoutMode === "fiat"
-        ) {
-          // Min/max amount caps are a fiat off-ramp constraint (PDAX limits).
-          // Crypto payouts are not subject to them.
-          const limitIssue = checkHardLimits(a.config.asset, a.config.amountStroops);
-          if (limitIssue) {
-            errors.push({
-              path: `nodes.${a.id}.config.amountStroops`,
-              message: limitIssue.message,
-              friendlyMessage: limitIssue.friendlyMessage,
-            });
-          }
         }
         if (
           a.config.mode === "percentage" &&
@@ -743,13 +628,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
     if (a.type === "yield" && isPendingAddress(a.config.vault)) {
       pendingLabels.add(a.config.vault.slice(8) || "unnamed");
     }
-  }
-  if (flowHasFiatPayout(graph) && !graph.senderKyc) {
-    errors.push({
-      path: "senderKyc",
-      message: "Sender KYC is required before deploying a flow with fiat payouts.",
-      friendlyMessage: "Add the sender KYC details from the toolbar (required to deploy).",
-    });
   }
   // A yield node can only be entered through `receive_and_forward`: the crate
   // has no `execute_step`, which is what the deposit trigger, payer, splitter,
@@ -823,71 +701,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       n.config.recipients.forEach((r, i) =>
         checkEmail(r.email, `nodes.${n.id}.config.recipients.${i}.email`),
       );
-  }
-  // The conditional contract (oracle_gte) pays recipients directly and cannot
-  // sink cash-out shares, so native fiat payouts are incompatible with it.
-  // Explicit cash-out nodes are fine — they receive funds via forwarding.
-  const hasOracleGteCondition = graph.nodes.some(
-    (n) => n.type === "condition" && n.config.kind === "oracle_gte",
-  );
-  if (hasOracleGteCondition) {
-    const hasNativeFiatPayout = graph.nodes.some(
-      (n) =>
-        (n.type === "pay" && n.config.payoutMode === "fiat") ||
-        (n.type === "split" && n.config.recipients.some((r) => r.payoutMode === "fiat")),
-    );
-    if (hasNativeFiatPayout) {
-      errors.push({
-        path: "nodes",
-        message: "Fiat payouts are not compatible with oracle-gte conditions",
-        friendlyMessage:
-          "Oracle conditions pay recipients directly and cannot cash out to a bank. Remove the condition, switch the payout to crypto, or use an explicit cash-out node instead.",
-      });
-    }
-  }
-  for (const n of graph.nodes) {
-    if (n.type !== "cash_out") continue;
-    const hasOutgoing = graph.edges.some((e) => e.source === n.id);
-    if (hasOutgoing) {
-      errors.push({
-        path: `nodes.${n.id}`,
-        message: "Cash-out node cannot have outgoing edges",
-        friendlyMessage:
-          "Cash-out is a final step — its output leaves the chain. Remove any connections coming out of it.",
-      });
-    }
-    const hasIncoming = graph.edges.some((e) => e.target === n.id);
-    if (!hasIncoming) {
-      errors.push({
-        path: `nodes.${n.id}`,
-        message: "Cash-out node must receive funds from an upstream node",
-        friendlyMessage:
-          "Connect a pay or split step into the cash-out node so it has funds to send to the bank.",
-      });
-    }
-    {
-      if (!n.config.accountName || n.config.accountName.trim().length === 0) {
-        errors.push({
-          path: `nodes.${n.id}.config.accountName`,
-          message: "Cash-out account name is required",
-          friendlyMessage: "Enter the beneficiary account name for the cash-out node.",
-        });
-      }
-      if (!n.config.accountNumber || n.config.accountNumber.trim().length === 0) {
-        errors.push({
-          path: `nodes.${n.id}.config.accountNumber`,
-          message: "Cash-out account number is required",
-          friendlyMessage: "Enter the beneficiary account number for the cash-out node.",
-        });
-      }
-      if (!n.config.bankCode) {
-        errors.push({
-          path: `nodes.${n.id}.config.bankCode`,
-          message: "Cash-out bank is required",
-          friendlyMessage: "Select a bank for the cash-out node.",
-        });
-      }
-    }
   }
   // Validate multisig thresholds
   for (const n of graph.nodes) {
@@ -1084,7 +897,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
   const isReceiveLike = isOnReceive || isWebhookLike;
   const isPayOrSplit = action.type === "pay" || action.type === "split";
   const isSwapOrYield = action.type === "swap" || action.type === "yield";
-  const isCashOut = action.type === "cash_out";
   if (isWebhookLike && hasCondition && condition.config.kind !== "multisig") {
     return {
       ok: false,
@@ -1109,8 +921,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
     templateKind = TemplateKind.STREAMER;
   } else if (isOnReceive && isPayOrSplit) {
     templateKind = TemplateKind.SPLITTER;
-  } else if (isOnReceive && isCashOut) {
-    templateKind = TemplateKind.CASH_OUT;
   } else if (isOnReceive && isSwapOrYield) {
     templateKind = action.type === "swap" ? TemplateKind.SWAPPER : TemplateKind.YIELD;
   } else if (isWebhookLike && isPayOrSplit) {
@@ -1126,7 +936,7 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
         {
           path: "nodes",
           message:
-            "Unsupported trigger/action combination. Supported: on_receive with pay/split/swap/yield/cash_out, webhook/web2_webhook/oracle with pay/split/swap/yield/multisig, schedule-like triggers (on_schedule, subscription) with pay/split, payroll with pay/split, or any with a compatible condition.",
+            "Unsupported trigger/action combination. Supported: on_receive with pay/split/swap/yield, webhook/web2_webhook/oracle with pay/split/swap/yield/multisig, schedule-like triggers (on_schedule, subscription) with pay/split, payroll with pay/split, or any with a compatible condition.",
           friendlyMessage: FRIENDLY.UNSUPPORTED_COMBO,
         },
       ],
@@ -1136,7 +946,7 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
   let pipelineNodes: PipelineNode[];
   let pipeline: TemplateKind[];
   try {
-    pipelineNodes = flowToPipeline(originalGraph, undefined, undefined, { forValidation: true });
+    pipelineNodes = flowToPipeline(originalGraph, undefined, { forValidation: true });
     pipeline = pipelineNodes.map((n) => n.templateKind);
     errors.push(...scheduledPaymentIssues(pipelineNodes));
     if (pipeline.length === 0) {

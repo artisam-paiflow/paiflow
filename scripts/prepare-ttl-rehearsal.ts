@@ -83,7 +83,7 @@ async function main() {
     const payerBefore = await readTtlFixtureAccount(admin.publicKey());
     manifest.payerBefore = payerBefore;
     await save();
-    const nodes = flowToPipeline(graph, relayer, undefined, {
+    const nodes = flowToPipeline(graph, relayer, {
       ownerAddress: admin.publicKey(),
     }).map((node) => {
       if (node.templateKind !== "WEBHOOK" && node.templateKind !== "PAYER")

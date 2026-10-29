@@ -4,7 +4,6 @@ import {
   paginate,
   encodeCursor,
   sortEventsDesc,
-  type OffRampJobForEvents,
   type PayrollEvent,
   type RunForEvents,
 } from "@/lib/payroll/event-feed";
@@ -35,105 +34,53 @@ function payout(overrides: Partial<RunForEvents["payouts"][number]> = {}) {
     ...overrides,
   };
 }
-function job(overrides: Partial<OffRampJobForEvents> = {}): OffRampJobForEvents {
-  return {
-    id: "job-1",
-    status: "COMPLETED",
-    amountStroops: "500",
-    payrollRunId: "run-1",
-    employeeId: "emp-1",
-    payrollPayoutId: "payout-1",
-    completedAt: new Date("2026-01-01T11:00:00Z"),
-    quotedAt: null,
-    initiatedAt: null,
-    failedAt: null,
-    cancelledAt: null,
-    updatedAt: new Date("2026-01-01T11:00:00Z"),
-    lastError: null,
-    providerRef: "PDAX-123",
-    employee: { label: "Alice", address: "GABC" },
-    ...overrides,
-  };
-}
 function kinds(events: PayrollEvent[]): string[] {
   return events.map((e) => e.kind);
 }
 describe("synthesizeEvents", () => {
   it("emits created + charged for a charged run", () => {
-    const events = synthesizeEvents([run({ payouts: [] })], []);
+    const events = synthesizeEvents([run({ payouts: [] })]);
     expect(kinds(events).sort()).toEqual(["PAYROLL_RUN_CHARGED", "PAYROLL_RUN_CREATED"]);
     const charged = events.find((e) => e.kind === "PAYROLL_RUN_CHARGED")!;
     expect(charged.txHash).toBe("run-tx");
     expect(charged.occurredAt.toISOString()).toBe("2026-01-01T10:00:00.000Z");
   });
   it("emits failed with lastError message", () => {
-    const events = synthesizeEvents(
-      [run({ status: "FAILED", txHash: null, lastError: "boom" })],
-      [],
-    );
+    const events = synthesizeEvents([run({ status: "FAILED", txHash: null, lastError: "boom" })]);
     const failed = events.find((e) => e.kind === "PAYROLL_RUN_FAILED")!;
     expect(failed.message).toBe("boom");
   });
-  it("crypto payout (no off-ramp) is created, sent, and completed", () => {
-    const events = synthesizeEvents([run({ payouts: [payout()] })], []);
+  it("crypto payout is created, sent, and completed", () => {
+    const events = synthesizeEvents([run({ payouts: [payout()] })]);
     expect(kinds(events)).toContain("PAYOUT_CREATED");
     expect(kinds(events)).toContain("PAYOUT_SENT");
     expect(kinds(events)).toContain("PAYOUT_COMPLETED");
   });
-  it("fiat payout completion is represented by the off-ramp job, not PAYOUT_COMPLETED", () => {
-    const events = synthesizeEvents([run({ payouts: [payout()] })], [job()]);
-    expect(kinds(events)).toContain("PAYOUT_SENT");
-    expect(kinds(events)).not.toContain("PAYOUT_COMPLETED");
-    expect(kinds(events)).toContain("OFFRAMP_COMPLETED");
-    const offramp = events.find((e) => e.kind === "OFFRAMP_COMPLETED")!;
-    expect(offramp.occurredAt.toISOString()).toBe("2026-01-01T11:00:00.000Z");
-    expect(offramp.employeeLabel).toBe("Alice");
-  });
   it("emits PAYOUT_FAILED when the run failed and the payout has no tx", () => {
-    const events = synthesizeEvents(
-      [
-        run({
-          status: "FAILED",
-          txHash: null,
-          lastError: "run failed",
-          payouts: [payout({ txHash: null })],
-        }),
-      ],
-      [],
-    );
+    const events = synthesizeEvents([
+      run({
+        status: "FAILED",
+        txHash: null,
+        lastError: "run failed",
+        payouts: [payout({ txHash: null })],
+      }),
+    ]);
     const failed = events.find((e) => e.kind === "PAYOUT_FAILED")!;
     expect(failed.message).toBe("run failed");
     expect(failed.payoutId).toBe("payout-1");
   });
-  it("PENDING/RUNNING off-ramp jobs emit no event", () => {
-    const events = synthesizeEvents(
-      [],
-      [job({ status: "PENDING" }), job({ id: "j2", status: "RUNNING" })],
-    );
-    expect(events).toEqual([]);
-  });
-  it("keeps a FAILED off-ramp event visible after the job is reset to PENDING", () => {
-    const events = synthesizeEvents(
-      [],
-      [job({ status: "PENDING", failedAt: new Date("2026-01-01T11:30:00Z") })],
-    );
-    expect(kinds(events)).toEqual(["OFFRAMP_FAILED"]);
-    const failed = events.find((e) => e.kind === "OFFRAMP_FAILED")!;
-    expect(failed.occurredAt.toISOString()).toBe("2026-01-01T11:30:00.000Z");
-  });
   it("falls back to employee address when label is null", () => {
-    const events = synthesizeEvents(
-      [run({ payouts: [payout({ employee: { label: null, address: "GXYZ" } })] })],
-      [],
-    );
+    const events = synthesizeEvents([
+      run({ payouts: [payout({ employee: { label: null, address: "GXYZ" } })] }),
+    ]);
     const created = events.find((e) => e.kind === "PAYOUT_CREATED")!;
     expect(created.employeeLabel).toBe("GXYZ");
   });
   it("stable event ids of the form rowId:kind", () => {
-    const events = synthesizeEvents([run({ payouts: [payout()] })], [job()]);
+    const events = synthesizeEvents([run({ payouts: [payout()] })]);
     expect(events.map((e) => e.id)).toContain("run-1:PAYROLL_RUN_CREATED");
     expect(events.map((e) => e.id)).toContain("payout-1:PAYOUT_SENT");
-    expect(events.map((e) => e.id)).toContain("job-1:OFFRAMP_COMPLETED");
+    expect(events.map((e) => e.id)).toContain("payout-1:PAYOUT_COMPLETED");
   });
   it("sorts newest-first with deterministic id tie-break", () => {
     const same = new Date("2026-01-01T12:00:00Z");

@@ -54,7 +54,7 @@ off-the-shelf SaaS. There is no middle layer.
 Paiflow is the missing middle layer:
 
 - Drag a trigger (`On Receive`, `On Schedule`, …) onto a canvas.
-- Drop actions (`Pay`, `Split`, `Cash Out`, …) and optional logic (`Condition`).
+- Drop actions (`Pay`, `Split`, `Swap`, …) and optional logic (`Condition`).
 - Click **Deploy** — reviewed, unit-tested Soroban contracts are instantiated on Stellar with the user's
   parameters, wired together as one pipeline in a single transaction.
 - Show a QR code; anyone can send funds to it.
@@ -140,19 +140,19 @@ stored accounting must fail closed rather than reduce earned entitlement or infl
 
 An action decides **where** money goes. A flow must contain at least one.
 
-|     | Block             | Does                                                     | Notes that matter                                                                                                                                              |
-| --- | ----------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ●   | `hold`            | Strictly locks funds until a time condition deadline     | Terminal before-side marker; after side must have a destination. No early release.                                                                             |
-| ●   | `return_to_owner` | Returns the full incoming amount to the deploying wallet | Terminal after amount, time, or multisig conditions; refused after `oracle_gte`. Recipient resolves during preparation, fixed at deployment.                   |
-| ●   | `pay`             | Sends to one recipient                                   | Fixed amount, a percentage of what arrived, or the full amount. Supports a fiat payout mode.                                                                   |
-| ●   | `split`           | Fans out to up to 20 recipients                          | Percentage mode (basis points) or fixed mode — never mixed. See the invariants below.                                                                          |
-| ●   | `swap`            | Exchanges `assetIn` for `assetOut` on Soroswap           | A real DEX swap with a slippage bound; forwards the whole output to exactly one next step. See below.                                                          |
-| ◦   | `cash_out`        | Sends to the off-ramp treasury against bank details      | The bridge out of crypto: the contract holds the destination bank account, so the payout is as immutable as the on-chain leg. Not placed directly — see below. |
-| ◦   | `yield`           | Transfers the balance to a vault address                 | A plain token transfer; it does not call a vault protocol's deposit function and nothing accrues. Downstream steps are then invoked with `amount=0`.           |
+|     | Block             | Does                                                     | Notes that matter                                                                                                                                    |
+| --- | ----------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ●   | `hold`            | Strictly locks funds until a time condition deadline     | Terminal before-side marker; after side must have a destination. No early release.                                                                   |
+| ●   | `return_to_owner` | Returns the full incoming amount to the deploying wallet | Terminal after amount, time, or multisig conditions; refused after `oracle_gte`. Recipient resolves during preparation, fixed at deployment.         |
+| ●   | `pay`             | Sends to one recipient                                   | Fixed amount, a percentage of what arrived, or the full amount, paid in crypto.                                                                      |
+| ●   | `split`           | Fans out to up to 20 recipients                          | Percentage mode (basis points) or fixed mode — never mixed. See the invariants below.                                                                |
+| ●   | `swap`            | Exchanges `assetIn` for `assetOut` on Soroswap           | A real DEX swap with a slippage bound; forwards the whole output to exactly one next step. See below.                                                |
+| ◦   | `yield`           | Transfers the balance to a vault address                 | A plain token transfer; it does not call a vault protocol's deposit function and nothing accrues. Downstream steps are then invoked with `amount=0`. |
 
-**`cash_out` is not dragged onto the canvas.** Setting a `pay` or `split` recipient to fiat payout
-generates a cash-out contract for that recipient at deploy time. The block exists so the pipeline
-has something to deploy; the palette entry is hidden because `pay` and `split` already reach it.
+Fiat off-ramping and Cash Out are retired (#1141). Pay and Split accept crypto recipients only.
+Retired fiat inputs are rejected; saved destinations are never converted into wallet addresses.
+Targeted cleanup removes only verified blank legacy bank fields and unused off-ramp storage;
+ordinary crypto deployment and transaction evidence remains intact. See [the retirement notes](docs/offramp-retirement.md).
 
 **`swap` calls the Soroswap router.** `contracts/actions/swapper/src/lib.rs` swaps the amount it
 receives for `assetOut` with `swap_exact_tokens_for_tokens` on the Soroswap router pinned by
@@ -231,14 +231,6 @@ Money:
   strict, `time_after` inclusive.
 - Amounts are stroops as decimal strings end to end. See [`CLAUDE.md` §3.3](./CLAUDE.md#33-typescript).
 
-Fiat payouts:
-
-- A contract address (`C…`) as a recipient always means fiat — it is a cash-out contract.
-- A fiat recipient needs account name, account number, and bank code.
-- Sender KYC must be on file before a flow with any fiat payout can deploy.
-- Fiat payouts are incompatible with `oracle_gte` conditions: the off-ramp leg cannot be unwound if
-  the oracle moves after the payout is initiated.
-
 Deferred configuration:
 
 - Addresses may be left **pending** at design time and resolved before deploy.
@@ -264,17 +256,16 @@ The block library is what a user assembles. This is the rest of the product surf
 have no palette entry. Each is one line plus where the truth lives; nothing here restates an
 implementation.
 
-| Surface                    | What it is                                                                                                                                                                      | Where it lives                                                                           |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| **Relayer automation**     | Why `on_schedule`, `subscription`, `payroll` and timelock conditions fire at all. Paiflow's own key signs `*_by_relayer` calls on a cron so the user doesn't sign every period. | `app/api/cron/*`, `lib/stellar/relayer.ts`; [`CLAUDE.md` §2](./CLAUDE.md#2-architecture) |
-| **Payroll**                | A recipient roster that changes between runs: employees, bank details, per-run payout records, and a catch-up limit so a lapsed schedule can't fire a year of charges at once.  | `Employee`, `PayrollRun`, `PayrollPayout`; `cron/auto-charge-payroll`                    |
-| **Fiat off-ramp**          | Payouts marked fiat become jobs walking `PENDING → RUNNING → QUOTED → INITIATED → COMPLETED \| FAILED \| CANCELLED`. A **mock provider is the default**; PDAX is opt-in.        | [`docs/pdax-institution-api.md`](./docs/pdax-institution-api.md)                         |
-| **QR-triggered execution** | Every deployment renders a public SEP-7 URL. Anyone with a wallet can scan, sign, and fire it — no account on Paiflow required.                                                 | `/trigger/[deploymentId]`                                                                |
-| **Live event feed**        | On-chain events are ingested, never trusted from the client: cron poll → `ContractEvent` → Redis → SSE to the open page.                                                        | [`CLAUDE.md` §2](./CLAUDE.md#2-architecture)                                             |
-| **Raft Log**               | Edit a flow by voice or text. Speech → transcript → a JSON patch that must pass the same validator as a hand-drawn edit before it touches the graph.                            | `/api/transcribe`, `/api/flows/[id]/edit`                                                |
-| **Address book**           | Saved labels for Stellar addresses, reused by the builder and given to the AI so "pay Alice" resolves.                                                                          | `AddressBookEntry`, `lib/address-book.ts`                                                |
-| **Admin console**          | Users, audit log, and off-ramp provider credentials — the last so PDAX's ~10-minute tokens can be rotated without a redeploy.                                                   | `/admin/*`                                                                               |
-| **Deploys via a factory**  | One transaction deploys a whole pipeline, with child addresses pre-computed from deterministic salts.                                                                           | [`docs/soroban-smart-contracts.md`](./docs/soroban-smart-contracts.md) §4                |
+| Surface                    | What it is                                                                                                                                                                          | Where it lives                                                                           |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **Relayer automation**     | Why `on_schedule`, `subscription`, `payroll` and timelock conditions fire at all. Paiflow's own key signs `*_by_relayer` calls on a cron so the user doesn't sign every period.     | `app/api/cron/*`, `lib/stellar/relayer.ts`; [`CLAUDE.md` §2](./CLAUDE.md#2-architecture) |
+| **Payroll**                | A recipient roster that changes between runs: employees, crypto recipients, per-run payout records, and a catch-up limit so a lapsed schedule can't fire a year of charges at once. | `Employee`, `PayrollRun`, `PayrollPayout`; `cron/auto-charge-payroll`                    |
+| **QR-triggered execution** | Every deployment renders a public SEP-7 URL. Anyone with a wallet can scan, sign, and fire it — no account on Paiflow required.                                                     | `/trigger/[deploymentId]`                                                                |
+| **Live event feed**        | On-chain events are ingested, never trusted from the client: cron poll → `ContractEvent` → Redis → SSE to the open page.                                                            | [`CLAUDE.md` §2](./CLAUDE.md#2-architecture)                                             |
+| **Raft Log**               | Edit a flow by voice or text. Speech → transcript → a JSON patch that must pass the same validator as a hand-drawn edit before it touches the graph.                                | `/api/transcribe`, `/api/flows/[id]/edit`                                                |
+| **Address book**           | Saved labels for Stellar addresses, reused by the builder and given to the AI so "pay Alice" resolves.                                                                              | `AddressBookEntry`, `lib/address-book.ts`                                                |
+| **Admin console**          | Users and the audit log.                                                                                                                                                            | `/admin/*`                                                                               |
+| **Deploys via a factory**  | One transaction deploys a whole pipeline, with child addresses pre-computed from deterministic salts.                                                                               | [`docs/soroban-smart-contracts.md`](./docs/soroban-smart-contracts.md) §4                |
 
 Two things deliberately absent: there is **no** per-deploy network picker (the network is pinned per
 environment — [`CLAUDE.md` §7.5](./CLAUDE.md#75-networks)), and **no** in-app changelog. Feature

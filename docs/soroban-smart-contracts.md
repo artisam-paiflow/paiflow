@@ -478,8 +478,7 @@ contracts/target/wasm32v1-none/release/
 ```
 
 Artifact names are the crate name with `-` replaced by `_`, e.g.
-`paiflow_splitter.wasm`, `paiflow_factory.wasm`, `payer.wasm`,
-`cash_out.wasm`.
+`paiflow_splitter.wasm`, `paiflow_factory.wasm`, `payer.wasm`.
 
 The size/safety `[profile.release]` — size-optimized, `overflow-checks = true` so integer overflow
 traps rather than wraps, `panic = "abort"`, stripped, LTO — is declared **once** on the workspace in
@@ -656,16 +655,12 @@ Receive → Pay and Subscription → Split retain separate trigger/action bindin
 Pay/Split binds both the schedule and distribution to the same Streamer entry. A Hold binding
 records a `strict_lock` rule on its time condition, while Return to owner retains its visual type
 on its immutable Payer implementation. An oracle condition's absorbed Pay/Split is bound as
-distribution on the Conditional. Generated fiat payout contracts record `payout_sink` and the
-zero-based recipient index within the originating Pay/Split block. These describe existing
-compilation behavior; they do not make unsupported compositions executable.
+distribution on the Conditional. These associations describe compilation behavior; they do not
+make unsupported compositions executable. Fiat payout sink generation is removed by #1141.
 
 `lib/flows/implementation.ts` parses versioned metadata and checks every visual block's coverage,
-binding roles, contract kinds, originating references, duplicates, and generated-recipient
-references. Where compilation synthesizes fiat payouts, every fiat recipient requires one generated child,
-matched to the parent constructor reference, originating block/index, and cash-out parent ID.
-Existing external cash-out recipients preserved by Dev non-payroll compilation remain dependencies
-and do not require generated children. Validation and preparation use these checks before deployment. Preparation persists
+binding roles, contract kinds, originating references and duplicates. Validation and preparation
+use these checks before deployment. Preparation persists
 the metadata beside the resolved address in the existing `pipelineSnapshot` JSON array;
 confirmation preserves that snapshot. No database migration or Rust ABI change is required.
 
@@ -673,13 +668,10 @@ Deployment review, the “Where blocks run” view, and live balances display th
 Balance reads and totals deduplicate contract addresses; event polling continues to poll each
 address once regardless of bindings. Older snapshots and unrecognized metadata versions retain
 existing contract behavior and show block associations as unavailable; monitoring never recompiles
-them to invent a mapping. Dev mutation paths preserve existing metadata; additional contracts
-created later by mutation retain the unavailable-association fallback unless their writer records
-bindings. Recipient indexes refer to the roster at compilation, not subsequent mutable rosters.
+them to invent a mapping. Historical metadata is never rewritten to match the current compiler.
 
 Product authority: [SPEC.md §3.3](../SPEC.md#33-logic) states, “Hold is absorbed into that condition
-and has no contract of its own.” [§3.2](../SPEC.md#32-actions) also defines the generated cash-out
-contracts behind fiat Pay/Split recipients. Explicit associations account for these relationships
+and has no contract of its own.” Explicit associations account for this relationship
 without requiring a contract per block or claiming a fee or throughput improvement.
 
 ---
@@ -878,3 +870,11 @@ Soroban RPC does not provide a push/webhook mechanism for events (events are eph
 | Stellar Asset Contract (SEP-41)  | https://stellar.org/protocol/sep-41                                                       |
 | Contract Spec (SEP-48)           | https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0048.md             |
 | Stellar Lab Contract Explorer    | https://lab.stellar.org/smart-contracts/contract-explorer                                 |
+
+## Off-ramp retirement (#1141)
+
+Cash Out source, deployment registration and fiat forwarding are removed. Payer constructor
+arguments and Splitter recipient encoding change with this retirement; rebuild and test their
+WASM together with the server encoders before network-specific activation. Old on-chain contracts
+retain their old ABI. See [the cutover requirements](offramp-retirement.md); source removal does
+not upgrade existing instances or establish that hosted obligations have settled.

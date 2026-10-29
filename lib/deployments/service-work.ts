@@ -54,7 +54,6 @@ export async function withDeploymentWork<T>(
   kind: string,
   fn: () => Promise<T>,
   settlement = false,
-  settlementJobId?: string,
 ): Promise<T> {
   // Nested/asynchronous work needs its own durable lifetime: an SSE response
   // can return before its initial poll finishes. Never borrow a completed scope.
@@ -66,38 +65,7 @@ export async function withDeploymentWork<T>(
         "CONFLICT",
         "Deployment retirement is in progress; new service work is closed",
       );
-    if (settlementJobId) {
-      if (kind !== `offramp-settlement:${settlementJobId}`)
-        throw new AppError("INTERNAL", "Off-ramp admission must be bound to its job");
-      const job = await tx.offRampPayoutJob.findUnique({ where: { id: settlementJobId } });
-      if (!job || job.deploymentId !== id)
-        throw new AppError("NOT_FOUND", "Off-ramp job not found");
-      const previous = await tx.deploymentWork.findMany({
-        where: { deploymentId: id, kind: { in: [kind, "offramp-settlement"] } },
-        include: { transactions: true },
-      });
-      // A stale worker is not proof that its money movement failed. Preserve
-      // unknown outcomes and successful movements whose job checkpoint was lost.
-      const ownHistory = previous.filter((work) => work.kind === kind);
-      const unresolved = previous.some(
-        (work) =>
-          work.state !== "DONE" ||
-          work.transactions.some(
-            (transaction) =>
-              transaction.state === "PENDING" ||
-              (work.kind === kind &&
-                transaction.state === "SUCCESS" &&
-                !(
-                  transaction.transport === "horizon" &&
-                  job.pdaxDepositTxHash === transaction.txHash
-                )),
-          ),
-      );
-      // Pre-upgrade/crashed development workers may have no durable admission.
-      // Do not invent evidence that an untracked RUNNING job is safe to repeat.
-      if (unresolved || (job.status === "RUNNING" && ownHistory.length === 0))
-        throw new AppError("CONFLICT", "Off-ramp job requires verified outcome reconciliation");
-    }
+
     return tx.deploymentWork.create({ data: { deploymentId: id, kind } });
   });
   const scope = { workId: work.id, deploymentId: id, externalPending: false, settlement };
@@ -171,10 +139,9 @@ export async function runDeploymentWork<T>(
   kind: string,
   fn: () => Promise<T>,
   settlement = false,
-  settlementJobId?: string,
 ) {
   try {
-    return await withDeploymentWork(id, kind, fn, settlement, settlementJobId);
+    return await withDeploymentWork(id, kind, fn, settlement);
   } catch (error) {
     if (error instanceof AppError && (error.code === "CONFLICT" || error.code === "NOT_FOUND"))
       return undefined;

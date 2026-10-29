@@ -221,24 +221,6 @@ export const TEMPLATES: Template[] = [
       config: { kind: "amount_gt", amountStroops: "10000000" },
     }),
   },
-  // Hidden: Cash Out action (deferred — pay/split handle fiat payout natively).
-  {
-    group: "Actions",
-    label: "Cash Out",
-    icon: "payments",
-    hidden: true,
-    feature: "offramp",
-    make: () => ({
-      id: makeId("cashout"),
-      type: "cash_out",
-      config: {
-        asset: { kind: "known", symbol: "USDC" },
-        accountName: "",
-        accountNumber: "",
-        bankCode: "",
-      },
-    }),
-  },
 ];
 /** The palette entries offered under these switches: not `hidden`, and their surface on. */
 export function visibleTemplates(features: FeatureFlags): Template[] {

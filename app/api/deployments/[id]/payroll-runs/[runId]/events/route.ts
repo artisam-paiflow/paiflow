@@ -8,7 +8,7 @@ import { loadPayrollEvents } from "@/lib/payroll/event-feed-source";
 /**
  * Event feed scoped to a single payroll run. Same synthesized timeline as the
  * deployment-level feed, filtered to the run's own rows (its payouts and their
- * off-ramp jobs). 404s if the run does not belong to the deployment.
+ * payouts). 404s if the run does not belong to the deployment.
  */
 async function GETHandler(
   req: NextRequest,

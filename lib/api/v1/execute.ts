@@ -49,8 +49,6 @@ function refusedHeadLabel(kind: TemplateKind): string | null {
       return "splitter";
     case "PAYER":
       return "payer";
-    case "CASH_OUT":
-      return "cash out";
     case "STREAMER":
     case "CONDITIONAL":
     case "ROUTER":

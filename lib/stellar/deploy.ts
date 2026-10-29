@@ -139,9 +139,7 @@ async function preparePipelineDeployTxFromPlan(
   }
   const blueprintVals: xdr.ScVal[] = [];
   for (const p of plan.nodes) {
-    const parentNodeId =
-      plan.parentByNode.get(p.nodeId) ??
-      (p.params.kind === "cash_out" ? p.params.parentNodeId : undefined);
+    const parentNodeId = plan.parentByNode.get(p.nodeId);
     let parentAddress: string | undefined;
     if (parentNodeId && plan.nodeAddresses[parentNodeId]) {
       parentAddress = plan.nodeAddresses[parentNodeId];

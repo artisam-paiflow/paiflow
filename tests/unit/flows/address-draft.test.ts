@@ -205,14 +205,9 @@ describe("a draft address saves (#588)", () => {
     const [issue] = errorsOf(crypto).filter(
       (e) => e.path === "nodes.s.config.recipients.1.address",
     );
-    expect(issue!.message).toBe("Contract addresses (C...) must use fiat payout.");
-    expect(issue!.friendlyMessage).toContain("can only receive a fiat payout");
-    expect(FlowGraphSchema.safeParse(splitFlow([ADDR_A, CONTRACT], "fiat")).success).toBe(true);
-    expect(
-      errorsOf(splitFlow([ADDR_A, CONTRACT], "fiat")).some(
-        (e) => e.path === "nodes.s.config.recipients.1.address",
-      ),
-    ).toBe(false);
+    expect(issue!.message).toBe("Recipients require a wallet address (G...).");
+    expect(issue!.friendlyMessage).toContain("wallet address");
+    expect(FlowGraphSchema.safeParse(splitFlow([ADDR_A, CONTRACT], "fiat")).success).toBe(false);
   });
   it.each(ALL_FIELDS)(
     "$name: a secret seed, whole or partial, is refused at parse and never stored",
@@ -307,13 +302,13 @@ describe("validateFlow refuses a draft address (#588)", () => {
   it("refuses a fiat pay's recipient if it is not the sentinel or an address", () => {
     const g = payFlow("GABC");
     Object.assign(g.nodes[1]!.config, { payoutMode: "fiat" });
-    expect(errorsOf(g).some((e) => e.path === "nodes.p.config.recipient")).toBe(true);
+    expect(FlowGraphSchema.safeParse(g).success).toBe(false);
   });
 });
 describe("complete addresses and PENDING: placeholders behave as before (#588)", () => {
   it("a pay flow to a G… account validates, with nothing pending", () => {
     const r = validateFlow(payFlow(ADDR_A));
-    expect(r.ok).toBe(true);
+    expect(r.ok, JSON.stringify(r)).toBe(true);
     if (r.ok) expect(r.pendingLabels).toEqual([]);
   });
   it("a split to two G… accounts validates", () => {
@@ -321,7 +316,7 @@ describe("complete addresses and PENDING: placeholders behave as before (#588)",
   });
   it("a PENDING: pay recipient validates and is reported pending, as before", () => {
     const r = validateFlow(payFlow("PENDING:alice"));
-    expect(r.ok).toBe(true);
+    expect(r.ok, JSON.stringify(r)).toBe(true);
     if (r.ok) expect(r.pendingLabels).toEqual(["alice"]);
     expect(getPendingLabels(FlowGraphSchema.parse(payFlow("PENDING:alice")))).toEqual(["alice"]);
   });
@@ -333,18 +328,13 @@ describe("complete addresses and PENDING: placeholders behave as before (#588)",
       }
     },
   );
-  it("only a split recipient accepts a C… contract", () => {
+  it("no payment recipient accepts a C… contract", () => {
     for (const f of ALL_FIELDS) {
       // Every field raises one issue, including a crypto split recipient.
       expect(addressIssues(FlowGraphSchema.parse(f.graph(CONTRACT))).map((i) => i.path)).toEqual([
         f.path,
       ]);
     }
-    expect(
-      addressIssues(FlowGraphSchema.parse(splitFlow([ADDR_A, CONTRACT], "fiat"))).map(
-        (i) => i.path,
-      ),
-    ).toEqual([]);
   });
   it("isAcceptedFlowAddress keeps the old acceptance: G…, C… for splits only, PENDING:, nothing muxed", () => {
     expect(isAcceptedFlowAddress(ADDR_A, "account")).toBe(true);

@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import { config as dotenvConfig, parse as parseDotenv } from "dotenv";
 import { StrKey } from "@stellar/stellar-sdk";
 import { z } from "zod";
-import { coercedIntegerNumber } from "@/lib/validation/number";
 import { PosthogApiHostSchema, PosthogReportError } from "@/lib/analytics/posthog-report-schema";
 const optionalString = z
   .string()
@@ -28,26 +27,6 @@ const optionalUuid = z
       message: "must be a UUID",
     },
   );
-// Stellar memo IDs are numeric (uint64). Kept as a string to avoid precision
-// loss; validated at config load so a swapped/misconfigured PDAX memo fails at
-// startup rather than mid-way through a live off-ramp job.
-const optionalNumericMemo = z
-  .string()
-  .optional()
-  .transform((v) => (v && v.length > 0 ? v : undefined))
-  .refine((v) => v === undefined || /^\d+$/.test(v), {
-    message: "PDAX deposit memo must be a numeric string (Stellar memo id)",
-  });
-// PDAX deposit address must be a well-formed Stellar account (ed25519 G-address).
-// Validated at config load so a typo'd/truncated address fails at startup rather
-// than only when a live native-XLM deposit is attempted mid-job.
-const optionalStellarAddress = z
-  .string()
-  .optional()
-  .transform((v) => (v && v.length > 0 ? v : undefined))
-  .refine((v) => v === undefined || StrKey.isValidEd25519PublicKey(v), {
-    message: "PDAX deposit address must be a valid Stellar ed25519 public key (G...)",
-  });
 // Browser origins a passkey may be used from, comma-separated. WebAuthn compares the
 // origin the browser actually sent — scheme, host, port, nothing else — against each
 // entry verbatim, so an entry carrying a path, a query, a fragment or credentials can
@@ -162,21 +141,6 @@ const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
   RAILWAY_ENVIRONMENT_NAME: optionalString,
-  // ---- Temporary splitter/off-ramp hard limits ----
-  // Exposed to the browser because validateFlow runs client-side. Whole-token
-  // values are converted to stroops at validation time. Bounds are inclusive.
-  // Set a bound to 0 to disable just that bound; set both min and max to 0 to
-  // disable all hard-limit checks for that asset.
-  //
-  // These are soft, temporary business-rule knobs, so the schema is tolerant:
-  // a malformed value (e.g. "150.5" or "abc") falls back to the default via
-  // .catch() instead of failing EnvSchema and crashing env() for every route.
-  // The enforcement path (lib/flows/limits.ts) parses these vars leniently on
-  // its own because it also runs in the browser, where env() is unavailable.
-  NEXT_PUBLIC_SPLITTER_XLM_MIN: coercedIntegerNumber().nonnegative().default(150).catch(150),
-  NEXT_PUBLIC_SPLITTER_XLM_MAX: coercedIntegerNumber().nonnegative().default(500).catch(500),
-  NEXT_PUBLIC_SPLITTER_USDC_MIN: coercedIntegerNumber().nonnegative().default(30).catch(30),
-  NEXT_PUBLIC_SPLITTER_USDC_MAX: coercedIntegerNumber().nonnegative().default(110).catch(110),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 chars"),
   AUTH_URL: z.string().url().default("http://localhost:3000"),
@@ -201,7 +165,6 @@ const EnvSchema = z.object({
   // Hide a surface and refuse new use of it; existing deployments keep running.
   // Read on the server and passed to the client as props, so a restart (not a
   // rebuild) applies a change. See lib/feature-flags.ts.
-  FEATURE_OFFRAMP_ENABLED: featureSwitch,
   FEATURE_PAYROLL_ENABLED: featureSwitch,
   FEATURE_AI_ASSISTANT_ENABLED: featureSwitch,
   FEATURE_ORACLE_CONDITION_ENABLED: featureSwitch,
@@ -256,8 +219,6 @@ const EnvSchema = z.object({
   STELLAR_WASM_HASH_PAYER_MAINNET: optionalWasmHash,
   STELLAR_WASM_HASH_PAYROLL_TESTNET: optionalWasmHash,
   STELLAR_WASM_HASH_PAYROLL_MAINNET: optionalWasmHash,
-  STELLAR_WASM_HASH_CASH_OUT_TESTNET: optionalWasmHash,
-  STELLAR_WASM_HASH_CASH_OUT_MAINNET: optionalWasmHash,
   STELLAR_FACTORY_ADDRESS_TESTNET: optionalString,
   STELLAR_FACTORY_ADDRESS_MAINNET: optionalString,
   // ---- Soroswap ----
@@ -304,18 +265,6 @@ const EnvSchema = z.object({
     .string()
     .regex(/^[1-9]\d{0,18}$/)
     .optional(),
-  // ---- Off-ramp treasury ----
-  // Relayer-controlled holding address that cash_out nodes sink USDC to before
-  // the off-chain PDAX leg. When unset, the relayer address is used.
-  OFFRAMP_TREASURY_ADDRESS_TESTNET: optionalString,
-  OFFRAMP_TREASURY_ADDRESS_MAINNET: optionalString,
-  // PDAX deposit address and memo/tag for native XLM off-ramp deposits.
-  // When set, process-offramp-jobs will forward XLM from the treasury to PDAX
-  // before executing the trade. Required only for the XLM -> PHP flow.
-  OFFRAMP_PDAX_DEPOSIT_ADDRESS_TESTNET: optionalStellarAddress,
-  OFFRAMP_PDAX_DEPOSIT_ADDRESS_MAINNET: optionalStellarAddress,
-  OFFRAMP_PDAX_DEPOSIT_MEMO_TESTNET: optionalNumericMemo,
-  OFFRAMP_PDAX_DEPOSIT_MEMO_MAINNET: optionalNumericMemo,
   CRON_SECRET: optionalString,
   // How many proxies in front of the app append to X-Forwarded-For; see
   // clientIp() in lib/rate-limit.ts. 0 = the edge replaces the header (Railway).
@@ -345,29 +294,9 @@ const EnvSchema = z.object({
   GROQ_MODEL: optionalString,
   GROQ_STT_MODEL_PRIMARY: optionalString,
   GROQ_STT_MODEL_FALLBACK: optionalString,
-  // ---- Off-ramp provider (e.g. PDAX) ----
-  OFFRAMP_PROVIDER: z.enum(["pdax", "mock"]).default("mock"),
-  OFFRAMP_API_URL: optionalString,
-  // PDAX uses Bearer tokens. ACCESS_TOKEN is the current access token;
-  // REFRESH_TOKEN + USERNAME are used to obtain a new access token when it
-  // expires. OFFRAMP_API_KEY and OFFRAMP_ID_TOKEN are legacy fields kept for
-  // backwards compatibility but are not used for Bearer auth.
-  OFFRAMP_API_KEY: optionalString,
-  OFFRAMP_ACCESS_TOKEN: optionalString,
-  OFFRAMP_REFRESH_TOKEN: optionalString,
-  OFFRAMP_USERNAME: optionalString,
-  OFFRAMP_ID_TOKEN: optionalString,
-  OFFRAMP_WEBHOOK_SECRET: optionalString,
-  OFFRAMP_ASSET_CODE: optionalString,
-  OFFRAMP_NETWORK: optionalString,
-  OFFRAMP_CHANNEL: optionalString,
   // ---- Cron tuning ----
   PAYROLL_MAX_CATCHUP_PER_RUN: optionalPositiveInt(5),
   SUBSCRIPTION_MAX_CATCHUP_PER_RUN: optionalPositiveInt(5),
-  OFFRAMP_BATCH_SIZE: optionalPositiveInt(50),
-  OFFRAMP_MAX_RETRY_ATTEMPTS: optionalNonNegativeInt(3),
-  OFFRAMP_JOB_LEASE_MS: optionalPositiveInt(600000),
-  OFFRAMP_JOB_CONCURRENCY: optionalPositiveInt(3),
   CONTRACT_READ_CACHE_ENABLED: boolishDefault(true),
   CONTRACT_READ_CACHE_TTL_SECONDS: optionalPositiveInt(300),
   // ---- Email (Resend) ----
@@ -614,8 +543,7 @@ export function stellarWasmHash(
     | "SWAPPER"
     | "YIELD"
     | "PAYER"
-    | "PAYROLL"
-    | "CASH_OUT",
+    | "PAYROLL",
 ): string | undefined {
   const e = env();
   const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
@@ -646,33 +574,8 @@ export function stellarRelayerAddress(): string | undefined {
   return env().STELLAR_RELAYER_ADDRESS;
 }
 /**
- * Address that cash_out nodes sink USDC to before the off-chain PDAX leg.
  * Falls back to the relayer address when no dedicated treasury is configured.
  */
-export function offRampTreasuryAddress(): string | undefined {
-  const e = env();
-  const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
-  const key = `OFFRAMP_TREASURY_ADDRESS_${suffix}` as keyof EnvShape;
-  return (e[key] as string | undefined) ?? e.STELLAR_RELAYER_ADDRESS;
-}
-/**
- * PDAX deposit credentials for native XLM off-ramps. When both address and memo
- * are configured, the cron will deposit job XLM from the treasury to PDAX before
- * quoting/trading. Memo is the numeric tag PDAX requires to credit the deposit.
- */
-export function offRampPdaxDepositConfig(): {
-  address: string | undefined;
-  memo: string | undefined;
-} {
-  const e = env();
-  const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
-  const addressKey = `OFFRAMP_PDAX_DEPOSIT_ADDRESS_${suffix}` as keyof EnvShape;
-  const memoKey = `OFFRAMP_PDAX_DEPOSIT_MEMO_${suffix}` as keyof EnvShape;
-  return {
-    address: e[addressKey] as string | undefined,
-    memo: e[memoKey] as string | undefined,
-  };
-}
 /** Script-only config: no app database/auth configuration is needed. */
 export function hackathonOrganiserSecret(): string {
   if (process.env.STELLAR_NETWORK !== "testnet")

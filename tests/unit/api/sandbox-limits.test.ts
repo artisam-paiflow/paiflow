@@ -229,7 +229,6 @@ describe("a sandbox session cannot deploy a relayer-driven pipeline", () => {
     for (const kind of [
       TemplateKind.SUBSCRIPTION,
       TemplateKind.PAYROLL,
-      TemplateKind.CASH_OUT,
       TemplateKind.STREAMER,
       TemplateKind.WEBHOOK,
     ]) {

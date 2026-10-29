@@ -16,6 +16,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   derivePayoutStatus,
   countCompletedPayouts,
+  RunPayoutSchema,
+  serializePayout,
   type PayoutForSerialize,
 } from "@/lib/payroll/run-serialize";
 const { mockDb } = vi.hoisted(() => {
@@ -52,50 +54,38 @@ function payout(overrides: Partial<PayoutForSerialize> = {}): PayoutForSerialize
     employeeId: "e1",
     amountStroops: "5000000",
     txHash: "tx-1",
-    employee: { label: "Alice", address: "GALICE", payoutMode: "CRYPTO" },
-    offRampJobs: [],
+    employee: { label: "Alice", address: "GALICE" },
     ...overrides,
   };
 }
 describe("derivePayoutStatus", () => {
   it("is PENDING without a charge tx", () => {
-    expect(derivePayoutStatus("CRYPTO", null, null)).toBe("PENDING");
-    expect(derivePayoutStatus("FIAT", null, "COMPLETED")).toBe("PENDING");
+    expect(derivePayoutStatus(null)).toBe("PENDING");
   });
   it("is COMPLETED for a pure-crypto payout with a tx", () => {
-    expect(derivePayoutStatus("CRYPTO", "tx", null)).toBe("COMPLETED");
-  });
-  it("is SENT (not COMPLETED) for a FIAT payout charged but with no off-ramp job yet", () => {
-    // Job creation is best-effort and can be skipped/swallowed; the fiat leg
-    // is what completes the payout, so it must never read COMPLETED here.
-    expect(derivePayoutStatus("FIAT", "tx", null)).toBe("SENT");
-  });
-  it("mirrors the off-ramp job lifecycle", () => {
-    expect(derivePayoutStatus("FIAT", "tx", "PENDING")).toBe("SENT");
-    expect(derivePayoutStatus("FIAT", "tx", "RUNNING")).toBe("SENT");
-    expect(derivePayoutStatus("FIAT", "tx", "QUOTED")).toBe("SENT");
-    expect(derivePayoutStatus("FIAT", "tx", "INITIATED")).toBe("SENT");
-    expect(derivePayoutStatus("FIAT", "tx", "COMPLETED")).toBe("COMPLETED");
-    expect(derivePayoutStatus("FIAT", "tx", "FAILED")).toBe("FAILED");
-    expect(derivePayoutStatus("FIAT", "tx", "CANCELLED")).toBe("FAILED");
+    expect(derivePayoutStatus("tx")).toBe("COMPLETED");
   });
 });
 describe("countCompletedPayouts", () => {
   it("counts only completed payouts", () => {
-    const payouts = [
-      payout({ txHash: "tx" }), // crypto completed
-      payout({ txHash: null }), // pending
-      payout({
-        txHash: "tx",
-        offRampJobs: [{ status: "FAILED", lastError: "x", completedAt: null }],
-      }),
-      payout({
-        // FIAT charged but no off-ramp job → SENT, not counted
-        txHash: "tx",
-        employee: { label: "Fi", address: "GFIAT", payoutMode: "FIAT" },
-      }),
-    ];
+    const payouts = [payout({ txHash: "tx" }), payout({ txHash: null })];
     expect(countCompletedPayouts(payouts)).toBe(1);
+  });
+});
+describe("crypto payout serialization", () => {
+  it("preserves exact money strings and omits retired provider fields", () => {
+    const output = serializePayout(payout({ amountStroops: "9007199254740993" }));
+    expect(RunPayoutSchema.parse(output)).toMatchObject({
+      amountStroops: "9007199254740993",
+      mode: "CRYPTO",
+      status: "COMPLETED",
+    });
+    expect(output).not.toHaveProperty("offRampJobStatus");
+    expect(output).not.toHaveProperty("offRampJobError");
+  });
+  it("rejects retired fiat mode in the response contract", () => {
+    const output = serializePayout(payout());
+    expect(RunPayoutSchema.safeParse({ ...output, mode: "FIAT" }).success).toBe(false);
   });
 });
 describe("GET payroll-runs (list)", () => {
@@ -116,8 +106,7 @@ describe("GET payroll-runs (list)", () => {
         payout({ id: id + "-a", txHash: "tx" }),
         payout({
           id: id + "-b",
-          txHash: "tx",
-          offRampJobs: [{ status: "PENDING", lastError: null, completedAt: null }],
+          txHash: null,
         }),
       ],
     });
@@ -210,13 +199,12 @@ describe("GET payroll-runs/:runId (detail)", () => {
         payout({
           id: "p-crypto",
           txHash: "tx",
-          employee: { label: null, address: "GBOB", payoutMode: "CRYPTO" },
+          employee: { label: null, address: "GBOB" },
         }),
         payout({
-          id: "p-fiat",
-          txHash: "tx",
-          employee: { label: "Bob", address: "GBOB2", payoutMode: "FIAT" },
-          offRampJobs: [{ status: "INITIATED", lastError: null, completedAt: null }],
+          id: "p-pending",
+          txHash: null,
+          employee: { label: "Bob", address: "GBOB2" },
         }),
       ],
     });
@@ -234,14 +222,14 @@ describe("GET payroll-runs/:runId (detail)", () => {
       employeeLabel: "GBOB", // falls back to address when label is null
       mode: "CRYPTO",
       status: "COMPLETED",
-      offRampJobStatus: null,
     });
+    expect(json.payouts[0]).not.toHaveProperty("offRampJobStatus");
+    expect(json.payouts[0]).not.toHaveProperty("offRampJobError");
     expect(json.payouts[1]).toMatchObject({
-      id: "p-fiat",
+      id: "p-pending",
       employeeLabel: "Bob",
-      mode: "FIAT",
-      status: "SENT",
-      offRampJobStatus: "INITIATED",
+      mode: "CRYPTO",
+      status: "PENDING",
     });
   });
   it("404s when the run does not belong to the deployment", async () => {

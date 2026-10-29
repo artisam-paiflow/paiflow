@@ -84,7 +84,6 @@ const NODES = new Set([
   "return_to_owner",
   "condition",
   "yield",
-  "cash_out",
   "email_notify",
 ]);
 const KINDS = new Set([
@@ -118,7 +117,6 @@ const KINDS = new Set([
   "CONDITION",
   "TIMELOCK",
   "ESCROW",
-  "CASH_OUT",
   "YIELD",
   "ON_RECEIVE",
   "RETURN_TO_OWNER",
@@ -276,9 +274,7 @@ function approvedValue(key: string, value: unknown): unknown {
       : undefined;
   if (key === "feature")
     return typeof value === "string" &&
-      (["ask_ai_chat", "ask_ai_voice", "api_token_created", "passkey_add", "fiat_payout"].includes(
-        value,
-      ) ||
+      (["ask_ai_chat", "ask_ai_voice", "api_token_created", "passkey_add"].includes(value) ||
         (value.startsWith("node:") && NODES.has(value.slice(5))))
       ? value
       : undefined;
@@ -287,7 +283,7 @@ function approvedValue(key: string, value: unknown): unknown {
   if (key === "message_key") return "structured_error";
   if (key === "error_key")
     return typeof value === "string" &&
-      /^(?:edges|graph|node|on_receive|on_schedule|subscription|payroll|webhook|web2_webhook|oracle|pay|split|swap|condition|cash_out|yield|hold|return_to_owner)(?:\.(?:config|recipients|address|amountStroops|bps|asset|assetIn|assetOut|slippageBps|minimumOutput|kind|threshold|deadline|signers|#|startTs|endTs|intervalSeconds))*$/.test(
+      /^(?:edges|graph|node|on_receive|on_schedule|subscription|payroll|webhook|web2_webhook|oracle|pay|split|swap|condition|yield|hold|return_to_owner)(?:\.(?:config|recipients|address|amountStroops|bps|asset|assetIn|assetOut|slippageBps|minimumOutput|kind|threshold|deadline|signers|#|startTs|endTs|intervalSeconds))*$/.test(
         value,
       )
       ? value

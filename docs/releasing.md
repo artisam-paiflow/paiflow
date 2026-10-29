@@ -63,6 +63,12 @@ existing-client compatibility for those surfaces is discontinued. Document their
 Unreleased and named release notes. This exception does not relax compatibility requirements
 for the retained standard API or authorize removing historical financial evidence.
 
+The maintainer-approved [off-ramp retirement in #1141](offramp-retirement.md) also
+intentionally discontinues compatibility for the removed fiat payout/provider surfaces.
+It does not relax compatibility for retained crypto APIs. The targeted cleanup authorizes
+removing only verified blank legacy bank fields from graphs/snapshots and empty feature
+storage; preserve ordinary transaction, event and deployment evidence. Record the ABI and operational cutover requirements in release notes.
+
 ## SDK releases
 
 Each SDK has its own package version, changelog, and documented

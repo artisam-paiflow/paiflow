@@ -36,9 +36,7 @@ export type ContractReadCache = ReturnType<typeof createContractReadCache>;
  * - Relayer is mutable on every contract variant (set_relayer).
  * - Standard Subscription subscriber and amount are immutable and may be cached.
  *
- * A stale cached value here flows into PayrollPayout rows and the fiat
- * off-ramp jobs derived from them, so caching mutable state can make the DB
- * ledger (and real PHP payouts) diverge from what actually moved on-chain.
+ * Stale mutable reads can make the recorded ledger diverge from chain state.
  */
 export function createContractReadCache(options?: { enabled?: boolean; ttlSeconds?: number }) {
   const e = env();

@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import ContractCallButton from "./contract-call-button";
-import OffRampSenderForm from "@/components/payroll/offramp-sender-form";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { assetLabel, tokenAmountToStroops } from "@/lib/flows/schema";
 import { formatStroops } from "@/lib/utils";
@@ -13,12 +12,7 @@ type PayrollRecipient = {
   address: string;
   amount: string;
   label?: string | null;
-  payoutMode?: "crypto" | "fiat";
-};
-type BankDetail = {
-  accountName: string;
-  accountNumber: string;
-  bankCode: string;
+  payoutMode?: "crypto";
 };
 export default function PayrollPanel({
   deploymentId,
@@ -49,7 +43,6 @@ export default function PayrollPanel({
   const [asset, setAsset] = useState<Asset | null>(null);
   const [isCancelled, setIsCancelled] = useState<boolean | null>(null);
   const [recipients, setRecipients] = useState<PayrollRecipient[]>([]);
-  const [bankDetails, setBankDetails] = useState<Record<string, BankDetail | null>>({});
   const [tick, setTick] = useState(0);
   useEffect(() => {
     let cancelled = false;
@@ -129,32 +122,7 @@ export default function PayrollPanel({
       cancelled = true;
     };
   }, [deploymentId, tick]);
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/deployments/${deploymentId}/employees/bank`)
-      .then(async (res) => {
-        if (!res.ok) return;
-        const json = (await res.json()) as {
-          data: Array<{
-            address: string;
-            bankDetail: BankDetail | null;
-          }>;
-        };
-        if (!cancelled) {
-          const map: Record<string, BankDetail | null> = {};
-          for (const item of json.data) {
-            map[item.address] = item.bankDetail;
-          }
-          setBankDetails(map);
-        }
-      })
-      .catch(() => null);
-    return () => {
-      cancelled = true;
-    };
-  }, [deploymentId, tick]);
   const total = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n);
-  const hasFiatRecipient = recipients.some((r) => r.payoutMode === "fiat");
   const isImmutablePayroll = (() => {
     if (!pipeline) return false;
     const hasPayroll = pipeline.some((n) => n.templateKind === "PAYROLL");
@@ -297,46 +265,14 @@ export default function PayrollPanel({
             {recipients.length === 0 && (
               <span className="text-zinc-500">No recipients configured</span>
             )}
-            {recipients.map((r) => {
-              const bank = bankDetails[r.address];
-              const isFiat = r.payoutMode === "fiat";
-              const displayLabel = isFiat
-                ? (bank?.accountName ?? r.label ?? r.address)
-                : (r.label ?? r.address);
-              return (
-                <div key={r.address} className="flex justify-between gap-2">
-                  <span className="flex flex-col gap-0.5 break-all">
-                    <span className="flex items-center gap-1.5">
-                      {isFiat && (
-                        <span className="material-symbols-outlined text-on-surface-variant text-[14px]">
-                          account_balance
-                        </span>
-                      )}
-                      <span className="font-mono text-[12px]">{displayLabel}</span>
-                    </span>
-                    {isFiat && bank && (
-                      <span className="text-on-surface-variant font-mono text-[11px]">
-                        {bank.accountNumber}
-                        {bank.bankCode && ` · ${bank.bankCode}`}
-                      </span>
-                    )}
-                    {isFiat && bank && (
-                      <span className="text-on-surface-variant/60 font-mono text-[10px]">
-                        {r.address}
-                      </span>
-                    )}
-                    {isFiat && !bank && (
-                      <span className="text-on-surface-variant font-mono text-[11px]">
-                        {r.address} · Bank details missing
-                      </span>
-                    )}
-                  </span>
-                  <span>
-                    {formatStroops(r.amount)} {asset ? assetLabel(asset) : ""}
-                  </span>
-                </div>
-              );
-            })}
+            {recipients.map((r) => (
+              <div key={r.address} className="flex justify-between gap-2">
+                <span>{r.label ?? r.address}</span>
+                <span>
+                  {formatStroops(r.amount)} {asset ? assetLabel(asset) : ""}
+                </span>
+              </div>
+            ))}
           </div>
           <div className="text-on-surface-variant mt-1 font-mono text-[11px]">
             Total per period: {formatStroops(total.toString())} {asset ? assetLabel(asset) : ""}
@@ -349,12 +285,6 @@ export default function PayrollPanel({
           >
             MANAGE EMPLOYEES
           </a>
-        )}
-
-        {hasFiatRecipient && (
-          <div className="border-outline-variant/40 bg-surface-container rounded border p-3">
-            <OffRampSenderForm deploymentId={deploymentId} />
-          </div>
         )}
       </div>
 
@@ -404,25 +334,20 @@ export default function PayrollPanel({
             };
             if (!res.ok) throw apiError(json, "Submit failed");
             if (!json.data) throw new Error("Submit response missing txHash");
-            // Book-keep the manual charge so off-ramp jobs can be created.
+            // Record the manual charge in payroll history.
             const recordRes = await fetch(`/api/deployments/${deploymentId}/payroll-record-run`, {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify({ txHash: json.data.txHash }),
             });
             const recordJson = (await recordRes.json()) as {
-              data?: {
-                offRampJobIds?: string[];
-                offRampError?: string;
-              };
+              data?: {};
               error?: {
                 message?: string;
               };
             };
             if (!recordRes.ok) {
               console.warn("Failed to record payroll run:", recordJson.error?.message);
-            } else if (recordJson.data?.offRampError) {
-              console.warn("Off-ramp job creation failed:", recordJson.data.offRampError);
             }
             return { txHash: json.data.txHash };
           }}

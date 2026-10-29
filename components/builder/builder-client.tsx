@@ -20,12 +20,12 @@ import "@xyflow/react/dist/style.css";
 import { toast } from "sonner";
 import { toastError } from "@/lib/friendly-toast";
 import { cn } from "@/lib/utils";
-import type { EdgeBranch, FlowEdge, FlowGraph, FlowNode, SenderKyc } from "@/lib/flows/schema";
+import type { EdgeBranch, FlowEdge, FlowGraph, FlowNode } from "@/lib/flows/schema";
 import { EdgeBranchSchema, isPendingAddress } from "@/lib/flows/schema";
 import { BRANCH_LABEL, edgeBranch, isBranchingCondition } from "@/lib/flows/branches";
 import { flowToEnglish } from "@/lib/flows/english";
 import { FlowGraphSchema } from "@/lib/flows/schema";
-import { validateFlow, flowHasFiatPayout } from "@/lib/flows/validate";
+import { validateFlow } from "@/lib/flows/validate";
 import type { AddressEntry } from "@/lib/address-book.types";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
 import { TriggerNode, ActionNode, LogicNode } from "@/components/nodes";
@@ -38,7 +38,6 @@ import Palette from "./palette";
 import PaletteSidebar from "./palette-sidebar";
 import DeployButton from "./deploy-button";
 import EnglishPreview from "./english-preview";
-import SenderKycDialog from "./sender-kyc-dialog";
 import RaftLog, { type ChatMessage } from "./raft-log";
 import type { PatchOp } from "@/lib/ai/prompts";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
@@ -57,22 +56,6 @@ const edgeTypes = {
   straight: AnimatedStraightEdge,
 };
 const IN_SCOPE_TYPES: ReadonlySet<string> = new Set(IN_SCOPE_NODE_TYPES);
-function hasFiatPayoutConfig(node: FlowNode | undefined): boolean {
-  const config = (
-    node as
-      | {
-          config?: Record<string, unknown>;
-        }
-      | undefined
-  )?.config;
-  if (!config) return false;
-  const recipients = Array.isArray(config.recipients)
-    ? (config.recipients as Array<{
-        payoutMode?: unknown;
-      }>)
-    : [];
-  return config.payoutMode === "fiat" || recipients.some((r) => r.payoutMode === "fiat");
-}
 // Short, human-readable labels drawn on each node in the minimap.
 // Shared via NODE_TYPE_LABELS so they stay in sync with the palette and panel headers.
 const MINIMAP_NODE_LABELS = NODE_TYPE_LABELS;
@@ -112,7 +95,6 @@ function nodeToReactFlow(n: FlowNode, index: number, positions?: FlowGraph["posi
     case "yield":
     case "hold":
     case "return_to_owner":
-    case "cash_out":
       type = "action";
       break;
     case "condition":
@@ -246,9 +228,6 @@ function Builder({
     sendTo: initialGraph.notify?.sendTo ?? accountEmail ?? "",
   });
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-
-  const [senderKyc, setSenderKyc] = useState<SenderKyc | undefined>(initialGraph.senderKyc);
-  const [kycDialogOpen, setKycDialogOpen] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   // React Flow reports a keyboard selection (Enter/Space on a focused node) and
   // a click the same way, as `select` changes, so the canvas remembers which
@@ -296,26 +275,17 @@ function Builder({
       nodes: flowNodes,
       edges: rfEdges.map(toFlowEdge),
       notify: sandbox ? { mode: "off", sendTo: "" } : notify,
-      senderKyc,
       // Persist canvas positions with the flow (autosave is debounced, so a
       // drag saves once it settles rather than on every frame).
       positions: Object.fromEntries(rfNodes.map((n) => [n.id, n.position])),
     }),
-    [flowNodes, rfEdges, false, notify, sandbox, senderKyc, rfNodes],
+    [flowNodes, rfEdges, false, notify, sandbox, rfNodes],
   );
   // Snapshot of the live canvas positions — used as a fallback when a
   // server-returned graph (AI edit, address resolution) doesn't carry them.
   const currentPositions = useCallback(
     (): FlowGraph["positions"] => Object.fromEntries(rfNodes.map((n) => [n.id, n.position])),
     [rfNodes],
-  );
-  // Same predicate as the validation rule: the sender KYC toolbar button only
-  // appears when the flow off-ramps to fiat somewhere.
-  // With the off-ramp switched off there is no KYC to collect: a fiat step is
-  // refused on its node instead.
-  const hasFiatPayout = useMemo(
-    () => features.offramp && flowHasFiatPayout(graph),
-    [graph, features.offramp],
   );
   const validation = useMemo(
     () => validateFlow(graph, { features, ignoreOwnerEmail: true }),
@@ -594,12 +564,6 @@ function Builder({
     });
   }
   function updateNode(updated: FlowNode) {
-    if (
-      hasFiatPayoutConfig(updated) &&
-      !hasFiatPayoutConfig(nodeLookupRef.current.get(updated.id))
-    ) {
-      track("off_script_feature_used", { feature: "fiat_payout" });
-    }
     setFlowNodes((arr) => arr.map((n) => (n.id === updated.id ? updated : n)));
     setRfNodes((arr) =>
       arr.map((n) =>
@@ -870,10 +834,7 @@ function Builder({
             <EnglishPreview
               english={english}
               showValidBadge={isValid && !!pipeline && pipeline.length > 0}
-              hasFiatPayout={hasFiatPayout}
-              hasSenderKyc={!!senderKyc}
               errorCount={isValid ? 0 : errors.length}
-              onOpenKyc={() => setKycDialogOpen(true)}
               onOpenErrors={() => {
                 track("errors_modal_opened", { error_count: errors.length });
                 setErrorsModalOpen(true);
@@ -994,19 +955,6 @@ function Builder({
         />
       )}
 
-      {/* Sender KYC dialog — design-time capture of the PDAX sender profile */}
-      {kycDialogOpen && features.offramp && (
-        <SenderKycDialog
-          initial={senderKyc}
-          onSave={(kyc) => {
-            setSenderKyc(kyc);
-            setKycDialogOpen(false);
-            toast.success("Sender KYC saved with the flow");
-          }}
-          onClose={() => setKycDialogOpen(false)}
-        />
-      )}
-
       {/* Validation issues modal — scrollable list of all errors */}
       {errorsModalOpen && (
         <div
@@ -1113,8 +1061,6 @@ function nodeLabel(n: FlowNode | undefined): string {
       return `Swap`;
     case "yield":
       return `Yield`;
-    case "cash_out":
-      return `Cash Out${n.config.bankCode ? ` (${n.config.bankCode})` : ""}`;
     case "condition":
       return `Condition (${n.config.kind})`;
   }

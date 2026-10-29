@@ -435,7 +435,7 @@ Build with **On Receive**, **Pay**, **Split** and **Swap** only, keep payouts on
 (wallet)** and use desktop **Freighter**. Everything else you may see in
 the app isn't ready for alpha testing — **please don't use it, and don't report problems with
 it**: the On Schedule, HTTP Webhook, Subscription and Payroll triggers; the Condition and Email
-Notify blocks; Fiat / bank payouts and Sender KYC; Ask AI (chat and voice); Passkeys on the Profile
+Notify blocks; Ask AI (chat and voice); Passkeys on the Profile
 page; and phones or mobile wallets (LOBSTR, xBull).
 
 ---

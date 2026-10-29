@@ -14,8 +14,7 @@ import {
  * not-found rather than letting it reach Prisma and surface as a generic 500. */
 const isUuid = (v: string) => z.string().guid({ error: "Invalid uuid" }).safeParse(v).success;
 /**
- * Return a single payroll run with its per-payout status, including off-ramp
- * job progress. 404s if the run does not belong to the given deployment.
+ * Return a single payroll run with its per-payout crypto status. 404s if the run does not belong to the given deployment.
  */
 async function GETHandler(
   req: NextRequest,
@@ -49,12 +48,7 @@ async function GETHandler(
             employeeId: true,
             amountStroops: true,
             txHash: true,
-            employee: { select: { label: true, address: true, payoutMode: true } },
-            offRampJobs: {
-              select: { status: true, lastError: true, completedAt: true },
-              orderBy: { createdAt: "desc" },
-              take: 1,
-            },
+            employee: { select: { label: true, address: true } },
           },
         },
       },

@@ -28,7 +28,6 @@ import { sorobanRpc } from "@/lib/stellar/client";
 import { db } from "@/lib/db";
 import { log } from "@/lib/log";
 import { redis } from "@/lib/redis";
-import { createCashOutJob } from "@/lib/offramp/jobs";
 import { EventKind, TemplateKind } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 
@@ -54,8 +53,6 @@ vi.mock("@/lib/redis", () => ({
   redis: vi.fn(() => null),
   eventChannel: (id: string) => `events:${id}`,
 }));
-
-vi.mock("@/lib/offramp/jobs", () => ({ createCashOutJob: vi.fn(async () => ({ id: "job" })) }));
 
 vi.mock("@/lib/log", () => ({
   log: { warn: vi.fn(), info: vi.fn() },
@@ -207,54 +204,6 @@ describe("pollEventsFor", () => {
     } finally {
       vi.mocked(redis).mockReturnValue(null);
     }
-  });
-
-  it("resolves each cash-out destination using the event's emitting node", async () => {
-    const banks = ["Alice", "Bob"].map((accountName, i) => ({
-      id: `bank-${i}`,
-      type: "cash_out",
-      config: {
-        asset: { kind: "native" },
-        accountName,
-        accountNumber: `111${i}`,
-        bankCode: "BASECPH",
-      },
-    }));
-    vi.mocked(db.deployment.findUnique).mockResolvedValue({
-      id: "dep-1",
-      contractAddress: "C123",
-      status: "CONFIRMED",
-      serviceState: "ACTIVE",
-      cursor: { lastLedger: 500 },
-      flow: { templateKind: TemplateKind.SPLITTER },
-      graphSnapshot: { nodes: banks, edges: [] },
-      pipelineSnapshot: banks.map((node, i) => ({
-        nodeId: node.id,
-        contractAddress: `Cbank${i}`,
-        templateKind: TemplateKind.CASH_OUT,
-      })),
-    } as never);
-    mockServer({
-      getEvents: async () => ({
-        latestLedger: 600,
-        events: banks.map((_, i) =>
-          makeMockEvent({
-            contractAddress: `Cbank${i}`,
-            topic: ["cash_out", ADDR_A],
-            value: "100",
-            ledger: 600,
-            txHash: `cash-${i}`,
-            ledgerClosedAt: "2026-10-06T00:00:00Z",
-          }),
-        ),
-      }),
-    });
-    vi.mocked(db.contractEvent.create).mockResolvedValue({ id: "row" } as never);
-    expect(await pollEventsFor("dep-1")).toBe(2);
-    expect(vi.mocked(createCashOutJob).mock.calls.map(([, args]) => args)).toMatchObject([
-      { bankAccountName: "Alice", bankAccountNumber: "1110", amountStroops: "100" },
-      { bankAccountName: "Bob", bankAccountNumber: "1111", amountStroops: "100" },
-    ]);
   });
 
   it("returns 0 when deployment is not found", async () => {

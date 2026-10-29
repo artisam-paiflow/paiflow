@@ -11,10 +11,28 @@ import type { NextRequest } from "next/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { db } from "@/lib/db";
 
-const { rpc, session } = vi.hoisted(() => ({
+const { rpc, session, fixture } = vi.hoisted(() => ({
+  fixture: { deploymentId: "" },
   rpc: { sendTransaction: vi.fn(), getTransaction: vi.fn() },
   session: { id: "", username: "recovery-admin", role: "ADMIN" },
 }));
+// Keep the real reconciler and PostgreSQL writes, but restrict its global scan to
+// this file's fixture so concurrent suites cannot receive our synthetic RPC reads.
+vi.mock("@/lib/db", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/db")>();
+  return {
+    db: actual.db.$extends({
+      query: {
+        signedTransaction: {
+          findMany({ args, query }) {
+            args.where = { AND: [args.where ?? {}, { deploymentId: fixture.deploymentId }] };
+            return query(args);
+          },
+        },
+      },
+    }),
+  };
+});
 vi.mock("@/lib/stellar/client", () => ({ sorobanRpc: () => rpc }));
 vi.mock("@/lib/auth", () => ({ requireSession: async () => session }));
 vi.mock("@/lib/api/write-rate-limit", () => ({ enforceWriteRateLimit: vi.fn() }));
@@ -46,6 +64,7 @@ beforeEach(async () => {
   session.role = "ADMIN";
   flowId = randomUUID();
   deploymentId = randomUUID();
+  fixture.deploymentId = deploymentId;
   process.env.STELLAR_NETWORK = "testnet";
   process.env.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID = flowId;
   process.env.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL = new Date(

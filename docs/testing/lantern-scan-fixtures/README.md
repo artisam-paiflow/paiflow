@@ -27,6 +27,10 @@ recipients. Its outer operation is `invokeHostFunction` with
 factory call; this envelope is **not** a top-level `createContract` or WASM upload.
 The decoded constructor blueprints include their salts and placeholder WASM hashes.
 
+The current factory-deploy sample uses the crypto-only Splitter recipient ABI
+from #1141; recipient maps no longer contain `is_cash_out`. These remain synthetic
+offline builder fixtures, not replacements for dated live verification evidence.
+
 ## Validation and regeneration
 
 From the repository root, with locked dependencies installed and Prisma generated:

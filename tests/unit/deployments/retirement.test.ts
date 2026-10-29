@@ -20,15 +20,12 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/stellar/client", () => ({ sorobanRpc: () => mocks.rpc, horizon: () => ({}) }));
 vi.mock("@/lib/stellar/events", () => ({
   pollEventsForWithOutcome: mocks.coverage,
-  reconcileStoredCashOutObligations: vi.fn(async () => true),
 }));
 vi.mock("@/lib/stellar/deploy", () => ({ extractCreatedContract: mocks.extract }));
 vi.mock("@/lib/redis", () => ({ redis: () => null }));
 vi.mock("@/lib/auth", () => ({ requireSession: mocks.session }));
 import { requestRetirement, reconcileRetirement } from "@/lib/deployments/retirement";
-import { getDueOffRampJobs } from "@/lib/offramp/jobs";
 import { getDueStreamerJobs } from "@/lib/streamer-jobs";
-import { createCashOutJob } from "@/lib/offramp/jobs";
 import { POST as retire, GET as progress } from "@/app/api/deployments/[id]/retirement/route";
 import { POST as verify } from "@/app/api/admin/deployments/[id]/settlement/route";
 import { DELETE as deleteFlow } from "@/app/api/flows/[id]/route";
@@ -91,7 +88,6 @@ afterAll(async () => {
     where: { work: { deploymentId: { in: deployments } } },
   });
   await db.deploymentWork.deleteMany({ where: { deploymentId: { in: deployments } } });
-  await db.offRampPayoutJob.deleteMany({ where: { deploymentId: { in: deployments } } });
   await db.contractEvent.deleteMany({ where: { deploymentId: { in: deployments } } });
   await db.auditLog.deleteMany({ where: { userId: ownerId } });
   await db.deployment.deleteMany({ where: { id: { in: deployments } } });
@@ -435,42 +431,6 @@ describe("retirement with real PostgreSQL admission locks", () => {
     expect(row.serviceState).toBe("RETIRING");
     expect(row.retirementBlocker).toBe(row.retirementCoverageGap);
   });
-  it("blocks ambiguous legacy payout replay and deduplicates verified event linkage", async () => {
-    const d = await deployment();
-    const event = await db.contractEvent.create({
-      data: {
-        deploymentId: d.id,
-        eventId: randomUUID(),
-        txHash: "f".repeat(64),
-        kind: "CASH_OUT",
-        ledger: 599,
-        payload: {},
-        occurredAt: new Date(),
-      },
-    });
-    const opts = {
-      deploymentId: d.id,
-      sourceAddress: "legacy-source",
-      amountStroops: "10000000",
-      bankAccountName: "Test recipient",
-      bankAccountNumber: "00000001",
-      bankCode: "TEST",
-    };
-    const legacy = await createCashOutJob(db, opts);
-    await expect(
-      createCashOutJob(db, { ...opts, originatingEventId: event.id, replayingEvent: true }),
-    ).rejects.toMatchObject({ code: "CONFLICT" });
-    expect(await db.offRampPayoutJob.count({ where: { deploymentId: d.id } })).toBe(1);
-    await db.offRampPayoutJob.update({
-      where: { id: legacy.id },
-      data: { originatingEventId: event.id },
-    });
-    expect(
-      (await createCashOutJob(db, { ...opts, originatingEventId: event.id, replayingEvent: true }))
-        .id,
-    ).toBe(legacy.id);
-    expect(await db.offRampPayoutJob.count({ where: { deploymentId: d.id } })).toBe(1);
-  });
   it("holds independent admission for a poll that outlives its outer response", async () => {
     const d = await deployment();
     const entered = gate();
@@ -518,7 +478,7 @@ describe("retirement with real PostgreSQL admission locks", () => {
     );
     expect(handler).toHaveBeenCalledTimes(1);
   });
-  it("excludes retired jobs before the worker limit while retaining obligated retiring payouts", async () => {
+  it("excludes retired and retiring streamer jobs before the worker limit", async () => {
     const retired = await deployment();
     await requestRetirement(retired.id, ownerId);
     await reconcileRetirement(retired.id);
@@ -526,24 +486,10 @@ describe("retirement with real PostgreSQL admission locks", () => {
     await requestRetirement(draining.id, ownerId);
     const active = await deployment();
     for (const d of [retired, draining, active]) {
-      await db.offRampPayoutJob.create({
-        data: {
-          deploymentId: d.id,
-          source: "CASH_OUT",
-          amountStroops: "10000000",
-          bankAccountName: "Test",
-          bankAccountNumber: "00000001",
-          bankCode: "TEST",
-          runAt: new Date(0),
-        },
-      });
       await db.streamerClaimJob.create({
         data: { deploymentId: d.id, nodeId: "s", contractAddress: "Cstream", runAt: new Date(0) },
       });
     }
-    const payouts = await getDueOffRampJobs(db, 1);
-    expect(payouts).toHaveLength(1);
-    expect(payouts[0]?.deploymentId).not.toBe(retired.id);
     const streams = await getDueStreamerJobs(db, 1);
     expect(streams).toHaveLength(1);
     expect(streams[0]?.deploymentId).toBe(active.id);
@@ -564,19 +510,19 @@ describe("retirement with real PostgreSQL admission locks", () => {
     expect(row.serviceState).toBe("RETIRED");
     expect(await db.serviceTransaction.count({ where: { txHash: hash } })).toBe(1);
   });
-  it("allows independently verified archived finality without forcing remaining payout settlement", async () => {
+  it("allows independently verified archived finality without completing unrelated blocked work", async () => {
     const d = await deployment();
     const hash = "d".repeat(64);
     await withDeploymentWork(d.id, "submit", () => beforeServiceSubmission(hash, "rpc"));
     await requestRetirement(d.id, ownerId);
     await reconcileRetirement(d.id);
-    const job = await createCashOutJob(db, {
-      deploymentId: d.id,
-      sourceAddress: "cash-out",
-      amountStroops: "10000000",
-      bankAccountName: "Test",
-      bankAccountNumber: "00000001",
-      bankCode: "TEST",
+    const blockedWork = await db.deploymentWork.create({
+      data: {
+        deploymentId: d.id,
+        kind: "independent-recovery",
+        state: "BLOCKED",
+        blocker: "Independent claim requires verified recovery",
+      },
     });
     mocks.session.mockResolvedValue({ id: ownerId, role: "ADMIN" });
     const response = await verify(
@@ -594,7 +540,7 @@ describe("retirement with real PostgreSQL admission locks", () => {
     await reconcileRetirement(d.id);
     const row = await db.deployment.findUniqueOrThrow({ where: { id: d.id } });
     expect(row.serviceState).toBe("RETIRING");
-    expect(row.retirementBlocker).toContain(job.id);
+    expect(row.retirementBlocker).toContain(blockedWork.id);
     expect(
       await db.auditLog.count({ where: { userId: ownerId, action: "DEPLOY_SETTLEMENT_VERIFIED" } }),
     ).toBeGreaterThan(0);
@@ -626,42 +572,6 @@ describe("retirement with real PostgreSQL admission locks", () => {
     expect((await db.deployment.findUniqueOrThrow({ where: { id: d.id } })).serviceState).toBe(
       "RETIRED",
     );
-  });
-  it("a failed provider deposit is not settled until recovery is verified", async () => {
-    const d = await deployment();
-    const job = await db.offRampPayoutJob.create({
-      data: {
-        deploymentId: d.id,
-        amountStroops: "10000000",
-        runAt: new Date(),
-        status: "FAILED",
-        pdaxDepositTxHash: "c".repeat(64),
-      },
-    });
-    await requestRetirement(d.id, ownerId);
-    await reconcileRetirement(d.id);
-    expect(
-      (await db.deployment.findUniqueOrThrow({ where: { id: d.id } })).retirementBlocker,
-    ).toContain("provider deposit");
-    mocks.session.mockResolvedValue({ id: ownerId, role: "ADMIN" });
-    expect(
-      (
-        await verify(
-          req("POST", `/api/admin/deployments/${d.id}/settlement`, {
-            kind: "offramp",
-            id: job.id,
-            evidence: "Verified provider recovery receipt for the complete committed amount",
-            confirmation: "Verified no remaining obligation",
-          }),
-          ctx(d.id),
-        )
-      ).status,
-    ).toBe(200);
-    await reconcileRetirement(d.id);
-    expect((await db.deployment.findUniqueOrThrow({ where: { id: d.id } })).serviceState).toBe(
-      "RETIRED",
-    );
-    expect(await db.offRampPayoutJob.count({ where: { id: job.id } })).toBe(1);
   });
   it("fixes a cutoff and blocks on incomplete or retention-gap coverage", async () => {
     const d = await deployment({ status: "CONFIRMED", contractAddress: `cutoff-${suffix}` });
@@ -851,56 +761,5 @@ describe("retirement with real PostgreSQL admission locks", () => {
     ]);
     if (results[1]?.status === "fulfilled") deployments.push(results[1].value.id);
     expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
-  });
-  it("requires worker fencing and finality before resolving a crashed RUNNING payout", async () => {
-    const d = await deployment();
-    const job = await db.offRampPayoutJob.create({
-      data: { deploymentId: d.id, amountStroops: "10000000", runAt: new Date(), status: "RUNNING" },
-    });
-    const work = await db.deploymentWork.create({
-      data: {
-        deploymentId: d.id,
-        kind: `offramp-settlement:${job.id}`,
-        transactions: { create: { txHash: "9".repeat(64), transport: "horizon" } },
-      },
-    });
-    await requestRetirement(d.id, ownerId);
-    mocks.session.mockResolvedValue({ id: ownerId, role: "ADMIN" });
-    const attest = () =>
-      verify(
-        req("POST", `/api/admin/deployments/${d.id}/settlement`, {
-          kind: "offramp",
-          id: job.id,
-          evidence: "Worker process stopped; independently verified full refund receipt",
-          confirmation: "Verified no remaining obligation",
-        }),
-        ctx(d.id),
-      );
-    expect((await attest()).status).toBe(409);
-    await db.deploymentWork.update({
-      where: { id: work.id },
-      data: {
-        state: "DONE",
-        reconciliationEvidence: "Process stopped; receipt independently verified",
-      },
-    });
-    expect((await attest()).status).toBe(409);
-    await db.serviceTransaction.updateMany({
-      where: { workId: work.id },
-      data: { state: "SUCCESS", ledger: 500 },
-    });
-    expect((await attest()).status).toBe(200);
-    const settled = await db.offRampPayoutJob.findUniqueOrThrow({ where: { id: job.id } });
-    expect(settled.status).toBe("CANCELLED");
-    expect(settled.settlementResolvedAt).not.toBeNull();
-    expect(settled.settlementEvidence).toContain("full refund receipt");
-    // Resolving this job must not silently abandon another committed payout.
-    await db.offRampPayoutJob.create({
-      data: { deploymentId: d.id, amountStroops: "10000000", runAt: new Date(), status: "RUNNING" },
-    });
-    await reconcileRetirement(d.id);
-    expect((await db.deployment.findUniqueOrThrow({ where: { id: d.id } })).serviceState).toBe(
-      "RETIRING",
-    );
   });
 });

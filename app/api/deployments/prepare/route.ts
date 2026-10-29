@@ -25,7 +25,7 @@ import { preparePipelineDeployTx, checkAccountFunding } from "@/lib/stellar/depl
 import { withInteractiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
 import { assertDeploymentPreparationBudget } from "@/lib/stellar/deployment-preparation";
 import { getWasmHashes } from "@/lib/stellar/config";
-import { stellarRelayerAddress, offRampTreasuryAddress } from "@/lib/env";
+import { stellarRelayerAddress } from "@/lib/env";
 import { Role } from "@prisma/client";
 import { SANDBOX_TEMPLATE_KINDS } from "@/lib/sandbox";
 import { assertNoHiddenSurfaces, serverFeatures } from "@/lib/features";
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     if (v.graph.nodes.some((n) => n.type === "swap") && !soroswapRouterAddress()) {
       throw new AppError("VALIDATION", SWAP_ROUTER_UNSET_MESSAGE);
     }
-    const pipeline = flowToPipeline(v.graph, relayerAddress, offRampTreasuryAddress(), {
+    const pipeline = flowToPipeline(v.graph, relayerAddress, {
       ownerAddress: body.sourceAccount,
     });
     // Second line behind the graph check above: the contract kinds actually

@@ -7,12 +7,20 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Removed
 
+- Retire fiat off-ramping, bank/KYC editors, provider processing and callbacks, Cash Out
+  contracts and deployment support (#1141). New Pay/Split/payroll flows use crypto recipients.
+  Remove verified blank bank fields from saved graphs/deployment graph snapshots and drop
+  empty feature storage under strict migration guards. Preserve crypto deployments, events
+  and unknown transaction outcomes; coordinate changed Payer/Splitter ABIs with new WASM activation.
+  Hosted settlement, credential revocation and scheduler shutdown require the separate
+  [cutover procedure](docs/offramp-retirement.md).
+
 - Remove mutable dev-mode flows, deferred API-filled configuration, builder/deployment controls,
   legacy dev tokens, dedicated dev endpoints and per-payment-recipient payout APIs (#1138).
   Existing-client compatibility is intentionally discontinued for these removed surfaces.
-  Standard payments, subscriptions, payroll and treasury/refund operations remain supported;
-  retained payroll management now requires an owner session, and fiat payroll recipients require
-  complete bank details before deployment. The migration deletes undeployed
+  Standard payments, subscriptions and payroll remain supported;
+  retained payroll management now requires an owner session. Off-ramp-only treasury/refund
+  operations and fiat payroll configuration are subsequently retired in #1141. The migration deletes undeployed
   dev drafts and strips dev settings from deployment-linked current drafts without restoring
   old graphs or changing deployment snapshots/history. See [the removal notes](docs/dev-mode-removal.md)
   for migration guards and rollout limits.

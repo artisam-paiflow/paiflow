@@ -129,7 +129,7 @@ describe("payoutRecipients", () => {
     await checkPayoutTrustlines(recipients);
     expect(loadAccount).toHaveBeenCalledTimes(2);
   });
-  it("collects crypto Pay and Split recipients with their node's asset, not fiat ones", () => {
+  it("collects crypto Pay and Split recipients with their node's asset", () => {
     const graph = {
       nodes: [
         { id: "t", type: "on_receive", position: { x: 0, y: 0 }, config: { asset: USDC } },
@@ -140,21 +140,12 @@ describe("payoutRecipients", () => {
           config: { recipient: RECIPIENT, asset: USDC, fullAmount: true },
         },
         {
-          id: "f",
-          type: "pay",
-          position: { x: 0, y: 0 },
-          config: { recipient: RECIPIENT, asset: USDC, fullAmount: true, payoutMode: "fiat" },
-        },
-        {
           id: "s",
           type: "split",
           position: { x: 0, y: 0 },
           config: {
             asset: { kind: "native" },
-            recipients: [
-              { address: WRONG_ISSUER, label: "Bob", mode: "percentage", bps: 5000 },
-              { address: RECIPIENT, mode: "percentage", bps: 5000, payoutMode: "fiat" },
-            ],
+            recipients: [{ address: WRONG_ISSUER, label: "Bob", mode: "percentage", bps: 10000 }],
           },
         },
       ],

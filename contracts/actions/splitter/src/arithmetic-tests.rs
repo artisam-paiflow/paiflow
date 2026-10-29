@@ -11,13 +11,11 @@ fn recipients(env: &Env, a: &Address, b: &Address) -> Vec<Recipient> {
             address: a.clone(),
             bps: 5_000,
             amount: 0,
-            is_cash_out: false,
         },
         Recipient {
             address: b.clone(),
             bps: 5_000,
             amount: 0,
-            is_cash_out: false,
         },
     ]
 }
@@ -167,7 +165,6 @@ fn fixed_accumulation_overflow_is_named_and_keeps_accounting() {
             address: a.clone(),
             bps: 0,
             amount: i128::MAX,
-            is_cash_out: false,
         },
     ];
     let id = env.register(

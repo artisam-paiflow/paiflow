@@ -64,7 +64,6 @@ vi.mock("@/lib/stellar/config", () => ({
   getWasmHashes: vi.fn(async () => ({ get: () => "a".repeat(64) })),
 }));
 const SWITCHES = [
-  "FEATURE_OFFRAMP_ENABLED",
   "FEATURE_PAYROLL_ENABLED",
   "FEATURE_AI_ASSISTANT_ENABLED",
   "FEATURE_ORACLE_CONDITION_ENABLED",
@@ -200,7 +199,6 @@ describe("env: the surface switches", () => {
   }
   it("default every surface on when unset or blank", async () => {
     expect(await features()).toEqual({
-      offramp: true,
       payroll: true,
       aiAssistant: true,
       oracleCondition: true,
@@ -213,8 +211,8 @@ describe("env: the surface switches", () => {
     expect((await features()).payroll).toBe(false);
   });
   it.each(["true", "1", "on", "yes", "TRUE"])("reads %j as on", async (v) => {
-    process.env.FEATURE_OFFRAMP_ENABLED = v;
-    expect((await features()).offramp).toBe(true);
+    process.env.FEATURE_PAYROLL_ENABLED = v;
+    expect((await features()).payroll).toBe(true);
   });
   it("reads a value it cannot parse as OFF instead of crashing every route", async () => {
     process.env.FEATURE_AI_ASSISTANT_ENABLED = "flase";
@@ -232,9 +230,8 @@ describe("POST /api/deployments/prepare", () => {
     const { POST } = await import("@/app/api/deployments/prepare/route");
     return POST(jsonRequest({ flowId: ID, sourceAccount: SOURCE }) as never);
   }
-  it("keeps a standard subscription/splitter deploy available with payroll and off-ramp off", async () => {
+  it("keeps a standard subscription/splitter deploy available with payroll off", async () => {
     setSwitch("FEATURE_PAYROLL_ENABLED", "false");
-    setSwitch("FEATURE_OFFRAMP_ENABLED", "false");
     const graph = {
       ...PAYROLL_GRAPH,
       nodes: [
@@ -259,9 +256,7 @@ describe("POST /api/deployments/prepare", () => {
   });
   it.each([
     ["payroll", "FEATURE_PAYROLL_ENABLED", PAYROLL_GRAPH, "nodes.t", /Payroll is turned off/],
-    ["cash-out", "FEATURE_OFFRAMP_ENABLED", CASH_OUT_GRAPH, "nodes.c", /Fiat off-ramp/],
     ["oracle", "FEATURE_ORACLE_CONDITION_ENABLED", ORACLE_GRAPH, "nodes.c", /oracle condition/],
-    ["fiat pay", "FEATURE_OFFRAMP_ENABLED", FIAT_PAY_GRAPH, "nodes.a", /Fiat off-ramp/],
   ] as const)(
     "refuses a %s flow on its node when the switch is off",
     async (_n, sw, graph, path, msg) => {
@@ -278,26 +273,33 @@ describe("POST /api/deployments/prepare", () => {
   it.each([
     ["payroll", PAYROLL_GRAPH],
     ["oracle", ORACLE_GRAPH],
-    ["fiat pay", FIAT_PAY_GRAPH],
-    ["cash-out", CASH_OUT_GRAPH],
   ] as const)("prepares a %s flow when every switch is left unset", async (_n, graph) => {
     setSwitch("FEATURE_PAYROLL_ENABLED", undefined);
     const res = await prepare(graph);
     expect(res.status).toBe(200);
     expect(mockDeploy.preparePipelineDeployTx).toHaveBeenCalledOnce();
   });
+  it.each([FIAT_PAY_GRAPH, CASH_OUT_GRAPH])(
+    "refuses retired off-ramp graphs with all features on",
+    async (graph) => {
+      const res = await prepare(graph);
+      expect(res.status).toBe(422);
+      expect(mockDb.deployment.create).not.toHaveBeenCalled();
+      expect(mockDeploy.preparePipelineDeployTx).not.toHaveBeenCalled();
+    },
+  );
 });
 describe("pipeline kinds, the second line behind the graph check", () => {
   it("refuses a contract kind of a switched-off surface even when no node names it", async () => {
     const { assertNoHiddenSurfaces } = await import("@/lib/features");
     const { ALL_FEATURES_ON } = await import("@/lib/feature-flags");
     const empty = { nodes: [], edges: [] };
-    const off = { ...ALL_FEATURES_ON, offramp: false };
-    expect(() => assertNoHiddenSurfaces(empty, ["SPLITTER", "CASH_OUT"], off)).toThrow(
-      /CASH_OUT contract, which is turned off/,
+    const off = { ...ALL_FEATURES_ON, payroll: false };
+    expect(() => assertNoHiddenSurfaces(empty, ["SPLITTER", "PAYROLL"], off)).toThrow(
+      /PAYROLL contract, which is turned off/,
     );
     expect(() =>
-      assertNoHiddenSurfaces(empty, ["SPLITTER", "CASH_OUT"], ALL_FEATURES_ON),
+      assertNoHiddenSurfaces(empty, ["SPLITTER", "PAYROLL"], ALL_FEATURES_ON),
     ).not.toThrow();
   });
   it("stops a deployment prepared before the switch went off (submit)", async () => {
@@ -351,72 +353,6 @@ describe("payroll routes", () => {
     const res = await GET(jsonRequest({}) as never, ctx());
     expect(res.status).toBe(200);
     expect((await res.json()).data).toEqual({ isCancelled: false, contractAddress: "CSUB" });
-  });
-});
-describe("off-ramp routes", () => {
-  const payroll = { id: ID, offRampEnabled: false, flow: { templateKind: "PAYROLL" } };
-  it("refuses turning the off-ramp ON for a payroll when off", async () => {
-    setSwitch("FEATURE_OFFRAMP_ENABLED", "false");
-    mockDb.deployment.findFirst.mockResolvedValue(payroll);
-    const { POST } = await import("@/app/api/deployments/[id]/offramp-enable/route");
-    const res = await POST(jsonRequest({ enabled: true }) as never, ctx());
-    expect(res.status).toBe(422);
-    expect((await res.json()).error.fields.enabled[0]).toMatch(/Fiat off-ramp is turned off/);
-    expect(mockDb.deployment.update).not.toHaveBeenCalled();
-  });
-  it("still reads the setting and turns it OFF for an existing payroll when off", async () => {
-    setSwitch("FEATURE_OFFRAMP_ENABLED", "false");
-    mockDb.deployment.findFirst.mockResolvedValue(payroll);
-    const { GET, POST } = await import("@/app/api/deployments/[id]/offramp-enable/route");
-    expect((await GET(jsonRequest({}) as never, ctx())).status).toBe(200);
-    const res = await POST(jsonRequest({ enabled: false }) as never, ctx());
-    expect(res.status).toBe(200);
-    expect(mockDb.deployment.update).toHaveBeenCalledOnce();
-  });
-  it("refuses a NEW fiat employee on payroll-update-recipients when off", async () => {
-    setSwitch("FEATURE_OFFRAMP_ENABLED", "false");
-    mockDb.deployment.findFirst.mockResolvedValue({ id: ID, flow: { templateKind: "PAYROLL" } });
-    const { POST } = await import("@/app/api/deployments/[id]/payroll-update-recipients/route");
-    const res = await POST(
-      jsonRequest({
-        recipients: [
-          {
-            amount: "10000000",
-            payoutMode: "fiat",
-            bankDetail: { accountName: "B", accountNumber: "9", bankCode: "BASECPH" },
-          },
-        ],
-      }) as never,
-      ctx(),
-    );
-    expect(res.status).toBe(422);
-  });
-});
-describe("refuseNewFiatRecipients: existing fiat recipients keep updating", () => {
-  const fiat = (accountNumber: string) => ({
-    payoutMode: "fiat",
-    bankDetail: { accountNumber, bankCode: "BASECPH" },
-  });
-  it("lets a roster that keeps an existing fiat employee and edits a crypto one through", async () => {
-    setSwitch("FEATURE_OFFRAMP_ENABLED", "false");
-    mockDb.employee.findMany.mockResolvedValue([
-      { bankDetail: { accountNumber: "111", bankCode: "BASECPH" } },
-    ]);
-    const { refuseNewFiatRecipients } = await import("@/lib/features");
-    await expect(
-      refuseNewFiatRecipients(ID, [fiat("111"), { payoutMode: "crypto" }]),
-    ).resolves.toBeUndefined();
-    await expect(refuseNewFiatRecipients(ID, [fiat("111"), fiat("222")])).rejects.toThrow(
-      /Fiat off-ramp is turned off/,
-    );
-  });
-  it("does not look anything up while the off-ramp is on, or for a crypto-only roster", async () => {
-    const { refuseNewFiatRecipients } = await import("@/lib/features");
-    await refuseNewFiatRecipients(ID, [fiat("222")]);
-    setSwitch("FEATURE_OFFRAMP_ENABLED", "false");
-    const off = await import("@/lib/features");
-    await off.refuseNewFiatRecipients(ID, [{ payoutMode: "crypto" }]);
-    expect(mockDb.employee.findMany).not.toHaveBeenCalled();
   });
 });
 describe("flow save and validate", () => {

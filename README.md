@@ -48,7 +48,9 @@ of what was uploaded to testnet, not a live view: the authoritative per-network 
 `ContractTemplate` table, written by `pnpm contracts:update-hashes`, and
 [`scripts/update-hashes.ts`](./scripts/update-hashes.ts) enumerates the supported `TemplateKind`s. A kind
 absent below is one that has not been uploaded to testnet, or one this table has not kept up with —
-resolve it against `ContractTemplate`, not against this file.
+resolve it against `ContractTemplate`, not against this file. The Payer/Splitter hashes below
+are historical uploads, not evidence that the #1141 ABI changes have been activated.
+Their new version-5 artifacts require coordinated upload/hash sync before new deployments.
 
 | Template        | Role      | WASM hash (testnet)                                                |
 | --------------- | --------- | ------------------------------------------------------------------ |
@@ -60,7 +62,6 @@ resolve it against `ContractTemplate`, not against this file.
 | Streamer        | Action    | `625cc073ec1ae4d6ed6f55d9f99c4d743153752b1d2667524123f8b0284c0467` |
 | Payer           | Action    | `88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2` |
 | Payroll         | Action    | `055bb5c94bc0dac259f08a6adc97e9305fbf901d5facbdcbbedf799810f474bd` |
-| Cash out        | Action    | `75ba6d8e71770bcbd98c1181473cca5d33d4646655c95786be8ed99155d77502` |
 | Timelock        | Condition | `5529d368e5305f7688dd8d2d655fe48c4123be0110cdc9c167bce025d8d11c20` |
 | Conditional     | Condition | `addd86767bd2691b26110b1c5fec071f48047ebc3ce7611a46a59b70c3329922` |
 
@@ -98,7 +99,6 @@ The mission: **make Stellar the easiest chain on which to ship a payment flow**,
 ## ✨ Features
 
 - **Visual flow builder** — drag triggers (`On Receive`, `On Schedule`, `HTTP Webhook`, `Subscription`, `Payroll`), actions (`Pay`, `Split`, `Swap`), and logic blocks (`Condition`) onto a `@xyflow/react` canvas, wire them up, validate, deploy.
-- **Native fiat payouts** — pay and split steps can settle directly to a recipient's bank account via a PDAX off-ramp integration. Bank details and sender KYC are captured in the builder and baked into immutable contracts at deploy time; an automated off-ramp pipeline settles the payouts.
 - **Non-custodial deploy** — the backend prepares simulated XDR; the user's wallet — Freighter on desktop, or xBull / LOBSTR / Freighter over WalletConnect, via `@creit.tech/stellar-wallets-kit` — signs. Private keys never touch the server.
 - **Lantern preparation (experimental)** — the desktop picker lists Lantern as unavailable while its browser provider contract and real-extension acceptance remain unverified. Installing Lantern does not enable Paiflow signing yet. See [the provisional adapter contract](docs/lantern-wallet-provider.md); Freighter and existing WalletConnect wallets remain the available paths.
 - **QR-triggered execution** — every deployment renders a public QR / dApp URL. Anyone with a wallet can scan it, sign, and fire `distribute()` — useful for audience-funded demos, public crowdpay flows, and self-fund-back tests. Rate-limited + audit-logged on the public endpoints.
@@ -106,6 +106,8 @@ The mission: **make Stellar the easiest chain on which to ship a payment flow**,
 - **Raft Log AI assistant** — voice-to-text via Groq Whisper (large-v3 with fallback to large-v3-turbo) + Llama text edits. Talk to the builder in plain English ("change Alice to 55%"); the AI emits a JSON patch the validator can apply.
 - **Admin console** — user management, audit log, seeded admin on first boot, rate-limited public endpoints, HIBP-pwned-password check (opt-in).
 - **stellar.expert deep links** — every contract address in the UI links to the correct (`testnet` ↔ `public`) explorer.
+
+Fiat off-ramping is retired (#1141). See [the removal and cutover notes](docs/offramp-retirement.md) for historical evidence and rollout requirements.
 
 ## 🏗️ System Architecture
 
@@ -121,7 +123,7 @@ Key boundaries:
 - **Deploys go through a factory contract** — the app pre-computes child contract addresses (deterministic salts, CAP-46), then submits one `deploy_pipeline` invocation that deploys them all in one transaction. The
   wiring itself is TypeScript-side: each child's address is computed before the call and passed to
   its neighbours as a constructor argument, so one transaction lands a fully-connected pipeline.
-- **Events are ingested, not trusted from clients** — a cron poller (`app/api/cron/poll-events`) reads Soroban events per deployment via an `EventCursor` (bootstrapped from the deploy tx's ledger, then incremental), dedupes into `ContractEvent`, and fans out over Redis pub/sub to the live UI. `CASH_OUT` events additionally spawn PDAX off-ramp jobs.
+- **Events are ingested, not trusted from clients** — a cron poller (`app/api/cron/poll-events`) reads Soroban events per deployment via an `EventCursor` (bootstrapped from the deploy tx's ledger, then incremental), dedupes into `ContractEvent`, and fans out over Redis pub/sub to the live UI.
 
 ### Sequence — deploy a flow
 
@@ -206,7 +208,6 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 | DB            | PostgreSQL 16 + Prisma 6                                                                     |
 | Cache / queue | Redis 7 (`ioredis`) — rate limits, SSE pub/sub                                               |
 | Email         | Resend (transactional — password reset, notifications)                                       |
-| Off-ramp      | PDAX Institution API (fiat payout), mock provider by default                                 |
 | AI            | Groq — Whisper (STT, raft-log voice input) + Llama (text)                                    |
 | Blockchain    | Stellar / Soroban — `@stellar/stellar-sdk` 16, `@creit.tech/stellar-wallets-kit` 1.9         |
 | Contracts     | Rust (CI toolchain 1.95), `soroban-sdk` 26, target `wasm32v1-none`                           |
@@ -458,20 +459,20 @@ cargo test --workspace
 
 ```
 app/             Next.js App Router (routes + layouts; no Server Actions)
-  api/             Route handlers (deployments, payroll, offramp, cron, auth, …)
+  api/             Route handlers (deployments, payroll, cron, auth, …)
   flows/           Visual builder canvas
   deployments/     Deployment list + detail (with live event feed)
   trigger/         Public trigger page (QR target)
   allowance/       Public allowance-approval page
-  payroll/         Employee / bank-detail management
-  admin/           Admin console (users, templates, off-ramp credentials)
+  payroll/         Crypto payroll recipient management
+  admin/           Admin console (users, templates, audit log)
 components/      Hand-rolled React components, grouped by feature
-lib/             Server + shared utilities (auth, db, stellar, offramp, validation, …)
+lib/             Server + shared utilities (auth, db, stellar, validation, …)
 prisma/          schema.prisma, migrations, seed.ts
 contracts/       Soroban smart contracts (Rust workspace)
   triggers/         deposit_trigger, webhook, subscription, oracle
   conditions/       conditional, router, timelock, multisig
-  actions/          splitter, streamer, payer, payroll, cash_out, swapper, yield
+  actions/          splitter, streamer, payer, payroll, swapper, yield
   factory/          deploys a whole pipeline in one transaction (kind-agnostic)
 scripts/         Operational scripts (upload-wasm, deploy-factory, update-hashes, …)
 tests/
@@ -576,7 +577,6 @@ Configured for **Railway** (`.railway/app.json`, `Dockerfile`):
 | [`docs/architecture-diagrams.md`](./docs/architecture-diagrams.md)     | Editable mermaid sources for the diagrams above                                                    |
 | [`docs/soroban-smart-contracts.md`](./docs/soroban-smart-contracts.md) | Contract surface, build/upload pipeline, how to add a contract                                     |
 | [`docs/mainnet-cutover.md`](./docs/mainnet-cutover.md)                 | Mainnet go-live runbook                                                                            |
-| [`docs/pdax-institution-api.md`](./docs/pdax-institution-api.md)       | Fiat off-ramp API + UAT constraints                                                                |
 | [`docs/api/`](./docs/api/README.md)                                    | Developer API (`/api/v1`): guide with curl examples, OpenAPI spec, Postman collection              |
 | [`docs/instawards-phase-1-sow.md`](./docs/instawards-phase-1-sow.md)   | Approved Instawards Phase 1 Statement of Work (verbatim) — deliverables, evidence, success metrics |
 | [`docs/design/`](./docs/design/)                                       | Design records — why a decision was made; see its README for the convention                        |

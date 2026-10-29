@@ -47,7 +47,7 @@ describe("compiler implementation bindings", () => {
           },
         ],
       });
-      const pipeline = flowToPipeline(g, undefined, undefined, { ownerAddress: ACCOUNT });
+      const pipeline = flowToPipeline(g, undefined, { ownerAddress: ACCOUNT });
       expect(pipeline.map((n) => n.nodeId)).toEqual(["t", "c", "r"]);
       expect(pipeline[1]?.implementation?.bindings).toEqual([
         { blockId: "c", blockType: "condition", role: "condition" },
@@ -91,89 +91,6 @@ describe("compiler implementation bindings", () => {
     ]);
     expect(implementationIssues(g, pipeline)).toEqual([]);
   });
-  it.each(["PENDING:bank", "CAEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQTD2L"])(
-    "records generated payout origins when the fiat input is %s",
-    (fiatInput) => {
-      const g = FlowGraphSchema.parse({
-        nodes: [
-          receive,
-          {
-            id: "p",
-            type: "split",
-            config: {
-              asset,
-              recipients: [
-                { address: ACCOUNT, mode: "percentage", bps: 4000 },
-                {
-                  address: fiatInput,
-                  mode: "percentage",
-                  bps: 6000,
-                  payoutMode: "fiat",
-                  accountName: "Fixture",
-                  accountNumber: "123",
-                  bankCode: "TEST",
-                },
-              ],
-            },
-          },
-        ],
-        edges: [edge],
-      });
-      const pipeline = flowToPipeline(g, OTHER, OTHER);
-      expect(pipeline[2]).toMatchObject({
-        nodeId: "p-cashout-1",
-        templateKind: "CASH_OUT",
-        implementation: {
-          version: 1,
-          bindings: [{ blockId: "p", blockType: "split", role: "payout_sink", recipientIndex: 1 }],
-        },
-        params: { parentNodeId: "p" },
-      });
-      expect(implementationIssues(g, pipeline)).toEqual([]);
-      expect(implementationLabel(pipeline[2]?.implementation)).toBe("Split recipient 2 payout");
-      expect(
-        implementationIssues(g, pipeline.slice(0, 2)).some((issue) =>
-          /missing its contract/.test(issue.message),
-        ),
-      ).toBe(true);
-      const child = pipeline[2]!;
-      if (child.params.kind !== "cash_out") throw new Error("Expected generated cash-out fixture");
-      const wrongParent = { ...child, params: { ...child.params, parentNodeId: "t" } };
-      expect(
-        implementationIssues(g, [...pipeline.slice(0, 2), wrongParent]).some((issue) =>
-          /invalid recipient binding/.test(issue.message),
-        ),
-      ).toBe(true);
-      const duplicate = { ...child, nodeId: "unreferenced-child" };
-      expect(
-        implementationIssues(g, [...pipeline, duplicate]).some((issue) =>
-          /invalid recipient binding/.test(issue.message),
-        ),
-      ).toBe(true);
-      expect(
-        implementationIssues(g, [...pipeline, duplicate]).some((issue) =>
-          /exactly one generated/.test(issue.message),
-        ),
-      ).toBe(true);
-      const parent = pipeline[1]!;
-      if (parent.params.kind !== "splitter") throw new Error("Expected splitter fixture");
-      const missingFlag = {
-        ...parent,
-        params: {
-          ...parent.params,
-          recipients: parent.params.recipients.map((recipient) => ({
-            ...recipient,
-            isCashOut: false,
-          })),
-        },
-      };
-      expect(
-        implementationIssues(g, [pipeline[0]!, missingFlag]).some((issue) =>
-          /exactly one generated/.test(issue.message),
-        ),
-      ).toBe(true);
-    },
-  );
   it("refuses coverage gaps for actions, triggers and conditions", () => {
     const g = graph();
     const pipeline = flowToPipeline(g);
@@ -205,16 +122,6 @@ describe("mapping boundary validation", () => {
   ])("rejects malformed or unsupported metadata: %j", (value) => {
     expect(PipelineImplementationSchema.safeParse(value).success).toBe(false);
     expect(implementationLabel(value)).toBeNull();
-  });
-  it("accepts a generated-recipient binding", () => {
-    expect(
-      BlockBindingSchema.parse({
-        blockId: "p",
-        blockType: "pay",
-        role: "payout_sink",
-        recipientIndex: 0,
-      }),
-    ).toMatchObject({ recipientIndex: 0 });
   });
   it.each([
     { ...binding, blockId: "absent" },

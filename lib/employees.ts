@@ -1,97 +1,41 @@
 import "server-only";
-import { createHash } from "node:crypto";
-import { StrKey } from "@stellar/stellar-sdk";
 import { db } from "@/lib/db";
-import { EmployeePayoutMode } from "@prisma/client";
-
-export type EmployeeInputRecipient = {
-  address: string;
-  amountStroops: string;
-  label?: string;
-  payoutMode?: "crypto" | "fiat";
-  bankDetail?: { accountName: string; accountNumber: string; bankCode: string };
-};
-
-const FIAT_PLACEHOLDER_SEED_PREFIX = "pinkraft:fiat:employee:v1";
-
-export type FiatPlaceholderInput = {
-  deploymentId: string;
-  accountNumber: string;
-  bankCode: string;
-};
-
-/**
- * Derive a deterministic, syntactically valid Stellar public key for a fiat
- * employee whose caller did not supply an explicit wallet address.
- *
- * The resulting key is unique per (deploymentId, accountNumber, bankCode), is
- * cheap to generate, and never corresponds to a real private key. It is only
- * used as a correlation key in the Employee table and cash-out helper maps.
- */
-export function deriveFiatPlaceholderAddress(input: FiatPlaceholderInput): string {
-  const seed = `${FIAT_PLACEHOLDER_SEED_PREFIX}:${input.deploymentId}:${input.accountNumber}:${input.bankCode}`;
-  const rawPublicKey = createHash("sha256").update(seed, "utf8").digest();
-  return StrKey.encodeEd25519PublicKey(rawPublicKey);
-}
-
-/**
- * Mirror a payroll recipient list into the Employee / EmployeeBankDetail tables.
- *
- * - Removes employees whose addresses are no longer in the recipient list.
- * - Upserts employees by (deploymentId, address), updating amount, label,
- *   payoutMode, and the cash-out contract address when provided.
- * - Upserts bank details when supplied.
- */
-export async function syncEmployees(
-  deploymentId: string,
-  recipients: EmployeeInputRecipient[],
-  cashOutByInputAddress?: Map<string, string>,
-) {
-  const newAddresses = new Set(recipients.map((r) => r.address));
-
+export type EmployeeInputRecipient = { address: string; amountStroops: string; label?: string };
+/** Mirror crypto recipients without removing retained payout history. */
+export async function syncEmployees(deploymentId: string, recipients: EmployeeInputRecipient[]) {
   await db.$transaction(async (tx) => {
+    // Remove unused roster entries while keeping every employee referenced by
+    // financial history; deleting those would cascade to PayrollPayout rows.
+    // Lock parent before children, preventing new employee FK inserts from
+    // appearing between the row lock and deletion predicate.
+    await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM "Deployment" WHERE id = ${deploymentId}::uuid FOR UPDATE
+    `;
+    // Wait out concurrent payout inserts before testing the relationship. A
+    // predicate alone could race the cascading foreign key under READ COMMITTED.
+    await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM "Employee"
+      WHERE "deploymentId" = ${deploymentId}::uuid
+      ORDER BY id FOR UPDATE
+    `;
     await tx.employee.deleteMany({
-      where: { deploymentId, address: { notIn: [...newAddresses] } },
+      where: {
+        deploymentId,
+        address: { notIn: recipients.map((recipient) => recipient.address) },
+        payouts: { none: {} },
+      },
     });
-
     for (const r of recipients) {
-      const mode = r.payoutMode === "fiat" ? EmployeePayoutMode.FIAT : EmployeePayoutMode.CRYPTO;
-      const cashOutContractAddress = cashOutByInputAddress?.get(r.address) ?? null;
-
-      const employee = await tx.employee.upsert({
+      await tx.employee.upsert({
         where: { deploymentId_address: { deploymentId, address: r.address } },
         create: {
           deploymentId,
           address: r.address,
           amountStroops: r.amountStroops,
           label: r.label,
-          payoutMode: mode,
-          cashOutContractAddress,
         },
-        update: {
-          amountStroops: r.amountStroops,
-          label: r.label,
-          payoutMode: mode,
-          cashOutContractAddress,
-        },
+        update: { amountStroops: r.amountStroops, label: r.label },
       });
-
-      if (r.bankDetail) {
-        await tx.employeeBankDetail.upsert({
-          where: { employeeId: employee.id },
-          create: {
-            employeeId: employee.id,
-            accountName: r.bankDetail.accountName,
-            accountNumber: r.bankDetail.accountNumber,
-            bankCode: r.bankDetail.bankCode,
-          },
-          update: {
-            accountName: r.bankDetail.accountName,
-            accountNumber: r.bankDetail.accountNumber,
-            bankCode: r.bankDetail.bankCode,
-          },
-        });
-      }
     }
   });
 }

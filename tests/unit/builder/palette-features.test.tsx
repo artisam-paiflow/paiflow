@@ -20,10 +20,8 @@ describe("Palette under the surface switches (#722)", () => {
     expect(screen.getByRole("button", { name: /On Receive/ })).toBeTruthy();
   });
 
-  it("never offers Cash Out, and the off-ramp switch removes nothing else", () => {
+  it("never offers the retired Cash Out block", () => {
     const on = visibleTemplates(ALL_FEATURES_ON).map((t) => t.label);
-    const off = visibleTemplates({ ...ALL_FEATURES_ON, offramp: false }).map((t) => t.label);
     expect(on).not.toContain("Cash Out");
-    expect(off).toEqual(on);
   });
 });

@@ -23,7 +23,7 @@ function locked(kind: "time_before" | "time_after"): FlowGraph {
   });
 }
 function prepare(g: FlowGraph) {
-  return flowToPipeline(g, undefined, undefined, { ownerAddress: OWNER });
+  return flowToPipeline(g, undefined, { ownerAddress: OWNER });
 }
 describe("terminal outcomes", () => {
   it.each(["time_before", "time_after"] as const)(
@@ -68,9 +68,9 @@ describe("terminal outcomes", () => {
   it("requires a real deploying wallet for compilation", () => {
     const g = locked("time_after");
     expect(() => flowToPipeline(g)).toThrow(/deploying wallet/);
-    expect(() =>
-      flowToPipeline(g, undefined, undefined, { ownerAddress: "PENDING:owner" }),
-    ).toThrow(/deploying wallet/);
+    expect(() => flowToPipeline(g, undefined, { ownerAddress: "PENDING:owner" })).toThrow(
+      /deploying wallet/,
+    );
   });
   it("refuses saved owner addresses", () => {
     const g = locked("time_after");

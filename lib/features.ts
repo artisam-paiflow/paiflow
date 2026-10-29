@@ -1,6 +1,6 @@
 import "server-only";
+import { hasRetiredPayoutInput } from "@/lib/flows/retired-inputs";
 import type { TemplateKind } from "@prisma/client";
-import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { log } from "@/lib/log";
 import { AppError } from "@/lib/errors";
@@ -38,7 +38,6 @@ export function serverFeatures(): FeatureFlags {
   const e = env();
   // A caller holding a partial env (a test double) reads unset, so ON.
   return {
-    offramp: switchOn("FEATURE_OFFRAMP_ENABLED", e.FEATURE_OFFRAMP_ENABLED),
     payroll: switchOn("FEATURE_PAYROLL_ENABLED", e.FEATURE_PAYROLL_ENABLED),
     aiAssistant: switchOn("FEATURE_AI_ASSISTANT_ENABLED", e.FEATURE_AI_ASSISTANT_ENABLED),
     oracleCondition: switchOn(
@@ -63,50 +62,12 @@ export function requireFeature(surface: FeatureSurface): void {
 }
 /**
  * The guard for a request to a route that stays up for existing deployments
- * but asks, in its body, for new use of a switched-off surface (turning the
- * off-ramp on, adding a fiat recipient). The route exists, so this is a 422 on
- * the offending field rather than a 404.
+ * but asks for new use of a disabled surface. The offending field gets a 422.
  */
 export function refuseIfFeatureOff(surface: FeatureSurface, field: string): void {
   if (!isFeatureEnabled(surface)) {
     const message = featureOffMessage(surface);
     throw new AppError("VALIDATION", message, { [field]: [message] });
-  }
-}
-/**
- * For payroll-update-recipients: with the off-ramp off, a fiat recipient already
- * on this deployment (same bank account) may stay, so crypto edits and amount
- * changes keep working; a new fiat recipient, which would deploy a cash-out
- * sink and queue off-ramp jobs, is refused. Call after the ownership check.
- */
-export async function refuseNewFiatRecipients(
-  deploymentId: string,
-  recipients: ReadonlyArray<{
-    payoutMode?: string;
-    bankDetail?: {
-      accountNumber: string;
-      bankCode: string;
-    };
-  }>,
-): Promise<void> {
-  if (isFeatureEnabled("offramp")) return;
-  const fiat = recipients.filter((r) => r.payoutMode === "fiat");
-  if (fiat.length === 0) return;
-  const existing = await db.employee.findMany({
-    where: { deploymentId, payoutMode: "FIAT" },
-    select: { bankDetail: { select: { accountNumber: true, bankCode: true } } },
-  });
-  const known = new Set(
-    existing.flatMap((e) =>
-      e.bankDetail ? [`${e.bankDetail.accountNumber}|${e.bankDetail.bankCode}`] : [],
-    ),
-  );
-  const fresh = fiat.some(
-    (r) => !r.bankDetail || !known.has(`${r.bankDetail.accountNumber}|${r.bankDetail.bankCode}`),
-  );
-  if (fresh) {
-    const message = `${featureOffMessage("offramp")} Existing fiat recipients can stay; add new ones in crypto.`;
-    throw new AppError("VALIDATION", message, { recipients: [message] });
   }
 }
 /**
@@ -121,6 +82,11 @@ export function assertNoHiddenSurfaces(
   pipelineKinds: readonly string[],
   features: FeatureFlags = serverFeatures(),
 ): void {
+  if (
+    hasRetiredPayoutInput(graph) ||
+    pipelineKinds.some((kind) => kind === "CASH_OUT" || kind === "CASH_OUT_DEV")
+  )
+    throw new AppError("VALIDATION", "Fiat off-ramping has been retired.");
   const issues = hiddenSurfaceIssues(graph, features);
   if (issues.length > 0) {
     throw new AppError("VALIDATION", issues[0]!.friendlyMessage, issuesToFields(issues));
@@ -145,6 +111,8 @@ export function assertPreparedDeploymentAllowed(
   pipelineSnapshot: unknown,
   features: FeatureFlags = serverFeatures(),
 ): void {
+  if (hasRetiredPayoutInput(graphSnapshot) || hasRetiredPayoutInput(pipelineSnapshot))
+    throw new AppError("VALIDATION", "Fiat off-ramping has been retired.");
   const parsed = FlowGraphSchema.safeParse(migrateFlowGraph(graphSnapshot));
   const kinds = Array.isArray(pipelineSnapshot)
     ? (

@@ -39,7 +39,6 @@ const PUBLIC_PATHS = [
   /^\/api\/deployments\/[^/]+\/payroll-events$/,
   /^\/api\/deployments\/[^/]+\/payroll-runs\/[^/]+\/events$/,
   /^\/api\/deployments\/[^/]+\/payroll-runs(\/[^/]+)?$/,
-  /^\/api\/deployments\/[^/]+\/offramp-.*$/,
   /^\/api\/deployments\/[^/]+\/employees\/bank$/,
   // Unlike the entries above (#248), this line cannot open a deployment on its
   // own: every /api/v1/deployments/:id handler is wrapped in v1Route
