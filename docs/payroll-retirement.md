@@ -1,68 +1,124 @@
 # Payroll retirement — #1144
 
-Payroll is discontinued throughout the application. This intentionally removes its
-builder trigger, management screens and APIs, automation cron, employee/run/payout
-storage, template registration, contract build target, configuration and published
-capability/SDK trigger value. No replacement payroll API or compatibility runtime
-is retained. Ordinary subscriptions, scheduled payments, Pay and Split continue.
-See the explicit exception in [the release policy](releasing.md).
+Payroll creation, management, signing preparation, automation and API/SDK capability
+are discontinued. Ordinary subscriptions, scheduled payments, Pay and Split remain
+supported. See the compatibility exception in [the release policy](releasing.md).
+Runtime retirement preserves historical payroll storage, including deployed flows,
+rosters, financial records and audits. It does not authorize destructive cleanup.
 
-## Guarded cleanup
+## Corrective migration disposition — #1146
 
-The migration locks current application storage and rechecks its assumptions before
-removing anything. It permits no payroll deployments in any transaction or service
-state, including legacy PAYROLL contracts and Subscription pipelines whose saved
-graph represents payroll. It refuses payroll employee, run or payout records and
-payroll financial/work evidence. Unknown transaction finality is never treated as
-settled merely because a feature is retired.
+The original `20261029150000_retire_payroll` migration assumed that payroll had no
+deployed or financial evidence. Before staging promotion, acceptance testing created
+a real TESTNET payroll pipeline compiled to Subscription plus Splitter. Cancelling
+that pipeline and revoking its allowance did not remove its deployment or roster.
+The original migration would reject it, and dropping `TemplateKind.PAYROLL` would
+also prevent preserving its current flow type.
 
-Only the reviewed undeployed draft is eligible for deletion: its opaque identity,
-version and exact graph/parameter fingerprints must match. The migration aborts on
-an unexpected or changed payroll draft or any deployment referencing that draft.
-Targets with no payroll draft may proceed. Existing audit records remain; deletion
-adds a minimal audit entry. No ordinary flow, deployed snapshot, event, transaction,
-cursor, idempotency record or financial history is deleted. Names and recipient
-labels containing the word “payroll” are not deletion selectors.
+The maintainer requested a preservation fix before promotion. This is a narrow,
+reviewed exception to the normal rule against editing merged migrations: the
+retirement file is corrected for targets where it has **not run**, and a separate
+forward migration supports targets that completed the original empty cleanup.
+Earlier migrations remain unchanged. Do not rewrite migration checksums, mark a
+failed migration applied, or rerun an applied migration to bypass its guards.
 
-The retained archive is preserved. Its older schema is not a target for current
-application migrations. A prior inventory is evidence for its particular target
-and time, not proof about every environment or chain activity outside stored records.
+| Retirement SQL version | SHA-256                                                            |
+| ---------------------- | ------------------------------------------------------------------ |
+| Original empty cleanup | `241106af4be5cb6e787610ae8c2672c435a714fecb84b3dbd977227a4be1a949` |
+| Corrected preservation | `5bd9e33ae0805489bae9b6fdb3ef6e8db878a1eae63529379016b8741daa19b1` |
 
-## Runtime refusal
+A read-only check of staging at **2026-10-29 16:16 UTC** found no retirement
+migration entry, successful or failed. The preceding dev-mode, off-ramp and stored-file
+migrations were complete. This establishes applicability for that target and time;
+it is not an inventory of other environments or permission to change an archive.
+Recheck each intended target immediately before cutover.
 
-Schema, validation and compilation reject retired payroll graph and compiled
-instructions before stripping unknown fields. Preparation and submission also
-check pipeline and parameter snapshots. Generic deployment routes and subscription
-automation refuse recorded payroll instructions; a former payroll Subscription
-pipeline must never become an ordinary scheduled subscription by fallback.
+### Targets where retirement has not run
 
-The generic browser request-recovery gate retains its old storage-key spelling.
-It prevents an unresolved signed transaction from being hidden by a name change;
-it does not provide payroll runtime support.
+The corrected migration locks affected tables and preserves their rows. It performs
+no deletion, enum cast, snapshot rewrite or fabricated lifecycle transition. The
+previously reviewed undeployed draft is also retained; its cleanup is deferred.
+
+One deployed TESTNET fixture has an explicitly reviewed disposition. Its flow and
+deployment fingerprints, two roster rows, three payroll audit records, and the
+original deployment/allowance/cancellation transaction hashes and ledgers are bound
+in the migration. All three signed and service transactions must remain successful
+and their work complete. Independent official TESTNET reads at ledger **5453405**
+confirmed cancellation, zero source allowance and zero native balances in both
+pipeline contracts. The deployment remains `ACTIVE` and `MANUAL`; it is not
+reclassified as an ordinary subscription or marked retired to make migration pass.
+
+These findings apply to the exact reviewed intent and native asset, not arbitrary
+payroll obligations or independent future contract use. Repeat the chain checks
+and compare the locked fingerprints during rollout. New or changed payroll
+records, missing reviewed history, pending/null/unknown transaction outcomes,
+open/blocked work, unresolved wallet intents, and release or claim obligations
+stop the migration. Expiry and elapsed time never prove financial finality.
+
+### Targets that completed the original cleanup
+
+`20261030000000_preserve_payroll_history` retains the recorded original checksum.
+It restores the historical enum and empty table definitions, including their
+indexes and foreign keys; it does not manufacture or repopulate history. The
+corrected path keeps existing rows and schema intact. Prisma describes the retained
+`Employee`, `PayrollRun` and `PayrollPayout` tables with `@@ignore`, preserving the
+schema without generating active payroll CRUD delegates.
+
+A recorded retirement entry must have a recognized checksum and a completed,
+non-rolled-back outcome. A failed, partial or unknown entry requires a reviewed
+recovery plan before proceeding. The forward migration cannot rescue an earlier
+retirement abort. Never use `migrate resolve` or edit `_prisma_migrations` as an
+implicit repair.
+
+Prisma shadow-schema replay may omit migration-journal metadata. The forward SQL
+permits that replay only when the three historical tables and `PAYROLL` enum are
+already present, then applies idempotent schema DDL without changing their data.
+That presence check is not a general schema-integrity attestation. Real Prisma
+replay and schema-diff tests cover convergence with the declared historical schema;
+metadata-free partial layouts are not a supported deployment path. Deploy through
+the normal migration runner and inspect real target history first.
+
+## Runtime refusal and historical access
+
+Schema, validation and compilation reject retired payroll instructions before
+stripping unknown fields. Preparation, submission, recovery and API execution also
+inspect recorded flow type and graph/parameter/pipeline snapshots. Retaining a
+historical enum does not register a deployable template or expose its WASM hash.
+
+Ordinary subscription scheduling excludes historical payroll flow identities before
+its bounded selection and rechecks recorded instructions before admission. TTL
+maintenance excludes payroll templates and deployments without disabling shared
+Subscription or Splitter artifacts used by ordinary flows. Historical owner detail
+and event access remain available; payroll recovery is blocked rather than offering
+a resumable unsigned transaction. These read paths do not authorize new signing or
+payment work. The browser request-recovery storage-key spelling remains unchanged
+so an unresolved local request is not hidden by a rename.
 
 ## Rollout
 
-1. Hold traffic and relevant schedulers, drain old writers, and preserve the database
-   through the existing controlled backup process. Recheck the exact target and
-   payroll inventory. Do not apply this migration to the retained archive.
-2. Apply the guarded migration and start the matching application on every replica.
-   If a guard fails, stop and inspect that target; do not erase evidence, reclassify
-   a payroll graph, manufacture terminal statuses or modify the guard to bypass it.
-3. Remove the obsolete externally hosted payroll cron registration and payroll-only
-   settings/hash variables. Preserve shared relayer credentials/channels, cron
-   secrets and the ordinary subscription scheduler. Repository removal does not
-   establish that an external scheduler has stopped.
-4. Verify removed routes are unavailable, retired inputs are refused, ordinary
-   subscriptions and payments still work, and unrelated history/audits remain.
+1. Verify candidate checks and the intended database/network. Hold traffic and relevant
+   schedulers, drain incompatible writers, preserve a controlled backup, and capture
+   a fresh inventory and individual financial-history baseline. Do not apply current
+   migrations to the retained archive.
+2. Inspect migration history and follow the applicable path above. Recheck the exact
+   fixture disposition, cancellation, allowance, balances and durable obligations.
+   An unexpected target needs separate review; do not expand fingerprints, delete
+   evidence, reclassify graphs or manufacture terminal statuses during deployment.
+3. Apply the guarded migrations and start the matching application on every replica.
+   Verify the exact revision, migration result, service health and old-instance
+   removal. On any guard or migration failure, stop and inspect without clearing it.
+4. Remove obsolete externally hosted payroll scheduling and payroll-only settings/hash
+   variables through the approved operational scope. Preserve shared relayer/channel
+   credentials, cron secrets and ordinary subscription scheduling. Missing observed
+   requests alone do not prove that an external registration was removed.
+5. Verify retired-input and route refusal, blocked recovery, historical reads and
+   preserved financial identities, outcomes, ledgers, events, audit and idempotency
+   evidence. Run the scoped ordinary Subscription/Pay/Split regression on the actual
+   promoted revision, retaining original identities and any uncertainty.
 
-Source removal does not cancel deployed contracts, revoke allowances or authorities,
-recover balances, or stop external contract use. If a target contains deployed
-payroll or payment evidence, it needs a separately reviewed settlement/disposition
-plan before cleanup. The existing [deployment retirement framework](deployment-retirement.md)
-can stop managed service while preserving financial evidence; it does not perform
-on-chain cancellation. No replacement WASM or shared-contract ABI change is needed
-for this source retirement.
-
-Schema removal makes restarting an older payroll-capable application unsafe. Keep
-old writers fenced and use a reviewed forward fix. Local changes and validation do
-not deploy, migrate a hosted database, disable a hosted schedule or change chain state.
+Source removal does not cancel on-chain contracts, revoke authorities or recover
+balances. No replacement WASM or shared-contract ABI change is required. Keep old
+payroll-capable writers fenced and use a reviewed forward fix if rollout fails;
+restored historical storage does not authorize restarting retired payroll work.
+Source changes and local checks do not themselves deploy, migrate a hosted database,
+remove external scheduling or complete post-promotion acceptance.

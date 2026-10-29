@@ -3,6 +3,7 @@ import crypto from "crypto";
 import type { NextRequest } from "next/server";
 import { z, ZodError } from "zod";
 import { assertDeploymentService, withDeploymentWork } from "@/lib/deployments/service-work";
+import { hasRetiredPayrollInput, PAYROLL_RETIRED_MESSAGE } from "@/lib/flows/retired-payroll";
 import { env } from "@/lib/env";
 import { queueApiRequest } from "@/lib/api/request-history/delivery";
 import {
@@ -22,7 +23,7 @@ import {
   type ApiCredentialAuth,
   type DeploymentTokenAuth,
 } from "./auth";
-import { assertApiPermission, type V1Operation } from "./permissions";
+import { assertApiPermission, V1_PERMISSIONS, type V1Operation } from "./permissions";
 import { guardBeforeAuth, markTokenKnown, recordAuthFailure } from "./pre-auth";
 
 export type V1RouteOptions = {
@@ -169,6 +170,11 @@ function createV1Route<P extends { id?: string }, A extends ApiCredentialAuth>(
           });
 
           assertApiPermission(auth, opts.operation);
+          if (
+            V1_PERMISSIONS[opts.operation] === "operate" &&
+            hasRetiredPayrollInput(auth.deployment)
+          )
+            throw new AppError("NOT_FOUND", PAYROLL_RETIRED_MESSAGE);
 
           if (!auth.deployment) return await fn({ req, params, ...auth });
           if (req.method === "GET") {

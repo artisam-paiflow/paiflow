@@ -12,6 +12,7 @@ import { withDeploymentWork } from "./service-work";
 export function deploymentServiceRoute<P extends { id: string }>(
   handler: (req: NextRequest, ctx: { params: Promise<P> }) => Promise<Response>,
   auth: "owner" | "public" = "public",
+  options: { allowRetiredHistory?: boolean } = {},
 ) {
   return async (req: NextRequest, ctx: { params: Promise<P> }): Promise<Response> =>
     withErrorHandler(async () => {
@@ -31,18 +32,20 @@ export function deploymentServiceRoute<P extends { id: string }>(
         limit: 600,
         windowSeconds: 60,
       });
+      const recorded = await db.deployment.findUnique({
+        where: { id },
+        select: {
+          graphSnapshot: true,
+          paramsSnapshot: true,
+          pipelineSnapshot: true,
+          flow: { select: { templateKind: true } },
+        },
+      });
+      if (hasRetiredPayrollInput(recorded)) {
+        if (options.allowRetiredHistory && req.method === "GET") return handler(req, ctx);
+        throw new AppError("NOT_FOUND", PAYROLL_RETIRED_MESSAGE);
+      }
       return withDeploymentWork(id, new URL(req.url).pathname, async () => {
-        const recorded = await db.deployment.findUnique({
-          where: { id },
-          select: {
-            graphSnapshot: true,
-            paramsSnapshot: true,
-            pipelineSnapshot: true,
-            flow: { select: { templateKind: true } },
-          },
-        });
-        if (hasRetiredPayrollInput(recorded))
-          throw new AppError("NOT_FOUND", PAYROLL_RETIRED_MESSAGE);
         return handler(req, ctx);
       });
     });

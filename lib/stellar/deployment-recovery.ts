@@ -1,5 +1,6 @@
 import "server-only";
 import { Transaction, TransactionBuilder } from "@stellar/stellar-sdk";
+import { hasRetiredPayrollInput } from "@/lib/flows/retired-payroll";
 import { db } from "@/lib/db";
 import { env, stellarPassphrase } from "@/lib/env";
 import type { PreparedRecovery } from "@/lib/deployments/prepared-recovery-schema";
@@ -14,6 +15,10 @@ type PreparedDeployment = {
   unsignedXdr: string | null;
   sourceAccount: string | null;
   deployTxHash: string | null;
+  graphSnapshot?: unknown;
+  paramsSnapshot?: unknown;
+  pipelineSnapshot?: unknown;
+  flow?: { templateKind: string } | null;
 };
 const blocked: PreparedRecovery = { status: "BLOCKED" };
 
@@ -21,6 +26,7 @@ const blocked: PreparedRecovery = { status: "BLOCKED" };
 export async function preparedDeploymentRecovery(d: PreparedDeployment): Promise<PreparedRecovery> {
   try {
     if (
+      hasRetiredPayrollInput(d) ||
       d.status !== "PENDING_SIGNATURE" ||
       d.serviceState !== "ACTIVE" ||
       d.deployTxHash ||
@@ -97,6 +103,7 @@ export async function preparedDeploymentRecovery(d: PreparedDeployment): Promise
     const current = await db.deployment.findUnique({ where: { id: d.id } });
     if (
       !current ||
+      hasRetiredPayrollInput(current) ||
       current.status !== "PENDING_SIGNATURE" ||
       current.serviceState !== "ACTIVE" ||
       current.deployTxHash ||

@@ -25,4 +25,4 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
   return deploymentEventResponse(id, req.signal, () => pollEventsFor(id));
 }
 
-export const GET = deploymentServiceRoute(GETHandler, "owner");
+export const GET = deploymentServiceRoute(GETHandler, "owner", { allowRetiredHistory: true });

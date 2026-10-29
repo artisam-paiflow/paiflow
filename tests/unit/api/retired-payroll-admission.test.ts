@@ -40,6 +40,7 @@ describe("generic deployment submission refuses retired payroll", () => {
       );
       expect(response.status).toBe(404);
       expect(submit).not.toHaveBeenCalled();
+      expect(withDeploymentWork).not.toHaveBeenCalled();
     },
   );
   it("keeps ordinary public submissions available", async () => {
@@ -58,4 +59,29 @@ describe("generic deployment submission refuses retired payroll", () => {
     ).toBe(200);
     expect(submit).toHaveBeenCalledOnce();
   });
+});
+
+it("permits explicitly read-only retired history without admitting financial work", async () => {
+  vi.clearAllMocks();
+  findUnique.mockResolvedValue({ flow: { templateKind: "PAYROLL" } });
+  const history = vi.fn(async () => Response.json({ data: { events: ["retained"] } }));
+  const response = await deploymentServiceRoute(history, "public", { allowRetiredHistory: true })(
+    new NextRequest(`https://app.example/api/deployments/${id}/events`),
+    { params: Promise.resolve({ id }) },
+  );
+  expect(response.status).toBe(200);
+  expect(history).toHaveBeenCalledOnce();
+  expect(withDeploymentWork).not.toHaveBeenCalled();
+});
+it("history permission never permits a retired mutation", async () => {
+  vi.clearAllMocks();
+  findUnique.mockResolvedValue({ flow: { templateKind: "PAYROLL" } });
+  const submit = vi.fn(async () => Response.json({ data: "unsafe" }));
+  const response = await deploymentServiceRoute(submit, "public", { allowRetiredHistory: true })(
+    new NextRequest(`https://app.example/api/deployments/${id}/submit`, { method: "POST" }),
+    { params: Promise.resolve({ id }) },
+  );
+  expect(response.status).toBe(404);
+  expect(submit).not.toHaveBeenCalled();
+  expect(withDeploymentWork).not.toHaveBeenCalled();
 });

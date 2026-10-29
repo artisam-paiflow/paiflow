@@ -91,6 +91,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:generate
       - run: pnpm db:migrate:deploy
+      - name: Payroll history preservation and migration replay
+        env:
+          PGPASSWORD: paiflow
+        run: python3 tests/integration/payroll-cleanup-migration.py --port 5432 --user paiflow
       - run: pnpm test:ci
       - name: Upload test report
         if: ${{ !cancelled() }}
