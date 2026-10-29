@@ -1,7 +1,7 @@
 /**
- * #560 on the two relayer charge crons: a run that cannot take the lease touches nothing, and a
+ * #560 on the subscription charge cron: a run that cannot take the lease touches nothing, and a
  * run out of time attempts no deployment. The charge paths themselves are covered in
- * auto-charge-payroll.test.ts and auto-charge-subscriptions.test.ts.
+ * auto-charge-subscriptions.test.ts.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,7 +9,6 @@ const { mockDb, lease, limits } = vi.hoisted(() => ({
   mockDb: { deployment: { findMany: vi.fn(), update: vi.fn() } },
   lease: { held: false },
   limits: {
-    autoChargePayroll: { budgetMs: 240_000, ttlMs: 600_000, batch: 100 },
     autoChargeSubscriptions: { budgetMs: 240_000, ttlMs: 600_000, batch: 100 },
   },
 }));
@@ -47,11 +46,9 @@ vi.mock("@/lib/cron/lease", async () => {
 });
 
 import { NextRequest } from "next/server";
-import { POST as payroll } from "@/app/api/cron/auto-charge-payroll/route";
 import { POST as subscriptions } from "@/app/api/cron/auto-charge-subscriptions/route";
 
 const crons = [
-  { name: "auto-charge-payroll", post: payroll, cfg: limits.autoChargePayroll },
   { name: "auto-charge-subscriptions", post: subscriptions, cfg: limits.autoChargeSubscriptions },
 ];
 
@@ -72,13 +69,12 @@ describe.each(crons)("cron/$name", ({ name, post, cfg }) => {
 
     expect(res.status).toBe(200);
     const { data } = await res.json();
-    // The success shape with everything zeroed; payroll alone reports `processed`.
+    // A held lease returns the normal zeroed result shape.
     expect(data).toEqual({
       platformCharged: 0,
       userCharged: 0,
       skipped: 0,
       failed: 0,
-      ...(name === "auto-charge-payroll" ? { processed: 0 } : {}),
       details: [],
       truncated: false,
       leaseHeld: true,

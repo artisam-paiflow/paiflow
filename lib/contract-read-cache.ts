@@ -32,7 +32,6 @@ export type ContractReadCache = ReturnType<typeof createContractReadCache>;
  * ONLY wrap reads of values that have no on-chain setter for the contract
  * variant in question. Mutable values must be read fresh:
  * - `next_charge_at` / token allowances change after every successful charge.
- * - Recipients are mutable on legacy payroll (update_recipients).
  * - Relayer is mutable on every contract variant (set_relayer).
  * - Standard Subscription subscriber and amount are immutable and may be cached.
  *

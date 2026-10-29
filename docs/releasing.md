@@ -69,6 +69,18 @@ It does not relax compatibility for retained crypto APIs. The targeted cleanup a
 removing only verified blank legacy bank fields from graphs/snapshots and empty feature
 storage; preserve ordinary transaction, event and deployment evidence. Record the ABI and operational cutover requirements in release notes.
 
+The maintainer-approved [payroll retirement in #1144](payroll-retirement.md)
+intentionally discontinues payroll runtime, management APIs and affected public
+API/SDK payroll metadata. No replacement payroll API is provided. This is an
+explicit compatibility exception for payroll only; ordinary subscriptions, crypto
+payments and their API contracts remain supported. The guarded migration may
+remove only the approved unchanged undeployed payroll draft and empty payroll
+storage/configuration. It must preserve audit and financial evidence and refuse
+unexpected payroll deployments or payment records. Retained archive databases
+remain untouched. Record this removal and its cutover requirements in Unreleased
+and named release notes. Source changes do not apply a live migration, stop an
+external scheduler, cancel an on-chain contract or revoke an allowance.
+
 ## SDK releases
 
 Each SDK has its own package version, changelog, and documented

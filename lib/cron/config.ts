@@ -6,7 +6,7 @@
  * for finality, and a deployment may catch up several periods. A lapsed lease lets the next tick
  * start while this run is still going (the holder also renews the lease while it runs).
  *
- * Every budget is 20s because all four crons are called each minute by cron-job.org, which gives
+ * Every budget is 20s because the recurring crons are called each minute by cron-job.org, which gives
  * up at 30s (#486) and stops calling after a run of failures. The budget is checked between items
  * only, so one slow item (a relayer charge waiting on the lock and finality, or a deployment whose
  * `getEvents` calls each time out at 10s) can still push a response past 30s; the run finishes
@@ -24,7 +24,6 @@ export const CRON_LIMITS = {
   reconcileServiceTransactions: { budgetMs: 4_000, batch: 50 },
   analyticsDelivery: { budgetMs: 6_000, batch: 20 },
   pollEvents: { budgetMs: 20_000, ttlMs: 60_000, batch: 200, concurrency: 6 },
-  autoChargePayroll: { budgetMs: 20_000, ttlMs: 600_000, batch: 100 },
   autoChargeSubscriptions: { budgetMs: 20_000, ttlMs: 600_000, batch: 100 },
   autoRelease: { budgetMs: 20_000, ttlMs: 600_000 },
 } as const;

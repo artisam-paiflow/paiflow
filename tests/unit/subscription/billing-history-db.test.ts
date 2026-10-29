@@ -236,11 +236,10 @@ describe("confirmed Subscription history with PostgreSQL ingestion/admission", (
       expect((await read(f.id)).lastChargedAt).toBeNull();
     },
   );
-  it("requires an unambiguous deployed subscription snapshot and excludes Payroll", () => {
+  it("requires an unambiguous deployed subscription snapshot", () => {
     const address = StrKey.encodeContract(randomBytes(32));
     const pipeline = [{ nodeId: "sub", contractAddress: address, templateKind: "SUBSCRIPTION" }];
     expect(subscriptionBillingEmitter(pipeline, "SUBSCRIPTION")).toBe(address);
-    expect(subscriptionBillingEmitter(pipeline, "PAYROLL")).toBeNull();
     expect(subscriptionBillingEmitter([...pipeline, ...pipeline], "SUBSCRIPTION")).toBeNull();
     expect(
       subscriptionBillingEmitter([{ ...pipeline[0], templateKind: "PAYER" }], "SUBSCRIPTION"),

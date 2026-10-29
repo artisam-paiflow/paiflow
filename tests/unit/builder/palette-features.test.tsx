@@ -8,13 +8,8 @@ function renderPalette(features = ALL_FEATURES_ON) {
 }
 
 describe("Palette under the surface switches (#722)", () => {
-  it("offers Payroll while the switch is on", () => {
+  it("never offers retired Payroll and keeps ordinary triggers available", () => {
     renderPalette();
-    expect(screen.getByRole("button", { name: /Payroll/ })).toBeTruthy();
-  });
-
-  it("drops Payroll when the server switches it off, keeping the other triggers", () => {
-    renderPalette({ ...ALL_FEATURES_ON, payroll: false });
     expect(screen.queryByRole("button", { name: /Payroll/ })).toBeNull();
     expect(screen.getByRole("button", { name: /Subscription/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /On Receive/ })).toBeTruthy();

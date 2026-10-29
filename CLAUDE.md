@@ -186,8 +186,8 @@ the cursor directly**.
 - **Retired off-ramp** — no fiat/provider runtime or archival subsystem. Targeted cleanup removes
   only verified blank legacy metadata and empty feature storage; preserve ordinary financial evidence. See [`docs/offramp-retirement.md`](docs/offramp-retirement.md).
 - **Partner API** — `/api/v1`, machine callers with a deployment-bound `DeploymentApiToken` or explicitly selected-deployment `DeveloperApiToken`
-  ([§5](#5-authentication)). Retained payroll management routes require an owner session and
-  reject sandbox callers. Dev-mode APIs and legacy dev tokens were removed in #1138; see
+  ([§5](#5-authentication)). Payroll management and automation are retired (#1144); see
+  [`docs/payroll-retirement.md`](docs/payroll-retirement.md). Dev-mode APIs and legacy dev tokens were removed in #1138; see
   [`docs/dev-mode-removal.md`](docs/dev-mode-removal.md).
 
 ### Sandbox sessions

@@ -56,7 +56,7 @@ type TriggerButtonProps = {
   amount: string;
   isDeposit?: boolean;
   mode?: "trigger" | "allowance";
-  templateKind?: "SUBSCRIPTION" | "PAYROLL";
+  templateKind?: "SUBSCRIPTION";
   disabled?: boolean;
 };
 type Attempt = {
@@ -124,10 +124,7 @@ export function TriggerButton({
   const lanternFrameRef = useRef(false);
   useLayoutEffect(() => {
     lanternFrameRef.current = Boolean(trustedLanternOrigin());
-    const wallet =
-      network === "testnet" && !(mode === "allowance" && templateKind === "PAYROLL")
-        ? selectLanternWallet(network)
-        : null;
+    const wallet = network === "testnet" ? selectLanternWallet(network) : null;
     lanternRef.current = wallet;
     return () => {
       wallet?.disconnect();
@@ -135,7 +132,7 @@ export function TriggerButton({
     };
   }, [network, mode, templateKind]);
   const pollTxStatus = usePollTxStatus();
-  const isPublicAllowance = mode === "allowance" && templateKind !== "PAYROLL";
+  const isPublicAllowance = mode === "allowance";
   const allowanceStorageKey = allowancePendingKey(deploymentId, network);
   const pendingKey = contractCallPendingKey(deploymentId, network);
   const mobileSessionKey = `paiflow_mobile_wallet:${network}`;
@@ -459,15 +456,11 @@ export function TriggerButton({
     toast.info("Preparing transaction...");
     const preparePath =
       mode === "allowance"
-        ? templateKind === "PAYROLL"
-          ? `/api/deployments/${deploymentId}/payroll-allowance`
-          : `/api/deployments/${deploymentId}/subscription-allowance`
+        ? `/api/deployments/${deploymentId}/subscription-allowance`
         : `/api/deployments/${deploymentId}/trigger`;
     const submitPath =
       mode === "allowance"
-        ? isPublicAllowance
-          ? `/api/deployments/${deploymentId}/subscription-allowance/submit`
-          : `/api/deployments/${deploymentId}/submit-invoke`
+        ? `/api/deployments/${deploymentId}/subscription-allowance/submit`
         : `/api/deployments/${deploymentId}/submit-trigger`;
     const prepared = await fetch(preparePath, {
       method: "POST",
@@ -978,12 +971,6 @@ export function TriggerButton({
       return;
     if (!amount || !/^\d+$/.test(amount) || BigInt(amount) <= 0n) {
       toast.error("Enter a valid amount");
-      return;
-    }
-    if (lanternFrameRef.current && mode === "allowance" && templateKind === "PAYROLL") {
-      toast.error(
-        "Payroll wallet actions inside Lantern require the authenticated-app milestone. Open Paiflow in your browser.",
-      );
       return;
     }
     if (lanternFrameRef.current && network !== "testnet") {

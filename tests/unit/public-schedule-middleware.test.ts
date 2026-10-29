@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 const mocks = vi.hoisted(() => ({
   lock: vi.fn(),
   findDeployment: vi.fn(),
+  recorded: vi.fn(),
   createWork: vi.fn(),
   updateWork: vi.fn(),
   deleteWork: vi.fn(),
@@ -18,7 +19,6 @@ vi.mock("next-auth", () => ({ default: () => ({ auth: (fn: unknown) => fn }) }))
 vi.mock("@/auth.config", () => ({ authConfig: {} }));
 vi.mock("@/lib/auth", () => ({
   requireSession: mocks.session,
-  requirePayrollSession: mocks.devAuth,
 }));
 vi.mock("@/lib/rate-limit", () => ({
   clientIp: () => "127.0.0.1",
@@ -31,7 +31,7 @@ vi.mock("@/lib/db", () => ({
         $queryRaw: mocks.lock,
         deploymentWork: { create: mocks.createWork },
       }),
-    deployment: { findFirst: mocks.findDeployment },
+    deployment: { findFirst: mocks.findDeployment, findUnique: mocks.recorded },
     deploymentWork: { updateMany: mocks.updateWork, deleteMany: mocks.deleteWork },
   },
 }));
@@ -69,6 +69,10 @@ async function dispatch(role: string | null = null) {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.lock.mockResolvedValue([{ id: ID, serviceState: "ACTIVE" }]);
+  mocks.recorded.mockResolvedValue({
+    flow: { templateKind: "STREAMER" },
+    graphSnapshot: { nodes: [{ type: "on_schedule" }] },
+  });
   mocks.findDeployment.mockResolvedValue({
     pipelineSnapshot: [{ nodeId: "schedule", contractAddress: CONTRACT, templateKind: "STREAMER" }],
   });

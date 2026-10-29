@@ -572,22 +572,4 @@ describe("Lantern public testnet payments with server-prepared Soroban envelopes
     expect(mocks.init).not.toHaveBeenCalled();
     expect(mocks.fetch).toHaveBeenCalledTimes(2);
   });
-  it("refuses Payroll wallet actions inside Lantern without prewarming/restoring/deep links", async () => {
-    sessionStorage.setItem(
-      "paiflow_pending_wc",
-      JSON.stringify({ network: "testnet", timestamp: Date.now() }),
-    );
-    const open = vi.spyOn(window, "open");
-    mount("allowance", { templateKind: "PAYROLL" });
-    await tap();
-    expect(toast.error).toHaveBeenCalledWith(
-      expect.stringContaining("authenticated-app milestone"),
-    );
-    expect(mocks.init).not.toHaveBeenCalled();
-    expect(mocks.sdk).not.toHaveBeenCalled();
-    expect(send).not.toHaveBeenCalled();
-    expect(mocks.fetch).not.toHaveBeenCalled();
-    expect(open).not.toHaveBeenCalled();
-    open.mockRestore();
-  });
 });

@@ -49,7 +49,7 @@ describe("deployment integration instructions", () => {
     await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1));
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
   });
-  it.each(["webhook", "subscription", "payroll", "schedule", "oracle", "unknown"] as const)(
+  it.each(["webhook", "subscription", "schedule", "oracle", "unknown"] as const)(
     "offers monitoring without deposit execution for %s",
     async (trigger) => {
       render(

@@ -12,7 +12,6 @@ export const NODE_TYPE_LABELS: Record<FlowNode["type"], string> = {
   webhook: "Webhook",
   web2_webhook: "HTTP Webhook",
   subscription: "Subscription",
-  payroll: "Payroll",
   oracle: "Oracle",
   pay: "Pay",
   split: "Split",

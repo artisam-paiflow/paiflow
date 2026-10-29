@@ -752,7 +752,7 @@ export const openApiDocument = {
     description: [
       "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.",
       "",
-      "Every `/api/v1/deployments/{id}/…` call requires a Bearer credential: a deployment token (`pfk_…`) bound to one deployment, or a developer token (`pfd_…`) with explicit grants to selected existing deployments still owned by the token owner. GET /api/v1/deployments discovers only that credential's eligible deployments. Developer READ_ONLY permits reads, quotes and funding discovery; READ_OPERATE additionally permits preparation, submission, reconciliation and relayer release. See docs/api/developer-token-permissions.md for the complete matrix. No token grants flow/deployment creation or legacy dev/payroll access.",
+      "Every `/api/v1/deployments/{id}/…` call requires a Bearer credential: a deployment token (`pfk_…`) bound to one deployment, or a developer token (`pfd_…`) with explicit grants to selected existing deployments still owned by the token owner. GET /api/v1/deployments discovers only that credential's eligible deployments. Developer READ_ONLY permits reads, quotes and funding discovery; READ_OPERATE additionally permits preparation, submission, reconciliation and relayer release. See docs/api/developer-token-permissions.md for the complete matrix. No token grants flow/deployment creation or legacy dev access.",
       "",
       "**Execute deposits are signed by the caller.** `execute` returns an unsigned envelope; you sign it with the " +
         "`from` key, which stays on your side, and post it to `execute/submit`. A leaked token can " +
@@ -1097,7 +1097,7 @@ export const openApiDocument = {
                 operationId: `${step}Subscription${action === "cancel" ? "Cancel" : "Reactivate"}`,
                 summary: `${step} wallet-authorized subscription ${action}`,
                 description: [
-                  "Requires the deployment bearer token and ACTIVE service. Ordinary subscriptions are eligible. Payroll and malformed or ambiguous snapshots are refused.",
+                  "Requires the deployment bearer token and ACTIVE service. Ordinary subscriptions are eligible. Retired and malformed or ambiguous snapshots are refused.",
                   "Preparation reads the deployed current subscriber, asset and cancellation state. Only that configured wallet can cancel an active subscription or reactivate a cancelled subscription. The builder simulates on the server network with finite transaction bounds. Cancellation revokes allowance; reactivation grants no allowance, creates no subscriber and never immediately charges or changes billing.",
                   "Sign exactly the returned xdr in the subscriber wallet on networkPassphrase; submit intent and signedXdr. Changed envelopes, wrong signers and fee-bumps are refused. Submission rechecks live eligibility on the first send and durably admits the exact hash before broadcasting. Retrying an already claimed intent returns status, even when successful cancellation changed state.",
                   "UNKNOWN, REJECTED, timeouts and expired clocks never authorize replacement. Poll the deployment transaction endpoint and explicitly POST the action's reconcile endpoint with intent. Recovery adopts externally submitted ledger results and proves expiry only with complete RPC history. PREPARED or SUBMITTING retains the reservation; SUCCESS, FAILED or proven EXPIRED sets replacementAllowed:true, subject to current eligibility for a new preparation. RPC/history gaps retain reservations. No generic or token-only wallet consent.",
@@ -1250,7 +1250,7 @@ export const openApiDocument = {
         operationId: "getSubscriptionState",
         summary: "Read live Subscription state and allowance",
         description: [
-          "Requires this deployment's bearer token, a confirmed Subscription on the environment network and active deployment service. Payroll and malformed snapshots are refused. Reads the deployed contract's current subscriber, token and cancellation state, then that subscriber's token allowance. RPC failures return errors rather than a zero allowance or active state.",
+          "Requires this deployment's bearer token, a confirmed Subscription on the environment network and active deployment service. Retired and malformed snapshots are refused. Reads the deployed contract's current subscriber, token and cancellation state, then that subscriber's token allowance. RPC failures return errors rather than a zero allowance or active state.",
           "tokenContractAddress is authoritative; asset is initial metadata only when it matches that token, otherwise null. Allowance is an integer stroop string. Reading does not authorize approval, charge, cancellation or reactivation. No-store response.",
           rate(V1_RATE_LIMITS.subscriptionState, "per token"),
         ].join("\n\n"),
@@ -1402,7 +1402,7 @@ export const openApiDocument = {
           "",
           "The flow runs through its deposit trigger; the next pipeline steps (pay, split, condition, swap) run as part of the same transaction. " +
             "Sign the returned `xdr` with the `from` key using `networkPassphrase`, before " +
-            "`expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook, payroll and other trigger-headed flows are refused with `VALIDATION`. Configure every Pay and Split recipient before deployment.",
+            "`expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook and other trigger-headed flows are refused with `VALIDATION`. Configure every Pay and Split recipient before deployment.",
           "",
           rate(V1_RATE_LIMITS.execute, "per token"),
         ].join("\n"),
@@ -2239,15 +2239,7 @@ export const openApiDocument = {
           configurationSource: { type: "string", const: "deployment_snapshot" },
           triggerType: {
             type: "string",
-            enum: [
-              "deposit",
-              "webhook",
-              "subscription",
-              "payroll",
-              "schedule",
-              "oracle",
-              "unknown",
-            ],
+            enum: ["deposit", "webhook", "subscription", "schedule", "oracle", "unknown"],
           },
           inputAsset: {
             description: DeploymentCapabilitiesSchema.shape.inputAsset.description,

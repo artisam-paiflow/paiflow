@@ -238,15 +238,7 @@ export const DeploymentCapabilitiesSchema = z
     deploymentId: z.string().guid({ error: "Invalid uuid" }),
     network: z.enum(["testnet", "mainnet"]),
     configurationSource: z.literal("deployment_snapshot"),
-    triggerType: z.enum([
-      "deposit",
-      "webhook",
-      "subscription",
-      "payroll",
-      "schedule",
-      "oracle",
-      "unknown",
-    ]),
+    triggerType: z.enum(["deposit", "webhook", "subscription", "schedule", "oracle", "unknown"]),
     inputAsset: CapabilitiesAssetSchema.nullable().describe(
       "Initial asset metadata from the deployment snapshot, or null when unavailable. Not a live contract read; mutable configuration may have changed.",
     ),

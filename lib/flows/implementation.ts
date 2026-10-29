@@ -9,7 +9,6 @@ const BlockTypeSchema = z.enum([
   "webhook",
   "web2_webhook",
   "subscription",
-  "payroll",
   "oracle",
   "pay",
   "split",
@@ -39,9 +38,7 @@ export function directBinding(node: FlowNode): BlockBinding {
     role:
       node.type === "condition"
         ? "condition"
-        : ["on_receive", "webhook", "web2_webhook", "subscription", "payroll", "oracle"].includes(
-              node.type,
-            )
+        : ["on_receive", "webhook", "web2_webhook", "subscription", "oracle"].includes(node.type)
           ? "trigger"
           : "action",
   };
@@ -55,8 +52,6 @@ function directTemplateMatches(block: FlowNode, templateKind: string): boolean {
       return templateKind === "WEBHOOK";
     case "subscription":
       return ["SUBSCRIPTION"].includes(templateKind);
-    case "payroll":
-      return ["PAYROLL", "SUBSCRIPTION"].includes(templateKind);
     case "oracle":
       return templateKind === "ORACLE";
     case "pay":
@@ -260,7 +255,6 @@ export function implementationLabel(value: unknown): string | null {
     webhook: "Webhook",
     web2_webhook: "HTTP Webhook",
     subscription: "Subscription",
-    payroll: "Payroll",
     oracle: "Oracle",
     pay: "Pay",
     split: "Split",

@@ -226,7 +226,7 @@ describe("Google Auth.js callback integration", () => {
 
   it.each([
     [undefined, "/dashboard"],
-    ["https://app.example/flows/new?template=payroll", "/flows/new?template=payroll"],
+    ["https://app.example/flows/new?template=subscription", "/flows/new?template=subscription"],
     ["https://attacker.example/", "/dashboard"],
   ])(
     "asks new Google users for a signup code and preserves safe return navigation: %s",

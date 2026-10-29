@@ -28,7 +28,6 @@ enum TemplateKind {
   SWAPPER
   YIELD
   PAYER
-  PAYROLL
   /// A timelock with a "before" and an "after" next step (#721). Its own kind,
   /// so TIMELOCK contracts already deployed keep their ABI.
   TIMELOCK_BRANCH
@@ -56,13 +55,6 @@ enum ChargeRelayerMode {
   PLATFORM
   USER
   MANUAL
-}
-
-enum PayrollRunStatus {
-  PENDING
-  CHARGED
-  FAILED
-  CANCELLED
 }
 
 enum EventKind {
@@ -408,8 +400,6 @@ model Deployment {
   events               ContractEvent[]
   cursor               EventCursor?
   streamerClaimJobs    StreamerClaimJob[]
-  employees            Employee[]
-  payrollRuns          PayrollRun[]
   apiTokens            DeploymentApiToken[]
   signedTransactions   SignedTransaction[]
   timelockReleases     TimelockRelease[]
@@ -512,61 +502,6 @@ enum SignedTxKind {
   TRIGGER
   INVOKE
   API_EXECUTE
-}
-
-model Employee {
-  id            String   @id @default(uuid()) @db.Uuid
-  deploymentId  String   @db.Uuid
-  address       String
-  amountStroops String
-  label         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  deployment Deployment      @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
-  payouts    PayrollPayout[]
-
-  @@unique([deploymentId, address])
-  @@index([deploymentId])
-}
-
-model PayrollRun {
-  id           String           @id @default(uuid()) @db.Uuid
-  deploymentId String           @db.Uuid
-  runAt        DateTime
-  status       PayrollRunStatus @default(PENDING)
-  attemptCount Int              @default(0)
-  lastError    String?
-  txHash       String?          @unique
-  totalStroops String
-  chargedAt    DateTime?
-  failedAt     DateTime?
-  cancelledAt  DateTime?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-
-  deployment Deployment      @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
-  payouts    PayrollPayout[]
-
-  @@index([deploymentId, runAt])
-  @@index([deploymentId, createdAt])
-  @@index([status, runAt])
-  @@index([runAt])
-}
-
-model PayrollPayout {
-  id            String   @id @default(uuid()) @db.Uuid
-  payrollRunId  String   @db.Uuid
-  employeeId    String   @db.Uuid
-  amountStroops String
-  txHash        String?
-  createdAt     DateTime @default(now())
-
-  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
-  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-
-  @@index([payrollRunId])
-  @@index([employeeId])
 }
 
 model ContractEvent {

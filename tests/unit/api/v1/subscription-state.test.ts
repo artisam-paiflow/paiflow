@@ -152,7 +152,7 @@ describe("deployment-token Subscription state", () => {
         nodes: [...recorded.nodes, { ...recorded.nodes[0], id: "second" }],
       };
     authorize({ pipelineSnapshot: pipeline, ...overrides });
-    expect((await call()).status).toBe(422);
+    expect((await call()).status).toBe(bad === "payroll" ? 404 : 422);
     expect(mocks.subscriber).not.toHaveBeenCalled();
   });
   it.each(["invalid", "revoked", "wrong-deployment", "RETIRING", "RETIRED"])(

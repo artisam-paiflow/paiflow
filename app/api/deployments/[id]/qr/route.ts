@@ -80,8 +80,8 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
         : `${appUrl}/trigger/${d.id}`;
     }
   } else if (q.action === "allowance") {
-    if (d.flow.templateKind !== "SUBSCRIPTION" && d.flow.templateKind !== "PAYROLL") {
-      return new Response("Allowance QR only available for subscription or payroll deployments", {
+    if (d.flow.templateKind !== "SUBSCRIPTION") {
+      return new Response("Allowance QR only available for subscription deployments", {
         status: 400,
       });
     }

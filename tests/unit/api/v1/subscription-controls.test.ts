@@ -171,7 +171,7 @@ describe("wallet-authorized subscription controls", () => {
     "prepares %s cancellation for live subscriber, ignoring stale editable/snapshot subscriber",
     async (kind) => {
       authorize(kind);
-      deployment.flow.templateKind = "PAYROLL";
+      deployment.flow.templateKind = "SPLITTER";
       const response = await call(prepareCancel, { walletAddress: wallet.publicKey() });
       expect(response.status).toBe(200);
       expect(SubscriptionControlPreparedSchema.parse((await response.json()).data)).toMatchObject({
@@ -222,7 +222,9 @@ describe("wallet-authorized subscription controls", () => {
     "rejects unsupported %s before simulation",
     async (kind) => {
       authorize(kind);
-      expect((await call(prepareCancel, { walletAddress: wallet.publicKey() })).status).toBe(422);
+      expect((await call(prepareCancel, { walletAddress: wallet.publicKey() })).status).toBe(
+        kind === "PAYROLL" ? 404 : 422,
+      );
       expect(mocks.cancelBuilder).not.toHaveBeenCalled();
     },
   );

@@ -5,7 +5,6 @@ import {
   isPendingAddress,
   bpsToPct,
   TOTAL_BPS,
-  assetLabel,
   stroopsToDisplay,
   splitTotalFixedStroops,
 } from "@/lib/flows/schema";
@@ -13,13 +12,10 @@ import { cn, shortAddr } from "@/lib/utils";
 import type { AddressEntry } from "@/lib/address-book.types";
 import { RecipientEmailField } from "../notification-settings";
 import AddressInput from "../address-input";
-import { BpsDraftInput } from "../inputs/bps-draft-input";
-import { StroopsDraftInput } from "../inputs/stroops-draft-input";
 import { AmountInput } from "../inputs/amount-input";
 import { ShareInput } from "../inputs/share-input";
 import { Field as SharedField } from "../inputs/field";
 import { inputClass } from "../inputs/styles";
-import { Field } from "./asset-fields";
 import { AllocationBar } from "./allocation-bar";
 import { defaultShares } from "./split-shares.utils";
 export function SplitRecipientsEditor({
@@ -56,9 +52,8 @@ export function SplitRecipientsEditor({
   const recipientError = (i: number, field: string): string | null =>
     fieldErrors?.get(`recipients.${i}.${field}`) ?? null;
   const triggerType = trigger?.type ?? null;
-  const isPayroll = triggerType === "payroll";
   const isStreamer = triggerType === "on_schedule";
-  const mode = isPayroll ? "fixed" : (node.config.recipients[0]?.mode ?? "percentage");
+  const mode = node.config.recipients[0]?.mode ?? "percentage";
   const totalFixed = splitTotalFixedStroops(node.config.recipients);
   const minAmount = trigger?.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
   // For scheduled splits the projection base lives on the split itself: the
@@ -160,25 +155,19 @@ export function SplitRecipientsEditor({
   };
   return (
     <div className="space-y-3">
-      {isPayroll ? (
-        <div className="text-xs text-amber-400">
-          Payroll distributions use fixed salary amounts only.
-        </div>
-      ) : (
-        <SharedField label="Distribution mode">
-          {(control) => (
-            <select
-              {...control}
-              className={inputClass}
-              value={mode}
-              onChange={(e) => setMode(e.target.value as "percentage" | "fixed")}
-            >
-              <option value="percentage">Percentage</option>
-              <option value="fixed">Fixed amount</option>
-            </select>
-          )}
-        </SharedField>
-      )}
+      <SharedField label="Distribution mode">
+        {(control) => (
+          <select
+            {...control}
+            className={inputClass}
+            value={mode}
+            onChange={(e) => setMode(e.target.value as "percentage" | "fixed")}
+          >
+            <option value="percentage">Percentage</option>
+            <option value="fixed">Fixed amount</option>
+          </select>
+        )}
+      </SharedField>
 
       {isStreamer && (
         <div className="text-xs text-zinc-400">
@@ -293,53 +282,7 @@ export function SplitRecipientsEditor({
                     </button>
                   </div>
 
-                  {isPayroll ? (
-                    <>
-                      {" "}
-                      {/* Row 2: share / amount */}
-                      <div className="mt-1 grid gap-0.5">
-                        <span className="text-[10px] text-zinc-500">
-                          {isPercentage ? "Share" : `Amount (${assetLabel(node.config.asset)})`}
-                        </span>
-                        {isPercentage ? (
-                          <BpsDraftInput
-                            className={cn(
-                              "input pr-5 text-right",
-                              recipientError(i, "bps") && "!border-error/70",
-                            )}
-                            aria-label={`Share for ${summaryLabel}`}
-                            value={r.bps}
-                            placeholder="0"
-                            onChange={(bps) => updateRecipient(i, { ...r, bps } as SplitRecipient)}
-                          />
-                        ) : (
-                          <>
-                            <div className="relative">
-                              <StroopsDraftInput
-                                className={cn(
-                                  "input pr-5 text-right",
-                                  recipientError(i, "amountStroops") && "!border-error/70",
-                                )}
-                                value={r.amountStroops}
-                                placeholder="0"
-                                onChange={(stroops) => {
-                                  updateRecipient(i, {
-                                    ...r,
-                                    amountStroops: stroops || "0",
-                                  } as SplitRecipient);
-                                }}
-                              />
-                            </div>
-                            {recipientError(i, "amountStroops") && (
-                              <span className="text-error text-[10px] leading-snug">
-                                {recipientError(i, "amountStroops")}
-                              </span>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </>
-                  ) : isPercentage ? (
+                  {isPercentage ? (
                     <ShareInput
                       label={`Share for ${summaryLabel}`}
                       error={recipientError(i, "bps")}
@@ -359,11 +302,11 @@ export function SplitRecipientsEditor({
                     />
                   )}
                   <div className="grid grid-cols-[1fr_auto] gap-1">
-                    {isPayroll ? (
-                      <>
-                        {" "}
+                    <SharedField label={`Label for recipient ${i + 1}`}>
+                      {(control) => (
                         <input
-                          className="input text-xs"
+                          {...control}
+                          className={inputClass}
                           value={r.label ?? ""}
                           placeholder="Label (e.g. Alice)"
                           onChange={(e) =>
@@ -373,25 +316,8 @@ export function SplitRecipientsEditor({
                             } as SplitRecipient)
                           }
                         />
-                      </>
-                    ) : (
-                      <SharedField label={`Label for recipient ${i + 1}`}>
-                        {(control) => (
-                          <input
-                            {...control}
-                            className={inputClass}
-                            value={r.label ?? ""}
-                            placeholder="Label (e.g. Alice)"
-                            onChange={(e) =>
-                              updateRecipient(i, {
-                                ...r,
-                                label: e.target.value || undefined,
-                              } as SplitRecipient)
-                            }
-                          />
-                        )}
-                      </SharedField>
-                    )}
+                      )}
+                    </SharedField>
                     <div className="flex items-center gap-1 text-[10px]">
                       {isPending && (
                         <span className="rounded bg-amber-950 px-1.5 py-0.5 text-amber-400">
@@ -414,7 +340,7 @@ export function SplitRecipientsEditor({
 
                 {!sandbox && (
                   <RecipientEmailField
-                    shared={!isPayroll}
+                    shared
                     value={r.email}
                     onChange={(email) => updateRecipient(i, { ...r, email })}
                   />
@@ -469,7 +395,7 @@ export function SplitRecipientsEditor({
         onClick={() => {
           const nextRecipients = [
             ...node.config.recipients,
-            isPayroll || mode === "fixed"
+            mode === "fixed"
               ? {
                   address: "PENDING:unnamed",
                   mode: "fixed" as const,

@@ -16,7 +16,7 @@
  *  - `invoke` and `submit-invoke` look up a deployment by id
  *    WITHOUT an ownership check. That is a pre-existing gap; do not widen its
  *    blast radius to callers who never signed up. Deploy-and-trigger does not
- *    need them — `submit-invoke` is only used by the subscription/payroll
+ *    need them — `submit-invoke` is only used by the subscription
  *    allowance flow, which a sandbox session cannot deploy anyway (see
  *    `app/api/deployments/prepare/route.ts`).
  *  - `streamer-state` is intentionally public for anonymous integrations, but

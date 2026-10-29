@@ -30,38 +30,6 @@ describe("deployPreviewFromGraph", () => {
     expect(() => deployPreviewFromGraph(graph)).not.toThrow();
     expect(deployPreviewFromGraph(graph)).toBeNull();
   });
-  it("returns a payroll preview when the graph includes Return to owner", () => {
-    const graph = locked();
-
-    graph.nodes[0] = {
-      id: "t",
-      type: "payroll",
-      config: {
-        asset: { kind: "native" },
-        employer: OWNER,
-        intervalAmount: 1,
-        intervalUnit: "month",
-        occurrences: 2,
-      },
-    };
-    graph.nodes.push({
-      id: "s",
-      type: "split",
-      config: {
-        asset: { kind: "native" },
-        recipients: [{ address: OWNER, mode: "fixed", amountStroops: "10000000" }],
-      },
-    });
-    graph.edges[0] = { id: "ts", source: "t", target: "s" };
-    graph.edges.push({ id: "sc", source: "s", target: "c" });
-    expect(deployPreviewFromGraph(graph)).toMatchObject({
-      amountPerPeriodStroops: "10000000",
-      recipients: [{ address: OWNER, amount: "10000000" }],
-      intervalSeconds: 2592000,
-      durationSecs: 5184000,
-      totalStroops: "20000000",
-    });
-  });
   it("preserves the existing streamer preview", () => {
     const graph = FlowGraphSchema.parse({
       nodes: [

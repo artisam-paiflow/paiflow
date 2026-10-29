@@ -72,15 +72,6 @@ export function addressFields(node: FlowNode): AddressField[] {
           what: "the Subscription trigger's subscriber",
         },
       ];
-    case "payroll":
-      return [
-        {
-          field: "employer",
-          value: node.config.employer,
-          accepts: "account",
-          what: "the Payroll trigger's employer",
-        },
-      ];
     case "yield":
       return [
         {

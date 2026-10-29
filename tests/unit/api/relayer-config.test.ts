@@ -41,16 +41,13 @@ vi.mock("@/lib/env", () => ({
   stellarPassphrase: () => "Test SDF Network ; September 2015",
 }));
 vi.mock("@/lib/stellar/invoke", () => ({
-  preparePayrollSetRelayerInvocation: vi.fn(async () => ({ xdr: "set-relayer-xdr" })),
   prepareSubscriptionSetRelayerInvocation: vi.fn(async () => ({ xdr: "set-relayer-xdr" })),
 }));
 vi.mock("@/lib/stellar/relayer", () => ({
-  readPayrollRelayer: vi.fn(async () => "GTENANT"),
   readSubscriptionRelayer: vi.fn(async () => "GTENANT"),
 }));
 
 import { AppError } from "@/lib/errors";
-import { POST as payrollPOST } from "@/app/api/deployments/[id]/payroll-relayer/route";
 import { POST as subscriptionPOST } from "@/app/api/deployments/[id]/subscription-relayer/route";
 
 const DEP_ID = "11111111-1111-1111-1111-111111111111";
@@ -58,7 +55,6 @@ const DEP_ID = "11111111-1111-1111-1111-111111111111";
 const TENANT = "GBY7NOTYN5D6ZBGGDNB2OEIBW4TNTV4QZKJXDNJG3MHNLI2KM6RFFSTW";
 
 const KINDS = [
-  { label: "payroll", post: payrollPOST, templateKind: "PAYROLL" },
   { label: "subscription", post: subscriptionPOST, templateKind: "SUBSCRIPTION" },
 ] as const;
 

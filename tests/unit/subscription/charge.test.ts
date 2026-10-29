@@ -256,7 +256,7 @@ describe("standard Subscription charge errors", () => {
     expect(response.status).toBe(502);
     expect((await response.json()).error.code).toBe("UPSTREAM_RPC");
   });
-  it("preserves the existing helper behavior for Payroll and Dev callers", async () => {
+  it("preserves the unclassified helper error behavior", async () => {
     mocks.server.simulateTransaction.mockResolvedValue(allowanceFailure());
     await expect(
       prepareSubscriptionChargeInvocation({

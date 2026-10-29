@@ -164,31 +164,6 @@ export default function ConfigPanel({
   const trigger = graph.nodes.find(isTrigger);
   const triggerType = trigger?.type ?? null;
   const sourceAmount = sourceAmountStroops(graph);
-  // Payroll distributions must be fixed salary amounts. If a user switches an
-  // existing percentage split to a payroll trigger, convert the recipients to
-  // fixed amounts so the UI stays consistent and the flow can validate.
-  useEffect(() => {
-    if (triggerType !== "payroll" || node.type !== "split") return;
-    const hasPercentage = node.config.recipients.some((r) => r.mode === "percentage");
-    if (!hasPercentage) return;
-    onChange({
-      ...node,
-      config: {
-        ...node.config,
-        recipients: node.config.recipients.map((r) =>
-          r.mode === "percentage"
-            ? {
-                address: r.address,
-                label: r.label,
-                payoutMode: r.payoutMode,
-                mode: "fixed" as const,
-                amountStroops: "0",
-              }
-            : r,
-        ),
-      },
-    } as FlowNode);
-  }, [triggerType, node, onChange]);
   // Streamer (on_schedule) vests a fixed amount per interval — "send full
   // amount" and percentage mode have no referent because the funded total is
   // derived from the configured amount (unlike on_receive, where the incoming
@@ -476,7 +451,7 @@ export default function ConfigPanel({
         <>
           {!sandbox && (
             <RecipientEmailField
-              shared={triggerType !== "payroll" && true}
+              shared
               value={node.config.email}
               onChange={(email) => onChange({ ...node, config: { ...node.config, email } })}
             />
@@ -937,143 +912,6 @@ export default function ConfigPanel({
                     />
                   )}
                 </SharedField>
-              </>
-            );
-          })()}
-        </>
-      )}
-
-      {node.type === "payroll" && (
-        <>
-          <AssetField
-            asset={node.config.asset}
-            error={assetError}
-            onChange={(asset) =>
-              onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
-            }
-          />
-          <Field label="Employer address (G… or PENDING:)" error={fieldError("employer")}>
-            <AddressInput
-              value={node.config.employer}
-              onChange={(employer) =>
-                onChange({
-                  ...node,
-                  config: { ...node.config, employer },
-                })
-              }
-              pending={isPendingAddress(node.config.employer)}
-              error={!!fieldError("employer")}
-              addressBook={addressBook}
-              onAddressBookChange={refreshAddressBook}
-              addressBookLoading={addressBookLoading}
-              addressBookError={addressBookError}
-            />
-          </Field>
-          {(() => {
-            const cfg = node.config as {
-              intervalAmount?: number;
-              intervalUnit?: "minute" | "hour" | "day" | "week" | "month";
-              endsAt?: string;
-              occurrences?: number;
-            };
-            const amount = cfg.intervalAmount ?? 1;
-            const unit = cfg.intervalUnit ?? "week";
-            return (
-              <>
-                {false}
-
-                {
-                  <>
-                    <IntervalField
-                      amount={amount}
-                      unit={unit}
-                      amountError={fieldError("intervalAmount")}
-                      unitError={fieldError("intervalUnit")}
-                      onAmountChange={(intervalAmount) =>
-                        onChange({
-                          ...node,
-                          config: { ...cfg, intervalAmount, intervalUnit: unit },
-                        } as FlowNode)
-                      }
-                      onUnitChange={(intervalUnit) =>
-                        onChange({
-                          ...node,
-                          config: { ...cfg, intervalAmount: amount, intervalUnit },
-                        } as FlowNode)
-                      }
-                    />
-                    <Field label="Ends at — optional" error={fieldError("endsAt")}>
-                      <div className="flex gap-1">
-                        <input
-                          className="input"
-                          type="datetime-local"
-                          value={
-                            cfg.endsAt
-                              ? formatIsoForTimezone(
-                                  cfg.endsAt,
-                                  Intl.DateTimeFormat().resolvedOptions().timeZone,
-                                )
-                              : ""
-                          }
-                          onChange={(e) => {
-                            const local = e.target.value;
-                            onChange({
-                              ...node,
-                              config: {
-                                ...cfg,
-                                endsAt: local
-                                  ? isoFromLocalAndTimezone(
-                                      local,
-                                      Intl.DateTimeFormat().resolvedOptions().timeZone,
-                                    )
-                                  : undefined,
-                                occurrences: undefined,
-                              },
-                            } as FlowNode);
-                          }}
-                        />
-                        {cfg.endsAt && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onChange({
-                                ...node,
-                                config: { ...cfg, endsAt: undefined },
-                              } as FlowNode)
-                            }
-                            className="rounded border border-zinc-700 px-2 text-zinc-400 hover:text-red-300"
-                          >
-                            ×
-                          </button>
-                        )}
-                      </div>
-                    </Field>
-                    <Field label="Occurrences — optional" error={fieldError("occurrences")}>
-                      <input
-                        className="input"
-                        type="number"
-                        min="1"
-                        placeholder="e.g. 5"
-                        value={cfg.occurrences ?? ""}
-                        onChange={(e) =>
-                          onChange({
-                            ...node,
-                            config: {
-                              ...cfg,
-                              endsAt: undefined,
-                              occurrences: e.target.value ? Number(e.target.value) : undefined,
-                            },
-                          } as FlowNode)
-                        }
-                      />
-                    </Field>
-                  </>
-                }
-
-                <div className="rounded border border-zinc-800 bg-zinc-900/50 p-2 text-xs text-zinc-400">
-                  Connect a Split action with fixed amounts to set employee salaries. The payroll
-                  contract pulls the total from the employer each period and distributes it.
-                </div>
               </>
             );
           })()}

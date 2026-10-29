@@ -127,7 +127,7 @@ describe("GET /api/deployments/[id]/tx-status", () => {
   });
   // The status of a transaction on a public chain is not ours to withhold, and
   // the caller already has the hash. Gating the read is what broke the dev-mode
-  // payroll screen, whose relayer submissions write no audit row.
+  // contract screen, whose relayer submissions write no audit row.
   it("still answers with the status for a txHash it did not submit", async () => {
     vi.mocked(wasTxSubmittedFor).mockResolvedValue(false);
     mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 4598539 });

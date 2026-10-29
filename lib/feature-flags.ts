@@ -1,10 +1,9 @@
 import { TemplateKind } from "@prisma/client";
 
-export const FEATURE_SURFACES = ["payroll", "aiAssistant", "oracleCondition"] as const;
+export const FEATURE_SURFACES = ["aiAssistant", "oracleCondition"] as const;
 export type FeatureSurface = (typeof FEATURE_SURFACES)[number];
 export type FeatureFlags = Readonly<Record<FeatureSurface, boolean>>;
 export const ALL_FEATURES_ON: FeatureFlags = {
-  payroll: true,
   aiAssistant: true,
   oracleCondition: true,
 };
@@ -34,14 +33,6 @@ export const FEATURE_GATED_BLOCKS: Readonly<
     }
   >
 > = {
-  payroll: {
-    envVar: "FEATURE_PAYROLL_ENABLED",
-    label: "Payroll",
-    remedy: "Use a Subscription or On Schedule trigger instead.",
-    nodeTypes: ["payroll"],
-    conditionKinds: [],
-    templateKinds: [TemplateKind.PAYROLL],
-  },
   // Not a block: the assistant has no node, so every block list is empty and
   // it is gated on its routes and UI alone. A guide listing visible blocks
   aiAssistant: {

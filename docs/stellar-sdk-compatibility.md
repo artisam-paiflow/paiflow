@@ -50,7 +50,7 @@ a Horizon test mock explicitly supplies only the transaction-source interface.
 The real-client timeout regression verifies that the SDK's HTTP client still
 aborts stalled requests.
 
-The shared subscription/payroll approval helper keeps the existing allowance
+The subscription approval helper keeps the existing allowance
 delta (**3,110,400 minus a 10-ledger buffer**), user source, unsigned envelope,
 180-second timeout, and simulation. Invalid sequence values or an expiration
 that would exceed u32 are refused before simulation.

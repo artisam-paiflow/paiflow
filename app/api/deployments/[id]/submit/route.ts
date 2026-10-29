@@ -78,7 +78,12 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     // A surface switched off after this deployment was prepared (#722):
     // nothing is on chain yet, so it is still new use and is refused.
-    assertPreparedDeploymentAllowed(deployment.graphSnapshot, deployment.pipelineSnapshot);
+    assertPreparedDeploymentAllowed(
+      deployment.graphSnapshot,
+      deployment.pipelineSnapshot,
+      undefined,
+      deployment.paramsSnapshot,
+    );
 
     // Bind the submission to the prepared transaction: the signed XDR must
     // be exactly the transaction the app built for this deployment, plus

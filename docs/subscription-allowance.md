@@ -57,9 +57,8 @@ and 60 scoped status reads. Status also uses the existing transaction-status
 limiter. They use the existing Redis-backed limiter with its per-process outage
 fallback. Responses carrying state/prepared envelopes are `no-store`. Middleware
 opens only this page and these three subscription endpoints. Sandbox exclusions
-remain; general invoke/submit-invoke, charges, subscribe/unsubscribe, Dev mutations
-and payroll retain their existing authentication boundaries. The shared payroll
-page still requires a page session.
+remain; general invoke/submit-invoke, charges and subscribe/unsubscribe retain their
+existing authentication boundaries. Payroll and Dev mutations are retired.
 
 ## Verification and rollout
 

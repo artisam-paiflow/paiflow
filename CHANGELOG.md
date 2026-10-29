@@ -7,6 +7,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Removed
 
+- Payroll trigger, owner management APIs, scheduled payroll charges, employee/payrun storage, contract build target and payroll capability/SDK metadata (#1144). Guarded cleanup removes only the reviewed unchanged undeployed draft and empty feature storage while preserving audits and financial history. See [payroll retirement](docs/payroll-retirement.md) for cutover requirements and the intentional compatibility exception.
+
 - Retire fiat off-ramping, bank/KYC editors, provider processing and callbacks, Cash Out
   contracts and deployment support (#1141). New Pay/Split/payroll flows use crypto recipients.
   Remove verified blank bank fields from saved graphs/deployment graph snapshots and drop

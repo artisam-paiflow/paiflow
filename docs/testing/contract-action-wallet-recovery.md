@@ -1,7 +1,7 @@
 # Contract action wallet recovery
 
 `ContractCallButton` covers subscription controls, relayer confirmation, streamer
-controls and payroll actions. It uses the shared selected-wallet connection and
+controls. It uses the shared selected-wallet connection and
 validates every returned transaction against the prepared body, existing
 signatures, expected signer and server-supplied network before sending.
 

@@ -5,6 +5,8 @@ SDK versions are independent of the app and API. Follow the repository release
 
 ## [Unreleased]
 
+- Remove the retired `payroll` capability trigger value (#1144). Payroll application and API support is intentionally discontinued; ordinary Subscription, Pay and Split integrations remain supported. Previously published packages are unchanged.
+
 - Point package repository metadata and the release-policy link to the public
   source mirror. This applies to the next published SDK artifact; the existing
   npm `0.2.0` artifact retains its original metadata.
