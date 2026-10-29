@@ -167,7 +167,7 @@ cp .env.example .env
 #   RESEND_API_KEY=<from resend.com>  — outbound email
 #   GROQ_API_KEY=<from groq.com>      — voice + AI features
 
-# 4. Start backing services (Postgres + Redis + MinIO)
+# 4. Start backing services (Postgres + Redis)
 pnpm docker:up
 
 # 5. Migrate + seed
@@ -209,7 +209,6 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 | Auth          | Auth.js v5 (`next-auth` 5.0.0-beta) + Prisma adapter; WebAuthn via `@simplewebauthn`; argon2 |
 | DB            | PostgreSQL 16 + Prisma 6                                                                     |
 | Cache / queue | Redis 7 (`ioredis`) — rate limits, SSE pub/sub                                               |
-| Storage       | MinIO (dev) / Railway Volume (prod)                                                          |
 | Email         | Resend (transactional — password reset, notifications)                                       |
 | Off-ramp      | PDAX Institution API (fiat payout), mock provider by default                                 |
 | AI            | Groq — Whisper (STT, raft-log voice input) + Llama (text)                                    |
@@ -237,7 +236,7 @@ Downloads need an internet connection. With nvm, run `nvm use 22` in each new te
 
 - Node `>=22.23.4 <23` — use the latest Node 22 patch; see the installation steps above
 - pnpm `10.4.1` — `npm install --global pnpm@10.4.1`; verify with `pnpm --version`
-- Docker (for Postgres / Redis / MinIO)
+- Docker (for Postgres / Redis)
 - _(Optional)_ A [Resend](https://resend.com) account for outbound transactional email (password reset). When unset, emails are logged to the dev console.
 - _(Optional)_ A [Groq](https://groq.com) API key for raft-log voice input + AI features. When unset, those features degrade gracefully.
 - _(Optional, for contract work)_ Rust with the `wasm32v1-none` target. CI pins the version in
@@ -252,12 +251,11 @@ Downloads need an internet connection. With nvm, run `nvm use 22` in each new te
 
 ### Local services map
 
-| Service  | Port(s)     | Notes                                              |
-| -------- | ----------- | -------------------------------------------------- |
-| Next.js  | 3000        | `pnpm dev`                                         |
-| Postgres | 5432        | `paiflow / paiflow / paiflow`                      |
-| Redis    | 6379        | —                                                  |
-| MinIO    | 9000 / 9001 | console at `:9001`, `paiflow / paiflow-dev-secret` |
+| Service  | Port(s) | Notes                         |
+| -------- | ------- | ----------------------------- |
+| Next.js  | 3000    | `pnpm dev`                    |
+| Postgres | 5432    | `paiflow / paiflow / paiflow` |
+| Redis    | 6379    | —                             |
 
 > **Email** (Resend) and **AI** (Groq) are cloud services, not local containers — set their API keys to enable, leave them unset to degrade to dev-console logs / disabled features.
 
@@ -544,9 +542,7 @@ Configured for **Railway** (`.railway/app.json`, `Dockerfile`):
 - `.dockerignore` allowlists app build source and excludes local environment files, Git/worktrees,
   credentials and private evidence. Deployment credentials are supplied only at runtime; public
   `NEXT_PUBLIC_*` configuration and `RAILWAY_GIT_COMMIT_SHA` are declared build arguments.
-- The image runs as UID 1000 (`node`). Its default file-storage directory and the configured
-  `/data/files` directory are prepared for that user; any mounted `FILE_STORAGE_PATH` must grant
-  that user write access. See [local image validation](.railway/README.md#local-image-validation).
+- The image runs as UID 1000 (`node`). See [local image validation](.railway/README.md#local-image-validation).
 - `pnpm build` produces the ordinary Next.js production output; startup retains `next start`.
 - `pnpm start` runs migrations through `scripts/start-railway.sh` before starting Next.js.
   Railway uses `sh scripts/start-railway.sh` directly so the script can replace itself with
@@ -565,7 +561,7 @@ Configured for **Railway** (`.railway/app.json`, `Dockerfile`):
   still require the separate rehearsal tracked in #842.
 - Prisma CLI configuration lives in `prisma.config.ts`; the database URL remains in
   `prisma/schema.prisma` for Prisma 6.
-- File storage swaps from MinIO to a Railway Volume via `FILE_STORAGE_DRIVER`.
+- Stored-file APIs are retired. See the [retirement and environment cleanup procedure](docs/file-storage-retirement.md).
 - The homepage is a separate Railway service serving `homepage/` as static files at
   `beta.paiflow.xyz`: root directory `/homepage`, watch paths `homepage/**`, no variables. Its
   checked-in config is `/homepage/railway.json`; using it requires that explicit service Config

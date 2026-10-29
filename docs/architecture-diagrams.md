@@ -52,7 +52,6 @@ flowchart TB
     subgraph Data["Data plane"]
         PG[("PostgreSQL 16<br/>Prisma — Flow, Deployment,<br/>ContractEvent, AuditLog, …")]
         Redis[("Redis 7 — rate limits,<br/>job claims, event pub/sub")]
-        Files[("File storage —<br/>MinIO (dev) / Volume (prod)")]
     end
 
     subgraph Chain["Stellar network (testnet / mainnet)"]
@@ -75,7 +74,6 @@ flowchart TB
     API --> StellarLib
     API --> PG
     API --> Redis
-    API --> Files
     API --> Groq
     API --> Resend
     Cron --> StellarLib

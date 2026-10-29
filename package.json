@@ -93,7 +93,6 @@
     "framer-motion": "^11.15.0",
     "ioredis": "^5.4.1",
     "lucide-react": "^0.469.0",
-    "minio": "^8.0.3",
     "next": "^15.5.28",
     "next-auth": "5.0.0-beta.32",
     "pino": "^9.5.0",
@@ -183,9 +182,6 @@
       "@creit.tech/stellar-wallets-kit>@walletconnect/sign-client": "2.26.0",
       "@creit.tech/stellar-wallets-kit>@walletconnect/modal": "2.7.0",
       "minimatch@10>brace-expansion": ">=5.0.12 <6"
-    },
-    "patchedDependencies": {
-      "minio@8.0.7": "patches/minio@8.0.7.patch"
     }
   }
 }

@@ -47,7 +47,7 @@ You are building a **financial application that signs blockchain transactions**.
 
 ```bash
 pnpm install                 # Node >=22.23.4 <23, pnpm 10.4.1 (corepack)
-pnpm docker:up               # Postgres + Redis + MinIO (profile "full"; "core" omits MinIO)
+pnpm docker:up               # Postgres + Redis (profiles "full" and "core")
 pnpm db:migrate              # create + apply a migration (dev)
 pnpm db:seed                 # requires ADMIN_SEED_PASSWORD (>=12 chars); refuses to use a default
 pnpm dev
