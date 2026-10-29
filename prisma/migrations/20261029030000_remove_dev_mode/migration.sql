@@ -10,7 +10,11 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM "Deployment" d
     WHERE d."graphSnapshot"::jsonb -> 'devMode' = 'true'::jsonb
-       OR d."paramsSnapshot"::text ~ '"(payer_dev|splitter_dev|subscription_dev_trigger|cash_out_dev)"'
+       -- Match parameter discriminants, never ordinary node IDs or bank names.
+       OR jsonb_path_exists(
+         d."paramsSnapshot"::jsonb,
+         '$.**.kind ? (@ == "payer_dev" || @ == "splitter_dev" || @ == "subscription_dev_trigger" || @ == "cash_out_dev")'
+       )
        OR EXISTS (
          SELECT 1 FROM jsonb_array_elements(
            CASE WHEN jsonb_typeof(d."pipelineSnapshot"::jsonb) = 'array'
