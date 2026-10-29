@@ -92,7 +92,7 @@ vi.mock("@/lib/offramp/provider", () => ({
   offRampFiatCurrency: () => "PHP",
 }));
 vi.mock("@/lib/offramp/assets", () => mockAssets);
-vi.mock("@/lib/stellar/dev-mutate", () => mockDevMutate);
+vi.mock("@/lib/stellar/treasury", () => mockDevMutate);
 vi.mock("@/lib/stellar/assets", () => ({ assetContractId: () => "CASSET" }));
 
 import { POST } from "@/app/api/cron/process-offramp-jobs/route";

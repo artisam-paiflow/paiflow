@@ -53,7 +53,7 @@ async function eligible(
     classifyRpcFailures,
   });
   if (!state.subscriber)
-    throw new AppError("VALIDATION", "Configure the Dev subscriber before using wallet controls");
+    throw new AppError("VALIDATION", "Configure the subscriber before using wallet controls");
   if (state.subscriber !== walletAddress)
     throw new AppError("FORBIDDEN", "Wallet does not match the current configured subscriber");
   if (state.isCancelled !== (action === "subscription.reactivate"))
@@ -98,8 +98,6 @@ export async function prepareSubscriptionControl(
       contractAddress: node.contractAddress,
       subscriberAddress: walletAddress,
     });
-    // A Dev setter may change subscriber/token while the builder simulates. Do not
-    // return token metadata or reserve an intent for a different observed configuration.
     const afterSimulation = await eligible(deployment, action, walletAddress, true);
     if (
       afterSimulation.state.tokenContractAddress !== state.tokenContractAddress ||

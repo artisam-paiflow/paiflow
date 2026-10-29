@@ -230,9 +230,8 @@ curl -sS "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/subscription/state" \
 The `data` response contains `deploymentId`, `flowName`, `network`, `templateKind`,
 `contractAddress`, `tokenContractAddress`, `subscriber`, `isCancelled`, `allowance`,
 `setupRequired`, `asset` and `assetLabel`. Subscriber, token, cancellation and allowance
-come from current on-chain reads; amounts are integer stroop strings. If a Dev subscriber
-is unconfigured, `subscriber` is null, `setupRequired` is true and `allowance` is "0";
-no allowance read is attempted. A configured subscriber can have zero allowance even
+come from current on-chain reads; amounts are integer stroop strings.
+A configured subscriber can have zero allowance even
 when setup is complete. Cancelled subscriptions remain readable.
 
 `tokenContractAddress` identifies the deployed asset. `asset` is metadata from the
@@ -259,7 +258,7 @@ curl -sS "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/capabilities" \
 
 `data` contains `deploymentId`, `network`, `triggerType`, `inputAsset`,
 `configurationSource: "deployment_snapshot"` and `operations`. The operation keys are
-`execute`, `events`, `balances`, `funding`, `transactions`, `releaseEarly`, `payouts`,
+`execute`, `events`, `balances`, `funding`, `transactions`, `releaseEarly`,
 `webhook`, `subscriptionAllowance`, `subscriptionState`, `subscriptionCancel`,
 `subscriptionReactivate`, `swapQuote`, `scheduleState` and `scheduleControls`.
 Each has a `status`, `authentication`, `requirements` and `nodeIds`:
@@ -271,16 +270,15 @@ Each has a `status`, `authentication`, `requirements` and `nodeIds`:
   subscriber and active state.
 - **`unsupported`**: no matching path can be established from the recorded deployment metadata.
 
-Standard On Receive flows support `execute` with configured recipients. The `payouts` capability key
-remains in discovery responses but reports `unsupported` while Dev mode is disabled; no payout route
-is published for this event.
+Standard On Receive flows support `execute` with configured recipients. Mutable per-payment
+recipient payouts and their capability key have been removed in #1138.
 `releaseEarly.nodeIds` lists timelock branches, excluding strict Hold contracts. For webhook flows,
 `execute` is unsupported and `webhook` uses **`webhook_secret`**, obtained separately by the owner.
 Subscription allowance uses **`subscriber_wallet`** consent; the discovery token does not authorize
 either operation.
 
 Discovery makes no RPC calls and sends no transactions. `inputAsset` is the **initial snapshot
-metadata**, or null when unavailable; Dev mutations may have changed it. Discovery never returns
+metadata**, or null when unavailable. Discovery never returns
 webhook secrets, API credentials, recipient/subscriber addresses, bank details, KYC or notification
 settings. Responses are `no-store`, require a confirmed deployment on this environment's network,
 and are limited to **60 requests/minute per token**. A network mismatch returns 422. Use discovery
@@ -753,7 +751,7 @@ available. This endpoint does not guarantee historical recovery or webhook retry
 Deploy a standard **HTTP Webhook → Pay full amount** (or Split) flow, copy its URL and
 webhook secret from **API access** on the authenticated owner deployment page, and fund it through
 `/trigger/{deploymentId}` with a wallet-signed deposit. Funding does not execute the flow.
-The recipients remain configured in the deployment; Dev mode is not required.
+The recipients remain configured in the deployment.
 
 Send the callback from your server after verifying the completed task. Use one stable key
 per logical event and reuse that key and payload for every retry:
@@ -825,8 +823,7 @@ contract's configured token balances are read: account balances, recipients,
 credentials and the private graph are not returned.
 
 Candidates include Schedule, Webhook, time conditions, oracle conditions, Pay,
-Split and Swap. Mutable Pay/Split reads require Dev mode enabled and read the
-current on-chain asset. Multisig, Payroll and other unsupported kinds are excluded;
+Split and Swap. Multisig, Payroll and other unsupported kinds are excluded;
 when they coexist with supported nodes, their error entries make totals incomplete.
 An invalid or ambiguous pipeline, more than 64 candidate contracts, or no supported
 target returns 422. An unconfirmed deployment returns 404; network mismatch returns 422. Invalid, revoked, expired, wrong-deployment or retiring/retired tokens return
@@ -870,9 +867,8 @@ The deployment token opens the integration API; the currently configured subscri
 wallet supplies consent. Read `subscription/state` and check `subscriptionCancel` or
 `subscriptionReactivate` in capabilities first. These operations are conditional on
 live state and successful simulation. Ordinary subscriptions are supported by the
-implementation. Existing Dev cancellation continues with `FEATURE_DEV_MODE_ENABLED=false`;
-Dev reactivation requires the feature enabled. New Dev deployments remain disabled for the
-hackathon. Payroll, unsupported variants and ambiguous snapshots are refused.
+implementation. Mutable dev-mode subscriptions have been removed in #1138.
+Payroll, unsupported variants and ambiguous snapshots are refused.
 Bounded hosted testnet cancellation/reactivation and zero-allowance checks passed;
 see the [verification summary](#hosted-testnet-verification) for dated evidence,
 the later fee-blocked charge test and target-environment limits.
@@ -1013,9 +1009,9 @@ Do not copy these replacement routes into the starter.
 
 ### 1 Prepare a deployment and app
 
-Use a standard flow with recipients and required values configured before deployment. Follow your event primer for preparation permissions and feature availability; this example uses neither flow Dev mode nor per-payment recipients.
+Use a standard flow with recipients and required values configured before deployment. Follow your event primer for preparation permissions and feature availability; this example uses configured recipients.
 
-Build and deploy a standard **On Receive XLM → percentage Split XLM** flow: 90% to a shop and 10% to a community fund. Keep **Dev mode off** for this example and use two distinct funded Testnet recipient addresses. Wait for **CONFIRMED**, then copy its deployment UUID. Create a single-deployment token in **API access**, or a developer token with **Read and operate** that explicitly selects this deployment.
+Build and deploy a standard **On Receive XLM → percentage Split XLM** flow: 90% to a shop and 10% to a community fund. Use two distinct funded Testnet recipient addresses. Wait for **CONFIRMED**, then copy its deployment UUID. Create a single-deployment token in **API access**, or a developer token with **Read and operate** that explicitly selects this deployment.
 
 Use a full/team Paiflow account at [beta.app.paiflow.xyz](https://beta.app.paiflow.xyz). Sandbox accounts cannot create tokens or use their deployments through the partner API. API access requires an **ACTIVE** deployment and active owner; retiring/retired deployments and revoked/expired tokens are refused.
 

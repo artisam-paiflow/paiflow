@@ -5,6 +5,18 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+### Removed
+
+- Remove mutable dev-mode flows, deferred API-filled configuration, builder/deployment controls,
+  legacy dev tokens, dedicated dev endpoints and per-payment-recipient payout APIs (#1138).
+  Existing-client compatibility is intentionally discontinued for these removed surfaces.
+  Standard payments, subscriptions, payroll and treasury/refund operations remain supported;
+  retained payroll management now requires an owner session, and fiat payroll recipients require
+  complete bank details before deployment. The migration deletes undeployed
+  dev drafts and strips dev settings from deployment-linked current drafts without restoring
+  old graphs or changing deployment snapshots/history. See [the removal notes](docs/dev-mode-removal.md)
+  for migration guards and rollout limits.
+
 ### Changed
 
 - Add confirmed JRU team names to winning-project cards and first-through-fourth placements to the team photo gallery (#1090).

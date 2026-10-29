@@ -2,34 +2,21 @@ import "server-only";
 import { Address, nativeToScVal, xdr } from "@stellar/stellar-sdk";
 import type { ContractParams, PipelineNodeParams } from "@/lib/flows/to-params";
 import { assetContractId } from "./assets";
-
 function addr(a: string): xdr.ScVal {
   return new Address(a).toScVal();
 }
-
-// Soroban `Option<Address>`: None serializes as ScVal::Void, Some(addr) as the
-// address itself. Used by the dev contracts whose recipient / subscriber may be
-// left blank at deploy time.
-function optAddr(a: string | undefined): xdr.ScVal {
-  return a && a.length > 0 ? addr(a) : xdr.ScVal.scvVoid();
-}
-
 function i128(n: string | bigint): xdr.ScVal {
   return nativeToScVal(typeof n === "bigint" ? n : BigInt(n), { type: "i128" });
 }
-
 function u32(n: number): xdr.ScVal {
   return nativeToScVal(n, { type: "u32" });
 }
-
 function u64(n: number | bigint): xdr.ScVal {
   return nativeToScVal(typeof n === "bigint" ? n : BigInt(n), { type: "u64" });
 }
-
 function bool(b: boolean): xdr.ScVal {
   return xdr.ScVal.scvBool(b);
 }
-
 /**
  * The `Side` argument of timelock_branch's `release_by_relayer`: the list the
  * caller intends to pay, which the contract checks against the ledger time.
@@ -37,7 +24,6 @@ function bool(b: boolean): xdr.ScVal {
 export function timelockSideArg(side: "before" | "after"): xdr.ScVal {
   return enumVariant(side === "before" ? "Before" : "After");
 }
-
 // Mode and Side are #[contracttype] enums; in Soroban SDK v26 they serialize as
 // ScVal::Vec([ScVal::Symbol(variant_name)]) for fieldless variants.
 function enumVariant(name: string): xdr.ScVal {
@@ -45,17 +31,18 @@ function enumVariant(name: string): xdr.ScVal {
   if (!variants.includes(name)) throw new Error(`Unknown enum variant: ${name}`);
   return xdr.ScVal.scvVec([symbol(name)]);
 }
-
 function string(s: string): xdr.ScVal {
   return nativeToScVal(s, { type: "string" });
 }
-
 function symbol(s: string): xdr.ScVal {
   return nativeToScVal(s, { type: "symbol" });
 }
-
 function recipientsVec(
-  recipients: Array<{ address: string; bps: number; amount: string }>,
+  recipients: Array<{
+    address: string;
+    bps: number;
+    amount: string;
+  }>,
   nodeAddresses: Record<string, string> = {},
 ): xdr.ScVal {
   return xdr.ScVal.scvVec(
@@ -71,9 +58,13 @@ function recipientsVec(
     ),
   );
 }
-
-function devRecipientsVec(
-  recipients: Array<{ address: string; bps: number; amount: string; isCashOut?: boolean }>,
+function splitterRecipientsVec(
+  recipients: Array<{
+    address: string;
+    bps: number;
+    amount: string;
+    isCashOut?: boolean;
+  }>,
   nodeAddresses: Record<string, string>,
 ): xdr.ScVal {
   return xdr.ScVal.scvVec(
@@ -93,19 +84,17 @@ function devRecipientsVec(
     ),
   );
 }
-
 // Immutable splitter recipients carry the same is_cash_out flag as the dev
 // variant. Kept separate from recipientsVec, which is shared with the
 // streamer/conditional/multisig contracts whose Recipient struct has no such
 // field.
-function splitterRecipientsVec(
-  recipients: Array<{ address: string; bps: number; amount: string; isCashOut?: boolean }>,
-  nodeAddresses: Record<string, string>,
-): xdr.ScVal {
-  return devRecipientsVec(recipients, nodeAddresses);
-}
 
-function payrollRecipientsVec(recipients: Array<{ address: string; amount: string }>): xdr.ScVal {
+function payrollRecipientsVec(
+  recipients: Array<{
+    address: string;
+    amount: string;
+  }>,
+): xdr.ScVal {
   return xdr.ScVal.scvVec(
     recipients.map((r) =>
       xdr.ScVal.scvMap([
@@ -118,7 +107,6 @@ function payrollRecipientsVec(recipients: Array<{ address: string; amount: strin
     ),
   );
 }
-
 function workflowTargets(nodeIds: string[], addresses: Record<string, string>): xdr.ScVal {
   return xdr.ScVal.scvVec(
     nodeIds.map((id) => {
@@ -131,19 +119,15 @@ function workflowTargets(nodeIds: string[], addresses: Record<string, string>): 
     }),
   );
 }
-
 function amountPerIntervalStroops(params: { amountPerIntervalStroops: string }): xdr.ScVal {
   return i128(params.amountPerIntervalStroops);
 }
-
 function intervalSeconds(params: { intervalSeconds: number }): xdr.ScVal {
   return u64(params.intervalSeconds);
 }
-
 function amountStroops(params: { amountStroops: string }): xdr.ScVal {
   return i128(params.amountStroops);
 }
-
 function conditionKind(cond: { kind: string; [key: string]: unknown }): xdr.ScVal {
   switch (cond.kind) {
     case "time_after": {
@@ -181,7 +165,6 @@ function conditionKind(cond: { kind: string; [key: string]: unknown }): xdr.ScVa
       return xdr.ScVal.scvVec([symbol("Multisig"), u32(1)]);
   }
 }
-
 /** Build constructor SCVals for a pipeline node. */
 export function pipelineNodeConstructorArgs(
   params: PipelineNodeParams,
@@ -225,7 +208,10 @@ export function pipelineNodeConstructorArgs(
     }
     case "conditional": {
       if (!parentAddress) throw new Error("Conditional requires a parent address");
-      const cond = params.condition as { kind: string; [key: string]: unknown } | null;
+      const cond = params.condition as {
+        kind: string;
+        [key: string]: unknown;
+      } | null;
       return [
         addr(admin),
         recipientsVec(params.recipients, nodeAddresses),
@@ -368,54 +354,6 @@ export function pipelineNodeConstructorArgs(
         bool(params.isCashOut ?? false),
       ];
     }
-    case "payer_dev": {
-      if (!parentAddress) throw new Error("Payer dev requires a parent address");
-      // __constructor(admin, relayer, asset, recipient: Option<Address>,
-      //               amount, percentage_bps, next_steps, parent, is_cash_out)
-      return [
-        addr(admin),
-        addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
-        addr(assetContractId(params.asset)),
-        optAddr(
-          params.recipient ? (nodeAddresses[params.recipient] ?? params.recipient) : undefined,
-        ),
-        i128(params.amountStroops ?? "0"),
-        u32(params.percentageBps ?? 0),
-        workflowTargets(params.nextStepNodeIds, nodeAddresses),
-        addr(parentAddress),
-        bool(params.isCashOut ?? false),
-      ];
-    }
-    case "splitter_dev": {
-      if (!parentAddress) throw new Error("Splitter dev requires a parent address");
-      // __constructor(admin, relayer, asset, recipients, min_amount, parent,
-      //               next_steps)
-      return [
-        addr(admin),
-        addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
-        addr(assetContractId(params.asset)),
-        devRecipientsVec(params.recipients, nodeAddresses),
-        i128(params.minAmountStroops),
-        addr(parentAddress),
-        workflowTargets(params.nextStepNodeIds, nodeAddresses),
-      ];
-    }
-    case "subscription_dev_trigger": {
-      // __constructor(admin, asset, subscriber: Option<Address>,
-      //               amount_per_period, next_steps, relayer, start_time,
-      //               interval_seconds, end_time)
-      return [
-        addr(admin),
-        addr(assetContractId(params.asset)),
-        optAddr(params.subscriber),
-        i128(params.amountPerPeriodStroops),
-        workflowTargets(params.nextStepNodeIds, nodeAddresses),
-        addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
-        u64(params.startTs),
-        u64(params.intervalSeconds),
-        u64(params.endTs),
-      ];
-    }
     case "cash_out": {
       if (!parentAddress) throw new Error("Cash out requires a parent address");
       // __constructor(admin, relayer, asset, treasury, parent,
@@ -431,24 +369,8 @@ export function pipelineNodeConstructorArgs(
         string(params.bankCode),
       ];
     }
-    case "cash_out_dev": {
-      if (!parentAddress) throw new Error("Cash out dev requires a parent address");
-      // __constructor(admin, relayer, asset, treasury, parent,
-      //               account_name, account_number, bank_code)
-      return [
-        addr(admin),
-        addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
-        addr(assetContractId(params.asset)),
-        addr(params.treasury && params.treasury.length > 0 ? params.treasury : admin),
-        addr(parentAddress),
-        string(params.accountName),
-        string(params.accountNumber),
-        string(params.bankCode),
-      ];
-    }
   }
 }
-
 /** Encode a factory NodeBlueprint as an SCVal map. */
 export function nodeBlueprint(
   wasmHashHex: string,
@@ -468,7 +390,6 @@ export function nodeBlueprint(
     new xdr.ScMapEntry({ key: symbol("wasm_hash"), val: xdr.ScVal.scvBytes(wasmHashBuf) }),
   ]);
 }
-
 /** @deprecated Use {@link pipelineNodeConstructorArgs} for new code. */
 export function constructorArgs(params: ContractParams, admin: string): xdr.ScVal[] {
   switch (params.kind) {
@@ -505,7 +426,10 @@ export function constructorArgs(params: ContractParams, admin: string): xdr.ScVa
           xdr.ScVal.scvVoid(),
         ];
       }
-      const c = params.condition as { kind: string; [key: string]: unknown };
+      const c = params.condition as {
+        kind: string;
+        [key: string]: unknown;
+      };
       let cond: xdr.ScVal;
       switch (c.kind) {
         case "time_after": {

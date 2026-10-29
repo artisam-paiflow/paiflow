@@ -1,11 +1,9 @@
 "use client";
-
 import { useId } from "react";
 import type { FlowNode } from "@/lib/flows/schema";
 import { isTrigger } from "@/lib/flows/schema";
 import { isTimeCondition } from "@/lib/flows/branches";
 import type { FeatureFlags, FeatureSurface } from "@/lib/feature-flags";
-
 type Props = {
   onAdd: (node: FlowNode) => void;
   flowNodes: FlowNode[];
@@ -13,19 +11,16 @@ type Props = {
   pinned?: boolean;
   onExpand?: () => void;
   onTogglePin?: () => void;
-  devMode?: boolean;
   /** Surface switches from the server (#722); an entry whose surface is off is not offered. */
   features: FeatureFlags;
 };
-
 function makeId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
 }
-
 type Template = {
   label: string;
   icon: string;
-  group: "Triggers" | "Actions" | "Logic" | "Dev";
+  group: "Triggers" | "Actions" | "Logic";
   // Hidden templates stay in source (typechecked, easy to re-enable) but are
   // filtered out of the palette. Use this instead of commenting entries out.
   hidden?: boolean;
@@ -34,7 +29,6 @@ type Template = {
   requiresCondition?: "time" | "non-oracle";
   make: () => FlowNode;
 };
-
 export const TEMPLATES: Template[] = [
   {
     group: "Triggers",
@@ -112,7 +106,6 @@ export const TEMPLATES: Template[] = [
         employer: "PENDING:employer",
         intervalAmount: 1,
         intervalUnit: "week",
-        fillScheduleViaApi: false,
       },
     }),
   },
@@ -247,19 +240,21 @@ export const TEMPLATES: Template[] = [
     }),
   },
 ];
-
 /** The palette entries offered under these switches: not `hidden`, and their surface on. */
 export function visibleTemplates(features: FeatureFlags): Template[] {
   return TEMPLATES.filter((t) => !t.hidden && (!t.feature || features[t.feature]));
 }
-
-const GROUP_TONE: Record<Template["group"], { tone: string; dot: string }> = {
+const GROUP_TONE: Record<
+  Template["group"],
+  {
+    tone: string;
+    dot: string;
+  }
+> = {
   Triggers: { tone: "text-secondary", dot: "bg-secondary" },
   Actions: { tone: "text-primary", dot: "bg-primary" },
   Logic: { tone: "text-tertiary", dot: "bg-tertiary" },
-  Dev: { tone: "text-amber-400", dot: "bg-amber-400" },
 };
-
 export default function Palette({
   onAdd,
   flowNodes,
@@ -267,24 +262,15 @@ export default function Palette({
   pinned,
   onExpand,
   onTogglePin,
-  devMode,
   features,
 }: Props) {
-  // Dev-only palette items (nodes with no immutable counterpart) appear only
-  // when at least one exists. Currently Cash Out lives under Actions, so no
-  // separate Dev section is rendered.
-  const devTemplates = TEMPLATES.filter((t) => t.group === "Dev");
-  const groups: Template["group"][] =
-    devTemplates.length > 0
-      ? ["Triggers", "Actions", "Logic", "Dev"]
-      : ["Triggers", "Actions", "Logic"];
+  const groups: Template["group"][] = ["Triggers", "Actions", "Logic"];
   const headingId = useId();
   const hasTrigger = flowNodes.some(isTrigger);
   const hasTimeCondition = flowNodes.some(isTimeCondition);
   const hasReturnCondition = flowNodes.some(
     (node) => node.type === "condition" && node.config.kind !== "oracle_gte",
   );
-
   if (collapsed) {
     return (
       <aside className="glass-panel-sidebar pt-md relative flex h-full flex-col items-center">
@@ -302,7 +288,6 @@ export default function Palette({
       </aside>
     );
   }
-
   return (
     <aside
       aria-labelledby={headingId}
@@ -345,7 +330,6 @@ export default function Palette({
                           ? "Add an amount, time, or multisig condition to enable Return to owner"
                           : undefined;
                   const disabled = !!disabledReason;
-
                   return (
                     <div key={tpl.label} className="group relative">
                       <button

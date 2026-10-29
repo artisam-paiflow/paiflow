@@ -57,6 +57,12 @@ that require consumers to change their code.
 
 Changing the app version alone never permits breaking the current API contract.
 
+The maintainer-approved dev-mode removal in [#1138](dev-mode-removal.md) is an explicit
+exception for the removed mutable-flow APIs, legacy dev credentials and affected SDK types:
+existing-client compatibility for those surfaces is discontinued. Document their removal in
+Unreleased and named release notes. This exception does not relax compatibility requirements
+for the retained standard API or authorize removing historical financial evidence.
+
 ## SDK releases
 
 Each SDK has its own package version, changelog, and documented

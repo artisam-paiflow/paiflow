@@ -124,7 +124,7 @@ Never clear unknown finality, crashed work, failed refunds or retention gaps by
 timeout. See [`docs/deployment-retirement.md`](docs/deployment-retirement.md).
 
 `pipelineSnapshot` (`nodeId → contractAddress → templateKind`) is the durable map. Anything that
-talks to a deployed contract (event polling, balances, dev-mode mutation, relayer charges) resolves
+talks to a deployed contract (event polling, balances, relayer charges) resolves
 through `lib/pipeline-snapshot.ts`, **not** by re-deriving from the graph.
 `lib/flows/english.ts` renders the graph as prose for the builder's preview pane.
 
@@ -139,7 +139,7 @@ node type means a new contract crate plus `to-params.ts`, `scval.ts`, the `Templ
 ### The one server-held key is the relayer (plus its derived channels)
 
 `STELLAR_RELAYER_SECRET_KEY` is Paiflow's own key, used in `lib/stellar/relayer.ts` and
-`lib/stellar/dev-mutate.ts` to sign `*_by_relayer` calls so scheduled charges and claims run without
+`lib/stellar/treasury.ts` to sign `*_by_relayer` calls so scheduled charges and claims run without
 the user signing each time. Contracts enforce dual auth (admin **or** relayer).
 
 With `STELLAR_RELAYER_CHANNELS=N` (default `0`) the relayer also has N **channel accounts**, derived
@@ -187,11 +187,10 @@ the cursor directly**.
 - **Fiat off-ramp** — `OffRampPayoutJob` state machine driven by `cron/process-offramp-jobs`
   against `lib/offramp/provider.ts`; mock by default, `OFFRAMP_PROVIDER=pdax` for real, with credentials stored in the DB via `/admin/offramp` (env is
   the fallback). See `docs/pdax-institution-api.md`.
-- **Dev mode** — per-flow `devMode` swaps nodes for `_DEV` on-chain-mutable variants, filled after
-  deploy via `/api/deployments/[id]/dev-*` (auth: `DevApiToken`). See
-  `docs/design/2026-06-24-dev-mode-mutable-flows.md`.
 - **Partner API** — `/api/v1`, machine callers with a deployment-bound `DeploymentApiToken` or explicitly selected-deployment `DeveloperApiToken`
-  ([§5](#5-authentication)). The older payroll and `dev-*` routes keep `requireDevAuth`.
+  ([§5](#5-authentication)). Retained payroll management routes require an owner session and
+  reject sandbox callers. Dev-mode APIs and legacy dev tokens were removed in #1138; see
+  [`docs/dev-mode-removal.md`](docs/dev-mode-removal.md).
 
 ### Sandbox sessions
 

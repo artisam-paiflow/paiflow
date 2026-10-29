@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
 import type { FlowNode, SplitRecipient } from "@/lib/flows/schema";
 import {
@@ -24,12 +23,10 @@ import { Field } from "./asset-fields";
 import { AllocationBar } from "./allocation-bar";
 import { defaultShares } from "./split-shares.utils";
 import { fiatPayoutAvailable as fiatAvailable, showPayoutModeSelect } from "./payout-mode.utils";
-
 export function SplitRecipientsEditor({
   node,
   trigger,
   sourceAmount,
-  devMode,
   addressBook,
   refreshAddressBook,
   addressBookLoading,
@@ -39,10 +36,14 @@ export function SplitRecipientsEditor({
   offrampEnabled,
   sandbox,
 }: {
-  node: Extract<FlowNode, { type: "split" }>;
+  node: Extract<
+    FlowNode,
+    {
+      type: "split";
+    }
+  >;
   trigger: FlowNode | undefined;
   sourceAmount: string | undefined;
-  devMode: boolean;
   addressBook: AddressEntry[];
   refreshAddressBook?: () => void;
   addressBookLoading?: boolean;
@@ -58,18 +59,13 @@ export function SplitRecipientsEditor({
   const listError = fieldErrors?.get("recipients") ?? null;
   const recipientError = (i: number, field: string): string | null =>
     fieldErrors?.get(`recipients.${i}.${field}`) ?? null;
-  // In dev mode an empty recipients list means "fill via API"; the banner in
-  // the parent ConfigPanel already covers it, so skip the editor entirely.
-  if (devMode && node.config.recipients.length === 0) return null;
-
   const triggerType = trigger?.type ?? null;
   const isPayroll = triggerType === "payroll";
   const isStreamer = triggerType === "on_schedule";
-  const fiatPayoutAvailable = fiatAvailable(offrampEnabled, triggerType, devMode);
+  const fiatPayoutAvailable = fiatAvailable(offrampEnabled, triggerType);
   const mode = isPayroll ? "fixed" : (node.config.recipients[0]?.mode ?? "percentage");
   const totalFixed = splitTotalFixedStroops(node.config.recipients);
   const minAmount = trigger?.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
-
   // For scheduled splits the projection base lives on the split itself: the
   // amount-per-interval field in percentage mode, or the sum of the fixed
   // amounts in fixed mode (to-params derives the same base).
@@ -80,7 +76,6 @@ export function SplitRecipientsEditor({
         ? (totalFixed ?? undefined)
         : node.config.amountPerIntervalStroops
       : undefined);
-
   // Cache the shares from the mode the user is leaving so that toggling
   // percentage → fixed → percentage restores the previously entered values
   // instead of silently zeroing them out. Keyed by recipient index.
@@ -88,7 +83,6 @@ export function SplitRecipientsEditor({
     bps: Map<number, number>;
     amountStroops: Map<number, string>;
   }>({ bps: new Map(), amountStroops: new Map() });
-
   // Each recipient card can be collapsed to a summary row. Default to all
   // expanded when there are only a few recipients; collapse all but the first
   // when the list gets long.
@@ -98,7 +92,6 @@ export function SplitRecipientsEditor({
     }
     return new Set([0]);
   });
-
   useEffect(() => {
     setExpandedRecipients(() => {
       const next = new Set<number>();
@@ -110,7 +103,6 @@ export function SplitRecipientsEditor({
     // Switching to a different split node invalidates the cached shares.
     modeCache.current = { bps: new Map(), amountStroops: new Map() };
   }, [node.id]);
-
   const toggleRecipient = (i: number) => {
     setExpandedRecipients((prev) => {
       const next = new Set(prev);
@@ -119,7 +111,6 @@ export function SplitRecipientsEditor({
       return next;
     });
   };
-
   const deleteRecipient = (i: number) => {
     const nextRecipients = node.config.recipients.filter((_, j) => j !== i);
     onChange({
@@ -135,7 +126,6 @@ export function SplitRecipientsEditor({
       return next;
     });
   };
-
   const setMode = (newMode: "percentage" | "fixed") => {
     // Snapshot the current mode's values before the union switch discards them.
     node.config.recipients.forEach((r, i) => {
@@ -170,7 +160,6 @@ export function SplitRecipientsEditor({
       config: { ...node.config, recipients: next },
     } as FlowNode);
   };
-
   const updateRecipient = (i: number, r: SplitRecipient) => {
     const next = [...node.config.recipients];
     next[i] = r;
@@ -179,7 +168,6 @@ export function SplitRecipientsEditor({
       config: { ...node.config, recipients: next },
     } as FlowNode);
   };
-
   return (
     <div className="space-y-3">
       {isPayroll ? (
@@ -244,19 +232,16 @@ export function SplitRecipientsEditor({
                 node.config.asset,
               )
             : null;
-
         const summaryLabel = r.label
           ? r.label
           : isFiatRecipient
             ? r.accountName?.trim() || "Fiat off-ramp"
             : shortAddr(r.address);
-
         const summaryAmount = isPercentage
           ? `${bpsToPct(r.bps)}%`
           : r.amountStroops && r.amountStroops !== "0"
             ? stroopsToDisplay(r.amountStroops, node.config.asset)
             : "0";
-
         return (
           <div
             key={i}
@@ -311,7 +296,16 @@ export function SplitRecipientsEditor({
                       <Field label="Amount" error={recipientError(i, "amountStroops")}>
                         <StroopsDraftInput
                           className="input text-right"
-                          value={(r as Extract<SplitRecipient, { mode: "fixed" }>).amountStroops}
+                          value={
+                            (
+                              r as Extract<
+                                SplitRecipient,
+                                {
+                                  mode: "fixed";
+                                }
+                              >
+                            ).amountStroops
+                          }
                           placeholder="0"
                           onChange={(stroops) => {
                             updateRecipient(i, {
@@ -363,7 +357,7 @@ export function SplitRecipientsEditor({
                       </button>
                     </div>
 
-                    {devMode || isPayroll ? (
+                    {isPayroll ? (
                       <>
                         {" "}
                         {/* Row 2: share / amount */}
@@ -431,7 +425,7 @@ export function SplitRecipientsEditor({
                       />
                     )}
                     <div className="grid grid-cols-[1fr_auto] gap-1">
-                      {devMode || isPayroll ? (
+                      {isPayroll ? (
                         <>
                           {" "}
                           <input
@@ -511,7 +505,7 @@ export function SplitRecipientsEditor({
                           };
                           updateRecipient(
                             i,
-                            mode === "fiat" && !devMode
+                            mode === "fiat"
                               ? {
                                   ...base,
                                   accountName: r.accountName ?? "",
@@ -529,7 +523,7 @@ export function SplitRecipientsEditor({
                       </select>
                     </Field>
 
-                    {fiatPayoutAvailable && r.payoutMode === "fiat" && !devMode && (
+                    {fiatPayoutAvailable && r.payoutMode === "fiat" && (
                       <>
                         <Field label="Account name" error={recipientError(i, "accountName")}>
                           <input
@@ -578,16 +572,12 @@ export function SplitRecipientsEditor({
 
                     {!sandbox && (
                       <RecipientEmailField
-                        shared={!devMode && !isPayroll && !isFiatRecipient}
+                        shared={!isPayroll && !isFiatRecipient}
                         value={r.email}
                         onChange={(email) => updateRecipient(i, { ...r, email })}
                       />
                     )}
-                    {fiatPayoutAvailable && r.payoutMode === "fiat" && devMode && (
-                      <div className="rounded border border-amber-800/40 bg-amber-950/20 px-2 py-1 text-[10px] text-amber-300">
-                        Bank details configured via API after deploy.
-                      </div>
-                    )}
+                    {false}
                   </div>
                 )}
               </div>
@@ -668,7 +658,6 @@ export function SplitRecipientsEditor({
     </div>
   );
 }
-
 function remainingPct(recipients: SplitRecipient[]): number {
   const used = recipients.reduce((s, r) => (r.mode === "percentage" ? s + r.bps : s), 0);
   return Math.max(0, (TOTAL_BPS - used) / 100);

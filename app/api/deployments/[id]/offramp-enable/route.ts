@@ -2,15 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
-import { requireDevAuth } from "@/lib/auth";
+import { requirePayrollSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { refuseIfFeatureOff } from "@/lib/features";
-
 const PostSchema = z.object({
   enabled: z.boolean(),
 });
-
 async function requirePayrollDeployment(id: string, userId: string) {
   const where = { id, ownerId: userId };
   const d = await db.deployment.findFirst({
@@ -23,39 +21,46 @@ async function requirePayrollDeployment(id: string, userId: string) {
   }
   return d;
 }
-
-async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(
+  req: NextRequest,
+  ctx: {
+    params: Promise<{
+      id: string;
+    }>;
+  },
+) {
   return withErrorHandler(async () => {
-    const { user } = await requireDevAuth(req);
+    const { user } = await requirePayrollSession(req);
     const { id } = await ctx.params;
     const d = await requirePayrollDeployment(id, user.id);
     return NextResponse.json({ data: { offRampEnabled: d.offRampEnabled } });
   });
 }
-
-async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(
+  req: NextRequest,
+  ctx: {
+    params: Promise<{
+      id: string;
+    }>;
+  },
+) {
   return withErrorHandler(async () => {
-    const { user } = await requireDevAuth(req);
+    const { user } = await requirePayrollSession(req);
     const { id } = await ctx.params;
     const rlKey = `offramp-enable:${user.id}`;
     const rl = await rateLimit(rlKey, 30, 60);
     if (!rl.ok) throw rateLimitedError(rl, "Too many off-ramp toggles");
     const d = await requirePayrollDeployment(id, user.id);
-
     const body = PostSchema.parse(await req.json());
     // Turning the off-ramp on is new use (#722); turning it off, or reading
     // the setting, keeps working for an existing payroll.
     if (body.enabled) refuseIfFeatureOff("offramp", "enabled");
-
     await db.deployment.update({
       where: { id },
       data: { offRampEnabled: body.enabled },
     });
-
     return NextResponse.json({ data: { offRampEnabled: body.enabled } });
   });
 }
-
-export const GET = deploymentServiceRoute(GETHandler, "dev");
-
-export const POST = deploymentServiceRoute(POSTHandler, "dev");
+export const GET = deploymentServiceRoute(GETHandler, "payroll");
+export const POST = deploymentServiceRoute(POSTHandler, "payroll");

@@ -2,7 +2,6 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { log } from "./log";
-
 export type AuditAction =
   | "USER_LOGIN"
   | "USER_LOGIN_FAILED"
@@ -38,11 +37,7 @@ export type AuditAction =
   | "DEPLOY_INVOKE"
   | "DEPLOY_AMOUNT_CHANGE"
   | "DEPLOY_RELAYER_CONFIG"
-  | "DEPLOY_DEV_PAYROLL"
-  | "DEV_UPDATE_PAYMENT"
-  | "DEV_UPDATE_RECIPIENTS"
-  | "DEV_UPDATE_SUBSCRIPTION"
-  | "DEV_UPDATE_BANK"
+  | "PAYROLL_UPDATE_BANK"
   | "ADMIN_GOOGLE_SIGNUP_CODE_CREATE"
   | "ADMIN_GOOGLE_SIGNUP_CODE_DISABLE"
   | "ADMIN_USER_CREATE"
@@ -53,8 +48,6 @@ export type AuditAction =
   | "DEVELOPER_TOKEN_REVOKED"
   | "API_TOKEN_CREATED"
   | "API_TOKEN_REVOKED"
-  | "API_PAYOUT_PREPARED"
-  | "API_PAYOUT_CONFIGURED"
   | "API_PAYOUT_SUBMITTED"
   | "API_PAYOUT_CONFIRMED"
   | "API_EXECUTE_PREPARED"
@@ -63,7 +56,6 @@ export type AuditAction =
   | "TIMELOCK_RELEASE_BEFORE"
   | "API_TIMELOCK_RELEASE_BEFORE"
   | "API_DEMO_TOKEN_ISSUED";
-
 /**
  * The actions whose metadata carries `{ deploymentId, txHash }` for a transaction
  * this app submitted on a deployment's behalf: `submit-trigger` (DEPLOY_TRIGGER),
@@ -80,7 +72,6 @@ const SUBMITTED_TX_ACTIONS = [
   "API_EXECUTE_SUBMITTED",
   "API_PAYOUT_SUBMITTED",
 ] satisfies AuditAction[];
-
 /**
  * Did this app submit `txHash` for `deploymentId`? Used to decide whether a
  * status poll may run the deployment-specific bookkeeping that follows a
@@ -95,7 +86,6 @@ const SUBMITTED_TX_ACTIONS = [
 export async function wasTxSubmittedFor(deploymentId: string, txHash: string): Promise<boolean> {
   return hasTxAuditRow(SUBMITTED_TX_ACTIONS, deploymentId, txHash);
 }
-
 /**
  * Should a submit route write its audit row for `txHash`? A first send always
  * does. A duplicate send usually means an earlier request wrote it, but that
@@ -112,7 +102,6 @@ export async function needsSubmitRow(
   if (!duplicate) return true;
   return !(await wasTxSubmittedFor(deploymentId, txHash).catch(() => false));
 }
-
 /**
  * Has the partner API already recorded `txHash` as confirmed for `deploymentId`?
  * A resubmission of a confirmed envelope answers from the chain, and this keeps
@@ -121,7 +110,6 @@ export async function needsSubmitRow(
 export async function wasTxConfirmedFor(deploymentId: string, txHash: string): Promise<boolean> {
   return hasTxAuditRow(["API_EXECUTE_CONFIRMED", "API_PAYOUT_CONFIRMED"], deploymentId, txHash);
 }
-
 async function hasTxAuditRow(
   actions: AuditAction[],
   deploymentId: string,
@@ -139,7 +127,6 @@ async function hasTxAuditRow(
   });
   return row !== null;
 }
-
 export async function audit(opts: {
   action: AuditAction;
   userId?: string | null;

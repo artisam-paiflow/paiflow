@@ -4,16 +4,13 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ApiAccessPanel from "@/components/deploy/api-access-panel";
 import { capabilities, DEPLOYMENT_ID } from "./api-access-fixtures";
-
 vi.mock("@/lib/analytics/client", () => ({ track: vi.fn() }));
-
 beforeEach(() => {
   vi.stubGlobal(
     "fetch",
     vi.fn(async () => new Response(JSON.stringify({ data: [] }), { status: 200 })),
   );
 });
-
 describe("deployment integration instructions", () => {
   it("shows balance discovery and distinguishes contract funds from payment evidence", async () => {
     render(
@@ -52,7 +49,6 @@ describe("deployment integration instructions", () => {
     await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1));
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
   });
-
   it.each(["webhook", "subscription", "payroll", "schedule", "oracle", "unknown"] as const)(
     "offers monitoring without deposit execution for %s",
     async (trigger) => {
@@ -66,7 +62,6 @@ describe("deployment integration instructions", () => {
       expect(screen.getByText(/curl '.*\/events'/).textContent).toContain("YOUR_API_TOKEN");
       expect(screen.queryByText(/\/execute/)).toBeNull();
       expect(screen.queryByText(/Prepare and submit a payment/)).toBeNull();
-
       const user = userEvent.setup();
       if (trigger === "subscription") {
         await user.selectOptions(screen.getByLabelText("Example"), "subscription");
@@ -89,7 +84,6 @@ describe("deployment integration instructions", () => {
         );
     },
   );
-
   it("separates webhook credentials, masks the secret and copies the correct values", async () => {
     const user = userEvent.setup();
     const writeText = vi.spyOn(navigator.clipboard, "writeText");
@@ -130,34 +124,6 @@ describe("deployment integration instructions", () => {
     expect(callback).not.toContain("Authorization: Bearer");
     expect(screen.getByText(/interrupted preparation/)).toBeTruthy();
   });
-
-  it("includes prerequisites for eligible payouts and early release", async () => {
-    const data = capabilities("deposit");
-    data.operations.payouts = {
-      status: "conditional",
-      authentication: "deployment_token",
-      requirements: ["Eligible immediate path and zero Pay balance required."],
-      nodeIds: ["pay"],
-    };
-    data.operations.releaseEarly = {
-      status: "supported",
-      authentication: "deployment_token",
-      requirements: ["Held funds required; token authorizes a relayer-signed release."],
-      nodeIds: ["hold"],
-    };
-    const user = userEvent.setup();
-    render(
-      <ApiAccessPanel deploymentId={DEPLOYMENT_ID} capabilities={data} webhookSecret={null} />,
-    );
-    await user.click(screen.getByRole("tab", { name: "Reference" }));
-    const summary = screen.getByText(/Prepare a payment with a recipient/);
-    expect(summary.textContent).toContain("Requires eligibility checks");
-    await user.click(summary);
-    expect(summary.closest("details")!.open).toBe(true);
-    expect(screen.getByText(/Eligible immediate path/)).toBeTruthy();
-    expect(screen.getByText(/token authorizes a relayer-signed release/)).toBeTruthy();
-  });
-
   it("retains token creation, one-time display, expiry and revocation for a webhook", async () => {
     const user = userEvent.setup();
     vi.spyOn(navigator.clipboard, "writeText");
@@ -217,7 +183,6 @@ describe("deployment integration instructions", () => {
     expect(screen.getByText("REVOKED")).toBeTruthy();
     vi.mocked(window.confirm).mockRestore();
   });
-
   it("does not present operations or webhook credentials in a mismatched environment", async () => {
     render(
       <ApiAccessPanel
@@ -234,7 +199,6 @@ describe("deployment integration instructions", () => {
   });
 });
 afterEach(() => vi.unstubAllGlobals());
-
 // #553: an owner who has just revealed a token had no way to find the guide,
 // the spec or the collection from the panel.
 describe("ApiAccessPanel docs links", () => {
@@ -248,7 +212,6 @@ describe("ApiAccessPanel docs links", () => {
     );
     await userEvent.setup().click(screen.getByRole("tab", { name: "Reference" }));
     const links = within(screen.getByTestId("api-docs-links")).getAllByRole("link");
-
     expect(links.map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
       ["Developer guide", "https://paiflow.gitbook.io/paiflow-docs/reference/api"],
       ["OpenAPI spec", "/api/v1/openapi.json"],
@@ -263,7 +226,6 @@ describe("ApiAccessPanel docs links", () => {
     }
   });
 });
-
 describe("API access navigation", () => {
   it("starts with a read-only example and copies connection details", async () => {
     const user = userEvent.setup();
@@ -294,7 +256,6 @@ describe("API access navigation", () => {
       screen.getByRole("link", { name: "Manage developer credentials" }).getAttribute("href"),
     ).toBe("/account/developer");
   });
-
   it("supports keyboard tabs and accessible panels", async () => {
     const user = userEvent.setup();
     const { container } = render(
@@ -319,7 +280,6 @@ describe("API access navigation", () => {
     await user.keyboard("{ArrowLeft}{Home}");
     expect(document.activeElement).toBe(quickstart);
   });
-
   it("keeps inactive tokens in history and active tokens visible", async () => {
     const user = userEvent.setup();
     const metadata = {
@@ -377,7 +337,6 @@ describe("API access navigation", () => {
       "Old integration",
     );
   });
-
   it("does not reveal a token whose creation finishes after leaving Credentials", async () => {
     const user = userEvent.setup();
     let finish!: (response: Response) => void;

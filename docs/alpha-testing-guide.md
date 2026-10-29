@@ -161,7 +161,7 @@ Open **Swap XLM to USDC** and take a minute to find each of these.
 - **Errors** button and **DEPLOY** — DEPLOY is greyed out until the flow has no errors; the Errors
   button lists every problem, and the fields at fault are highlighted.
 - Changes save automatically — there is no Save button. Click the flow title to rename it, and
-  leave the **Dev mode** switch **off** for every test.
+  configure all required recipients and values before deployment.
 
 A flow always starts with exactly **one trigger**. Once you have one, the other triggers grey out.
 
@@ -432,7 +432,7 @@ breaks.
 ## 5. What not to test in this round
 
 Build with **On Receive**, **Pay**, **Split** and **Swap** only, keep payouts on **Crypto
-(wallet)**, leave **Dev mode** off, and use desktop **Freighter**. Everything else you may see in
+(wallet)** and use desktop **Freighter**. Everything else you may see in
 the app isn't ready for alpha testing — **please don't use it, and don't report problems with
 it**: the On Schedule, HTTP Webhook, Subscription and Payroll triggers; the Condition and Email
 Notify blocks; Fiat / bank payouts and Sender KYC; Ask AI (chat and voice); Passkeys on the Profile

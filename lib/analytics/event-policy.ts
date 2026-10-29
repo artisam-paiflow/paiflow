@@ -20,7 +20,7 @@ const PROPERTIES: Record<EventName, readonly string[]> = {
   wallet_connect_succeeded: ["surface", "wallet_id", "wallet_address", "connection_id"],
   error_shown: ["error_class", "error_code", "message_key"],
   flow_created: [],
-  builder_opened: ["flow_id", "node_count", "node_types", "dev_mode"],
+  builder_opened: ["flow_id", "node_count", "node_types"],
   node_added: ["node_type"],
   node_removed: ["node_type", "via"],
   edge_connected: ["from_type", "to_type"],
@@ -94,7 +94,6 @@ const KINDS = new Set([
   "FACTORY",
   "MULTISIG",
   "PAYER",
-  "PAYER_DEV",
   "TIMELOCK_BRANCH",
   "RECEIVE",
   "PAYOUT",
@@ -108,24 +107,18 @@ const KINDS = new Set([
   "RETRIEVE",
   "RECIPIENT_UPDATED",
   "SPLITTER",
-  "SPLITTER_DEV",
   "STREAMER",
-  "STREAMER_DEV",
   "SUBSCRIPTION",
-  "SUBSCRIPTION_DEV",
   "PAYROLL",
-  "PAYROLL_DEV",
   "WEBHOOK",
   "WEB2_WEBHOOK",
   "ORACLE",
   "PAY",
-  "PAY_DEV",
   "SWAPPER",
   "CONDITION",
   "TIMELOCK",
   "ESCROW",
   "CASH_OUT",
-  "CASH_OUT_DEV",
   "YIELD",
   "ON_RECEIVE",
   "RETURN_TO_OWNER",
@@ -257,7 +250,6 @@ function approvedValue(key: string, value: unknown): unknown {
     return ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].includes(String(value))
       ? value
       : undefined;
-
   if (value === null) return null;
   if (key.endsWith("_address")) return sanitizeEntry(key, value);
   if (["flow_id", "deployment_id", "connection_id"].includes(key))
@@ -284,14 +276,9 @@ function approvedValue(key: string, value: unknown): unknown {
       : undefined;
   if (key === "feature")
     return typeof value === "string" &&
-      ([
-        "ask_ai_chat",
-        "ask_ai_voice",
-        "api_token_created",
-        "passkey_add",
-        "dev_mode_on",
-        "fiat_payout",
-      ].includes(value) ||
+      (["ask_ai_chat", "ask_ai_voice", "api_token_created", "passkey_add", "fiat_payout"].includes(
+        value,
+      ) ||
         (value.startsWith("node:") && NODES.has(value.slice(5))))
       ? value
       : undefined;
@@ -343,7 +330,7 @@ function approvedValue(key: string, value: unknown): unknown {
       ? value
       : undefined;
   if (typeof value === "boolean")
-    return ["dev_mode", "always_reverts", "has_swap", "signed_by_source", "is_swap"].includes(key)
+    return ["always_reverts", "has_swap", "signed_by_source", "is_swap"].includes(key)
       ? value
       : undefined;
   return typeof value === "string" &&

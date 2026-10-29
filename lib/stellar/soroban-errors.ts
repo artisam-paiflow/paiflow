@@ -8,21 +8,17 @@
  * The contract error tables mirror the #[contracterror] enums in contracts/.
  * When a contract's error enum changes, update the matching table here.
  */
-
 export type ContractErrorKey =
   | "streamer"
   | "splitter"
-  | "splitter_dev"
   | "swapper"
   | "soroswap_router"
   | "soroswap_factory"
   | "stellar_asset"
   | "yield"
   | "payer"
-  | "payer_dev"
   | "payroll"
   | "cash_out"
-  | "cash_out_dev"
   | "conditional"
   | "router"
   | "timelock"
@@ -31,16 +27,15 @@ export type ContractErrorKey =
   | "deposit_trigger"
   | "webhook"
   | "subscription"
-  | "subscription_dev"
   | "oracle";
-
-type ContractErrorEntry = { name: string; friendly: string };
-
+type ContractErrorEntry = {
+  name: string;
+  friendly: string;
+};
 const ALREADY_INITIALIZED: ContractErrorEntry = {
   name: "AlreadyInitialized",
   friendly: "This contract has already been initialized.",
 };
-
 /**
  * Error code → friendly message, per contract. Codes come from each
  * contract's #[contracterror] enum (see contracts/<name>/src/lib.rs).
@@ -114,35 +109,6 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
     7: {
       name: "MixedModeNotAllowed",
       friendly: "Recipients can't mix percentage and fixed-amount modes.",
-    },
-  },
-  splitter_dev: {
-    1: ALREADY_INITIALIZED,
-    2: {
-      name: "BpsSumInvalid",
-      friendly: "Recipient percentages must add up to exactly 100%.",
-    },
-    3: {
-      name: "NoRecipients",
-      friendly: "The split needs at least one recipient.",
-    },
-    4: { name: "Paused", friendly: "This split contract is paused." },
-    5: {
-      name: "Unauthorized",
-      friendly: "This action requires the admin or relayer, or the asset doesn't match.",
-    },
-    6: {
-      name: "InvalidAmount",
-      friendly: "The amount is invalid — it must be positive and above the configured minimum.",
-    },
-    7: {
-      name: "MixedModeNotAllowed",
-      friendly: "Recipients can't mix percentage and fixed-amount modes.",
-    },
-    8: {
-      name: "NotConfigured",
-      friendly:
-        "This flow's Split step has no recipients yet. Set them in Dev values on the deployment page.",
     },
   },
   swapper: {
@@ -271,22 +237,6 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
       friendly: "The payment amount must be positive (or a percentage must be configured).",
     },
   },
-  payer_dev: {
-    1: ALREADY_INITIALIZED,
-    2: {
-      name: "Unauthorized",
-      friendly: "This action requires the admin or relayer, or the asset doesn't match.",
-    },
-    3: {
-      name: "InvalidAmount",
-      friendly: "The payment amount must be positive (or a percentage must be configured).",
-    },
-    4: {
-      name: "NotConfigured",
-      friendly:
-        "This flow's Pay step has no recipient yet. Set it in Dev values on the deployment page, or per payment through POST /api/v1/deployments/:id/payouts.",
-    },
-  },
   payroll: {
     1: ALREADY_INITIALIZED,
     2: { name: "Unauthorized", friendly: "This action isn't authorized." },
@@ -322,27 +272,6 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
       name: "InvalidBank",
       friendly:
         "The bank details are incomplete — account name, account number, and bank are all required.",
-    },
-  },
-  cash_out_dev: {
-    1: ALREADY_INITIALIZED,
-    2: { name: "Paused", friendly: "This cash-out contract is paused." },
-    3: {
-      name: "Unauthorized",
-      friendly: "This action requires the admin or relayer, or the asset doesn't match.",
-    },
-    4: {
-      name: "InvalidAmount",
-      friendly: "The amount must be positive.",
-    },
-    5: {
-      name: "InvalidBank",
-      friendly:
-        "The bank details are incomplete — account name, account number, and bank are all required.",
-    },
-    6: {
-      name: "NotConfigured",
-      friendly: "This contract hasn't been configured yet — fill in the bank details first.",
     },
   },
   conditional: {
@@ -490,32 +419,6 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
     6: { name: "SubscriptionEnded", friendly: "This subscription has ended." },
     7: { name: "NotCancelled", friendly: "This subscription isn't cancelled." },
   },
-  subscription_dev: {
-    1: ALREADY_INITIALIZED,
-    2: {
-      name: "Unauthorized",
-      friendly: "This action requires the admin or relayer.",
-    },
-    3: {
-      name: "InvalidAmount",
-      friendly:
-        "The subscription configuration is invalid: the end time must be after the start time and the amount must be positive.",
-    },
-    4: {
-      name: "AlreadyCancelled",
-      friendly: "This subscription has already been cancelled.",
-    },
-    5: {
-      name: "NotYetDue",
-      friendly: "The next subscription charge isn't due yet.",
-    },
-    6: { name: "SubscriptionEnded", friendly: "This subscription has ended." },
-    7: { name: "NotCancelled", friendly: "This subscription isn't cancelled." },
-    8: {
-      name: "NotConfigured",
-      friendly: "This subscription hasn't been configured yet — fill in the details first.",
-    },
-  },
   oracle: {
     1: ALREADY_INITIALIZED,
     2: { name: "Unauthorized", friendly: "This action isn't authorized." },
@@ -529,7 +432,6 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
     },
   },
 };
-
 /** Prisma TemplateKind enum value → contract error table key. */
 export function contractKeyForTemplate(templateKind: string): ContractErrorKey | undefined {
   switch (templateKind) {
@@ -563,21 +465,12 @@ export function contractKeyForTemplate(templateKind: string): ContractErrorKey |
       return "payer";
     case "PAYROLL":
       return "payroll";
-    case "PAYER_DEV":
-      return "payer_dev";
-    case "SPLITTER_DEV":
-      return "splitter_dev";
-    case "SUBSCRIPTION_DEV":
-      return "subscription_dev";
-    case "CASH_OUT_DEV":
-      return "cash_out_dev";
     case "CASH_OUT":
       return "cash_out";
     default:
       return undefined; // FACTORY has no error enum
   }
 }
-
 /** PipelineNodeParams["kind"] (snake_case) → contract error table key. */
 export function contractKeyForParamsKind(kind: string): ContractErrorKey | undefined {
   switch (kind) {
@@ -585,8 +478,6 @@ export function contractKeyForParamsKind(kind: string): ContractErrorKey | undef
       return "webhook";
     case "subscription_trigger":
       return "subscription";
-    case "subscription_dev_trigger":
-      return "subscription_dev";
     case "payroll_trigger":
       return "payroll";
     case "oracle_trigger":
@@ -595,7 +486,6 @@ export function contractKeyForParamsKind(kind: string): ContractErrorKey | undef
       return CONTRACT_ERRORS[kind as ContractErrorKey] ? (kind as ContractErrorKey) : undefined;
   }
 }
-
 export type SorobanErrorHint = {
   /** The known contract being invoked/deployed (when unambiguous). */
   contract?: ContractErrorKey;
@@ -604,7 +494,6 @@ export type SorobanErrorHint = {
   /** Asset contract address → how to name the asset, e.g. "USDC issued by G…". */
   assetLabels?: Record<string, string>;
 };
-
 export type SorobanErrorTranslation = {
   friendly: string;
   /** true when a specific contract/host error was identified. */
@@ -612,22 +501,26 @@ export type SorobanErrorTranslation = {
   /** Contract error variant name (e.g. "BadWindow"), when identified. */
   errorName?: string;
 };
-
 /**
  * Every diagnostic entry whose topics carry a contract error, in log order.
  * The simulate log is newest-first: when a contract error escalates through
  * a pipeline (deposit trigger → swapper → Soroswap router), the outermost
  * frame comes first and the frame that originated the error comes last.
  */
-function findContractErrors(raw: string): Array<{ address: string; code: number }> {
-  const out: Array<{ address: string; code: number }> = [];
+function findContractErrors(raw: string): Array<{
+  address: string;
+  code: number;
+}> {
+  const out: Array<{
+    address: string;
+    code: number;
+  }> = [];
   const re = /contract:(C[A-Z0-9]{55}),\s*topics:\[error,\s*Error\(Contract,\s*#?(\d+)\)\]/g;
   for (const m of raw.matchAll(re)) {
     out.push({ address: m[1]!, code: Number(m[2]) });
   }
   return out;
 }
-
 /** Require the innermost diagnostic frame; outer frames can re-raise another contract's code. */
 export function isOriginatingContractError(raw: string, address: string, code: number): boolean {
   const topLevel = /^(?:Soroban simulate failed: )?HostError: Error\(Contract,\s*#?(\d+)\)/.exec(
@@ -637,8 +530,12 @@ export function isOriginatingContractError(raw: string, address: string, code: n
   const origin = findContractErrors(raw).at(-1);
   return origin?.address === address && origin.code === code;
 }
-
-function findContractError(raw: string): { address?: string; code: number } | undefined {
+function findContractError(raw: string):
+  | {
+      address?: string;
+      code: number;
+    }
+  | undefined {
   const withAddress = /contract:(C[A-Z0-9]{55})[\s\S]{0,500}?Error\(Contract,\s*#?(\d+)\)/.exec(
     raw,
   );
@@ -651,7 +548,6 @@ function findContractError(raw: string): { address?: string; code: number } | un
   }
   return undefined;
 }
-
 /** Host-level failure signatures, most specific first. */
 const HOST_PATTERNS: Array<[RegExp, string]> = [
   [
@@ -679,7 +575,6 @@ const HOST_PATTERNS: Array<[RegExp, string]> = [
   [/UnexpectedType/, "The contract received a value of an unexpected type."],
   [/expired/i, "Some on-chain state has expired. Please try again."],
 ];
-
 function translated(
   entry: ContractErrorEntry,
   address: string | undefined,
@@ -692,10 +587,8 @@ function translated(
     errorName: entry.name,
   };
 }
-
 const GENERIC_FRIENDLY =
   "The Stellar network rejected this transaction during pre-flight simulation. Expand the details for the technical error.";
-
 /**
  * Translate a raw Soroban error string (simulation error, HostError dump,
  * diagnostic event log) into user-friendly text.

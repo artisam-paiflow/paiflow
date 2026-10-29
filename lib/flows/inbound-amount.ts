@@ -6,7 +6,6 @@ import {
   splitTotalFixedStroops,
 } from "./schema";
 import { assetsEqual, computeAssetFlow } from "./validate";
-
 /**
  * How much the sender has to put into a flow for it to execute the way it was
  * configured.
@@ -25,18 +24,26 @@ import { assetsEqual, computeAssetFlow } from "./validate";
  */
 export type InboundRequirement =
   /** The pipeline consumes exactly this much; anything more would strand. */
-  | { kind: "exact"; stroops: string; asset: Asset }
+  | {
+      kind: "exact";
+      stroops: string;
+      asset: Asset;
+    }
   /**
    * At least this much: what the fixed payouts ahead of the first proportional
    * node, gate, or branch consume. Below it the fixed payer under-pays; what
    * happens above it depends on that node, so it is a floor, not a total.
    */
-  | { kind: "minimum"; stroops: string; asset: Asset }
+  | {
+      kind: "minimum";
+      stroops: string;
+      asset: Asset;
+    }
   /** Nothing determinate to say — any positive amount is valid. */
-  | { kind: "variable" };
-
+  | {
+      kind: "variable";
+    };
 const VARIABLE: InboundRequirement = { kind: "variable" };
-
 /**
  * What one node takes out of the value passing through it:
  * a fixed number of stroops, or an amount that depends on what arrives.
@@ -46,9 +53,8 @@ function consumption(node: FlowNode): bigint | "variable" | "none" {
     case "pay": {
       const c = node.config;
       // A percentage (including `fullAmount`, which compiles to 10_000 bps) is
-      // taken from whatever arrives, and a value filled in via the API after
-      // deploy isn't in this graph at all.
-      if (c.fullAmount || c.fillValueViaApi || c.mode === "percentage") return "variable";
+      // taken from whatever arrives.
+      if (c.fullAmount || c.mode === "percentage") return "variable";
       return BigInt(c.amountStroops ?? "0");
     }
     case "split": {
@@ -72,7 +78,6 @@ function consumption(node: FlowNode): bigint | "variable" | "none" {
       return "none";
   }
 }
-
 /**
  * Pipeline children of each node, skipping `email_notify` — off-chain
  * decorators that are never wired as contract next steps. Mirrors
@@ -87,29 +92,23 @@ function pipelineChildren(graph: FlowGraph): Map<string, string[]> {
   }
   return children;
 }
-
 export function inboundRequirement(
   graph: FlowGraph,
-  options: { fixedSplitBatching?: boolean } = {},
+  options: {
+    fixedSplitBatching?: boolean;
+  } = {},
 ): InboundRequirement {
-  // Dev-mode amounts are filled in after deploy through the dev-* routes, so
-  // what the graph holds is not what the contract holds.
-  if (graph.devMode === true) return VARIABLE;
-
   const trigger = graph.nodes.find(isTrigger);
   // Only an on_receive deposit is one sender funding the whole pipeline in a
   // single call. Every other trigger is pulled by the relayer on a schedule or
   // fired by an external event, so no amount typed here governs it.
   if (trigger?.type !== "on_receive") return VARIABLE;
   const triggerAsset = trigger.config.asset;
-
   const byId = new Map(graph.nodes.map((n) => [n.id, n]));
   const assetOf = computeAssetFlow(graph);
   const children = pipelineChildren(graph);
-
   let fixedTotal = 0n;
   let variable = false;
-
   // Follow the single chain the value actually takes. A branch is not a chain:
   // the contracts disagree about what to do with one (a payer forwards its
   // remainder to `next_steps[0]` alone, while a deposit trigger sends the full
@@ -125,10 +124,8 @@ export function inboundRequirement(
     cursor = next[0];
     if (!cursor || seen.has(cursor)) break;
     seen.add(cursor);
-
     const node = byId.get(cursor);
     if (!node) break;
-
     // Partner callers may accumulate partial deposits in a fixed Split and
     // retain its residual for the next batch. That threshold is not an exact
     // per-deposit consumption; fixed Pay steps before it still need covering.
@@ -143,7 +140,6 @@ export function inboundRequirement(
       break;
     }
     if (takes === "none") continue;
-
     // Past a swap the amounts are denominated in another asset, so they can't
     // be added to a total the sender pays in the trigger's asset.
     const nodeAsset = assetOf.get(cursor);
@@ -151,19 +147,15 @@ export function inboundRequirement(
       variable = true;
       break;
     }
-
     fixedTotal += takes;
   }
-
   if (fixedTotal <= 0n) return VARIABLE;
-
   // The trigger's declared minimum is enforced on-chain by the splitter
   // (contracts/actions/splitter/src/lib.rs:118-121), so it raises the floor —
   // it never lowers one the payouts themselves already set.
   const declaredMin = trigger.config.minAmountStroops
     ? BigInt(trigger.config.minAmountStroops)
     : 0n;
-
   if (!variable) {
     // A minimum above what the chain consumes contradicts it: the exact total
     // would be refused on-chain, and anything large enough to pass would
@@ -171,7 +163,6 @@ export function inboundRequirement(
     if (declaredMin > fixedTotal) return VARIABLE;
     return { kind: "exact", stroops: fixedTotal.toString(), asset: triggerAsset };
   }
-
   const floor = declaredMin > fixedTotal ? declaredMin : fixedTotal;
   return { kind: "minimum", stroops: floor.toString(), asset: triggerAsset };
 }

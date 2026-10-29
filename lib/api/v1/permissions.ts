@@ -17,8 +17,6 @@ export const V1_PERMISSIONS = {
   "POST funding": "operate",
   "POST funding/reconcile": "operate",
   "POST funding/submit": "operate",
-  "POST payouts": "operate",
-  "POST payouts/submit": "operate",
   "POST release-early": "operate",
   "POST schedule/pause": "operate",
   "POST schedule/pause/reconcile": "operate",

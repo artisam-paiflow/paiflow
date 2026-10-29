@@ -63,7 +63,7 @@ Paiflow turns a visual flow into Stellar smart contracts. One deployment can ser
 | Event tickets   | Route ticket payments to a configured recipient | On Receive → Pay                    |
 | Donation drive  | Share donations and show confirmed payouts      | On Receive → Split, public activity |
 
-**Feature availability:** «APPROVED_FEATURES_AND_EXCLUSIONS_FOR_THIS_EVENT». Use standard flows with recipients configured before deployment as the baseline. Dev mode, per-payment recipients and advanced automation must not be assumed available.
+**Feature availability:** «APPROVED_FEATURES_AND_EXCLUSIONS_FOR_THIS_EVENT». Use standard flows with recipients configured before deployment as the baseline. Mutable dev-mode flows and per-payment-recipient APIs have been removed. Advanced automation must not be assumed available.
 
 Configure your deployment's recipients and asset, then integrate the SDK into your app. The starter is a minimal SDK payment example. Use your own team's deployment for qualifying evidence.
 

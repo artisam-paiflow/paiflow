@@ -73,7 +73,7 @@ Teams may deploy, integrate Paiflow and test payments before the event once cred
 
 ## Hackathon feature availability
 
-Dev mode will stay disabled for the duration of the hackathon. Participant instructions must use configured recipients and values in standard flows. Do not direct teams to Dev values, Fill value via API or per-payment payouts. Shared technical references may retain advanced Dev-mode details only with an explicit unavailable-during-this-hackathon note. The SDK payment example accepts only a testnet native-XLM Receive deployment and a fixed 1 XLM payment; it includes no per-payment recipient controls or advanced panels. Keep the starter README and shared `llms.md` copy aligned. Use the current [Web3 Iloilo event primer](web3-iloilo/event-primer.md) for the October 25 event; its earlier participant-guide PDF is archival.
+Mutable dev-mode flows, deferred configuration and per-payment-recipient payout APIs have been removed (#1138). Participant instructions must use configured recipients and values in standard flows. Historical Dev documentation is superseded; do not use it as implementation guidance. The SDK payment example accepts only a testnet native-XLM Receive deployment and a fixed 1 XLM payment; it includes no per-payment recipient controls or advanced panels. Keep the starter README and shared `llms.md` copy aligned. Use the current [Web3 Iloilo event primer](web3-iloilo/event-primer.md) for the October 25 event; its earlier participant-guide PDF is archival.
 
 ## Public documentation
 

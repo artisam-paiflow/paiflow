@@ -149,7 +149,7 @@ transaction lands a fully-connected pipeline.
 
 ### 4.1 The contract workspace
 
-Twenty crates, grouped by block category — `contracts/triggers/`, `contracts/conditions/`,
+Seventeen crates, grouped by block category — `contracts/triggers/`, `contracts/conditions/`,
 `contracts/actions/`, plus `contracts/factory/`.
 [`contracts/Cargo.toml`](../contracts/Cargo.toml) is the authoritative member list; the crates
 themselves are the authority on storage, constructor arguments, and functions. Neither is restated
@@ -163,9 +163,8 @@ Two things are not obvious from reading one crate:
   `Vec<WorkflowTarget>` (`{ address, data }`), exposed by `next_steps()` on the 7 crates that
   forward, of which 4 also expose `set_next_steps()` for post-deploy rewiring. A crate with neither
   can only sit at the end of a pipeline.
-- **`_dev` variants.** `splitter_dev`, `payer_dev`, `subscription_dev` and `cash_out_dev` are
-  on-chain-mutable counterparts of their siblings, swapped in when a flow has `devMode` set so that
-  values left blank at design time can be filled after deploy. See `CLAUDE.md` §2.
+- The mutable dev-mode variants were removed in [#1138](dev-mode-removal.md). All required
+  deployment configuration uses standard validation.
 
 #### 4.1.1 Execution authorization and compatibility
 
@@ -279,9 +278,8 @@ point weights with their existing rounding behavior; #795 does not redesign that
 Shared deployment validation checks standard payment amounts and fixed totals before encoding.
 Compiled Streamer parameters supply the lifetime bound, including default windows, occurrences,
 partial final intervals, and legacy rate conversion. Draft schemas still accept incomplete
-amounts for autosave. Mutable/dev contract improvements and payroll are deferred; deferred mutable
-values remain compatible. Schedule flows still use the standard Streamer even in dev mode, so
-the Streamer lifetime check applies there too.
+amounts for autosave; deployment requires complete valid inputs. Payroll remains a separate
+contract implementation. Schedule flows use the standard Streamer and its lifetime bound.
 
 The shared Rust percentage helper is compiled into the three existing crates without a new crate
 or dependency. The test-only token exercises the full i128 range; it does not claim that classic
@@ -618,10 +616,10 @@ user, for flows the backend deploys on a user's behalf.
 Translates Paiflow's typed params into Soroban `xdr.ScVal[]`, using `nativeToScVal()` for `i128`,
 `u32`, `u64`, `Address`, and vectors. Two entry points, one per deploy path:
 
-| Function                                                               | Used by                                                               |
-| ---------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `pipelineNodeConstructorArgs(params, admin, parentAddress, addresses)` | The factory path (§4.4). The trailing two arguments carry the wiring. |
-| `constructorArgs(params, admin)`                                       | Single-contract deploys in `lib/stellar/dev-mutate.ts`.               |
+| Function                                                               | Used by                                                                        |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `pipelineNodeConstructorArgs(params, admin, parentAddress, addresses)` | The factory path (§4.4). The trailing two arguments carry the wiring.          |
+| `constructorArgs(params, admin)`                                       | Constructor encoding helpers; mutable dev deployment routes have been removed. |
 
 `nodeBlueprint(wasmHash, salt, args)` wraps the result in the `NodeBlueprint` map the factory
 expects. Each contract kind gets its own `case`; the switches are the reference for what a given

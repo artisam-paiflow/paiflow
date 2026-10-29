@@ -21,7 +21,6 @@ import {
   map,
   missingState,
 } from "../stellar/subscription-state-fixtures";
-
 const { server, db, prepare, submit } = vi.hoisted(() => ({
   server: { getAccount: vi.fn(), simulateTransaction: vi.fn() },
   db: { deployment: { findMany: vi.fn(), updateMany: vi.fn() } },
@@ -66,18 +65,14 @@ afterEach(() => {
   delete process.env.STELLAR_RELAYER_ADDRESS;
   delete process.env.CONTRACT_READ_CACHE_ENABLED;
 });
-
 it.each([
   "combined",
   "legacy",
-  "dev",
   "cancelled",
   "not-due",
   "outage",
   "legacy-cancelled",
   "legacy-not-due",
-  "dev-cancelled",
-  "dev-not-due",
 ])("measures actual cron %s preflight", async (mode) => {
   let charged = false;
   const snapshot = values();
@@ -86,10 +81,6 @@ it.each([
     snapshot.next_charge_at = nativeToScVal(BigInt(Math.floor(Date.now() / 1000) + 86400), {
       type: "u64",
     });
-  if (mode.startsWith("dev")) {
-    const rows = await db.deployment.findMany();
-    rows[0].pipelineSnapshot[0].templateKind = "SUBSCRIPTION_DEV";
-  }
   server.simulateTransaction.mockImplementation(async (tx) => {
     const fn = tx.operations[0].func.invokeContract().functionName().toString();
     if (mode === "outage") throw new Error("RPC down");
@@ -118,7 +109,7 @@ it.each([
   ).json();
   if (mode.includes("cancelled") || mode.includes("not-due") || mode === "outage") {
     expect(prepare).not.toHaveBeenCalled();
-    const reads = mode.startsWith("legacy") ? 3 : mode.startsWith("dev") ? 2 : 1;
+    const reads = mode.startsWith("legacy") ? 3 : 1;
     expect(server.getAccount).toHaveBeenCalledTimes(reads);
     expect(server.simulateTransaction).toHaveBeenCalledTimes(reads);
     expect(result.data[mode === "outage" ? "failed" : "skipped"]).toBe(1);

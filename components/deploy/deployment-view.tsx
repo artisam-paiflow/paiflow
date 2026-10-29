@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
 import DeploymentCanvas from "./deployment-canvas";
@@ -10,7 +9,6 @@ import PipelineImplementations, { type MonitoredPipelineNode } from "./pipeline-
 import ContractCallButton from "./contract-call-button";
 import SubscriptionRelayerPanel from "./subscription-relayer-panel";
 import PayrollPanel from "./payroll-panel";
-import DevValuesPanel from "./dev-values-panel";
 import ReleaseNowPanel from "./release-now-panel";
 import OffRampSenderForm from "@/components/payroll/offramp-sender-form";
 import type { FlowGraph } from "@/lib/flows/schema";
@@ -19,12 +17,9 @@ import { formatStroops } from "@/lib/utils";
 import { stellarExpertContractUrl, type StellarNetwork } from "@/lib/stellar/explorer";
 import { apiError } from "@/lib/friendly-error";
 import { track } from "@/lib/analytics/client";
-import { usesDevMode } from "@/lib/feature-flags";
-
 function evtKey(ev: Evt): string {
   return ev.eventId ?? `${ev.txHash}:${ev.kind}:${ev.ledger}`;
 }
-
 export default function DeploymentView({
   deploymentId,
   contractAddress,
@@ -36,8 +31,6 @@ export default function DeploymentView({
   pipeline,
   templateKind,
   errorMessage,
-  canEditDevValues = false,
-  devModeEnabled = true,
 }: {
   deploymentId: string;
   contractAddress: string | null;
@@ -49,8 +42,6 @@ export default function DeploymentView({
   pipeline?: MonitoredPipelineNode[] | null;
   templateKind?: string | null;
   errorMessage: string | null;
-  canEditDevValues?: boolean;
-  devModeEnabled?: boolean;
 }) {
   const explorerUrl =
     contractAddress && network ? stellarExpertContractUrl(contractAddress, network) : null;
@@ -68,7 +59,6 @@ export default function DeploymentView({
   // history, not live delivery: they only seed the set.
   const reportedEvents = useRef<Set<string> | null>(null);
   if (reportedEvents.current === null) reportedEvents.current = new Set(initialEvents.map(evtKey));
-
   function trackRendered(ev: Evt, source: "sse" | "poll") {
     const seen = reportedEvents.current!;
     const key = evtKey(ev);
@@ -79,20 +69,22 @@ export default function DeploymentView({
     track("live_event_rendered", {
       deployment_id: deploymentId,
       event_kind: ev.kind,
-      is_swap: (ev.payload as { topics?: unknown[] } | null)?.topics?.[0] === "swap",
+      is_swap:
+        (
+          ev.payload as {
+            topics?: unknown[];
+          } | null
+        )?.topics?.[0] === "swap",
       lag_ms: Number.isNaN(occurred) ? null : Date.now() - occurred,
       source,
     });
   }
-
   useEffect(() => {
     track("deployment_page_viewed", { deployment_id: deploymentId, status });
   }, [deploymentId, status]);
-
   const scheduleClearIsNew = (eventId: string | undefined, txHash: string, kind: string) => {
     setTimeout(() => dispatchEvents({ type: "clearIsNew", eventId, txHash, kind }), 250);
   };
-
   // Single source of live events for the deployment page. Uses SSE with a
   // one-time poll fallback when the connection drops.
   useEffect(() => {
@@ -100,7 +92,6 @@ export default function DeploymentView({
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
     let disconnects = 0;
-
     // The SSE route only relays rows written after it subscribes, so events the
     // cron stored between server render and this connect would never arrive.
     // One poll on mount, and one on each drop, reads the store directly.
@@ -110,29 +101,37 @@ export default function DeploymentView({
         // backstop; see CALLER_RATE_LIMITS in lib/rate-limit.ts) answer
         // with `{ error }`, which has no events to merge.
         .then((r) => (r.ok ? r.json() : null))
-        .then((body: { events?: Evt[] } | null) => {
-          if (cancelled || !Array.isArray(body?.events)) return;
-          const polledEvents = body.events;
-          polledEvents.forEach((ev) => trackRendered(ev, "poll"));
-          dispatchEvents({ type: "merge", incoming: polledEvents });
-          polledEvents.forEach((ev) => scheduleClearIsNew(ev.eventId, ev.txHash, ev.kind));
-        })
+        .then(
+          (
+            body: {
+              events?: Evt[];
+            } | null,
+          ) => {
+            if (cancelled || !Array.isArray(body?.events)) return;
+            const polledEvents = body.events;
+            polledEvents.forEach((ev) => trackRendered(ev, "poll"));
+            dispatchEvents({ type: "merge", incoming: polledEvents });
+            polledEvents.forEach((ev) => scheduleClearIsNew(ev.eventId, ev.txHash, ev.kind));
+          },
+        )
         .catch(() => null);
     };
-
     const connectSSE = () => {
       if (cancelled) return;
       es = new EventSource(`/api/deployments/${deploymentId}/events`);
       esRef.current = es;
-
       es.addEventListener("connected", () => {
         if (!cancelled) setConnectionStatus("live");
       });
-
       es.addEventListener("message", (e) => {
         if (cancelled) return;
         try {
-          const event = JSON.parse(e.data) as Evt | { type: string; status: string };
+          const event = JSON.parse(e.data) as
+            | Evt
+            | {
+                type: string;
+                status: string;
+              };
           if ("type" in event && event.type === "status" && event.status === "CONFIRMED") {
             window.location.reload();
             return;
@@ -145,7 +144,6 @@ export default function DeploymentView({
           /* ignore malformed SSE messages */
         }
       });
-
       es.onerror = () => {
         if (cancelled) return;
         disconnects += 1;
@@ -155,10 +153,8 @@ export default function DeploymentView({
           esRef.current = null;
           es = null;
         }
-
         // Fallback: poll once for any missed events, then reconnect.
         pollOnce();
-
         reconnectTimer = setTimeout(() => {
           if (cancelled) return;
           // Reported from here rather than from onerror: leaving the page aborts
@@ -179,10 +175,8 @@ export default function DeploymentView({
         }, 5000);
       };
     };
-
     if (status === "CONFIRMED") pollOnce();
     connectSSE();
-
     return () => {
       cancelled = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
@@ -193,7 +187,6 @@ export default function DeploymentView({
       setConnectionStatus("disconnected");
     };
   }, [deploymentId, status]);
-
   // Poll status while waiting for the deployment to be confirmed.
   useEffect(() => {
     if (status === "CONFIRMED") return;
@@ -201,7 +194,9 @@ export default function DeploymentView({
       try {
         const r = await fetch(`/api/deployments/${deploymentId}/status`);
         if (!r.ok) return;
-        const { status: newStatus } = (await r.json()) as { status: string };
+        const { status: newStatus } = (await r.json()) as {
+          status: string;
+        };
         if (newStatus === "CONFIRMED") {
           window.location.reload();
         }
@@ -211,7 +206,6 @@ export default function DeploymentView({
     }, 2000);
     return () => clearInterval(id);
   }, [deploymentId, status]);
-
   async function copy(text: string) {
     try {
       await navigator.clipboard.writeText(text);
@@ -227,21 +221,16 @@ export default function DeploymentView({
     }
     toast.success("Copied to clipboard.");
   }
-
   const isWeb2Webhook = graph?.nodes.find(isTrigger)?.type === "web2_webhook";
   const streamerNode = pipeline?.find((n) => n.templateKind === "STREAMER");
   const isStreamer = !!streamerNode;
   const isSubscription = templateKind === "SUBSCRIPTION";
   const subscriptionNode = isSubscription
-    ? pipeline?.find((n) => ["SUBSCRIPTION", "SUBSCRIPTION_DEV"].includes(n.templateKind))
+    ? pipeline?.find((n) => ["SUBSCRIPTION"].includes(n.templateKind))
     : null;
-  const payrollNode = pipeline?.find((n) =>
-    ["PAYROLL", "SUBSCRIPTION_DEV", "SUBSCRIPTION"].includes(n.templateKind),
-  );
+  const payrollNode = pipeline?.find((n) => ["PAYROLL", "SUBSCRIPTION"].includes(n.templateKind));
   const isPayroll = templateKind === "PAYROLL";
-  const cashOutNode = pipeline?.find(
-    (n) => n.templateKind === "CASH_OUT" || n.templateKind === "CASH_OUT_DEV",
-  );
+  const cashOutNode = pipeline?.find((n) => n.templateKind === "CASH_OUT");
   const isCashOut = !!cashOutNode;
   const timelockBranchIds =
     pipeline?.filter((n) => n.templateKind === "TIMELOCK_BRANCH").map((n) => n.nodeId) ?? [];
@@ -250,14 +239,12 @@ export default function DeploymentView({
     triggerNode?.type === "on_schedule" ? (triggerNode.config.pauseAllowed ?? true) : true;
   const retrieveAllowedFromConfig =
     triggerNode?.type === "on_schedule" ? (triggerNode.config.retrieveAllowed ?? false) : false;
-
   const [isPaused, setIsPaused] = useState(false);
   const [retrieveAllowed, setRetrieveAllowed] = useState(retrieveAllowedFromConfig);
   const [allowance, setAllowance] = useState<bigint | null>(null);
   const [currentSubscriber, setCurrentSubscriber] = useState<string | null>(null);
   const [currentAssetLabel, setCurrentAssetLabel] = useState<string | null>(null);
   const [isCancelled, setIsCancelled] = useState<boolean | null>(null);
-
   useEffect(() => {
     if (!isSubscription || !subscriptionNode?.contractAddress || !network) return;
     let cancelled = false;
@@ -269,7 +256,9 @@ export default function DeploymentView({
             allowance: string;
             subscriber: string | null;
             assetLabel: string;
-            asset: { kind: string } | null;
+            asset: {
+              kind: string;
+            } | null;
             isCancelled: boolean;
           };
         };
@@ -287,7 +276,6 @@ export default function DeploymentView({
       cancelled = true;
     };
   }, [deploymentId, subscriptionNode?.contractAddress, network, balanceTick]);
-
   useEffect(() => {
     if (!streamerNode?.contractAddress || !network) return;
     let cancelled = false;
@@ -295,7 +283,10 @@ export default function DeploymentView({
       .then(async (res) => {
         if (!res.ok) return;
         const json = (await res.json()) as {
-          data: { paused: boolean; retrieveAllowed: boolean };
+          data: {
+            paused: boolean;
+            retrieveAllowed: boolean;
+          };
         };
         if (!cancelled) {
           setIsPaused(json.data.paused);
@@ -309,7 +300,6 @@ export default function DeploymentView({
       cancelled = true;
     };
   }, [deploymentId, streamerNode?.contractAddress, network]);
-
   return (
     <div className="mt-md space-y-md">
       {graph && (
@@ -407,8 +397,13 @@ export default function DeploymentView({
                       },
                     );
                     const json = (await res.json()) as {
-                      data?: { xdr: string; networkPassphrase: string };
-                      error?: { message?: string };
+                      data?: {
+                        xdr: string;
+                        networkPassphrase: string;
+                      };
+                      error?: {
+                        message?: string;
+                      };
                     };
                     if (!res.ok) {
                       throw apiError(json, "Unknown error");
@@ -423,7 +418,11 @@ export default function DeploymentView({
                       headers: { "content-type": "application/json" },
                       body: JSON.stringify({ signedXdr }),
                     });
-                    const json = (await res.json()) as { data: { txHash: string } };
+                    const json = (await res.json()) as {
+                      data: {
+                        txHash: string;
+                      };
+                    };
                     if (!res.ok) throw new Error("Submit failed");
                     return { txHash: json.data.txHash };
                   }}
@@ -459,8 +458,13 @@ export default function DeploymentView({
                         },
                       );
                       const json = (await res.json()) as {
-                        data?: { xdr: string; networkPassphrase: string };
-                        error?: { message?: string };
+                        data?: {
+                          xdr: string;
+                          networkPassphrase: string;
+                        };
+                        error?: {
+                          message?: string;
+                        };
                       };
                       if (!res.ok) {
                         throw apiError(json, "Unknown error");
@@ -475,7 +479,11 @@ export default function DeploymentView({
                         headers: { "content-type": "application/json" },
                         body: JSON.stringify({ signedXdr }),
                       });
-                      const json = (await res.json()) as { data: { txHash: string } };
+                      const json = (await res.json()) as {
+                        data: {
+                          txHash: string;
+                        };
+                      };
                       if (!res.ok) throw new Error("Submit failed");
                       return { txHash: json.data.txHash };
                     }}
@@ -504,8 +512,13 @@ export default function DeploymentView({
                         },
                       );
                       const json = (await res.json()) as {
-                        data?: { xdr: string; networkPassphrase: string };
-                        error?: { message?: string };
+                        data?: {
+                          xdr: string;
+                          networkPassphrase: string;
+                        };
+                        error?: {
+                          message?: string;
+                        };
                       };
                       if (!res.ok) {
                         throw apiError(json, "Unknown error");
@@ -520,7 +533,11 @@ export default function DeploymentView({
                         headers: { "content-type": "application/json" },
                         body: JSON.stringify({ signedXdr }),
                       });
-                      const json = (await res.json()) as { data: { txHash: string } };
+                      const json = (await res.json()) as {
+                        data: {
+                          txHash: string;
+                        };
+                      };
                       if (!res.ok) throw new Error("Submit failed");
                       return { txHash: json.data.txHash };
                     }}
@@ -536,7 +553,7 @@ export default function DeploymentView({
           )}
           {isPayroll && payrollNode?.contractAddress && network && graph && (
             <PayrollPanel
-              canEditRecipients={devModeEnabled || !usesDevMode(graph, pipeline)}
+              canEditRecipients={true}
               deploymentId={deploymentId}
               contractAddress={payrollNode.contractAddress}
               network={network}
@@ -580,8 +597,13 @@ export default function DeploymentView({
                       }),
                     });
                     const json = (await res.json()) as {
-                      data?: { xdr: string; networkPassphrase: string };
-                      error?: { message?: string };
+                      data?: {
+                        xdr: string;
+                        networkPassphrase: string;
+                      };
+                      error?: {
+                        message?: string;
+                      };
                     };
                     if (!res.ok) {
                       throw apiError(json, "Unknown error");
@@ -599,7 +621,11 @@ export default function DeploymentView({
                       headers: { "content-type": "application/json" },
                       body: JSON.stringify({ signedXdr }),
                     });
-                    const json = (await res.json()) as { data: { txHash: string } };
+                    const json = (await res.json()) as {
+                      data: {
+                        txHash: string;
+                      };
+                    };
                     if (!res.ok) throw new Error("Submit failed");
                     return { txHash: json.data.txHash };
                   }}
@@ -626,8 +652,13 @@ export default function DeploymentView({
                       }),
                     });
                     const json = (await res.json()) as {
-                      data?: { xdr: string; networkPassphrase: string };
-                      error?: { message?: string };
+                      data?: {
+                        xdr: string;
+                        networkPassphrase: string;
+                      };
+                      error?: {
+                        message?: string;
+                      };
                     };
                     if (!res.ok) {
                       throw apiError(json, "Unknown error");
@@ -645,7 +676,11 @@ export default function DeploymentView({
                       headers: { "content-type": "application/json" },
                       body: JSON.stringify({ signedXdr }),
                     });
-                    const json = (await res.json()) as { data: { txHash: string } };
+                    const json = (await res.json()) as {
+                      data: {
+                        txHash: string;
+                      };
+                    };
                     if (!res.ok) throw new Error("Submit failed");
                     return { txHash: json.data.txHash };
                   }}
@@ -674,8 +709,13 @@ export default function DeploymentView({
                       }),
                     });
                     const json = (await res.json()) as {
-                      data?: { xdr: string; networkPassphrase: string };
-                      error?: { message?: string };
+                      data?: {
+                        xdr: string;
+                        networkPassphrase: string;
+                      };
+                      error?: {
+                        message?: string;
+                      };
                     };
                     if (!res.ok) {
                       throw apiError(json, "Unknown error");
@@ -693,7 +733,11 @@ export default function DeploymentView({
                       headers: { "content-type": "application/json" },
                       body: JSON.stringify({ signedXdr }),
                     });
-                    const json = (await res.json()) as { data: { txHash: string } };
+                    const json = (await res.json()) as {
+                      data: {
+                        txHash: string;
+                      };
+                    };
                     if (!res.ok) throw new Error("Submit failed");
                     return { txHash: json.data.txHash };
                   }}
@@ -717,13 +761,7 @@ export default function DeploymentView({
               nodeIds={timelockBranchIds}
             />
           )}
-          <DevValuesPanel
-            deploymentId={deploymentId}
-            network={network}
-            graph={graph}
-            status={status}
-            canEdit={canEditDevValues && devModeEnabled}
-          />
+
           {status === "FAILED" ? (
             <div className="mt-md border-error/30 bg-error-container/20 flex items-start gap-2 rounded-lg border p-3">
               <span className="material-symbols-outlined text-error mt-0.5 shrink-0 text-[16px]">

@@ -5,12 +5,10 @@ import { StrKey } from "@stellar/stellar-sdk";
 import { z } from "zod";
 import { coercedIntegerNumber } from "@/lib/validation/number";
 import { PosthogApiHostSchema, PosthogReportError } from "@/lib/analytics/posthog-report-schema";
-
 const optionalString = z
   .string()
   .optional()
   .transform((v) => (v && v.length > 0 ? v : undefined));
-
 const optionalWasmHash = z
   .string()
   .optional()
@@ -18,7 +16,6 @@ const optionalWasmHash = z
   .refine((v) => v === undefined || /^[0-9a-f]{64}$/i.test(v), {
     message: "WASM hash must be a 64-character hex string",
   });
-
 // A row id handed to Prisma. Validated at config load so a typo'd id fails at
 // startup rather than surfacing as a Prisma error on the first request.
 const optionalUuid = z
@@ -31,7 +28,6 @@ const optionalUuid = z
       message: "must be a UUID",
     },
   );
-
 // Stellar memo IDs are numeric (uint64). Kept as a string to avoid precision
 // loss; validated at config load so a swapped/misconfigured PDAX memo fails at
 // startup rather than mid-way through a live off-ramp job.
@@ -42,7 +38,6 @@ const optionalNumericMemo = z
   .refine((v) => v === undefined || /^\d+$/.test(v), {
     message: "PDAX deposit memo must be a numeric string (Stellar memo id)",
   });
-
 // PDAX deposit address must be a well-formed Stellar account (ed25519 G-address).
 // Validated at config load so a typo'd/truncated address fails at startup rather
 // than only when a live native-XLM deposit is attempted mid-job.
@@ -53,7 +48,6 @@ const optionalStellarAddress = z
   .refine((v) => v === undefined || StrKey.isValidEd25519PublicKey(v), {
     message: "PDAX deposit address must be a valid Stellar ed25519 public key (G...)",
   });
-
 // Browser origins a passkey may be used from, comma-separated. WebAuthn compares the
 // origin the browser actually sent — scheme, host, port, nothing else — against each
 // entry verbatim, so an entry carrying a path, a query, a fragment or credentials can
@@ -72,7 +66,6 @@ const originList = z
   .transform((v, ctx) => {
     const raw = (v ?? "").trim();
     if (raw.length === 0) return [];
-
     const entries = raw
       .split(",")
       .map((s) => s.trim())
@@ -81,7 +74,6 @@ const originList = z
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "lists no origins" });
       return z.NEVER;
     }
-
     const origins: string[] = [];
     for (const entry of entries) {
       let url: URL;
@@ -112,18 +104,15 @@ const originList = z
     }
     return origins;
   });
-
 const boolish = z
   .union([z.boolean(), z.string()])
   .transform((v) => (typeof v === "boolean" ? v : v.toLowerCase() === "true"))
   .default(false);
-
 const boolishDefault = (defaultValue: boolean) =>
   z
     .union([z.boolean(), z.string()])
     .transform((v) => (typeof v === "boolean" ? v : v.toLowerCase() === "true"))
     .default(defaultValue);
-
 // A surface switch (#722): unset or blank is ON, so nothing changes until an
 // operator sets it. A value it cannot read is not a startup error, which would
 // take every route (crons and live deployments included) down over a typo:
@@ -140,7 +129,6 @@ const featureSwitch = z
     if (s === "false" || s === "0" || s === "off" || s === "no") return false;
     return "unrecognised" as const;
   });
-
 // Soroswap router address, pinned per network. Validated at config load so a
 // typo fails at startup rather than when the first swap flow is deployed.
 const optionalContractAddress = z
@@ -150,7 +138,6 @@ const optionalContractAddress = z
   .refine((v) => v === undefined || StrKey.isValidContract(v), {
     message: "Must be a valid Stellar contract address (C...)",
   });
-
 const optionalPositiveInt = (defaultValue: number) =>
   z
     .string()
@@ -161,7 +148,6 @@ const optionalPositiveInt = (defaultValue: number) =>
       if (!Number.isInteger(parsed) || parsed <= 0) return defaultValue;
       return parsed;
     });
-
 const optionalNonNegativeInt = (defaultValue: number) =>
   z
     .string()
@@ -172,12 +158,10 @@ const optionalNonNegativeInt = (defaultValue: number) =>
       if (!Number.isInteger(parsed) || parsed < 0) return defaultValue;
       return parsed;
     });
-
 const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
   RAILWAY_ENVIRONMENT_NAME: optionalString,
-
   // ---- Temporary splitter/off-ramp hard limits ----
   // Exposed to the browser because validateFlow runs client-side. Whole-token
   // values are converted to stroops at validation time. Bounds are inclusive.
@@ -193,9 +177,7 @@ const EnvSchema = z.object({
   NEXT_PUBLIC_SPLITTER_XLM_MAX: coercedIntegerNumber().nonnegative().default(500).catch(500),
   NEXT_PUBLIC_SPLITTER_USDC_MIN: coercedIntegerNumber().nonnegative().default(30).catch(30),
   NEXT_PUBLIC_SPLITTER_USDC_MAX: coercedIntegerNumber().nonnegative().default(110).catch(110),
-
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
-
   AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 chars"),
   AUTH_URL: z.string().url().default("http://localhost:3000"),
   // One app service answers on several hostnames, so a single value cannot cover them
@@ -210,26 +192,21 @@ const EnvSchema = z.object({
   GOOGLE_CLIENT_SECRET: optionalString,
   // Offers a no-account, limited sandbox session from the login page.
   SANDBOX_ENABLED: boolish,
-
   // Hands any unauthenticated caller a short-lived token for one shared,
   // operator-provisioned swapper deployment, so the partner API can be tried
   // without an account. Both are refused on mainnet; see the guard in `env()`.
   DEMO_API_ENABLED: boolish,
   DEMO_API_DEPLOYMENT_ID: optionalUuid,
-
   // ---- Feature switches ----
   // Hide a surface and refuse new use of it; existing deployments keep running.
   // Read on the server and passed to the client as props, so a restart (not a
   // rebuild) applies a change. See lib/feature-flags.ts.
   FEATURE_OFFRAMP_ENABLED: featureSwitch,
   FEATURE_PAYROLL_ENABLED: featureSwitch,
-  FEATURE_DEV_MODE_ENABLED: featureSwitch,
   FEATURE_AI_ASSISTANT_ENABLED: featureSwitch,
   FEATURE_ORACLE_CONDITION_ENABLED: featureSwitch,
-
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url().optional(),
-
   // Network is pinned per environment: staging/dev = testnet, prod = mainnet.
   STELLAR_NETWORK: z.enum(["testnet", "mainnet"]).default("testnet"),
   // #808: operator-scoped, expiring testnet deployment recovery rehearsal.
@@ -247,7 +224,6 @@ const EnvSchema = z.object({
   STELLAR_SOROBAN_RPC_URL_MAINNET: z.string().url().default("https://mainnet.sorobanrpc.com"),
   // Friendbot is testnet-only; undefined on mainnet.
   STELLAR_FRIENDBOT_URL: optionalString,
-
   STELLAR_WASM_HASH_SPLITTER_TESTNET: optionalWasmHash,
   STELLAR_WASM_HASH_STREAMER_TESTNET: optionalWasmHash,
   STELLAR_WASM_HASH_CONDITIONAL_TESTNET: optionalWasmHash,
@@ -280,28 +256,17 @@ const EnvSchema = z.object({
   STELLAR_WASM_HASH_PAYER_MAINNET: optionalWasmHash,
   STELLAR_WASM_HASH_PAYROLL_TESTNET: optionalWasmHash,
   STELLAR_WASM_HASH_PAYROLL_MAINNET: optionalWasmHash,
-  STELLAR_WASM_HASH_PAYER_DEV_TESTNET: optionalWasmHash,
-  STELLAR_WASM_HASH_PAYER_DEV_MAINNET: optionalWasmHash,
-  STELLAR_WASM_HASH_SPLITTER_DEV_TESTNET: optionalWasmHash,
-  STELLAR_WASM_HASH_SPLITTER_DEV_MAINNET: optionalWasmHash,
-  STELLAR_WASM_HASH_SUBSCRIPTION_DEV_TESTNET: optionalWasmHash,
-  STELLAR_WASM_HASH_SUBSCRIPTION_DEV_MAINNET: optionalWasmHash,
-  STELLAR_WASM_HASH_CASH_OUT_DEV_TESTNET: optionalWasmHash,
-  STELLAR_WASM_HASH_CASH_OUT_DEV_MAINNET: optionalWasmHash,
   STELLAR_WASM_HASH_CASH_OUT_TESTNET: optionalWasmHash,
   STELLAR_WASM_HASH_CASH_OUT_MAINNET: optionalWasmHash,
   STELLAR_FACTORY_ADDRESS_TESTNET: optionalString,
   STELLAR_FACTORY_ADDRESS_MAINNET: optionalString,
-
   // ---- Soroswap ----
   // Router the swapper action calls. Soroswap redeploys its testnet router on
   // every reset, so this is config, not something stored on a flow graph.
   STELLAR_SOROSWAP_ROUTER_TESTNET: optionalContractAddress,
   STELLAR_SOROSWAP_ROUTER_MAINNET: optionalContractAddress,
-
   // Local event provisioning only; never set this on the Paiflow service.
   HACKATHON_ORGANISER_SECRET: optionalString,
-
   // ---- Relayer ----
   // Used for auto-releasing timelock contracts and for signing webhook
   // trigger transactions. Optional; when unset the admin address is used
@@ -318,11 +283,10 @@ const EnvSchema = z.object({
   // stroops; preserve the exact integer string and reject ambiguous values.
   STELLAR_RELAYER_MAX_FEE_STROOPS: z
     .string()
-    .refine((v) => /^[1-9]\d{0,9}$/.test(v) && BigInt(v) <= 4_294_967_295n, {
+    .refine((v) => /^[1-9]\d{0,9}$/.test(v) && BigInt(v) <= 4294967295n, {
       message: "must be a positive canonical uint32 stroop string",
     })
     .optional(),
-
   // Paid TTL maintenance is opt-in; otherwise the cron only inventories.
   STELLAR_TTL_MAINTENANCE_ENABLED: z
     .enum(["true", "false"])
@@ -340,13 +304,11 @@ const EnvSchema = z.object({
     .string()
     .regex(/^[1-9]\d{0,18}$/)
     .optional(),
-
   // ---- Off-ramp treasury ----
   // Relayer-controlled holding address that cash_out nodes sink USDC to before
   // the off-chain PDAX leg. When unset, the relayer address is used.
   OFFRAMP_TREASURY_ADDRESS_TESTNET: optionalString,
   OFFRAMP_TREASURY_ADDRESS_MAINNET: optionalString,
-
   // PDAX deposit address and memo/tag for native XLM off-ramp deposits.
   // When set, process-offramp-jobs will forward XLM from the treasury to PDAX
   // before executing the trade. Required only for the XLM -> PHP flow.
@@ -354,16 +316,13 @@ const EnvSchema = z.object({
   OFFRAMP_PDAX_DEPOSIT_ADDRESS_MAINNET: optionalStellarAddress,
   OFFRAMP_PDAX_DEPOSIT_MEMO_TESTNET: optionalNumericMemo,
   OFFRAMP_PDAX_DEPOSIT_MEMO_MAINNET: optionalNumericMemo,
-
   CRON_SECRET: optionalString,
-
   // How many proxies in front of the app append to X-Forwarded-For; see
   // clientIp() in lib/rate-limit.ts. 0 = the edge replaces the header (Railway).
   // Invalid values make env() throw rather than guess: this decides which address
   // every per-IP limit sees.
   TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(0),
   SENTRY_DSN: optionalString,
-
   // ---- Analytics (PostHog) ----
   // The key is public (it ships in the browser bundle) and is set only on the
   // beta service; unset means every capture is a no-op. APP_ENV tags events so
@@ -379,16 +338,13 @@ const EnvSchema = z.object({
     .refine((u) => new URL(u).protocol === "https:", "POSTHOG_HOST must use https")
     .default("https://us.i.posthog.com"),
   HIBP_CHECK_ENABLED: boolish,
-
   AI_API_KEY: optionalString,
   AI_BASE_URL: optionalString,
   AI_MODEL: optionalString,
-
   GROQ_API_KEY: optionalString,
   GROQ_MODEL: optionalString,
   GROQ_STT_MODEL_PRIMARY: optionalString,
   GROQ_STT_MODEL_FALLBACK: optionalString,
-
   // ---- Off-ramp provider (e.g. PDAX) ----
   OFFRAMP_PROVIDER: z.enum(["pdax", "mock"]).default("mock"),
   OFFRAMP_API_URL: optionalString,
@@ -405,17 +361,15 @@ const EnvSchema = z.object({
   OFFRAMP_ASSET_CODE: optionalString,
   OFFRAMP_NETWORK: optionalString,
   OFFRAMP_CHANNEL: optionalString,
-
   // ---- Cron tuning ----
   PAYROLL_MAX_CATCHUP_PER_RUN: optionalPositiveInt(5),
   SUBSCRIPTION_MAX_CATCHUP_PER_RUN: optionalPositiveInt(5),
   OFFRAMP_BATCH_SIZE: optionalPositiveInt(50),
   OFFRAMP_MAX_RETRY_ATTEMPTS: optionalNonNegativeInt(3),
-  OFFRAMP_JOB_LEASE_MS: optionalPositiveInt(600_000),
+  OFFRAMP_JOB_LEASE_MS: optionalPositiveInt(600000),
   OFFRAMP_JOB_CONCURRENCY: optionalPositiveInt(3),
   CONTRACT_READ_CACHE_ENABLED: boolishDefault(true),
   CONTRACT_READ_CACHE_TTL_SECONDS: optionalPositiveInt(300),
-
   // ---- Email (Resend) ----
   // Optional in dev — when RESEND_API_KEY is unset, `lib/mail.ts` logs the
   // payload to stdout instead of delivering. Required in prod.
@@ -428,12 +382,9 @@ const EnvSchema = z.object({
     .optional()
     .transform((v) => (v && v.length > 0 ? v : "Paiflow <onboarding@resend.dev>")),
 });
-
 type EnvShape = z.infer<typeof EnvSchema>;
-
 /** Every variable name EnvSchema knows about; tests/unit/setup.ts scrubs these. */
 export const ENV_VAR_NAMES = EnvSchema.keyof().options;
-
 /** Explicit report files are authoritative and never fall back to another database/key. */
 export function loadSnapshotEnvironment(filename: string | undefined, requirePosthog: boolean) {
   if (filename === undefined) {
@@ -481,7 +432,6 @@ export function loadSnapshotEnvironment(filename: string | undefined, requirePos
     );
   if (requirePosthog) posthogReportConfig();
 }
-
 /** Local reporting credentials. Parse only these fields, without requiring app auth settings. */
 export function posthogReportConfig() {
   const parsed = z
@@ -507,9 +457,7 @@ export function posthogReportConfig() {
     apiHost: parsed.data.POSTHOG_API_HOST,
   };
 }
-
 let cached: EnvShape | null = null;
-
 export function env(): EnvShape {
   if (cached) return cached;
   const parsed = EnvSchema.safeParse(process.env);
@@ -532,7 +480,7 @@ export function env(): EnvShape {
         "Deployment reconciliation rehearsal flow and expiry must be configured together",
       );
     }
-    if (Date.parse(rehearsalUntil) > Date.now() + 60 * 60_000) {
+    if (Date.parse(rehearsalUntil) > Date.now() + 60 * 60000) {
       throw new Error("Deployment reconciliation rehearsal expiry must be at most one hour ahead");
     }
   }
@@ -548,7 +496,6 @@ export function env(): EnvShape {
         "The public sandbox is testnet-only.",
     );
   }
-
   // Same reasoning as the sandbox guard above: the demo endpoint hands a live
   // API credential to anyone who asks. On mainnet that is an anonymous party
   // holding a token against a real-money deployment, so it is refused outright.
@@ -567,11 +514,9 @@ export function env(): EnvShape {
         "  - DEMO_API_DEPLOYMENT_ID: required when DEMO_API_ENABLED=true.",
     );
   }
-
   if (!!parsed.data.STELLAR_TTL_FEE_BUDGET_NAME !== !!parsed.data.STELLAR_TTL_FEE_BUDGET_STROOPS) {
     throw new Error("TTL fee budget name and limit must be configured together");
   }
-
   if (
     parsed.data.GOOGLE_AUTH_ENABLED &&
     (!parsed.data.GOOGLE_CLIENT_ID || !parsed.data.GOOGLE_CLIENT_SECRET)
@@ -600,7 +545,6 @@ export function env(): EnvShape {
   cached = parsed.data;
   return cached;
 }
-
 /**
  * The deployment the public demo API hands tokens out for, or null when the
  * demo is off. The AND of flag and id lives here so no route can read the id
@@ -611,9 +555,7 @@ export function demoApiDeploymentId(): string | null {
   if (!e.DEMO_API_ENABLED) return null;
   return e.DEMO_API_DEPLOYMENT_ID ?? null;
 }
-
 export type StellarNetworkName = "testnet" | "mainnet";
-
 function assertActiveNetwork(network: StellarNetworkName): void {
   const active = env().STELLAR_NETWORK;
   if (active !== network) {
@@ -623,7 +565,6 @@ function assertActiveNetwork(network: StellarNetworkName): void {
     );
   }
 }
-
 export function stellarRpcUrl(network?: StellarNetworkName): string {
   const e = env();
   if (network) assertActiveNetwork(network);
@@ -631,7 +572,6 @@ export function stellarRpcUrl(network?: StellarNetworkName): string {
     ? e.STELLAR_SOROBAN_RPC_URL_MAINNET
     : e.STELLAR_SOROBAN_RPC_URL_TESTNET;
 }
-
 export function stellarHorizonUrl(network?: StellarNetworkName): string {
   const e = env();
   if (network) assertActiveNetwork(network);
@@ -639,7 +579,6 @@ export function stellarHorizonUrl(network?: StellarNetworkName): string {
     ? e.STELLAR_HORIZON_URL_MAINNET
     : e.STELLAR_HORIZON_URL_TESTNET;
 }
-
 export function stellarPassphrase(network?: StellarNetworkName): string {
   const e = env();
   if (network) assertActiveNetwork(network);
@@ -647,7 +586,6 @@ export function stellarPassphrase(network?: StellarNetworkName): string {
     ? e.STELLAR_NETWORK_PASSPHRASE_MAINNET
     : e.STELLAR_NETWORK_PASSPHRASE_TESTNET;
 }
-
 // Friendbot is testnet-only. Throws on mainnet so callers fail fast.
 export function stellarFriendbotUrl(): string {
   const e = env();
@@ -659,7 +597,6 @@ export function stellarFriendbotUrl(): string {
   }
   return e.STELLAR_FRIENDBOT_URL;
 }
-
 export function stellarWasmHash(
   kind:
     | "SPLITTER"
@@ -678,10 +615,6 @@ export function stellarWasmHash(
     | "YIELD"
     | "PAYER"
     | "PAYROLL"
-    | "PAYER_DEV"
-    | "SPLITTER_DEV"
-    | "SUBSCRIPTION_DEV"
-    | "CASH_OUT_DEV"
     | "CASH_OUT",
 ): string | undefined {
   const e = env();
@@ -689,36 +622,29 @@ export function stellarWasmHash(
   const key = `STELLAR_WASM_HASH_${kind}_${suffix}` as keyof EnvShape;
   return e[key] as string | undefined;
 }
-
 export const SWAP_ROUTER_UNSET_MESSAGE =
   "Swap flows need the Soroswap router address. Set STELLAR_SOROSWAP_ROUTER_TESTNET (or _MAINNET) in the environment.";
-
 export function soroswapRouterAddress(): string | undefined {
   const e = env();
   const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
   const key = `STELLAR_SOROSWAP_ROUTER_${suffix}` as keyof EnvShape;
   return e[key] as string | undefined;
 }
-
 export function stellarFactoryAddress(): string | undefined {
   const e = env();
   const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
   const key = `STELLAR_FACTORY_ADDRESS_${suffix}` as keyof EnvShape;
   return e[key] as string | undefined;
 }
-
 export function stellarRelayerSecretKey(): string | undefined {
   return env().STELLAR_RELAYER_SECRET_KEY;
 }
-
 export function stellarRelayerChannelCount(): number {
   return env().STELLAR_RELAYER_CHANNELS;
 }
-
 export function stellarRelayerAddress(): string | undefined {
   return env().STELLAR_RELAYER_ADDRESS;
 }
-
 /**
  * Address that cash_out nodes sink USDC to before the off-chain PDAX leg.
  * Falls back to the relayer address when no dedicated treasury is configured.
@@ -729,7 +655,6 @@ export function offRampTreasuryAddress(): string | undefined {
   const key = `OFFRAMP_TREASURY_ADDRESS_${suffix}` as keyof EnvShape;
   return (e[key] as string | undefined) ?? e.STELLAR_RELAYER_ADDRESS;
 }
-
 /**
  * PDAX deposit credentials for native XLM off-ramps. When both address and memo
  * are configured, the cron will deposit job XLM from the treasury to PDAX before
@@ -748,7 +673,6 @@ export function offRampPdaxDepositConfig(): {
     memo: e[memoKey] as string | undefined,
   };
 }
-
 /** Script-only config: no app database/auth configuration is needed. */
 export function hackathonOrganiserSecret(): string {
   if (process.env.STELLAR_NETWORK !== "testnet")

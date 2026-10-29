@@ -1,31 +1,20 @@
 "use client";
-
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { FlowNode } from "@/lib/flows/schema";
 import { assetLabel, isAction } from "@/lib/flows/schema";
 import { formatAmount } from "@/lib/utils";
-
-function isApiFillAddress(addr: string): boolean {
-  return addr === "PENDING:__api__";
-}
-
 type ActionNodeData = {
   node: FlowNode;
   label: string;
-  isMutable?: boolean;
 };
-
 function ActionNodeComponent({ data, selected }: NodeProps) {
   const d = data as ActionNodeData;
   const n = d.node;
   if (!isAction(n) || n.type === "email_notify") return null;
-  const isMutable = d.isMutable === true;
-
   let icon: string;
   let title: string;
   let detail: string;
-
   if (n.type === "hold") {
     icon = "lock";
     title = "Hold";
@@ -38,14 +27,7 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
     icon = "payments";
     title = "Pay";
     const label = assetLabel(n.config.asset);
-    const recipientDeferred = isApiFillAddress(n.config.recipient);
-    if (recipientDeferred && n.config.fillValueViaApi) {
-      detail = `${label} · payment via API`;
-    } else if (recipientDeferred) {
-      detail = `${label} · recipient via API`;
-    } else if (n.config.fillValueViaApi) {
-      detail = `${label} · value via API`;
-    } else if (n.config.fullAmount) {
+    if (n.config.fullAmount) {
       detail = `Full amount ${label}`;
     } else if (n.config.mode === "percentage" && n.config.percentage !== undefined) {
       detail = `${n.config.percentage}% ${label}`;
@@ -68,25 +50,17 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
   } else {
     icon = "call_split";
     title = "Split";
-    if (isMutable && n.config.recipients.length === 0) {
-      detail = "recipients via API";
-    } else {
+    {
       detail = `${n.config.recipients.length} recipient${n.config.recipients.length === 1 ? "" : "s"}`;
     }
   }
-
   const canHaveChildren =
     n.type !== "cash_out" && n.type !== "hold" && n.type !== "return_to_owner";
-
   return (
     <div
       className={`glass-panel relative min-w-[200px] rounded-xl ${selected ? "neon-glow" : ""}`}
       style={{
-        borderColor: selected
-          ? undefined
-          : isMutable
-            ? "rgba(255, 186, 32, 0.55)"
-            : "rgba(255, 177, 196, 0.3)",
+        borderColor: selected ? undefined : "rgba(255, 177, 196, 0.3)",
       }}
     >
       <Handle
@@ -100,22 +74,7 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
           <span className="material-symbols-outlined text-[14px]">{icon}</span>
           ACTION
         </span>
-        {isMutable ? (
-          <span
-            className="inline-flex items-center gap-0.5 rounded border px-1 py-px font-mono text-[7px] leading-none font-medium tracking-wider"
-            style={{
-              borderColor: "rgba(255, 186, 32, 0.35)",
-              backgroundColor: "rgba(255, 186, 32, 0.10)",
-              color: "#ffba20",
-            }}
-            title="Deploys as a mutable _DEV contract — fill recipient/amount via the API after deploy"
-          >
-            <span className="material-symbols-outlined text-[9px]">tune</span>
-            DEV
-          </span>
-        ) : (
-          <span className="status-dot-live h-1.5 w-1.5" />
-        )}
+        {<span className="status-dot-live h-1.5 w-1.5" />}
       </div>
 
       <div className="px-3 py-2.5">
@@ -135,5 +94,4 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
     </div>
   );
 }
-
 export default memo(ActionNodeComponent);

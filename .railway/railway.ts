@@ -84,7 +84,6 @@ export default defineRailway((ctx) => {
       DEMO_API_DEPLOYMENT_ID: preserve(),
       DEMO_API_ENABLED: preserve(),
       FEATURE_AI_ASSISTANT_ENABLED: preserve(),
-      FEATURE_DEV_MODE_ENABLED: preserve(),
       FEATURE_OFFRAMP_ENABLED: preserve(),
       FEATURE_ORACLE_CONDITION_ENABLED: preserve(),
       FEATURE_PAYROLL_ENABLED: preserve(),

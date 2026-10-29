@@ -33,11 +33,8 @@ import { requireCronSecret } from "@/lib/auth/cron-secret";
 import { CRON_LIMITS } from "@/lib/cron/config";
 import { cronDeadline } from "@/lib/cron/deadline";
 import { withCronLease } from "@/lib/cron/lease";
-
 export const dynamic = "force-dynamic";
-
 const MAX_CATCHUP_PER_RUN = Math.min(50, Math.max(1, env().SUBSCRIPTION_MAX_CATCHUP_PER_RUN));
-
 type ResultDetail = {
   deploymentId: string;
   contractAddress: string;
@@ -45,7 +42,6 @@ type ResultDetail = {
   error?: string;
   chargedCount?: number;
 };
-
 /**
  * A failure the tenant's own relayer endpoint caused. Marked by class, never by
  * message text: `isExpectedSkipError` below matches on substrings, so a relayer
@@ -53,15 +49,13 @@ type ResultDetail = {
  * reclassified as an expected skip (#581).
  */
 class RelayerResponseError extends Error {}
-
 function chargeDate(seconds: bigint): Date {
   // u64 timestamps can exceed JS/DB date bounds. Never persist an Invalid Date.
-  if (seconds < 0n || seconds > 8_640_000_000_000n) {
+  if (seconds < 0n || seconds > 8640000000000n) {
     throw new AppError("UPSTREAM_RPC", "Subscription schedule timestamp is out of range");
   }
   return new Date(Number(seconds) * 1000);
 }
-
 /**
  * The tenant's relayer response is untrusted input — `signedXdr` is handed
  * straight to the submitter — so it gets a schema like any other boundary.
@@ -76,7 +70,6 @@ const RelayerChargeResponseSchema = z.object({
     .optional(),
   signedXdr: z.string().max(65536).optional(),
 });
-
 /** `res.json()` on a non-JSON body throws a SyntaxError carrying a fragment of
  * that body, which must not reach a reported message. */
 async function readJson(res: Response): Promise<unknown> {
@@ -86,7 +79,6 @@ async function readJson(res: Response): Promise<unknown> {
     return null;
   }
 }
-
 /** We deliberately never read a failed relayer response, but an undrained body
  * keeps undici's socket out of the pool until GC, and this loop runs up to
  * MAX_CATCHUP_PER_RUN times per deployment. */
@@ -97,7 +89,6 @@ async function discardBody(res: Response): Promise<void> {
     // Already consumed or errored; nothing to release.
   }
 }
-
 function isExpectedSkipError(message: string): boolean {
   return (
     message.includes("AlreadyCancelled") ||
@@ -109,11 +100,9 @@ function isExpectedSkipError(message: string): boolean {
     message.includes("Insufficient")
   );
 }
-
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     requireCronSecret(req);
-
     if (!stellarRelayerAddress()) {
       return NextResponse.json({
         data: {
@@ -126,7 +115,6 @@ export async function POST(req: NextRequest) {
         },
       });
     }
-
     const lease = await withCronLease(
       "auto-charge-subscriptions",
       CRON_LIMITS.autoChargeSubscriptions.ttlMs,
@@ -149,7 +137,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ data: lease.value });
   });
 }
-
 async function runSubscriptionCharges() {
   const now = new Date();
   const deadline = cronDeadline(CRON_LIMITS.autoChargeSubscriptions.budgetMs);
@@ -180,18 +167,11 @@ async function runSubscriptionCharges() {
     orderBy: [{ nextChargeAt: { sort: "asc", nulls: "last" } }, { id: "asc" }],
     take: CRON_LIMITS.autoChargeSubscriptions.batch,
   });
-
   const results: ResultDetail[] = [];
   let platformCharged = 0;
   let userCharged = 0;
-
   const readCache = createContractReadCache();
   const readSubscriptionState = createSubscriptionStateReader();
-  // Only cache reads with no on-chain setters. NOTE: SUBSCRIPTION_DEV exposes
-  // set_amount/update_subscriber, so for dev deployments these cached readers
-  // are bypassed below in favor of fresh reads. Every subscription variant
-  // exposes set_relayer, so the relayer is never cached (a stale value would
-  // defeat the relayer-mismatch safety check right after a rotation).
   const readSubscriptionAmountPerPeriodCached = readCache(
     "subscription:amountPerPeriod",
     readSubscriptionAmountPerPeriod,
@@ -207,7 +187,6 @@ async function runSubscriptionCharges() {
     readSubscriptionAsset,
     (addr) => addr,
   );
-
   for (const d of deployments) {
     if (deadline.expired()) {
       truncated = true;
@@ -229,12 +208,7 @@ async function runSubscriptionCharges() {
         contractAddress: string;
         templateKind: string;
       }> | null;
-      // Match the immutable SUBSCRIPTION trigger and the mutable
-      // SUBSCRIPTION_DEV variant used by dev-mode subscriptions. PAYROLL flows
-      // are handled exclusively by the auto-charge-payroll cron.
-      const node = pipeline?.find(
-        (n) => n.templateKind === "SUBSCRIPTION" || n.templateKind === "SUBSCRIPTION_DEV",
-      );
+      const node = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
       const contractAddress = node?.contractAddress;
       if (!contractAddress) {
         results.push({
@@ -245,7 +219,6 @@ async function runSubscriptionCharges() {
         });
         return;
       }
-
       let chargedCount = 0;
       try {
         const state =
@@ -259,7 +232,6 @@ async function runSubscriptionCharges() {
               readSubscriptionIsCancelled(contractAddress),
               readSubscriptionNextChargeAt(contractAddress),
             ]);
-
         if (cancelled) {
           await refreshSubscriptionSchedule(d.id, d.chargeScheduleRevision, {
             chargeRelayerMode: ChargeRelayerMode.MANUAL,
@@ -268,7 +240,6 @@ async function runSubscriptionCharges() {
           results.push({ deploymentId: d.id, contractAddress, status: "skipped" });
           return;
         }
-
         if (d.chargeEndAt && d.chargeEndAt <= now) {
           await refreshSubscriptionSchedule(d.id, d.chargeScheduleRevision, {
             chargeRelayerMode: ChargeRelayerMode.MANUAL,
@@ -277,7 +248,6 @@ async function runSubscriptionCharges() {
           results.push({ deploymentId: d.id, contractAddress, status: "skipped" });
           return;
         }
-
         // Verify the on-chain schedule is actually due.
         const nextChargeDate = chargeDate(nextChargeAt);
         if (nextChargeDate > now) {
@@ -287,24 +257,14 @@ async function runSubscriptionCharges() {
           results.push({ deploymentId: d.id, contractAddress, status: "skipped" });
           return;
         }
-
-        // SUBSCRIPTION_DEV amount/subscriber are admin-mutable on-chain, so
-        // read them fresh for dev deployments; the immutable SUBSCRIPTION
-        // variant can use the cached readers.
-        const isDevSubscription = node.templateKind === "SUBSCRIPTION_DEV";
         const [amountPerPeriod, subscriber, asset, onChainRelayer] = state
           ? ([BigInt(state.amountPerPeriod), state.subscriber, state.asset, state.relayer] as const)
           : await Promise.all([
-              isDevSubscription
-                ? readSubscriptionAmountPerPeriod(contractAddress)
-                : readSubscriptionAmountPerPeriodCached(contractAddress),
-              isDevSubscription
-                ? readSubscriptionSubscriber(contractAddress)
-                : readSubscriptionSubscriberCached(contractAddress),
+              readSubscriptionAmountPerPeriodCached(contractAddress),
+              readSubscriptionSubscriberCached(contractAddress),
               readSubscriptionAssetCached(contractAddress),
               readSubscriptionRelayer(contractAddress),
             ]);
-
         const allowance = await readTokenAllowance({
           tokenContractAddress: asset,
           owner: subscriber,
@@ -319,7 +279,6 @@ async function runSubscriptionCharges() {
           });
           return;
         }
-
         // Verify the configured relayer matches the on-chain relayer so we
         // don't waste fees on transactions that will fail auth.
         const expectedRelayer =
@@ -335,14 +294,12 @@ async function runSubscriptionCharges() {
           });
           return;
         }
-
         if (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM) {
           for (let i = 0; i < MAX_CATCHUP_PER_RUN; i++) {
             const submit = await withRelayerChannel(async (channel) => {
               const { xdr } = await prepareSubscriptionChargeByRelayerTx(contractAddress, channel);
               return submitSubscriptionChargeByRelayerTx(xdr);
             });
-
             if (submit.status === "SUCCESS") {
               chargedCount++;
               platformCharged++;
@@ -363,7 +320,6 @@ async function runSubscriptionCharges() {
             });
             return;
           }
-
           // Check the stored URL again here, not just where it was saved: DNS
           // can change under us, and rows predate this check (#581). Once per
           // deployment rather than once per iteration, because undici pools the
@@ -404,13 +360,11 @@ async function runSubscriptionCharges() {
             });
             return;
           }
-
           for (let i = 0; i < MAX_CATCHUP_PER_RUN; i++) {
             const { xdr: unsignedXdr } = await prepareSubscriptionChargeByRelayerUnsigned({
               contractAddress,
               relayerAddress: d.chargeRelayerAddress,
             });
-
             const headers: Record<string, string> = {
               "Content-Type": "application/json",
               "Accept-Encoding": "identity",
@@ -418,7 +372,6 @@ async function runSubscriptionCharges() {
             if (d.chargeRelayerToken) {
               headers["Authorization"] = `Bearer ${d.chargeRelayerToken}`;
             }
-
             let response: Response;
             try {
               await beforeExternalRelayer();
@@ -453,7 +406,6 @@ async function runSubscriptionCharges() {
                   : "User relayer could not be reached",
               );
             }
-
             // Node fetch can start decompressing before returning headers; this
             // protocol check requires the patched runtime and cannot replace it (#1109).
             const encoding = response.headers.get("content-encoding")?.trim().toLowerCase();
@@ -463,7 +415,6 @@ async function runSubscriptionCharges() {
                 "User relayer returned an unsupported response encoding",
               );
             }
-
             // Nothing upstream-controlled may reach an Error message: it is
             // reported and logged, and on the payroll side persisted for the
             // owner to read back, which is what made this a read-capable SSRF
@@ -482,13 +433,11 @@ async function runSubscriptionCharges() {
               );
               throw new RelayerResponseError(`User relayer returned ${response.status}`);
             }
-
             const parsed = RelayerChargeResponseSchema.safeParse(await readJson(response));
             if (!parsed.success) {
               throw new RelayerResponseError("User relayer returned an unrecognised payload");
             }
             const body = parsed.data;
-
             if (body.status === "SUCCESS" && body.txHash) {
               await observeExternalRelayer(body.txHash);
               chargedCount++;
@@ -504,12 +453,10 @@ async function runSubscriptionCharges() {
             } else {
               throw new RelayerResponseError("User relayer did not return a success payload");
             }
-
             const next = await readSubscriptionNextChargeAt(contractAddress);
             if (chargeDate(next) > new Date()) break;
           }
         }
-
         if (chargedCount > 0) {
           const next = await readSubscriptionNextChargeAt(contractAddress);
           // Historical charge time is projected from committed charge events by
@@ -581,7 +528,6 @@ async function runSubscriptionCharges() {
       }
     });
   }
-
   return {
     platformCharged,
     userCharged,
@@ -592,5 +538,4 @@ async function runSubscriptionCharges() {
     truncated,
   };
 }
-
 export const GET = POST;

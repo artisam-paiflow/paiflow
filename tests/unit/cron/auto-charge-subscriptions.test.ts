@@ -23,12 +23,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ChargeRelayerMode } from "@prisma/client";
 import { observeExternalRelayer } from "@/lib/deployments/service-work";
 import { log } from "@/lib/log";
-
 const { mockDb, mockEnv, mockRelayer, mockInvoke, mockClient, mockUrlGuard } = vi.hoisted(() => {
   const mockDb = {
     deployment: { findMany: vi.fn(), updateMany: vi.fn() },
   };
-
   const mockEnv = {
     CRON_SECRET: "cron-secret",
     STELLAR_NETWORK: "testnet",
@@ -37,7 +35,6 @@ const { mockDb, mockEnv, mockRelayer, mockInvoke, mockClient, mockUrlGuard } = v
     CONTRACT_READ_CACHE_ENABLED: false,
     CONTRACT_READ_CACHE_TTL_SECONDS: 300,
   };
-
   const mockRelayer = {
     prepareSubscriptionChargeByRelayerTx: vi.fn(),
     submitSubscriptionChargeByRelayerTx: vi.fn(),
@@ -50,17 +47,14 @@ const { mockDb, mockEnv, mockRelayer, mockInvoke, mockClient, mockUrlGuard } = v
     readTokenAllowance: vi.fn(),
     readSubscriptionState: vi.fn(),
   };
-
   const mockInvoke = { prepareSubscriptionChargeByRelayerUnsigned: vi.fn() };
   const mockClient = {
     withRelayerLock: vi.fn((fn: () => unknown) => fn()),
     TENANT_RELAYER_TIMEOUT_MS: 25,
   };
   const mockUrlGuard = { assertPublicUrl: vi.fn() };
-
   return { mockDb, mockEnv, mockRelayer, mockInvoke, mockClient, mockUrlGuard };
 });
-
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/env", () => ({
   env: () => mockEnv,
@@ -85,11 +79,9 @@ vi.mock("@/lib/net/assert-public-url", async () => {
   );
   return { ...actual, assertPublicUrl: mockUrlGuard.assertPublicUrl };
 });
-
 import { UnsafeUrlError } from "@/lib/net/assert-public-url";
 import { POST } from "@/app/api/cron/auto-charge-subscriptions/route";
 import { AppError } from "@/lib/errors";
-
 function makeRequest(secret?: string) {
   return {
     headers: {
@@ -97,11 +89,9 @@ function makeRequest(secret?: string) {
     },
   } as unknown as import("next/server").NextRequest;
 }
-
 const now = new Date();
 const duePast = Math.floor(now.getTime() / 1000) - 60;
 const TX_HASH_OK = "b".repeat(64);
-
 function primeUserDeployment(chargeRelayerUrl = "https://relayer.example.com/charge") {
   mockDb.deployment.findMany.mockResolvedValue([
     {
@@ -120,15 +110,14 @@ function primeUserDeployment(chargeRelayerUrl = "https://relayer.example.com/cha
   // Due once, then satisfied, so a successful charge leaves the catch-up loop.
   mockRelayer.readSubscriptionNextChargeAt
     .mockResolvedValueOnce(BigInt(duePast))
-    .mockResolvedValue(BigInt(duePast + 86_400));
-  mockRelayer.readSubscriptionAmountPerPeriod.mockResolvedValue(1_000_000n);
+    .mockResolvedValue(BigInt(duePast + 86400));
+  mockRelayer.readSubscriptionAmountPerPeriod.mockResolvedValue(1000000n);
   mockRelayer.readSubscriptionSubscriber.mockResolvedValue("GSUBSCRIBER");
   mockRelayer.readSubscriptionAsset.mockResolvedValue("CASSET");
   mockRelayer.readSubscriptionRelayer.mockResolvedValue("GTENANT");
-  mockRelayer.readTokenAllowance.mockResolvedValue(10_000_000n);
+  mockRelayer.readTokenAllowance.mockResolvedValue(10000000n);
   mockInvoke.prepareSubscriptionChargeByRelayerUnsigned.mockResolvedValue({ xdr: "unsigned-xdr" });
 }
-
 function stubFetch(response: Response | (() => Response)) {
   const fetchMock = vi.fn((_url: URL, _init: RequestInit) =>
     Promise.resolve(typeof response === "function" ? response() : response),
@@ -136,7 +125,6 @@ function stubFetch(response: Response | (() => Response)) {
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }
-
 describe("auto-charge-subscriptions tenant relayer guards", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -144,26 +132,21 @@ describe("auto-charge-subscriptions tenant relayer guards", () => {
     mockRelayer.readSubscriptionState.mockResolvedValue(null);
     mockUrlGuard.assertPublicUrl.mockImplementation(async (raw: string) => new URL(raw));
   });
-
   afterEach(() => {
     vi.unstubAllGlobals();
   });
-
   it("charges through the validated URL", async () => {
     primeUserDeployment();
     const fetchMock = stubFetch(
       () =>
         new Response(JSON.stringify({ status: "SUCCESS", txHash: TX_HASH_OK }), { status: 200 }),
     );
-
     const json = await (await POST(makeRequest("cron-secret"))).json();
-
     expect(mockUrlGuard.assertPublicUrl).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[0]).toBeInstanceOf(URL);
     expect(json.data.userCharged).toBe(1);
   });
-
   // These are application-behavior tests: mocked fetch does not exercise
   // Undici's decoder, which may run before fetch returns on an unpatched runtime.
   it.each([undefined, "", "identity", "IDENTITY"])(
@@ -178,9 +161,7 @@ describe("auto-charge-subscriptions tenant relayer guards", () => {
           headers,
         }),
       );
-
       const json = await (await POST(makeRequest("cron-secret"))).json();
-
       const requestHeaders = new Headers(fetchMock.mock.calls[0]?.[1].headers);
       expect(requestHeaders.get("accept-encoding")).toBe("identity");
       expect(requestHeaders.get("content-type")).toBe("application/json");
@@ -189,7 +170,6 @@ describe("auto-charge-subscriptions tenant relayer guards", () => {
       expect(json.data.failed).toBe(0);
     },
   );
-
   it.each([
     ["br", false],
     ["gzip", false],
@@ -206,9 +186,7 @@ describe("auto-charge-subscriptions tenant relayer guards", () => {
     const cancel = vi.spyOn(response.body!, "cancel");
     if (cancelFails) cancel.mockRejectedValue(new Error("SECRET_CANCEL_ERROR"));
     const fetchMock = stubFetch(response);
-
     const json = await (await POST(makeRequest("cron-secret"))).json();
-
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(cancel).toHaveBeenCalledTimes(1);
     expect(readJson).not.toHaveBeenCalled();
@@ -224,7 +202,6 @@ describe("auto-charge-subscriptions tenant relayer guards", () => {
     expect(reported).not.toContain("SECRET_CANCEL_ERROR");
     expect(reported).not.toContain("benign-placeholder");
   });
-
   it("fails the charge and stops scheduling when the URL is refused for good", async () => {
     primeUserDeployment("https://redis.railway.internal/charge");
     const fetchMock = stubFetch(new Response("", { status: 200 }));
@@ -236,9 +213,7 @@ describe("auto-charge-subscriptions tenant relayer guards", () => {
         "chargeRelayerUrl",
       ),
     );
-
     const json = await (await POST(makeRequest("cron-secret"))).json();
-
     expect(fetchMock).not.toHaveBeenCalled();
     expect(json.data.details[0]).toMatchObject({ status: "failed" });
     expect(json.data.skipped).toBe(0);
@@ -248,7 +223,6 @@ describe("auto-charge-subscriptions tenant relayer guards", () => {
       }),
     );
   });
-
   it("keeps the schedule when the refusal is only a DNS hiccup", async () => {
     primeUserDeployment();
     stubFetch(new Response("", { status: 200 }));
@@ -260,13 +234,10 @@ describe("auto-charge-subscriptions tenant relayer guards", () => {
         "chargeRelayerUrl",
       ),
     );
-
     const json = await (await POST(makeRequest("cron-secret"))).json();
-
     expect(json.data.details[0]).toMatchObject({ status: "failed" });
     expect(mockDb.deployment.updateMany).not.toHaveBeenCalled();
   });
-
   it("refuses a redirect instead of following it", async () => {
     primeUserDeployment();
     const fetchMock = stubFetch(
@@ -275,23 +246,18 @@ describe("auto-charge-subscriptions tenant relayer guards", () => {
         headers: { location: "http://169.254.169.254/latest/meta-data/" },
       }),
     );
-
     const json = await (await POST(makeRequest("cron-secret"))).json();
-
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ redirect: "manual" });
     expect(json.data.details[0]).toMatchObject({ status: "failed" });
     expect(JSON.stringify(json)).not.toContain("169.254");
   });
-
   it("never reports the upstream response body", async () => {
     primeUserDeployment();
     stubFetch(
       new Response("root:x:0:0:root:/root:/bin/bash\nSECRET_TOKEN=abc123", { status: 500 }),
     );
-
     const json = await (await POST(makeRequest("cron-secret"))).json();
-
     expect(json.data.details[0]).toMatchObject({
       status: "failed",
       error: "User relayer returned 500",
@@ -299,7 +265,6 @@ describe("auto-charge-subscriptions tenant relayer guards", () => {
     expect(JSON.stringify(json)).not.toContain("SECRET_TOKEN");
     expect(JSON.stringify(json)).not.toContain("root:x:0:0");
   });
-
   it("does not let a tenant payload reclassify the failure as an expected skip", async () => {
     primeUserDeployment();
     stubFetch(
@@ -307,9 +272,7 @@ describe("auto-charge-subscriptions tenant relayer guards", () => {
         status: 200,
       }),
     );
-
     const json = await (await POST(makeRequest("cron-secret"))).json();
-
     expect(json.data.details[0]).toMatchObject({
       status: "failed",
       error: "User relayer did not return a success payload",
@@ -317,7 +280,6 @@ describe("auto-charge-subscriptions tenant relayer guards", () => {
     expect(json.data.skipped).toBe(0);
   });
 });
-
 describe("auto-charge-subscriptions state preflight", () => {
   function prime(templateKind = "SUBSCRIPTION", combined = true) {
     primeUserDeployment();
@@ -382,36 +344,13 @@ describe("auto-charge-subscriptions state preflight", () => {
       data: { nextChargeAt: new Date((duePast + 86400) * 1000) },
     });
   });
-  it.each(["SUBSCRIPTION", "SUBSCRIPTION_DEV"])(
-    "keeps %s legacy reads functional",
-    async (kind) => {
-      prime(kind, false);
-      const json = await (await POST(makeRequest("cron-secret"))).json();
-      expect(json.data.platformCharged).toBe(1);
-      expect(mockRelayer.readSubscriptionAmountPerPeriod).toHaveBeenCalledTimes(1);
-      expect(mockRelayer.readSubscriptionSubscriber).toHaveBeenCalledTimes(1);
-      expect(mockRelayer.readSubscriptionNextChargeAt).toHaveBeenCalledTimes(3);
-      if (kind === "SUBSCRIPTION_DEV")
-        expect(mockRelayer.readSubscriptionState).not.toHaveBeenCalled();
-    },
-  );
-  it("reads Dev amount and subscriber fresh even with immutable cache enabled", async () => {
-    prime("SUBSCRIPTION_DEV", false);
-    mockEnv.CONTRACT_READ_CACHE_ENABLED = true;
-    const rows = await mockDb.deployment.findMany();
-    mockDb.deployment.findMany.mockResolvedValue([...rows, { ...rows[0], id: "dep-sub-2" }]);
-    mockRelayer.readSubscriptionNextChargeAt
-      .mockReset()
-      .mockResolvedValueOnce(BigInt(duePast))
-      .mockResolvedValueOnce(BigInt(duePast + 86400))
-      .mockResolvedValueOnce(BigInt(duePast + 86400))
-      .mockResolvedValueOnce(BigInt(duePast))
-      .mockResolvedValue(BigInt(duePast + 86400));
+  it.each(["SUBSCRIPTION"])("keeps %s legacy reads functional", async (kind) => {
+    prime(kind, false);
     const json = await (await POST(makeRequest("cron-secret"))).json();
-    expect(json.data.platformCharged).toBe(2);
-    expect(mockRelayer.readSubscriptionAmountPerPeriod).toHaveBeenCalledTimes(2);
-    expect(mockRelayer.readSubscriptionSubscriber).toHaveBeenCalledTimes(2);
-    expect(mockRelayer.readSubscriptionAsset).toHaveBeenCalledTimes(1);
+    expect(json.data.platformCharged).toBe(1);
+    expect(mockRelayer.readSubscriptionAmountPerPeriod).toHaveBeenCalledTimes(1);
+    expect(mockRelayer.readSubscriptionSubscriber).toHaveBeenCalledTimes(1);
+    expect(mockRelayer.readSubscriptionNextChargeAt).toHaveBeenCalledTimes(3);
   });
   it.each(["cancelled", "expired", "not-due", "allowance", "relayer", "invalid-date"])(
     "preserves %s outcome without signing",

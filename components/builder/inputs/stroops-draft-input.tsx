@@ -13,21 +13,6 @@ type Props = Omit<
   onChange: (stroops: string) => void;
 };
 
-/**
- * A bare amount `<input>` for the hand-rolled config panels, which keep their
- * own label, echo and error markup (#615). It holds what the user typed as a
- * draft, so `1.` survives the re-render on the way to `1.5` instead of being
- * reformatted to `1` and turning `1.5` into `15`.
- *
- * Every accepted draft commits the same stroop string `tokenAmountToStroops`
- * committed for it before, including `"0"` for a cleared field, so saved flows
- * and `to-params` see no change. What differs is refusal: a character other
- * than a digit or one `.`, or an eighth decimal, is refused with a note rather
- * than stripped or truncated (`1,5` used to commit 15).
- *
- * Migrated panels use AmountInput with commit="draft" and the same hook.
- * This bare control remains for the excluded legacy and Dev/fiat forms.
- */
 export function StroopsDraftInput({ value, onChange, ...rest }: Props) {
   const { inputProps, note } = useStroopsDraft(value, onChange);
   const noteId = useId();

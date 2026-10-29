@@ -4,13 +4,10 @@ import { integerNumber } from "@/lib/validation/number";
 import { formatStroops } from "@/lib/utils";
 import { bpsSchema, TOTAL_BPS } from "./primitives";
 import { looksLikeSecretSeed, SECRET_SEED_MESSAGE } from "./secret-seed";
-
 const PENDING_PREFIX = "PENDING:";
-
 export function isPendingAddress(addr: string): boolean {
   return addr.startsWith(PENDING_PREFIX);
 }
-
 export function getPendingLabels(graph: FlowGraph): string[] {
   const labels = new Set<string>();
   for (const n of graph.nodes) {
@@ -53,11 +50,9 @@ export function getPendingLabels(graph: FlowGraph): string[] {
   }
   return [...labels];
 }
-
 function validAddress(s: string): boolean {
   return StrKey.isValidEd25519PublicKey(s) || isPendingAddress(s);
 }
-
 export const AssetSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("native") }),
   z.object({
@@ -81,7 +76,6 @@ export const AssetSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 export type Asset = z.infer<typeof AssetSchema>;
-
 // Any string parses. The builder autosaves the whole graph on every keystroke,
 // so a half-typed or cleared address has to save, or every PATCH 422s and the
 // user's other edits are lost with it (#588). `lib/flows/address-rules.ts`
@@ -97,7 +91,6 @@ export type Asset = z.infer<typeof AssetSchema>;
 const notSecretSeed = (s: string) => !looksLikeSecretSeed(s);
 const stellarAccount = z.string().refine(notSecretSeed, SECRET_SEED_MESSAGE);
 const splitRecipientAddress = z.string().refine(notSecretSeed, SECRET_SEED_MESSAGE);
-
 export const OnReceiveTrigger = z.object({
   id: z.string().min(1),
   type: z.literal("on_receive"),
@@ -109,7 +102,6 @@ export const OnReceiveTrigger = z.object({
       .optional(),
   }),
 });
-
 export const OnScheduleTrigger = z.object({
   id: z.string().min(1),
   type: z.literal("on_schedule"),
@@ -124,7 +116,6 @@ export const OnScheduleTrigger = z.object({
     retrieveAllowed: z.boolean().optional(),
   }),
 });
-
 export const WebhookTrigger = z.object({
   id: z.string().min(1),
   type: z.literal("webhook"),
@@ -133,7 +124,6 @@ export const WebhookTrigger = z.object({
     relayer: stellarAccount,
   }),
 });
-
 export const Web2WebhookTrigger = z.object({
   id: z.string().min(1),
   type: z.literal("web2_webhook"),
@@ -141,7 +131,6 @@ export const Web2WebhookTrigger = z.object({
     asset: AssetSchema,
   }),
 });
-
 export const SubscriptionTrigger = z.object({
   id: z.string().min(1),
   type: z.literal("subscription"),
@@ -155,7 +144,6 @@ export const SubscriptionTrigger = z.object({
     occurrences: integerNumber().positive().optional(),
   }),
 });
-
 export const PayrollTrigger = z.object({
   id: z.string().min(1),
   type: z.literal("payroll"),
@@ -166,10 +154,8 @@ export const PayrollTrigger = z.object({
     intervalUnit: z.enum(["minute", "hour", "day", "week", "month"]).default("week"),
     endsAt: z.string().datetime().optional(),
     occurrences: integerNumber().positive().optional(),
-    fillScheduleViaApi: z.boolean().default(false),
   }),
 });
-
 export const OracleTrigger = z.object({
   id: z.string().min(1),
   type: z.literal("oracle"),
@@ -178,7 +164,6 @@ export const OracleTrigger = z.object({
     threshold: z.string().regex(/^\d+$/, "Threshold must be a positive integer string"),
   }),
 });
-
 export const PayAction = z.object({
   id: z.string().min(1),
   type: z.literal("pay"),
@@ -194,7 +179,6 @@ export const PayAction = z.object({
         .optional(),
       percentage: z.number().min(0).max(100).optional(),
       fullAmount: z.boolean().default(false),
-      fillValueViaApi: z.boolean().optional(),
       // Fiat payout: at deploy time a cash-out contract is generated for the
       // recipient and the payer sinks their share to the off-ramp treasury.
       payoutMode: z.enum(["crypto", "fiat"]).optional(),
@@ -206,24 +190,19 @@ export const PayAction = z.object({
     // what a half-edited panel autosaves (a cleared field, a fresh switch to
     // percentage), so it must parse or every save 422s and the edit is lost
     // (#583). `validateFlow` refuses it before deploy, with a field error.
-    .refine((c) => c.fullAmount || c.fillValueViaApi || c.mode !== undefined, {
+    .refine((c) => c.fullAmount || c.mode !== undefined, {
       message: "Invalid pay configuration for the selected mode",
     }),
 });
-
 const SplitRecipientBase = z.object({
   address: splitRecipientAddress,
   email: z.string().max(254).optional(),
   label: z.string().max(64).optional(),
   payoutMode: z.enum(["crypto", "fiat"]).optional(),
-  // Bank destination for fiat payouts. Required at design time for immutable
-  // payroll flows; optional for dev-mode / mutable flows that configure them
-  // via API after deploy.
   accountName: z.string().optional(),
   accountNumber: z.string().optional(),
   bankCode: z.string().optional(),
 });
-
 export const SplitRecipient = z.discriminatedUnion("mode", [
   SplitRecipientBase.extend({
     mode: z.literal("percentage"),
@@ -241,7 +220,6 @@ export const SplitRecipient = z.discriminatedUnion("mode", [
 // the recipient's address field instead: a contract is only ever a fiat
 // (cash-out) destination.
 export type SplitRecipient = z.infer<typeof SplitRecipient>;
-
 // Backward compatibility: older flows stored recipients with `bps` but no
 // `mode`. Hydrate them to percentage mode before parsing.
 function hydrateSplitRecipient(r: unknown): unknown {
@@ -250,7 +228,6 @@ function hydrateSplitRecipient(r: unknown): unknown {
   }
   return r;
 }
-
 export function migrateFlowGraph(raw: unknown): unknown {
   if (!raw || typeof raw !== "object") return raw;
   const graph = raw as {
@@ -318,7 +295,12 @@ export function migrateFlowGraph(raw: unknown): unknown {
             ? { ...original, config: copyEmail(original.config, "recipient") }
             : value;
         if (!n || typeof n !== "object") return n;
-        const node = n as { type?: unknown; config?: { recipients?: unknown[] } };
+        const node = n as {
+          type?: unknown;
+          config?: {
+            recipients?: unknown[];
+          };
+        };
         if (node.type === "split" && Array.isArray(node.config?.recipients)) {
           return {
             ...node,
@@ -331,7 +313,10 @@ export function migrateFlowGraph(raw: unknown): unknown {
           };
         }
         if (node.type === "subscription" && node.config && typeof node.config === "object") {
-          const cfg = node.config as { intervalAmount?: unknown; intervalUnit?: unknown };
+          const cfg = node.config as {
+            intervalAmount?: unknown;
+            intervalUnit?: unknown;
+          };
           if (cfg.intervalAmount === undefined || cfg.intervalUnit === undefined) {
             return {
               ...node,
@@ -344,23 +329,12 @@ export function migrateFlowGraph(raw: unknown): unknown {
           }
         }
         if (node.type === "payroll" && node.config && typeof node.config === "object") {
-          const cfg = node.config as { fillScheduleViaApi?: unknown };
-          if (cfg.fillScheduleViaApi === undefined) {
-            return {
-              ...node,
-              config: {
-                ...node.config,
-                fillScheduleViaApi: false,
-              },
-            };
-          }
         }
         if (node.type === "pay" && node.config && typeof node.config === "object") {
-          const cfg = node.config as { fillValueViaApi?: unknown; mode?: unknown };
+          const cfg = node.config as {
+            mode?: unknown;
+          };
           const updates: Record<string, unknown> = {};
-          if (cfg.fillValueViaApi === undefined) {
-            updates.fillValueViaApi = false;
-          }
           if (cfg.mode === undefined) {
             updates.mode = "fixed";
           }
@@ -378,7 +352,6 @@ export function migrateFlowGraph(raw: unknown): unknown {
       }),
   };
 }
-
 export function splitTotalFixedStroops(recipients: SplitRecipient[]): string | null {
   let total = 0n;
   let hasFixed = false;
@@ -390,15 +363,11 @@ export function splitTotalFixedStroops(recipients: SplitRecipient[]): string | n
   }
   return hasFixed ? total.toString() : null;
 }
-
 export const SplitAction = z.object({
   id: z.string().min(1),
   type: z.literal("split"),
   config: z.object({
     asset: AssetSchema,
-    // Empty recipients are allowed in dev mode; "fill via API after deploy" uses
-    // an empty list as its sentinel. validateFlow enforces at least one recipient
-    // for non-dev flows.
     recipients: z.array(SplitRecipient).min(0).max(20),
     amountPerIntervalStroops: z
       .string()
@@ -411,7 +380,6 @@ export const SplitAction = z.object({
       .optional(),
   }),
 });
-
 /**
  * Soroswap's pool fee is 0.3%. A max slippage below it can never be met, because
  * the contract's minimum is the spot price less this bound while the router's
@@ -419,7 +387,6 @@ export const SplitAction = z.object({
  * schema keeps `min(0)` so graphs saved before that rule still parse.
  */
 export const MIN_SWAP_SLIPPAGE_BPS = 30;
-
 export const SwapAction = z.object({
   id: z.string().min(1),
   type: z.literal("swap"),
@@ -434,10 +401,9 @@ export const SwapAction = z.object({
     // any integer-valued float, and anything past 2^64 makes nativeToScVal throw
     // a plain Error, surfacing from /api/deployments/prepare as a 500 instead of
     // a 422. A day is already far beyond a useful router deadline.
-    deadlineSecs: z.number().int().min(1).max(86_400).default(300),
+    deadlineSecs: z.number().int().min(1).max(86400).default(300),
   }),
 });
-
 export const YieldAction = z.object({
   id: z.string().min(1),
   type: z.literal("yield"),
@@ -446,7 +412,6 @@ export const YieldAction = z.object({
     vault: stellarAccount,
   }),
 });
-
 export const EmailRecipient = z.object({
   address: z.string().min(1),
   // Not `.email()`: the config panel autosaves every keystroke, so a half-typed
@@ -454,14 +419,11 @@ export const EmailRecipient = z.object({
   email: z.string(),
 });
 export type EmailRecipient = z.infer<typeof EmailRecipient>;
-
 const EmailAddress = z.string().email();
-
 /** The check `EmailRecipient.email` used to make at parse time, for validateFlow. */
 export function isValidEmailAddress(s: string): boolean {
   return EmailAddress.safeParse(s).success;
 }
-
 export const EmailNotifyAction = z.object({
   id: z.string().min(1),
   type: z.literal("email_notify"),
@@ -476,7 +438,6 @@ export const EmailNotifyAction = z.object({
     body: z.string().default(""),
   }),
 });
-
 export const CashOutAction = z.object({
   id: z.string().min(1),
   type: z.literal("cash_out"),
@@ -487,7 +448,6 @@ export const CashOutAction = z.object({
     bankCode: z.string().default(""),
   }),
 });
-
 export const ConditionLogic = z.object({
   id: z.string().min(1),
   type: z.literal("condition"),
@@ -517,7 +477,6 @@ export const ConditionLogic = z.object({
     }),
   ]),
 });
-
 export const HoldAction = z.object({
   id: z.string().min(1),
   type: z.literal("hold"),
@@ -528,7 +487,6 @@ export const ReturnToOwnerAction = z.object({
   type: z.literal("return_to_owner"),
   config: z.object({}).strict(),
 });
-
 export const FlowNodeSchema = z.discriminatedUnion("type", [
   OnReceiveTrigger,
   OnScheduleTrigger,
@@ -548,7 +506,6 @@ export const FlowNodeSchema = z.discriminatedUnion("type", [
   ReturnToOwnerAction,
 ]);
 export type FlowNode = z.infer<typeof FlowNodeSchema>;
-
 /**
  * Which output of a condition an edge leaves from: `"true"` when the condition
  * is met, `"false"` when it is not. The value doubles as the React Flow source
@@ -566,7 +523,6 @@ export type FlowNode = z.infer<typeof FlowNodeSchema>;
  */
 export const EdgeBranchSchema = z.enum(["true", "false"]);
 export type EdgeBranch = z.infer<typeof EdgeBranchSchema>;
-
 export const FlowEdgeSchema = z.object({
   id: z.string().min(1),
   source: z.string().min(1),
@@ -574,12 +530,6 @@ export const FlowEdgeSchema = z.object({
   sourceHandle: EdgeBranchSchema.optional(),
 });
 export type FlowEdge = z.infer<typeof FlowEdgeSchema>;
-
-// Sender KYC profile (mirrors the SenderSchema in
-// app/api/deployments/[id]/offramp-sender/route.ts). PDAX requires this for
-// every fiat payout. Collected at flow-design time in the builder so non-dev
-// flows with fiat payouts can deploy with it already on file; dev flows may
-// still leave it blank and submit it post-deploy via the API.
 export const SenderKycSchema = z.object({
   firstName: z.string().min(1).max(128),
   middleName: z.string().max(128).optional(),
@@ -600,21 +550,14 @@ export const SenderKycSchema = z.object({
   email: z.string().email().max(256).optional(),
 });
 export type SenderKyc = z.infer<typeof SenderKycSchema>;
-
 export const NotifySchema = z.object({
   mode: z.enum(["off", "every_transaction", "shortfalls_only"]),
   // Drafts autosave on each keystroke; validity is checked separately.
   sendTo: z.string().max(254),
 });
-
 const FlowGraphShape = z.object({
   nodes: z.array(FlowNodeSchema).max(40),
   edges: z.array(FlowEdgeSchema).max(80),
-  // Dev mode turns this flow into a parameterized one: nodes with a dev
-  // counterpart (pay, split, subscription) deploy as their mutable `_DEV`
-  // variant whose recipients / amounts / schedule can be left blank at design
-  // time and filled or changed later via the API.
-  devMode: z.boolean().optional(),
   notify: NotifySchema.optional(),
   senderKyc: SenderKycSchema.optional(),
   // Canvas layout: node positions keyed by node id. UI-only state — ignored by
@@ -625,17 +568,14 @@ const FlowGraphShape = z.object({
 // Every stored-graph reader and save boundary converts legacy nodes before parsing.
 export const FlowGraphSchema = z.preprocess(migrateFlowGraph, FlowGraphShape);
 export type FlowGraph = z.infer<typeof FlowGraphSchema>;
-
 export const FlowSaveSchema = z.object({
   name: z.string().min(1).max(80),
   description: z.string().max(280).optional(),
   graph: FlowGraphSchema,
 });
 export type FlowSaveInput = z.infer<typeof FlowSaveSchema>;
-
 export const FlowPatchSchema = FlowSaveSchema.partial();
 export type FlowPatchInput = z.infer<typeof FlowPatchSchema>;
-
 export type TriggerNode =
   | z.infer<typeof OnReceiveTrigger>
   | z.infer<typeof OnScheduleTrigger>
@@ -654,12 +594,12 @@ export type ActionNode =
   | z.infer<typeof HoldAction>
   | z.infer<typeof ReturnToOwnerAction>;
 export type LogicNode = z.infer<typeof ConditionLogic>;
-
 export type ContractActionNode = Exclude<
   ActionNode,
-  { type: "email_notify" | "hold" | "return_to_owner" }
+  {
+    type: "email_notify" | "hold" | "return_to_owner";
+  }
 >;
-
 export function isTrigger(n: FlowNode): n is TriggerNode {
   return (
     n.type === "on_receive" ||
@@ -695,17 +635,14 @@ export function isContractAction(n: FlowNode): n is ContractActionNode {
 export function isLogic(n: FlowNode): n is LogicNode {
   return n.type === "condition";
 }
-
 export function assetLabel(asset: Asset): string {
   if (asset.kind === "native") return "XLM";
   if (asset.kind === "known") return asset.symbol;
   return asset.code;
 }
-
 export function stroopsToDisplay(stroops: string, asset: Asset): string {
   return `${formatStroops(stroops)} ${assetLabel(asset)}`;
 }
-
 export function tokenAmountToStroops(amount: string): string {
   const cleaned = amount.replace(/[^0-9.]/g, "");
   const parts = cleaned.split(".");
@@ -714,17 +651,13 @@ export function tokenAmountToStroops(amount: string): string {
   const combined = (whole + frac).replace(/^0+/, "") || "0";
   return combined;
 }
-
 export { TOTAL_BPS };
-
 export function bpsToPct(bps: number): number {
   return bps / 100;
 }
-
 export function pctToBps(pct: number): number {
   return Math.round(pct * 100);
 }
-
 /**
  * The amount a subscription pulls each period. When the subscription feeds a
  * split whose recipients are all fixed amounts, the pull is DERIVED as the
@@ -735,13 +668,26 @@ export function pctToBps(pct: number): number {
  */
 export function subscriptionAmountPerPeriodStroops(graph: FlowGraph): string | undefined {
   const trigger = graph.nodes.find(
-    (n): n is Extract<FlowNode, { type: "subscription" }> => n.type === "subscription",
+    (
+      n,
+    ): n is Extract<
+      FlowNode,
+      {
+        type: "subscription";
+      }
+    > => n.type === "subscription",
   );
   if (!trigger) return undefined;
-
   const downstreamId = graph.edges.find((e) => e.source === trigger.id)?.target;
   const action = graph.nodes.find(
-    (n): n is Extract<FlowNode, { type: "split" }> => n.type === "split" && n.id === downstreamId,
+    (
+      n,
+    ): n is Extract<
+      FlowNode,
+      {
+        type: "split";
+      }
+    > => n.type === "split" && n.id === downstreamId,
   );
   if (action) {
     const recipients = action.config.recipients;
@@ -753,7 +699,6 @@ export function subscriptionAmountPerPeriodStroops(graph: FlowGraph): string | u
   }
   return trigger.config.amountPerPeriodStroops;
 }
-
 export function sourceAmountStroops(graph: FlowGraph): string | undefined {
   const trigger = graph.nodes.find(isTrigger);
   if (trigger?.type === "on_receive" && trigger.config.minAmountStroops) {
@@ -767,7 +712,14 @@ export function sourceAmountStroops(graph: FlowGraph): string | undefined {
   }
   if (trigger?.type === "payroll") {
     const action = graph.nodes.find(
-      (n): n is Extract<FlowNode, { type: "split" }> => n.type === "split",
+      (
+        n,
+      ): n is Extract<
+        FlowNode,
+        {
+          type: "split";
+        }
+      > => n.type === "split",
     );
     if (action) {
       const total = action.config.recipients
@@ -785,7 +737,6 @@ export function sourceAmountStroops(graph: FlowGraph): string | undefined {
   }
   return undefined;
 }
-
 /** Strip personal notification data before handing a graph to a public surface. */
 export function withoutNotificationEmails(graph: FlowGraph): FlowGraph {
   const { notify: _notify, senderKyc, ...rest } = graph;
@@ -815,7 +766,6 @@ export function withoutNotificationEmails(graph: FlowGraph): FlowGraph {
       }),
   };
 }
-
 export function sandboxNotifications(graph: FlowGraph): FlowGraph {
   return { ...withoutNotificationEmails(graph), notify: { mode: "off", sendTo: "" } };
 }

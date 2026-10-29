@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FlowGraphSchema, type FlowGraph } from "@/lib/flows/schema";
 import { STARTER_GRAPH } from "@/lib/flows/starter";
-
 const mocks = vi.hoisted(() => ({
   deployment: vi.fn(),
   events: vi.fn(),
@@ -20,7 +19,6 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/mail", () => ({ sendEmail: mocks.send }));
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: mocks.limit }));
 import { sendEmailNotificationsForTransactions } from "@/lib/flow-notifications";
-
 let graph: FlowGraph;
 let rows: ReturnType<typeof event>[];
 const claims = new Set<string>();
@@ -77,17 +75,24 @@ beforeEach(() => {
     ],
   }));
   mocks.events.mockImplementation(async () => rows);
-  mocks.create.mockImplementation(async ({ data }: { data: { deliveryKey: string }[] }) => {
-    const key = data[0]!.deliveryKey;
-    if (claims.has(key)) return { count: 0 };
-    claims.add(key);
-    return { count: 1 };
-  });
+  mocks.create.mockImplementation(
+    async ({
+      data,
+    }: {
+      data: {
+        deliveryKey: string;
+      }[];
+    }) => {
+      const key = data[0]!.deliveryKey;
+      if (claims.has(key)) return { count: 0 };
+      claims.add(key);
+      return { count: 1 };
+    },
+  );
   mocks.update.mockResolvedValue({});
   mocks.send.mockResolvedValue({ ok: true, id: "mail" });
   mocks.limit.mockResolvedValue({ ok: true, shared: true });
 });
-
 describe("persisted transaction notifications", () => {
   it("sends one owner summary for a multi-payout transaction", async () => {
     await dispatch();

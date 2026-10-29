@@ -11,7 +11,6 @@ import {
   assertDeploymentService,
 } from "@/lib/deployments/service-work";
 import { db } from "@/lib/db";
-
 const mocks = vi.hoisted(() => ({
   rpc: { getTransaction: vi.fn(), getLatestLedger: vi.fn() },
   coverage: vi.fn(),
@@ -26,7 +25,6 @@ vi.mock("@/lib/stellar/events", () => ({
 vi.mock("@/lib/stellar/deploy", () => ({ extractCreatedContract: mocks.extract }));
 vi.mock("@/lib/redis", () => ({ redis: () => null }));
 vi.mock("@/lib/auth", () => ({ requireSession: mocks.session }));
-
 import { requestRetirement, reconcileRetirement } from "@/lib/deployments/retirement";
 import { getDueOffRampJobs } from "@/lib/offramp/jobs";
 import { getDueStreamerJobs } from "@/lib/streamer-jobs";
@@ -34,7 +32,6 @@ import { createCashOutJob } from "@/lib/offramp/jobs";
 import { POST as retire, GET as progress } from "@/app/api/deployments/[id]/retirement/route";
 import { POST as verify } from "@/app/api/admin/deployments/[id]/settlement/route";
 import { DELETE as deleteFlow } from "@/app/api/flows/[id]/route";
-
 let ownerId: string;
 let flowId: string;
 const suffix = randomUUID();
@@ -47,7 +44,12 @@ function gate() {
   });
   return { wait, open };
 }
-async function deployment(data: { status?: "DRAFT" | "CONFIRMED"; contractAddress?: string } = {}) {
+async function deployment(
+  data: {
+    status?: "DRAFT" | "CONFIRMED";
+    contractAddress?: string;
+  } = {},
+) {
   const d = await db.deployment.create({
     data: { flowId, ownerId, network: "testnet", graphSnapshot: {}, paramsSnapshot: {}, ...data },
   });

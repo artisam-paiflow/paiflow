@@ -8,7 +8,6 @@ import {
   implementationIssues,
   implementationLabel,
 } from "@/lib/flows/implementation";
-
 const ACCOUNT = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const OTHER = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
 const asset = { kind: "native" } as const;
@@ -19,120 +18,13 @@ const pay = {
 };
 const receive = { id: "t", type: "on_receive", config: { asset } };
 const edge = { id: "tp", source: "t", target: "p" };
-const graph = (trigger = receive, action = pay, devMode = false): FlowGraph =>
-  FlowGraphSchema.parse({ nodes: [trigger, action], edges: [edge], devMode });
-
+const graph = (trigger = receive, action = pay): FlowGraph =>
+  FlowGraphSchema.parse({ nodes: [trigger, action], edges: [edge] });
 describe("compiler implementation bindings", () => {
-  it("preserves Dev Split's existing external fiat contract recipient without inventing a child", () => {
-    const external = "CAEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQTD2L";
-    const g = FlowGraphSchema.parse({
-      devMode: true,
-      nodes: [
-        receive,
-        {
-          id: "p",
-          type: "split",
-          config: {
-            asset,
-            recipients: [{ address: external, payoutMode: "fiat", mode: "percentage", bps: 10000 }],
-          },
-        },
-      ],
-      edges: [edge],
-    });
-    const pipeline = flowToPipeline(g);
-    expect(validateFlow(g).ok).toBe(true);
-    expect(pipeline.map((node) => node.templateKind)).toEqual(["DEPOSIT_TRIGGER", "SPLITTER_DEV"]);
-    expect(pipeline[1]?.params).toMatchObject({
-      recipients: [{ address: external, isCashOut: true }],
-    });
-    expect(implementationIssues(g, pipeline)).toEqual([]);
-  });
-
-  it.each([false, true])("records separate Receive and Pay implementations (dev=%s)", (devMode) => {
-    const g = graph(receive, pay, devMode);
-    const pipeline = flowToPipeline(g);
-    expect(pipeline.map((n) => n.implementation)).toEqual([
-      { version: 1, bindings: [{ blockId: "t", blockType: "on_receive", role: "trigger" }] },
-      { version: 1, bindings: [{ blockId: "p", blockType: "pay", role: "action" }] },
-    ]);
-    expect(implementationIssues(g, pipeline)).toEqual([]);
-    expect(pipeline[1]?.templateKind).toBe(devMode ? "PAYER_DEV" : "PAYER");
-  });
-
-  it.each([false, true])("records Schedule and Split sharing one Streamer (dev=%s)", (devMode) => {
-    const g = FlowGraphSchema.parse({
-      devMode,
-      nodes: [
-        {
-          id: "t",
-          type: "on_schedule",
-          config: { startsAt: "2030-01-01T00:00:00Z", intervalAmount: 1, intervalUnit: "hour" },
-        },
-        {
-          id: "p",
-          type: "split",
-          config: {
-            asset,
-            amountPerIntervalStroops: "100",
-            recipients: [{ address: ACCOUNT, mode: "percentage", bps: 10000 }],
-          },
-        },
-      ],
-      edges: [edge],
-    });
-    const pipeline = flowToPipeline(g);
-    expect(pipeline).toHaveLength(1);
-    expect(pipeline[0]).toMatchObject({
-      nodeId: "p",
-      templateKind: "STREAMER",
-      implementation: {
-        version: 1,
-        bindings: [
-          { blockId: "t", blockType: "on_schedule", role: "schedule" },
-          { blockId: "p", blockType: "split", role: "distribution" },
-        ],
-      },
-    });
-    expect(implementationIssues(g, pipeline)).toEqual([]);
-    expect(implementationLabel(pipeline[0]?.implementation)).toBe("Schedule + Split");
-    expect(validateFlow(g).ok).toBe(true);
-  });
-
-  it.each([false, true])("records Subscription and Pay separately (dev=%s)", (devMode) => {
-    const g = FlowGraphSchema.parse({
-      devMode,
-      nodes: [
-        {
-          id: "t",
-          type: "subscription",
-          config: {
-            asset,
-            subscriber: ACCOUNT,
-            amountPerPeriodStroops: "100",
-            intervalAmount: 1,
-            intervalUnit: "day",
-          },
-        },
-        pay,
-      ],
-      edges: [edge],
-    });
-    const pipeline = flowToPipeline(g);
-    expect(pipeline[0]?.implementation?.bindings).toEqual([
-      { blockId: "t", blockType: "subscription", role: "trigger" },
-    ]);
-    expect(pipeline[1]?.implementation?.bindings).toEqual([
-      { blockId: "p", blockType: "pay", role: "action" },
-    ]);
-    expect(implementationIssues(g, pipeline)).toEqual([]);
-  });
-
   it.each(["time_before", "time_after"])(
     "records Hold as a strict-lock rule for %s and preserves Return's visual type",
     (kind) => {
       const g = FlowGraphSchema.parse({
-        devMode: true,
         nodes: [
           receive,
           { id: "c", type: "condition", config: { kind, at: "2030-01-01T00:00:00Z" } },
@@ -175,7 +67,6 @@ describe("compiler implementation bindings", () => {
       );
     },
   );
-
   it("records an oracle condition's absorbed distribution without inventing a Pay contract", () => {
     const g = FlowGraphSchema.parse({
       nodes: [
@@ -200,7 +91,6 @@ describe("compiler implementation bindings", () => {
     ]);
     expect(implementationIssues(g, pipeline)).toEqual([]);
   });
-
   it.each(["PENDING:bank", "CAEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQTD2L"])(
     "records generated payout origins when the fiat input is %s",
     (fiatInput) => {
@@ -284,7 +174,6 @@ describe("compiler implementation bindings", () => {
       ).toBe(true);
     },
   );
-
   it("refuses coverage gaps for actions, triggers and conditions", () => {
     const g = graph();
     const pipeline = flowToPipeline(g);
@@ -300,7 +189,6 @@ describe("compiler implementation bindings", () => {
     expect(implementationIssues(dropped, pipeline).map((i) => i.nodeId)).toContain("c");
   });
 });
-
 describe("mapping boundary validation", () => {
   const binding = { blockId: "p", blockType: "pay", role: "action" };
   it.each([

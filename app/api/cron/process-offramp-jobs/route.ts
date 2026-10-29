@@ -19,17 +19,14 @@ import {
   getTreasuryBalance,
   refundFromTreasury,
   depositNativeToProvider,
-} from "@/lib/stellar/dev-mutate";
+} from "@/lib/stellar/treasury";
 import { assetContractId } from "@/lib/stellar/assets";
 import type { FlowGraph } from "@/lib/flows/schema";
 import type { Asset } from "@/lib/flows/schema";
 import { checkHardLimits } from "@/lib/flows/limits";
 import { requireCronSecret } from "@/lib/auth/cron-secret";
-
 export const dynamic = "force-dynamic";
-
 const MAX_RETRY_ATTEMPTS = Math.max(0, env().OFFRAMP_MAX_RETRY_ATTEMPTS);
-
 function isRetryableError(err: unknown): boolean {
   if (err instanceof Error && err.name === "AbortError") return true;
   const message = err instanceof Error ? err.message : String(err);
@@ -44,7 +41,6 @@ function isRetryableError(err: unknown): boolean {
     message.includes("aborted")
   );
 }
-
 function isKnownSkipError(message: string): boolean {
   return (
     message.includes("No bank details") ||
@@ -54,7 +50,6 @@ function isKnownSkipError(message: string): boolean {
     message.includes("Invalid account")
   );
 }
-
 /**
  * True if the failure happened before the PDAX trade executed.
  * At that point the crypto is still in the treasury and can be refunded to the
@@ -64,18 +59,19 @@ function isKnownSkipError(message: string): boolean {
 function isPreTradeFailure(status: OffRampPayoutJobStatus): boolean {
   return status === OffRampPayoutJobStatus.PENDING || status === OffRampPayoutJobStatus.RUNNING;
 }
-
 type PipelineNodeSnapshot = {
   nodeId: string;
   contractAddress: string;
   templateKind: string;
 };
-
 function resolveJobAsset(job: {
   source: OffRampJobSource;
   sourceAddress: string | null;
   employeeId: string | null;
-  deployment: { graphSnapshot: Prisma.JsonValue; pipelineSnapshot: Prisma.JsonValue } | null;
+  deployment: {
+    graphSnapshot: Prisma.JsonValue;
+    pipelineSnapshot: Prisma.JsonValue;
+  } | null;
 }): Asset | null {
   const deployment = job.deployment;
   if (!deployment) return null;
@@ -85,29 +81,21 @@ function resolveJobAsset(job: {
     if (!job.sourceAddress) return null;
     const asset = resolveCashOutAsset(graph, pipeline, job.sourceAddress);
     if (asset) return asset;
-    // Dev-mode payrolls generate CASH_OUT_DEV sinks on demand. Those sinks are
-    // not (yet) reflected as `cash_out` nodes in the saved graph snapshot, but
-    // the job was created from an employee payout so the payroll asset is the
-    // correct off-ramp asset.
     if (job.employeeId) return resolvePayrollAsset(graph);
     return null;
   }
   return resolvePayrollAsset(graph);
 }
-
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     requireCronSecret(req);
-
     const jobs = await getDueOffRampJobs(db, Math.min(100, Math.max(1, env().OFFRAMP_BATCH_SIZE)));
     const results: Array<{
       jobId: string;
       status: "quoted" | "traded" | "initiated" | "completed" | "skipped" | "failed" | "cancelled";
       error?: string;
     }> = [];
-
     const limit = createLimiter(Math.min(10, Math.max(1, env().OFFRAMP_JOB_CONCURRENCY)));
-
     // In-run reservation of treasury balances per asset contract. For
     // non-native CASH_OUT assets the trade is funded from the provider's
     // pre-funded balance, so the treasury is NOT debited at trade time and the
@@ -126,7 +114,6 @@ export async function POST(req: NextRequest) {
       if (next <= 0n) reservedTreasuryByAsset.delete(id);
       else reservedTreasuryByAsset.set(id, next);
     };
-
     await Promise.allSettled(
       jobs.map((job) =>
         limit(async () => {
@@ -137,7 +124,6 @@ export async function POST(req: NextRequest) {
             async () => {
               admitted = true;
               const deployment = job.deployment;
-
               if (!deployment || deployment.serviceState === "RETIRED") {
                 await cancelPendingOffRampJobs(db, job.deploymentId);
                 results.push({
@@ -147,7 +133,6 @@ export async function POST(req: NextRequest) {
                 });
                 return;
               }
-
               // Atomically claim the job for this run. For a PENDING job this flips it
               // to RUNNING once; for a stale RUNNING job (a crashed/timed-out prior run
               // whose lease expired) this re-claims it via an exact-lease CAS. Either
@@ -162,10 +147,8 @@ export async function POST(req: NextRequest) {
                 });
                 return;
               }
-
               let asset: Asset | null = null;
               let currentStatus: OffRampPayoutJobStatus = OffRampPayoutJobStatus.RUNNING;
-
               try {
                 const bankDetail = {
                   accountName: job.bankAccountName,
@@ -175,24 +158,19 @@ export async function POST(req: NextRequest) {
                 if (!bankDetail.accountName || !bankDetail.accountNumber || !bankDetail.bankCode) {
                   throw new Error("No bank details for off-ramp job");
                 }
-
                 const sender = deployment.offRampSenderProfile;
                 if (!sender) {
                   throw new Error("No sender profile for deployment");
                 }
-
                 asset = resolveJobAsset(job);
                 if (!asset) {
                   throw new Error("Could not resolve off-ramp asset from deployment graph");
                 }
-
                 const hardLimitIssue = checkHardLimits(asset, job.amountStroops);
                 if (hardLimitIssue) {
                   throw new Error(hardLimitIssue.message);
                 }
-
                 const provider = getOffRampProvider();
-
                 // For cash-out jobs, confirm the on-chain sink actually reached the
                 // treasury before we quote or trade. If the splitter did not invoke
                 // receive_and_forward, the treasury will be underfunded and the trade
@@ -211,7 +189,6 @@ export async function POST(req: NextRequest) {
                   // concurrent same-asset jobs can't double-count one deposit (see
                   // reservedTreasuryByAsset above).
                   reservedTreasuryByAsset.set(assetId, reserved + jobAmount);
-
                   if (asset.kind === "native") {
                     // Native XLM deposits are enabled in PDAX UAT. Forward the job
                     // amount from the relayer treasury to the PDAX deposit address with
@@ -325,20 +302,17 @@ export async function POST(req: NextRequest) {
                     );
                   }
                 }
-
                 // 1. Firm quote: crypto -> PHP
                 const quote = await provider.quote({
                   amountStroops: job.amountStroops,
                   assetCode: offRampAssetCode(asset),
                   fiatCurrency: offRampFiatCurrency(),
                 });
-
                 await rescheduleOffRampJob(db, job.id, {
                   status: OffRampPayoutJobStatus.QUOTED,
                   providerQuote: quote as unknown as Prisma.InputJsonValue,
                 });
                 currentStatus = OffRampPayoutJobStatus.QUOTED;
-
                 // 2. Execute trade using the firm quote.
                 const trade = await provider.executeTrade({
                   quoteId: quote.id,
@@ -348,17 +322,14 @@ export async function POST(req: NextRequest) {
                   jobId: job.id,
                   jobSource: job.source,
                 });
-
                 if (trade.status === "FAILED") {
                   throw new Error("Provider trade returned FAILED");
                 }
-
                 await rescheduleOffRampJob(db, job.id, {
                   status: OffRampPayoutJobStatus.INITIATED,
                   tradeRef: trade.providerRef,
                 });
                 currentStatus = OffRampPayoutJobStatus.INITIATED;
-
                 // 3. Withdraw PHP to beneficiary bank account.
                 const payout = await provider.initiatePayout({
                   tradeRef: trade.providerRef,
@@ -392,22 +363,18 @@ export async function POST(req: NextRequest) {
                   },
                   jobSource: job.source,
                 });
-
                 if (payout.status === "FAILED") {
                   throw new Error("Provider payout returned FAILED");
                 }
-
                 const terminalStatus =
                   payout.status === "COMPLETED"
                     ? OffRampPayoutJobStatus.COMPLETED
                     : OffRampPayoutJobStatus.INITIATED;
-
                 await rescheduleOffRampJob(db, job.id, {
                   status: terminalStatus,
                   providerRef: payout.providerRef,
                   completedAt: payout.status === "COMPLETED" ? new Date() : null,
                 });
-
                 log.info(
                   {
                     jobId: job.id,
@@ -419,7 +386,6 @@ export async function POST(req: NextRequest) {
                   },
                   "Off-ramp payout initiated",
                 );
-
                 const resultStatus =
                   payout.status === "COMPLETED" ? "completed" : ("initiated" as const);
                 results.push({
@@ -428,7 +394,6 @@ export async function POST(req: NextRequest) {
                 });
               } catch (err) {
                 const message = err instanceof Error ? err.message : String(err);
-
                 if (isKnownSkipError(message)) {
                   await rescheduleOffRampJob(db, job.id, {
                     status: OffRampPayoutJobStatus.CANCELLED,
@@ -440,7 +405,7 @@ export async function POST(req: NextRequest) {
                     error: message,
                   });
                 } else if (isRetryableError(err) && job.attemptCount < MAX_RETRY_ATTEMPTS) {
-                  const retryAt = new Date(Date.now() + 60_000 * (job.attemptCount + 1));
+                  const retryAt = new Date(Date.now() + 60000 * (job.attemptCount + 1));
                   await db.offRampPayoutJob.update({
                     where: { id: job.id },
                     data: {
@@ -553,7 +518,6 @@ export async function POST(req: NextRequest) {
         }),
       ),
     );
-
     const quoted = results.filter((r) => r.status === "quoted").length;
     const traded = results.filter((r) => r.status === "traded").length;
     const initiated = results.filter((r) => r.status === "initiated").length;
@@ -561,7 +525,6 @@ export async function POST(req: NextRequest) {
     const skipped = results.filter((r) => r.status === "skipped").length;
     const failed = results.filter((r) => r.status === "failed").length;
     const cancelled = results.filter((r) => r.status === "cancelled").length;
-
     return NextResponse.json({
       data: {
         quoted,

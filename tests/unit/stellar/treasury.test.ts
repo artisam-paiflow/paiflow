@@ -32,7 +32,7 @@ vi.mock("@/lib/stellar/client", () => ({
   withRelayerLock: (fn: () => Promise<unknown>) => fn(),
 }));
 
-import { depositNativeToProvider } from "@/lib/stellar/dev-mutate";
+import { depositNativeToProvider } from "@/lib/stellar/treasury";
 
 function makeAccount(seq = "1") {
   return {

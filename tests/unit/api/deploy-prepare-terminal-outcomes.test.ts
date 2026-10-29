@@ -18,7 +18,6 @@ import { POST } from "@/app/api/deployments/prepare/route";
 const SOURCE = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const FLOW = "11111111-1111-1111-1111-111111111111";
 const graph = {
-  devMode: true,
   nodes: [
     { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
     { id: "c", type: "condition", config: { kind: "time_before", at: "2030-06-01T00:00:00.000Z" } },
@@ -63,7 +62,6 @@ it("binds Return to the preparing wallet and persists the original graph", async
   });
   expect(mockDb.deployment.create.mock.calls[0]?.[0].data.graphSnapshot).toEqual(graph);
 });
-
 it("persists the prepared implementation bindings with their resolved addresses", async () => {
   const pipeline = [
     {
@@ -113,7 +111,6 @@ it("persists the prepared implementation bindings with their resolved addresses"
   });
   expect((await res.json()).data.pipeline).toEqual(pipeline);
 });
-
 it.each([undefined, "PENDING:owner", "invalid"])(
   "returns 422 VALIDATION for Return to owner with deploying wallet %s",
   async (sourceAccount) => {
@@ -126,7 +123,6 @@ it.each([undefined, "PENDING:owner", "invalid"])(
           config: {
             asset: { kind: "native" },
             employer: SOURCE,
-            fillScheduleViaApi: false,
             intervalAmount: 1,
             intervalUnit: "month",
           },

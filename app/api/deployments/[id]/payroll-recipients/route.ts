@@ -5,21 +5,25 @@ import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import {
   readPayrollRecipients,
-  readSplitterDevRecipients,
   readSplitterRecipients,
   readSubscriptionAmountPerPeriod,
 } from "@/lib/stellar/relayer";
-
 type PipelineNode = {
   nodeId: string;
   contractAddress: string;
   templateKind: string;
 };
-
-function computeDevAmount(
-  r: { address: string; bps: number; amount: string },
+function recipientAmount(
+  r: {
+    address: string;
+    bps: number;
+    amount: string;
+  },
   totalStroops: bigint,
-): { address: string; amount: string } {
+): {
+  address: string;
+  amount: string;
+} {
   const fixed = BigInt(r.amount);
   if (fixed > 0n) {
     return { address: r.address, amount: fixed.toString() };
@@ -29,12 +33,17 @@ function computeDevAmount(
   }
   return { address: r.address, amount: "0" };
 }
-
-async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(
+  req: NextRequest,
+  ctx: {
+    params: Promise<{
+      id: string;
+    }>;
+  },
+) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     const { id } = await ctx.params;
-
     const d = await db.deployment.findFirst({
       where: { id, ownerId: user.id },
       include: { flow: { select: { templateKind: true } } },
@@ -43,16 +52,10 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
     if (d.flow.templateKind !== "PAYROLL") {
       throw new AppError("VALIDATION", "Deployment is not a payroll");
     }
-
     const pipeline = d.pipelineSnapshot as PipelineNode[] | null;
     const payrollNode = pipeline?.find((n) => n.templateKind === "PAYROLL");
-    const splitterNode = pipeline?.find(
-      (n) => n.templateKind === "SPLITTER_DEV" || n.templateKind === "SPLITTER",
-    );
-    const subscriptionNode = pipeline?.find(
-      (n) => n.templateKind === "SUBSCRIPTION_DEV" || n.templateKind === "SUBSCRIPTION",
-    );
-
+    const splitterNode = pipeline?.find((n) => n.templateKind === "SPLITTER");
+    const subscriptionNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
     if (payrollNode?.contractAddress) {
       const rawRecipients = await readPayrollRecipients(payrollNode.contractAddress);
       const employees = await db.employee.findMany({
@@ -76,21 +79,15 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
         },
       });
     }
-
     if (!splitterNode?.contractAddress) {
       throw new AppError("VALIDATION", "Payroll recipient contract address not available");
     }
-
-    const isDev = splitterNode.templateKind === "SPLITTER_DEV";
-    const raw = isDev
-      ? await readSplitterDevRecipients(splitterNode.contractAddress)
-      : await readSplitterRecipients(splitterNode.contractAddress);
+    const raw = await readSplitterRecipients(splitterNode.contractAddress);
     let totalStroops = 0n;
     if (subscriptionNode?.contractAddress) {
       totalStroops = await readSubscriptionAmountPerPeriod(subscriptionNode.contractAddress);
     }
-    const chainRecipients = raw.map((r) => computeDevAmount(r, totalStroops));
-
+    const chainRecipients = raw.map((r) => recipientAmount(r, totalStroops));
     const employees = await db.employee.findMany({
       where: { deploymentId: id },
     });
@@ -98,7 +95,6 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
     const byCashOut = new Map(
       employees.filter((e) => e.cashOutContractAddress).map((e) => [e.cashOutContractAddress!, e]),
     );
-
     const recipients = chainRecipients.map((r) => {
       const fiatEmployee = byCashOut.get(r.address);
       if (fiatEmployee) {
@@ -110,11 +106,6 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
         };
       }
       const cryptoEmployee = byWallet.get(r.address);
-      // Defensive: in non-dev payrolls, fiat recipients are represented on-chain
-      // by CASH_OUT contract addresses. If no employee row matches by wallet and
-      // the address is a contract, report it as fiat so the KYC form renders and
-      // the user can fill sender details even if deploy-time employee creation
-      // failed.
       const isContract = r.address.length > 0 && r.address.startsWith("C");
       const payoutMode: "crypto" | "fiat" =
         cryptoEmployee?.payoutMode === "FIAT" || (isContract && !cryptoEmployee)
@@ -127,7 +118,6 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
         label: cryptoEmployee?.label ?? undefined,
       };
     });
-
     return NextResponse.json({
       data: {
         recipients,
@@ -136,5 +126,4 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
     });
   });
 }
-
 export const GET = deploymentServiceRoute(GETHandler, "owner");

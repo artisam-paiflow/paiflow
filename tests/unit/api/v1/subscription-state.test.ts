@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
 import { Keypair } from "@stellar/stellar-sdk";
-
 const mocks = vi.hoisted(() => ({
   db: {
     deploymentApiToken: { findUnique: vi.fn(), update: vi.fn() },
@@ -28,7 +27,6 @@ import { assetContractId } from "@/lib/stellar/assets";
 import { SubscriptionStateSchema } from "@/lib/api/v1/schema";
 import { V1_RATE_LIMITS } from "@/lib/api/v1/limits";
 import { ctx, DEPLOYMENT_ID, newToken, tokenRow, TRIGGER, PAYER } from "./execute-fixtures";
-
 const subscriber = Keypair.random().publicKey();
 const originalSubscriber = Keypair.random().publicKey();
 const graph = {
@@ -81,56 +79,28 @@ beforeEach(() => {
   mocks.allowance.mockResolvedValue(12345678901234567890n);
 });
 describe("deployment-token Subscription state", () => {
-  it.each(["SUBSCRIPTION", "SUBSCRIPTION_DEV"])(
-    "reads live %s configuration without a session",
-    async (kind) => {
-      authorize({
-        pipelineSnapshot: [{ nodeId: "sub", templateKind: kind, contractAddress: TRIGGER }],
-      });
-      const response = await call();
-      expect(response.status).toBe(200);
-      const data = SubscriptionStateSchema.parse((await response.json()).data);
-      expect(data).toMatchObject({
-        templateKind: kind,
-        subscriber,
-        allowance: "12345678901234567890",
-        setupRequired: false,
-        isCancelled: false,
-        asset: { kind: "native" },
-      });
-      expect(response.headers.get("cache-control")).toBe("no-store");
-      expect(mocks.allowance).toHaveBeenCalledWith({
-        tokenContractAddress: assetContractId({ kind: "native" }),
-        owner: subscriber,
-        spender: TRIGGER,
-        classifyRpcFailures: true,
-      });
-    },
-  );
-  it("uses immutable deployment classification after mutable Flow metadata changes", async () => {
-    authorize({ flow: { name: "Edited club", templateKind: "PAYROLL" } });
-    expect((await call()).status).toBe(200);
-  });
-  it("returns explicit unconfigured Dev setup without making an allowance query", async () => {
+  it.each(["SUBSCRIPTION"])("reads live %s configuration without a session", async (kind) => {
     authorize({
-      pipelineSnapshot: [
-        { nodeId: "sub", templateKind: "SUBSCRIPTION_DEV", contractAddress: TRIGGER },
-      ],
+      pipelineSnapshot: [{ nodeId: "sub", templateKind: kind, contractAddress: TRIGGER }],
     });
-    mocks.subscriber.mockResolvedValue(null);
     const response = await call();
     expect(response.status).toBe(200);
-    expect((await response.json()).data).toMatchObject({
-      subscriber: null,
-      setupRequired: true,
-      allowance: "0",
+    const data = SubscriptionStateSchema.parse((await response.json()).data);
+    expect(data).toMatchObject({
+      templateKind: kind,
+      subscriber,
+      allowance: "12345678901234567890",
+      setupRequired: false,
+      isCancelled: false,
+      asset: { kind: "native" },
     });
-    expect(mocks.allowance).not.toHaveBeenCalled();
-  });
-  it("refuses a missing ordinary subscriber rather than reporting Dev setup", async () => {
-    mocks.subscriber.mockResolvedValue(null);
-    expect((await call()).status).toBe(502);
-    expect(mocks.allowance).not.toHaveBeenCalled();
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(mocks.allowance).toHaveBeenCalledWith({
+      tokenContractAddress: assetContractId({ kind: "native" }),
+      owner: subscriber,
+      spender: TRIGGER,
+      classifyRpcFailures: true,
+    });
   });
   it("reports cancellation and configured zero allowance independently of setup", async () => {
     mocks.cancelled.mockResolvedValue(true);
@@ -139,14 +109,6 @@ describe("deployment-token Subscription state", () => {
       isCancelled: true,
       allowance: "0",
       setupRequired: false,
-    });
-  });
-  it("does not label a mutated Dev asset with stale graph metadata", async () => {
-    mocks.asset.mockResolvedValue(PAYER);
-    expect((await (await call()).json()).data).toMatchObject({
-      tokenContractAddress: PAYER,
-      asset: null,
-      assetLabel: PAYER,
     });
   });
   it.each(["subscriber", "asset", "cancelled", "allowance"] as const)(
@@ -218,7 +180,6 @@ describe("deployment-token Subscription state", () => {
     expect(mocks.subscriber).toHaveBeenCalledTimes(reads);
   });
 });
-
 describe("Subscription state response schema", () => {
   it.each([
     { allowance: "1.2" },

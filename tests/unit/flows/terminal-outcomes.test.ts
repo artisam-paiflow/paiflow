@@ -5,12 +5,10 @@ import { validateFlow } from "@/lib/flows/validate";
 import { flowToEnglish } from "@/lib/flows/english";
 import { normalizeFlowGraph } from "@/lib/ai/normalize";
 import { timelockSideBranch } from "@/lib/flows/branches";
-
 const OWNER = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const AT = "2030-06-01T00:00:00.000Z";
-function locked(kind: "time_before" | "time_after", devMode = false): FlowGraph {
+function locked(kind: "time_before" | "time_after"): FlowGraph {
   return FlowGraphSchema.parse({
-    devMode,
     nodes: [
       { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
       { id: "c", type: "condition", config: { kind, at: AT } },
@@ -27,7 +25,6 @@ function locked(kind: "time_before" | "time_after", devMode = false): FlowGraph 
 function prepare(g: FlowGraph) {
   return flowToPipeline(g, undefined, undefined, { ownerAddress: OWNER });
 }
-
 describe("terminal outcomes", () => {
   it.each(["time_before", "time_after"] as const)(
     "%s absorbs Hold and preserves the condition ID",
@@ -74,26 +71,6 @@ describe("terminal outcomes", () => {
     expect(() =>
       flowToPipeline(g, undefined, undefined, { ownerAddress: "PENDING:owner" }),
     ).toThrow(/deploying wallet/);
-  });
-  it("rejects a dev payroll Return to owner without ownerAddress with a plain Error", () => {
-    const g = locked("time_after", true);
-    g.nodes[0] = {
-      id: "t",
-      type: "payroll",
-      config: {
-        asset: { kind: "native" },
-        employer: OWNER,
-        fillScheduleViaApi: false,
-        intervalAmount: 1,
-        intervalUnit: "month",
-      },
-    };
-    expect(() => flowToPipeline(g, OWNER)).toThrow(
-      new Error("Return to owner requires the deploying wallet address"),
-    );
-  });
-  it("stays immutable in dev mode", () => {
-    expect(prepare(locked("time_after", true))[2]?.templateKind).toBe("PAYER");
   });
   it("refuses saved owner addresses", () => {
     const g = locked("time_after");

@@ -70,7 +70,13 @@ try {
     }),
   );
   await write("next.config.mjs", "export default { experimental: { cpus: 1 } };\n");
-  for (const name of ["instrumentation-client.ts", "lib/csp.ts", "lib/dev/schema.ts"]) {
+  for (const name of [
+    "instrumentation-client.ts",
+    "lib/csp.ts",
+    "lib/subscription/schema.ts",
+    "lib/address-book/schema.ts",
+    "lib/stellar/strkey.ts",
+  ]) {
     await mkdir(path.dirname(path.join(fixture, name)), { recursive: true });
     await cp(path.join(root, name), path.join(fixture, name));
   }
@@ -97,7 +103,8 @@ export function middleware(request: NextRequest) {
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { DevPayerSchema, DevSplitterSchema } from "@/lib/dev/schema";
+import { AllowancePrepareSchema } from "@/lib/subscription/schema";
+import { CreateAddressContactSchema } from "@/lib/address-book/schema";
 const moduleSchema = z.object({ label: z.string() });
 const wallet = "GCFIRY65OQE7DFP5KLNS2PF2LVZMUZYJX4OZIEQ36N2IQANUB5XVYOJR";
 export default function Page() {
@@ -105,11 +112,11 @@ export default function Page() {
   useEffect(() => { setStatus(moduleSchema.parse({ label: "ready" }).label); }, []);
   return <><output>{status}</output><button onClick={async () => {
     const options = { fields: {}, shouldUseNativeValidation: false };
-    const pay = await zodResolver(DevPayerSchema)({ recipient: wallet, mode: "fixed", amountStroops: "90071992547409931234567" }, undefined, options);
-    const split = await zodResolver(DevSplitterSchema)({ recipients: [{ address: wallet, mode: "fixed", amountStroops: "100" }] }, undefined, options);
+    const pay = await zodResolver(AllowancePrepareSchema)({ userAddress: wallet, amount: "90071992547409931234567" }, undefined, options);
+    const split = await zodResolver(CreateAddressContactSchema)({address:wallet,label:" Contact "}, undefined, options);
     const object = z.object({ value: z.string() }).parse({ value: "ok" });
     const invalid = z.object({ value: z.string() }).safeParse({ value: 1 });
-    if (pay.values.amountStroops === "90071992547409931234567" && split.values.recipients?.[0]?.payoutMode === "crypto" && object.value === "ok" && !invalid.success) setStatus("validated");
+    if (pay.values.amount === "90071992547409931234567" && split.values.label === "Contact" && split.values.createOnly === false && object.value === "ok" && !invalid.success) setStatus("validated");
     else setStatus("failed");
   }}>Validate forms</button></>;
 }`,

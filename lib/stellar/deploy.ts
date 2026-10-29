@@ -40,10 +40,8 @@ import { simulationFailure } from "./sim-error";
 import { loadPaymentAccount, MissingPaymentAccountError } from "./load-payment-account";
 import { deploymentPreparationRead } from "./deployment-preparation";
 import { contractKeyForTemplate, type ContractErrorKey } from "./soroban-errors";
-
 // 2 XLM covers: 1 XLM base reserve + ~0.5 XLM Soroban storage entries + ~0.5 XLM tx fee buffer
-const MIN_DEPLOYMENT_XLM_STROOPS = 20_000_000n;
-
+const MIN_DEPLOYMENT_XLM_STROOPS = 20000000n;
 export async function checkAccountFunding(
   sourceAccount: string,
   minLumens: bigint = MIN_DEPLOYMENT_XLM_STROOPS,
@@ -55,22 +53,21 @@ export async function checkAccountFunding(
     if (e instanceof NotFoundError) {
       throw new AppError(
         "INSUFFICIENT_FUNDS",
-        `Account ${sourceAccount} is not funded. Send at least ${Number(minLumens) / 10_000_000} XLM to activate it first.`,
+        `Account ${sourceAccount} is not funded. Send at least ${Number(minLumens) / 10000000} XLM to activate it first.`,
       );
     }
     throw e;
   }
   const native = acct.balances.find((b) => b.asset_type === "native");
   const [whole = "0", frac = ""] = (native?.balance ?? "0").split(".");
-  const balance = BigInt(whole) * 10_000_000n + BigInt(frac.padEnd(7, "0").slice(0, 7));
+  const balance = BigInt(whole) * 10000000n + BigInt(frac.padEnd(7, "0").slice(0, 7));
   if (balance < minLumens) {
     throw new AppError(
       "INSUFFICIENT_FUNDS",
-      `Account has ${native?.balance ?? "0"} XLM. Minimum ${Number(minLumens) / 10_000_000} XLM required for deployment fees and rent.`,
+      `Account has ${native?.balance ?? "0"} XLM. Minimum ${Number(minLumens) / 10000000} XLM required for deployment fees and rent.`,
     );
   }
 }
-
 export type PipelineDeployNode = {
   implementation?: PipelineImplementation;
   nodeId: string;
@@ -78,7 +75,6 @@ export type PipelineDeployNode = {
   wasmHash: string;
   params: PipelineNodeParams;
 };
-
 export type PreparedPipelineDeploy = {
   xdr: string;
   pipeline: Array<{
@@ -89,7 +85,6 @@ export type PreparedPipelineDeploy = {
     implementation?: PipelineImplementation;
   }>;
 };
-
 type PipelinePlan = {
   nodes: Array<{
     nodeId: string;
@@ -103,7 +98,6 @@ type PipelinePlan = {
   parentByNode: Map<string, string>;
   nodeAddresses: Record<string, string>;
 };
-
 function buildPipelinePlan(
   sourceAccount: string,
   graph: FlowGraph,
@@ -118,20 +112,16 @@ function buildPipelinePlan(
     const contractAddress = computeContractAddress(sourceAccount, salt);
     return { ...n, salt, contractAddress };
   });
-
   const nodeAddresses: Record<string, string> = {};
   for (const p of pipeline) {
     nodeAddresses[p.nodeId] = p.contractAddress;
   }
-
   const parentByNode = new Map<string, string>();
   for (const e of graph.edges) {
     parentByNode.set(e.target, e.source);
   }
-
   return { nodes: pipeline, parentByNode, nodeAddresses };
 }
-
 async function preparePipelineDeployTxFromPlan(
   sourceAccount: string,
   plan: PipelinePlan,
@@ -147,14 +137,11 @@ async function preparePipelineDeployTxFromPlan(
       "Pipeline factory address is not configured. Run pnpm contracts:deploy-factory --network=<network>.",
     );
   }
-
   const blueprintVals: xdr.ScVal[] = [];
   for (const p of plan.nodes) {
     const parentNodeId =
       plan.parentByNode.get(p.nodeId) ??
-      (p.params.kind === "cash_out_dev" || p.params.kind === "cash_out"
-        ? p.params.parentNodeId
-        : undefined);
+      (p.params.kind === "cash_out" ? p.params.parentNodeId : undefined);
     let parentAddress: string | undefined;
     if (parentNodeId && plan.nodeAddresses[parentNodeId]) {
       parentAddress = plan.nodeAddresses[parentNodeId];
@@ -162,7 +149,6 @@ async function preparePipelineDeployTxFromPlan(
       // Standalone contracts (e.g. streamer with on_schedule) use admin as parent.
       parentAddress = sourceAccount;
     }
-
     // Inject the global relayer address into timelock nodes so the backend
     // cron can auto-release them. When no relayer is configured we fall back
     // to the admin (sourceAccount) which disables the relayer path.
@@ -181,23 +167,19 @@ async function preparePipelineDeployTxFromPlan(
       }
       params = { ...params, router };
     }
-
     const args = pipelineNodeConstructorArgs(
       params,
       sourceAccount,
       parentAddress,
       plan.nodeAddresses,
     );
-
     blueprintVals.push(nodeBlueprint(p.wasmHash, p.salt, args));
   }
-
   const op = Operation.invokeContractFunction({
     contract: factoryAddress,
     function: "deploy_pipeline",
     args: [new Address(sourceAccount).toScVal(), xdr.ScVal.scvVec(blueprintVals)],
   });
-
   const pipeline = plan.nodes.map((p) => ({
     nodeId: p.nodeId,
     contractAddress: p.contractAddress,
@@ -215,14 +197,12 @@ async function preparePipelineDeployTxFromPlan(
     }
     return simulationFailure(raw, { addressMap });
   };
-
   if (channel) {
     // `sourceAccount` is the relayer here (deployer/admin in the factory call),
     // which is an auth entry on a channel, not the transaction source.
     const signed = await buildRelayerTx({ channel, operation: op, onSimulationError: failure });
     return { xdr: signed.toXDR(), pipeline };
   }
-
   const sourceAcct = await deploymentPreparationRead(
     "account",
     async () => {
@@ -246,7 +226,6 @@ async function preparePipelineDeployTxFromPlan(
     .addOperation(op)
     .setTimeout(180)
     .build();
-
   const sim = await deploymentPreparationRead(
     "simulation",
     () => server.simulateTransaction(tx),
@@ -254,10 +233,8 @@ async function preparePipelineDeployTxFromPlan(
   );
   if (rpc.Api.isSimulationError(sim)) throw failure(sim.error);
   const assembled = rpc.assembleTransaction(tx, sim).build();
-
   return { xdr: assembled.toXDR(), pipeline };
 }
-
 /** Build & simulate a pipeline deployment tx via the on-chain factory. */
 export async function preparePipelineDeployTx(opts: {
   deploymentId?: string;
@@ -274,7 +251,6 @@ export async function preparePipelineDeployTx(opts: {
   const plan = buildPipelinePlan(opts.sourceAccount, opts.graph, opts.nodes);
   return preparePipelineDeployTxFromPlan(opts.sourceAccount, plan, undefined, opts.deploymentId);
 }
-
 function computeContractAddress(sourceAccount: string, salt: Buffer): string {
   // Per CAP-46, contract IDs from address+salt are SHA256(networkId || preimage).
   // For Paiflow we read the address back from the tx result on submit; this helper
@@ -293,9 +269,13 @@ function computeContractAddress(sourceAccount: string, salt: Buffer): string {
   const idBytes = hash(preimage.toXDR());
   return Address.contract(idBytes).toString();
 }
-
 export type SubmitResult =
-  | { status: "SUCCESS"; txHash: string; contractAddress?: string; ledger?: number }
+  | {
+      status: "SUCCESS";
+      txHash: string;
+      contractAddress?: string;
+      ledger?: number;
+    }
   | {
       status: "FAILED";
       txHash: string;
@@ -305,19 +285,26 @@ export type SubmitResult =
     }
   // No `txHash`: the network never queued one, so there is nothing a caller
   // could store or reconcile against. The same signed envelope can be sent again.
-  | { status: "NOT_ACCEPTED" };
-
-type SubmittedDeployResult = { status: "SUBMITTED"; txHash: string };
-
+  | {
+      status: "NOT_ACCEPTED";
+    };
+type SubmittedDeployResult = {
+  status: "SUBMITTED";
+  txHash: string;
+};
 /** Normal callers wait for finality; #808's scoped testnet rehearsal leaves it to cron. */
 export function submitDeployTx(signedXdr: string): Promise<SubmitResult>;
 export function submitDeployTx(
   signedXdr: string,
-  options: { confirmation: "reconcile" },
+  options: {
+    confirmation: "reconcile";
+  },
 ): Promise<SubmitResult | SubmittedDeployResult>;
 export async function submitDeployTx(
   signedXdr: string,
-  options?: { confirmation: "reconcile" },
+  options?: {
+    confirmation: "reconcile";
+  },
 ): Promise<SubmitResult | SubmittedDeployResult> {
   if (options?.confirmation === "reconcile" && env().STELLAR_NETWORK !== "testnet") {
     throw new AppError("FORBIDDEN", "Deployment reconciliation rehearsal is testnet-only");
@@ -340,7 +327,6 @@ export async function submitDeployTx(
     return unknownDeployFinality(txHash);
   }
   const sent = classifySend(send);
-
   // Answered before the poll: the hash was never queued, so polling it would
   // spend the whole 30 s on NOT_FOUND, and a relayer deploy spends them holding
   // the relayer lock.
@@ -366,13 +352,12 @@ export async function submitDeployTx(
   // A duplicate is already in the queue under this same hash, so it is polled
   // exactly like a first send.
   sent.outcome satisfies "QUEUED";
-
   await recordTransactionOutcome(txHash, "ACCEPTED", { submissionAttempt });
   if (options?.confirmation === "reconcile") {
     return { status: "SUBMITTED", txHash };
   }
   const observation = await transactionObservation(txHash);
-  const deadline = Date.now() + 30_000;
+  const deadline = Date.now() + 30000;
   while (Date.now() < deadline) {
     let got;
     try {
@@ -411,7 +396,6 @@ export async function submitDeployTx(
   });
   return unknownDeployFinality(txHash);
 }
-
 function unknownDeployFinality(txHash: string): SubmitResult {
   return {
     status: "FAILED",
@@ -420,11 +404,14 @@ function unknownDeployFinality(txHash: string): SubmitResult {
     failureCode: "FINALITY_UNKNOWN",
   };
 }
-
-export type RelayerPipelineDeployResult = Exclude<SubmitResult, { status: "NOT_ACCEPTED" }> & {
+export type RelayerPipelineDeployResult = Exclude<
+  SubmitResult,
+  {
+    status: "NOT_ACCEPTED";
+  }
+> & {
   pipeline: PreparedPipelineDeploy["pipeline"];
 };
-
 /**
  * Deploy a pipeline where the RELAYER is the deployer/admin and the signer.
  *
@@ -450,7 +437,6 @@ export async function deployPipelineByRelayer(opts: {
       "STELLAR_RELAYER_ADDRESS / STELLAR_RELAYER_SECRET_KEY must be configured",
     );
   }
-
   const relayerKeypair = Keypair.fromSecret(secret);
   if (relayerKeypair.publicKey() !== relayerAddress) {
     throw new AppError(
@@ -458,12 +444,10 @@ export async function deployPipelineByRelayer(opts: {
       "STELLAR_RELAYER_SECRET_KEY does not match STELLAR_RELAYER_ADDRESS",
     );
   }
-
   // Build the deterministic part of the pipeline (salts, contract addresses,
   // parent mapping) outside the global relayer lock so the queued closure does
   // not retain the request-scoped graph or the relayer keypair.
   const plan = buildPipelinePlan(relayerAddress, opts.graph, opts.nodes);
-
   // One channel for fetch -> sign -> submit -> finality, so two concurrent
   // deploys, or a deploy racing a cron, never share a source sequence number.
   // With channels off this is the single relayer lock, as before. The factory
@@ -471,7 +455,6 @@ export async function deployPipelineByRelayer(opts: {
   // entry (buildRelayerTx), not the transaction source.
   return withRelayerChannel(async (channel) => {
     const prepared = await preparePipelineDeployTxFromPlan(relayerAddress, plan, channel);
-
     // Attach every child address to the exact envelope identity. The SDK send
     // gate checkpoints both atomically with its durable admission before sending.
     // The request may die after finality but before its confirmation checkpoint.
@@ -504,7 +487,6 @@ export async function deployPipelineByRelayer(opts: {
     return { ...result, pipeline: prepared.pipeline };
   });
 }
-
 export function extractCreatedContract(
   tx: rpc.Api.GetSuccessfulTransactionResponse,
 ): string | null {

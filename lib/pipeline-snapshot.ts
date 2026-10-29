@@ -15,8 +15,7 @@ export type PipelineSnapshotNode = {
 
 /**
  * Locate a deployed pipeline node by template kind (and optionally nodeId) in a
- * deployment's `pipelineSnapshot`. Used by the dev-mode mutation API to find the
- * on-chain contract address to mutate.
+ * deployment's `pipelineSnapshot`. Resolves the recorded on-chain contract address.
  */
 export function findPipelineNode(
   snapshot: unknown,
@@ -31,8 +30,8 @@ export function findPipelineNode(
     throw new AppError(
       "VALIDATION",
       nodeId
-        ? `No ${templateKind} node "${nodeId}" found in this deployment. Is dev mode on and deployed?`
-        : `No ${templateKind} node found in this deployment. Is dev mode on and deployed?`,
+        ? `No ${templateKind} node "${nodeId}" found in this deployment.`
+        : `No ${templateKind} node found in this deployment.`,
     );
   }
   if (matches.length > 1) {

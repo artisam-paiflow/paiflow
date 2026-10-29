@@ -43,9 +43,7 @@ import {
   timelockSideBranch,
   type BranchingNoun as BranchNoun,
 } from "./branches";
-
 export type { ValidationIssue };
-
 export type ValidationResult =
   | {
       ok: true;
@@ -54,8 +52,10 @@ export type ValidationResult =
       graph: FlowGraph;
       pendingLabels: string[];
     }
-  | { ok: false; errors: ValidationIssue[] };
-
+  | {
+      ok: false;
+      errors: ValidationIssue[];
+    };
 const FRIENDLY = {
   EXACTLY_ONE_TRIGGER:
     "A flow can only have one trigger — either 'when I receive' or 'on a schedule', not both. Try splitting this into two separate flows.",
@@ -79,11 +79,21 @@ const FRIENDLY = {
     `The connection "${eid}" references a node "${tgt}" that doesn't exist.`,
   MIXED_SPLIT_MODE:
     "All recipients in a split must be either percentages or fixed amounts, not a mix.",
-  FIXED_AMOUNT_REQUIRED: (recipients: { label?: string; address: string }[]) => {
+  FIXED_AMOUNT_REQUIRED: (
+    recipients: {
+      label?: string;
+      address: string;
+    }[],
+  ) => {
     const names = recipients.map((r) => r.label?.trim() || r.address);
     return `Each fixed-amount recipient needs a positive amount: ${names.join(", ")}.`;
   },
-  SHARE_REQUIRED: (recipients: { label?: string; address: string }[]) => {
+  SHARE_REQUIRED: (
+    recipients: {
+      label?: string;
+      address: string;
+    }[],
+  ) => {
     const names = recipients.map((r) => r.label?.trim() || r.address);
     return `Each recipient in a percentage split needs a share greater than 0%: ${names.join(", ")}. Enter a share, or remove the recipient.`;
   },
@@ -119,7 +129,6 @@ const FRIENDLY = {
   YIELD_TERMINAL:
     "A Yield step is the end of the line for now — nothing can come after it except an email notification. Remove the connections coming out of it.",
 } as const;
-
 // Triggers whose flows route payouts through the payer/splitter contracts,
 // which support cash-out sinking for fiat recipients. on_schedule routes
 // through the streamer, which has no cash-out mechanism.
@@ -131,7 +140,6 @@ export const FIAT_PAYOUT_TRIGGERS = new Set([
   "subscription",
   "payroll",
 ]);
-
 // A short, self-describing name for a node, mirroring what the canvas shows so
 // the user can locate the offending step instead of decoding a raw id like
 // "swap-8j756t".
@@ -154,9 +162,7 @@ function nodeDescriptor(n: FlowNode): string {
     case "pay":
       return `Pay (${assetLabel(n.config.asset)})`;
     case "split":
-      return `Split (${n.config.recipients.length} recipient${
-        n.config.recipients.length === 1 ? "" : "s"
-      })`;
+      return `Split (${n.config.recipients.length} recipient${n.config.recipients.length === 1 ? "" : "s"})`;
     case "swap":
       return `Swap (${assetLabel(n.config.assetIn)} → ${assetLabel(n.config.assetOut)})`;
     case "yield":
@@ -171,7 +177,6 @@ function nodeDescriptor(n: FlowNode): string {
       return (n as FlowNode).type;
   }
 }
-
 // Build human-friendly labels for every node. When two nodes share the same
 // descriptor (e.g. two "Swap (XLM → USDC)" steps), they're numbered so the user
 // can still tell them apart.
@@ -195,14 +200,12 @@ function buildNodeLabels(graph: FlowGraph): Map<string, string> {
   }
   return labels;
 }
-
 export function assetsEqual(a: Asset, b: Asset): boolean {
   if (a.kind !== b.kind) return false;
   if (a.kind === "known" && b.kind === "known") return a.symbol === b.symbol;
   if (a.kind === "custom" && b.kind === "custom") return a.code === b.code && a.issuer === b.issuer;
   return true; // both native
 }
-
 function getTriggerAsset(t: FlowNode): Asset | null {
   if (
     t.type === "on_receive" ||
@@ -216,7 +219,6 @@ function getTriggerAsset(t: FlowNode): Asset | null {
   }
   return null;
 }
-
 function uniqueAssets(assets: Asset[]): Asset[] {
   const out: Asset[] = [];
   for (const a of assets) {
@@ -224,7 +226,6 @@ function uniqueAssets(assets: Asset[]): Asset[] {
   }
   return out;
 }
-
 /**
  * For every node in the graph, the asset expected to flow into it: the
  * trigger's asset, transformed to a swap's assetOut for anything downstream
@@ -250,30 +251,25 @@ function computeAssetFlowInternal(graph: FlowGraph): {
     adj.get(e.source)?.push(e.target);
     indegree.set(e.target, (indegree.get(e.target) ?? 0) + 1);
   }
-
   const resolved = new Map<string, Asset | null>();
   const conflicts = new Set<string>();
   const trigger = graph.nodes.find(isTrigger);
   if (!trigger) return { resolved, conflicts };
-
   const incoming = new Map<string, (Asset | null)[]>();
   const remaining = new Map(indegree);
   const visited = new Set<string>([trigger.id]);
   resolved.set(trigger.id, getTriggerAsset(trigger));
   const queue = [trigger.id];
-
   while (queue.length) {
     const nodeId = queue.shift()!;
     const node = nodesById.get(nodeId)!;
     const nodeIncoming = resolved.get(nodeId) ?? null;
     const outgoing = node.type === "swap" ? node.config.assetOut : nodeIncoming;
-
     for (const nextId of adj.get(nodeId) ?? []) {
       const list = incoming.get(nextId) ?? [];
       list.push(outgoing);
       incoming.set(nextId, list);
       remaining.set(nextId, (remaining.get(nextId) ?? 0) - 1);
-
       if ((remaining.get(nextId) ?? 0) <= 0 && !visited.has(nextId)) {
         visited.add(nextId);
         const distinct = uniqueAssets(
@@ -289,20 +285,16 @@ function computeAssetFlowInternal(graph: FlowGraph): {
       }
     }
   }
-
   for (const n of graph.nodes) {
     if (!resolved.has(n.id)) resolved.set(n.id, null);
   }
   return { resolved, conflicts };
 }
-
 export function computeAssetFlow(graph: FlowGraph): Map<string, Asset | null> {
   return computeAssetFlowInternal(graph).resolved;
 }
-
 const GENERIC_SCHEMA_MESSAGE =
   "The flow structure is invalid. Check your node types and configuration.";
-
 // True when the flow off-ramps to fiat anywhere: a cash-out sink node, a pay
 // node paid out in fiat, or a split recipient paid out in fiat (both deploy
 // an implicit cash-out contract). Shared by the validator and the builder
@@ -315,7 +307,6 @@ export function flowHasFiatPayout(graph: FlowGraph): boolean {
       (n.type === "split" && n.config.recipients.some((r) => r.payoutMode === "fiat")),
   );
 }
-
 /**
  * Rules for the True/False branches of a condition (#720). The router behind
  * an amount condition transfers the whole amount to every step on the side it
@@ -328,7 +319,6 @@ function branchIssues(
   nodeLabels: Map<string, string>,
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-
   for (const e of graph.edges) {
     if (!e.sourceHandle) continue;
     const src = nodesById.get(e.source);
@@ -351,7 +341,6 @@ function branchIssues(
       });
     }
   }
-
   const onChainParents = new Map<string, Set<string>>();
   const onChainChildren = new Map<string, string[]>();
   for (const e of graph.edges) {
@@ -361,17 +350,14 @@ function branchIssues(
     onChainParents.set(t.id, (onChainParents.get(t.id) ?? new Set()).add(s.id));
     onChainChildren.set(s.id, [...(onChainChildren.get(s.id) ?? []), t.id]);
   }
-
   const trigger = graph.nodes.find(isTrigger);
   const scheduleLike =
     trigger?.type === "on_schedule" ||
     trigger?.type === "subscription" ||
     trigger?.type === "payroll";
-
   for (const cond of graph.nodes) {
     if (!isBranchingCondition(cond)) continue;
     const noun = branchingNoun(cond.config.kind);
-
     // Schedule-like flows compile to a streamer or subscription and never emit
     // the router, so the gate the user drew would silently not exist.
     if (scheduleLike && trigger) {
@@ -383,7 +369,6 @@ function branchIssues(
         friendlyMessage: FRIENDLY.BRANCH_TRIGGER(nodeLabels.get(trigger.id) ?? trigger.type, noun),
       });
     }
-
     const targets = conditionBranchTargets(graph, cond.id);
     for (const id of [...targets.true, ...targets.false]) {
       if (nodesById.get(id)?.type !== "condition") continue;
@@ -395,7 +380,6 @@ function branchIssues(
         friendlyMessage: FRIENDLY.BRANCH_TARGET(noun),
       });
     }
-
     for (const branch of ["true", "false"] as const) {
       if (targets[branch].length > 1) {
         issues.push({
@@ -407,7 +391,6 @@ function branchIssues(
         });
       }
     }
-
     // A step downstream of the condition with two different parents: its
     // contract stores one parent, so the call from the other one is refused
     // on chain. Both outputs straight into the same step is fine, since the
@@ -430,10 +413,8 @@ function branchIssues(
       stack.push(...(onChainChildren.get(id) ?? []));
     }
   }
-
   return issues;
 }
-
 export type ValidateFlowOptions = {
   /**
    * The surfaces switched on for this server (#722). Omitted means every
@@ -445,7 +426,6 @@ export type ValidateFlowOptions = {
   /** Owner email is advisory on save and deploy; recipients still validate. */
   ignoreOwnerEmail?: boolean;
 };
-
 export function validateFlow(rawGraph: unknown, opts: ValidateFlowOptions = {}): ValidationResult {
   const result = validateFlowStructure(rawGraph, opts.ignoreOwnerEmail);
   if (!opts.features) return result;
@@ -462,7 +442,6 @@ export function validateFlow(rawGraph: unknown, opts: ValidateFlowOptions = {}):
   const rest = result.ok ? [] : result.errors.filter((e) => offramp || e.path !== "senderKyc");
   return { ok: false, errors: [...gated, ...rest] };
 }
-
 function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): ValidationResult {
   const migrated = migrateFlowGraph(rawGraph);
   const parsed = FlowGraphSchema.safeParse(migrated);
@@ -497,10 +476,8 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
   }
   const errors: ValidationIssue[] = [];
   const pendingLabels = new Set<string>();
-
   const nodesById = new Map<string, FlowNode>(graph.nodes.map((n) => [n.id, n]));
   const nodeLabels = buildNodeLabels(graph);
-
   for (const e of graph.edges) {
     if (!nodesById.has(e.source)) {
       errors.push({
@@ -518,12 +495,10 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
     }
   }
   if (errors.length) return { ok: false, errors };
-
   // Any string parses as an address so autosave keeps a half-typed one (#588);
   // this is the check that keeps it from deploying.
   errors.push(...addressIssues(graph));
   errors.push(...paymentAmountIssues(graph));
-
   const triggers = graph.nodes.filter(isTrigger);
   if (triggers.length !== 1) {
     errors.push({
@@ -543,7 +518,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       friendlyMessage: FRIENDLY.AT_LEAST_ONE_ACTION,
     });
   }
-
   for (const a of actions) {
     if (a.type === "split") {
       // A scheduled split compiles to a streamer whose per-interval base is
@@ -552,8 +526,7 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       // 1 stroop per interval (streamerAmountPerInterval in to-params.ts),
       // deploying a dust stream. Fixed-mode recipients are exempt: their base
       // is derived as the sum of their per-interval amounts. The amount is
-      // baked into the contract constructor, so this is required even in dev
-      // mode (API-filled recipients can't supply it).
+      // baked into the contract constructor.
       const allFixed =
         a.config.recipients.length > 0 && a.config.recipients.every((r) => r.mode === "fixed");
       if (
@@ -567,12 +540,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
           friendlyMessage: FRIENDLY.AMOUNT_PER_INTERVAL_REQUIRED,
         });
       }
-
-      // Dev mode allows leaving recipients empty to fill via API after deploy.
-      if (graph.devMode === true && a.config.recipients.length === 0) {
-        continue;
-      }
-
       if (a.config.recipients.length === 0) {
         errors.push({
           path: `nodes.${a.id}.config.recipients`,
@@ -581,7 +548,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
         });
         continue;
       }
-
       const modes = new Set(a.config.recipients.map((r) => r.mode));
       if (modes.size > 1) {
         errors.push({
@@ -590,9 +556,7 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
           friendlyMessage: FRIENDLY.MIXED_SPLIT_MODE,
         });
       }
-
       const mode = a.config.recipients[0]?.mode ?? "percentage";
-
       if (mode === "percentage") {
         // The schema lets a 0 share parse so the panel can autosave a cleared
         // field (#583). Reject it before deployment, matching the standard
@@ -609,7 +573,7 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
           (s, r) => (r.mode === "percentage" ? s + r.bps : s),
           0,
         );
-        if (sum !== 10_000) {
+        if (sum !== 10000) {
           errors.push({
             path: `nodes.${a.id}.config.recipients`,
             message: `Recipient basis points must sum to 10000 (got ${sum})`,
@@ -617,7 +581,10 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
           });
         }
       } else {
-        const zeroAmountRecipients: { label?: string; address: string }[] = [];
+        const zeroAmountRecipients: {
+          label?: string;
+          address: string;
+        }[] = [];
         for (const [idx, r] of a.config.recipients.entries()) {
           if (r.mode === "fixed" && (!r.amountStroops || BigInt(r.amountStroops) === 0n)) {
             zeroAmountRecipients.push(r);
@@ -652,22 +619,12 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
           });
         }
       }
-
       const seen = new Set<string>();
-      for (const r of a.config.recipients) {
+      for (const [recipientIndex, r] of a.config.recipients.entries()) {
         const isContract = StrKey.isValidContract(r.address);
         const isFiat = r.payoutMode === "fiat";
         const triggerType = triggers[0]?.type;
-
-        // Native fiat payouts sink through the payer/splitter cash-out path,
-        // available for receive/webhook/oracle/subscription/payroll flows.
-        // Contract addresses (C...) point to an explicit cash-out node
-        // downstream and are always allowed. Dev mode supports native fiat
-        // only for payroll — the rest is deferred. The recipient's wallet
-        // address is irrelevant for fiat (a cash-out contract is generated at
-        // deploy time), so this gate applies to wallet and pending addresses
-        // alike.
-        if (isFiat && !isContract) {
+        if (isFiat && (!isContract || triggerType === "payroll")) {
           if (!triggerType || !FIAT_PAYOUT_TRIGGERS.has(triggerType)) {
             errors.push({
               path: `nodes.${a.id}.config.recipients`,
@@ -675,32 +632,22 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
               friendlyMessage:
                 "Fiat payout for wallet addresses is available in receive, webhook, oracle, subscription, and payroll flows. Use a cash-out node for off-ramp here, or switch the address to crypto.",
             });
-          } else if (graph.devMode === true && triggerType !== "payroll") {
-            errors.push({
-              path: `nodes.${a.id}.config.recipients`,
-              message: "Fiat payout outside payroll is not yet supported in dev mode",
-              friendlyMessage:
-                "Turn off dev mode to pay fiat to wallet addresses in this flow, or use a cash-out node.",
-            });
-          } else if (graph.devMode !== true && triggerType !== "payroll") {
-            // Immutable contracts bake the bank destination in at deploy time.
-            // Payroll recipients are exempt: their bank details live in the
-            // Employee table and are resolved when each payroll run executes.
-            // Dev mode may leave the details blank and configure via the API.
-            const missing = [];
-            if (!r.accountName?.trim()) missing.push("account name");
-            if (!r.accountNumber?.trim()) missing.push("account number");
-            if (!r.bankCode?.trim()) missing.push("bank code");
-            if (missing.length) {
+          } else {
+            const fields = [
+              ["accountName", "account name"],
+              ["accountNumber", "account number"],
+              ["bankCode", "bank code"],
+            ] as const;
+            for (const [field, label] of fields) {
+              if (r[field]?.trim()) continue;
               errors.push({
-                path: `nodes.${a.id}.config.recipients`,
-                message: `Fiat recipient is missing ${missing.join(", ")}`,
-                friendlyMessage: `Enter the ${missing.join(", ")} for this fiat recipient.`,
+                path: `nodes.${a.id}.config.recipients.${recipientIndex}.${field}`,
+                message: `Fiat recipient is missing ${label}`,
+                friendlyMessage: `Enter the ${label} for this fiat recipient.`,
               });
             }
           }
         }
-
         if (isPendingAddress(r.address)) {
           // Fiat recipients get an auto-generated cash-out contract at deploy
           // time, so a pending wallet address is not required up front.
@@ -741,14 +688,7 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
             friendlyMessage:
               "Native fiat payout on a pay step is available in receive, webhook, oracle, subscription, and payroll flows. Use a cash-out node for off-ramp here, or switch to crypto.",
           });
-        } else if (graph.devMode === true && triggerType !== "payroll") {
-          errors.push({
-            path: `nodes.${a.id}.config.payoutMode`,
-            message: "Fiat payout outside payroll is not yet supported in dev mode",
-            friendlyMessage:
-              "Turn off dev mode to pay fiat on a pay step in this flow, or use a cash-out node.",
-          });
-        } else if (graph.devMode !== true) {
+        } else {
           const missing = [];
           if (!a.config.accountName?.trim()) missing.push("account name");
           if (!a.config.accountNumber?.trim()) missing.push("account number");
@@ -762,15 +702,7 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
           }
         }
       }
-      if (a.config.fillValueViaApi && graph.devMode !== true) {
-        errors.push({
-          path: `nodes.${a.id}.config.fillValueViaApi`,
-          message: "Fill value via API is only allowed in dev mode",
-          friendlyMessage: "Turn on dev mode to fill the payment value via API after deploy.",
-        });
-      }
-      const valueDeferred = graph.devMode === true && a.config.fillValueViaApi;
-      if (!valueDeferred && !a.config.fullAmount) {
+      if (!a.config.fullAmount) {
         if (
           a.config.mode === "fixed" &&
           (!a.config.amountStroops || BigInt(a.config.amountStroops) === 0n)
@@ -812,20 +744,13 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       pendingLabels.add(a.config.vault.slice(8) || "unnamed");
     }
   }
-
-  // Non-dev flows with fiat payouts must carry the sender KYC profile at
-  // design time: PDAX requires it for every off-ramp, and without it the
-  // off-ramp cron would cancel the very first payout job. Dev flows are
-  // exempt (they submit it via the API after deploy) — same pattern as the
-  // recipient bank-detail rules above.
-  if (graph.devMode !== true && flowHasFiatPayout(graph) && !graph.senderKyc) {
+  if (flowHasFiatPayout(graph) && !graph.senderKyc) {
     errors.push({
       path: "senderKyc",
       message: "Sender KYC is required before deploying a flow with fiat payouts.",
       friendlyMessage: "Add the sender KYC details from the toolbar (required to deploy).",
     });
   }
-
   // A yield node can only be entered through `receive_and_forward`: the crate
   // has no `execute_step`, which is what the deposit trigger, payer, splitter,
   // swapper, timelock and router call on their next steps, so a yield behind
@@ -861,7 +786,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       });
     }
   }
-
   // Swap rules live in swap-rules.ts so the panel and the tests read the same
   // ones. Only on-chain children count as next steps: getPipelineChildren in
   // to-params.ts drops every edge touching an email_notify node, so those
@@ -884,7 +808,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       );
     }
   }
-
   const checkEmail = (email: string | undefined, path: string) => {
     if (email?.trim() && !isValidEmailAddress(email.trim()))
       errors.push({
@@ -901,7 +824,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
         checkEmail(r.email, `nodes.${n.id}.config.recipients.${i}.email`),
       );
   }
-
   // The conditional contract (oracle_gte) pays recipients directly and cannot
   // sink cash-out shares, so native fiat payouts are incompatible with it.
   // Explicit cash-out nodes are fine — they receive funds via forwarding.
@@ -923,14 +845,8 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       });
     }
   }
-
-  // Cash-out nodes are terminal sinks: funds leave the chain, so they cannot
-  // feed another node and must receive funds from an upstream node. Bank details
-  // may be left blank in dev mode (filled via API after deploy), but must be set
-  // at design time in non-dev mode.
   for (const n of graph.nodes) {
     if (n.type !== "cash_out") continue;
-
     const hasOutgoing = graph.edges.some((e) => e.source === n.id);
     if (hasOutgoing) {
       errors.push({
@@ -940,7 +856,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
           "Cash-out is a final step — its output leaves the chain. Remove any connections coming out of it.",
       });
     }
-
     const hasIncoming = graph.edges.some((e) => e.target === n.id);
     if (!hasIncoming) {
       errors.push({
@@ -950,32 +865,30 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
           "Connect a pay or split step into the cash-out node so it has funds to send to the bank.",
       });
     }
-
-    if (graph.devMode !== true) {
+    {
       if (!n.config.accountName || n.config.accountName.trim().length === 0) {
         errors.push({
           path: `nodes.${n.id}.config.accountName`,
-          message: "Cash-out account name is required in non-dev mode",
+          message: "Cash-out account name is required",
           friendlyMessage: "Enter the beneficiary account name for the cash-out node.",
         });
       }
       if (!n.config.accountNumber || n.config.accountNumber.trim().length === 0) {
         errors.push({
           path: `nodes.${n.id}.config.accountNumber`,
-          message: "Cash-out account number is required in non-dev mode",
+          message: "Cash-out account number is required",
           friendlyMessage: "Enter the beneficiary account number for the cash-out node.",
         });
       }
       if (!n.config.bankCode) {
         errors.push({
           path: `nodes.${n.id}.config.bankCode`,
-          message: "Cash-out bank is required in non-dev mode",
+          message: "Cash-out bank is required",
           friendlyMessage: "Select a bank for the cash-out node.",
         });
       }
     }
   }
-
   // Validate multisig thresholds
   for (const n of graph.nodes) {
     if (n.type === "condition" && n.config.kind === "multisig") {
@@ -988,9 +901,7 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       }
     }
   }
-
   errors.push(...branchIssues(graph, nodesById, nodeLabels));
-
   // Detect cycles via DFS
   const adj = new Map<string, string[]>();
   for (const n of graph.nodes) adj.set(n.id, []);
@@ -1019,7 +930,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       break;
     }
   }
-
   const trigger = triggers[0];
   if (trigger) {
     const hasIncoming = graph.edges.some((e) => e.target === trigger.id);
@@ -1031,13 +941,7 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       });
     }
   }
-
-  // A subscription that pulls 0 is meaningless. When it feeds an all-fixed
-  // split the pull is derived from the fixed recipient sum (the UI hides the
-  // manual field then); otherwise the configured amount must be positive. In
-  // dev mode the amount may be left blank to be filled via the API after
-  // deploy, so only enforce this for real deployments.
-  if (trigger?.type === "subscription" && graph.devMode !== true) {
+  if (trigger?.type === "subscription") {
     const amount = subscriptionAmountPerPeriodStroops(graph);
     if (!amount || BigInt(amount) <= 0n) {
       errors.push({
@@ -1048,13 +952,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       });
     }
   }
-
-  // The streamer/subscription/payroll constructors reject a window whose end
-  // is not after its start. The builder clamps a past start up to "now" at
-  // deploy time (to-params.ts), so an endsAt that is in the past — or earlier
-  // than a future startsAt — always deploys into a contract rejection. Catch
-  // it here instead. Payroll with fillScheduleViaApi deploys a far-future
-  // placeholder schedule, so its configured endsAt is irrelevant.
   if (
     trigger &&
     (trigger.type === "on_schedule" ||
@@ -1064,10 +961,8 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
     const cfg = trigger.config as {
       startsAt?: string;
       endsAt?: string;
-      fillScheduleViaApi?: boolean;
     };
-    const scheduleFilledViaApi = trigger.type === "payroll" && cfg.fillScheduleViaApi === true;
-    if (cfg.endsAt && !scheduleFilledViaApi) {
+    if (cfg.endsAt) {
       const nowSeconds = Math.floor(Date.now() / 1000);
       const startSeconds =
         trigger.type === "on_schedule" && cfg.startsAt
@@ -1086,7 +981,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       }
     }
   }
-
   // Payroll flows must use fixed amounts so the contract can compute the
   // exact pull amount per period.
   if (trigger?.type === "payroll") {
@@ -1112,7 +1006,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       }
     }
   }
-
   // Reachability from trigger
   if (trigger) {
     const seen = new Set<string>([trigger.id]);
@@ -1141,15 +1034,12 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       }
     }
   }
-
   if (errors.length) return { ok: false, errors };
-
   // Asset type enforcement: every contract action must declare the asset that
   // actually flows into it (the trigger's asset, transformed to a swap's
   // assetOut for anything downstream of that swap).
   if (trigger) {
     const { resolved: expectedAssetByNode, conflicts } = computeAssetFlowInternal(graph);
-
     for (const nodeId of conflicts) {
       errors.push({
         path: `nodes.${nodeId}`,
@@ -1157,11 +1047,9 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
         friendlyMessage: FRIENDLY.ASSET_CONFLICT,
       });
     }
-
     for (const a of contractActions) {
       const expected = expectedAssetByNode.get(a.id);
       if (!expected) continue; // unconstrained: no trigger asset, unreachable, or conflicting (reported above)
-
       let actual: Asset | null = null;
       if (a.type === "pay") actual = a.config.asset;
       else if (a.type === "split") actual = a.config.asset;
@@ -1172,7 +1060,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
         if (!isCatalogueAsset(expected)) continue;
         actual = a.config.assetIn;
       }
-
       if (actual && !assetsEqual(expected, actual)) {
         errors.push({
           path: `nodes.${a.id}.config.${a.type === "swap" ? "assetIn" : "asset"}`,
@@ -1185,9 +1072,7 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       }
     }
   }
-
   if (errors.length) return { ok: false, errors };
-
   // Infer template kind from contract actions only.
   const action = contractActions[0]!;
   const condition = graph.nodes.find(isLogic);
@@ -1200,7 +1085,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
   const isPayOrSplit = action.type === "pay" || action.type === "split";
   const isSwapOrYield = action.type === "swap" || action.type === "yield";
   const isCashOut = action.type === "cash_out";
-
   if (isWebhookLike && hasCondition && condition.config.kind !== "multisig") {
     return {
       ok: false,
@@ -1214,7 +1098,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       ],
     };
   }
-
   let templateKind: TemplateKind;
   if (hasCondition) {
     templateKind = TemplateKind.CONDITIONAL;
@@ -1249,7 +1132,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       ],
     };
   }
-
   // Compute pipeline mapping
   let pipelineNodes: PipelineNode[];
   let pipeline: TemplateKind[];
@@ -1283,12 +1165,10 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       ],
     };
   }
-
   // Compilation records shared implementations and absorbed rules at emission.
   // Check every visual block against that same mapping, including the trigger.
   const deployedNodeIds = new Set(pipelineNodes.map((n) => n.nodeId));
   errors.push(...implementationIssues(originalGraph, pipelineNodes));
-
   // The router picks path A or path B and forwards the whole amount down it. An
   // empty path is a silent no-op on chain: the funds already sit in the router,
   // which has no withdraw, so they are lost. Refuse any router the pipeline
@@ -1320,7 +1200,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       });
     }
   }
-
   // The two-outcome timelock pays the whole balance to its "before" or "after"
   // step, whichever the release time picks, and has no other way out. A side
   // with nothing on it would leave the funds in the contract (#721), so refuse
@@ -1351,7 +1230,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       });
     }
   }
-
   // The same set, read the other way round: a pipeline node may not point at a
   // node that was never emitted. deploy.ts builds its address map from the
   // emitted nodes alone, so workflowTargets in scval.ts throws "Missing
@@ -1383,9 +1261,7 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       });
     }
   }
-
   if (errors.length) return { ok: false, errors };
-
   return {
     ok: true,
     templateKind,

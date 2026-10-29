@@ -29,7 +29,6 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "dev-token:create": "tsx scripts/create-dev-api-token.ts",
     "hackathon:wallets": "tsx --conditions=react-server scripts/hackathon-wallets.ts",
     "testers:seed-sql": "tsx scripts/seed-testers.ts",
     "testers:seed-flow-sql": "tsx scripts/seed-tester-flows.ts",

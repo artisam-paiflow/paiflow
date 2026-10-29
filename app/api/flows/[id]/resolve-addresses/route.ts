@@ -12,34 +12,34 @@ import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
 import { upsertAddress } from "@/lib/address-book";
 import { refuseIfFeatureOff } from "@/lib/features";
-
 const ResolveSchema = z.object({
   addresses: z.record(
     z.string().min(1).max(64),
     z.string().refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar address"),
   ),
 });
-
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(
+  req: NextRequest,
+  ctx: {
+    params: Promise<{
+      id: string;
+    }>;
+  },
+) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     await enforceWriteRateLimit("flowValidate", user.id);
     const { id } = await ctx.params;
     const body = ResolveSchema.parse(await req.json());
-
     const flow = await db.flow.findFirst({ where: { id, ownerId: user.id } });
     if (!flow) throw new AppError("NOT_FOUND", "Flow not found");
-
     const graph = structuredClone(flow.graph) as FlowGraph;
-    if (graph.devMode) refuseIfFeatureOff("devMode", "devMode");
     let replaced = 0;
-
     // Build a lookup: lowercased label → real address
     const addrMap = new Map<string, string>();
     for (const [label, addr] of Object.entries(body.addresses)) {
       addrMap.set(label.toLowerCase(), addr);
     }
-
     // Walk through all nodes and replace addresses by matching label
     const nodes = graph.nodes.map((n) => {
       if (n.type === "split") {
@@ -67,13 +67,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       }
       return n;
     });
-
     const updatedGraph: FlowGraph = { ...graph, nodes };
-
     if (replaced === 0) {
       throw new AppError("VALIDATION", "No pending addresses matched the provided labels");
     }
-
     // Validate the updated flow
     const v = validateFlow(updatedGraph);
     if (!v.ok) {
@@ -83,11 +80,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         issuesToFields(v.errors),
       );
     }
-
     // Save the flow
     const templateKind = v.templateKind;
     const pipeline = flowToPipeline(v.graph, undefined, undefined, { forValidation: true });
-
     await db.flow.update({
       where: { id },
       data: {
@@ -97,12 +92,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         version: { increment: 1 },
       },
     });
-
     // Upsert each resolved address to the user's address book
     for (const [label, addr] of Object.entries(body.addresses)) {
       await upsertAddress(user.id, label, addr).catch(() => {});
     }
-
     return NextResponse.json({
       data: {
         resolved: replaced,

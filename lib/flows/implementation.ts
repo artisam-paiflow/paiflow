@@ -4,7 +4,6 @@ import type { FlowGraph, FlowNode } from "./schema";
 import type { ValidationIssue } from "./issue";
 import type { PipelineNodeParams } from "./to-params";
 import { edgeBranch, isTimeCondition, timelockSideBranch } from "./branches";
-
 const BlockTypeSchema = z.enum([
   "on_receive",
   "on_schedule",
@@ -41,7 +40,6 @@ export const PipelineImplementationSchema = z
   .strict();
 export type BlockBinding = z.infer<typeof BlockBindingSchema>;
 export type PipelineImplementation = z.infer<typeof PipelineImplementationSchema>;
-
 export function directBinding(node: FlowNode): BlockBinding {
   return {
     blockId: node.id,
@@ -56,7 +54,6 @@ export function directBinding(node: FlowNode): BlockBinding {
           : "action",
   };
 }
-
 function directTemplateMatches(block: FlowNode, templateKind: string): boolean {
   switch (block.type) {
     case "on_receive":
@@ -65,23 +62,23 @@ function directTemplateMatches(block: FlowNode, templateKind: string): boolean {
     case "web2_webhook":
       return templateKind === "WEBHOOK";
     case "subscription":
-      return ["SUBSCRIPTION", "SUBSCRIPTION_DEV"].includes(templateKind);
+      return ["SUBSCRIPTION"].includes(templateKind);
     case "payroll":
-      return ["PAYROLL", "SUBSCRIPTION", "SUBSCRIPTION_DEV"].includes(templateKind);
+      return ["PAYROLL", "SUBSCRIPTION"].includes(templateKind);
     case "oracle":
       return templateKind === "ORACLE";
     case "pay":
-      return ["PAYER", "PAYER_DEV"].includes(templateKind);
+      return ["PAYER"].includes(templateKind);
     case "return_to_owner":
       return templateKind === "PAYER";
     case "split":
-      return ["SPLITTER", "SPLITTER_DEV"].includes(templateKind);
+      return ["SPLITTER"].includes(templateKind);
     case "swap":
       return templateKind === "SWAPPER";
     case "yield":
       return templateKind === "YIELD";
     case "cash_out":
-      return ["CASH_OUT", "CASH_OUT_DEV"].includes(templateKind);
+      return ["CASH_OUT"].includes(templateKind);
     case "condition":
       switch (block.config.kind) {
         case "time_after":
@@ -109,7 +106,6 @@ function directTemplateMatches(block: FlowNode, templateKind: string): boolean {
     }
   }
 }
-
 function reachesBlock(graph: FlowGraph, sourceId: string, targetId: string): boolean {
   const seen = new Set([sourceId]);
   const queue = [sourceId];
@@ -125,12 +121,19 @@ function reachesBlock(graph: FlowGraph, sourceId: string, targetId: string): boo
   }
   return false;
 }
-
 function roleMatches(
   graph: FlowGraph,
   block: FlowNode,
-  binding: Exclude<BlockBinding, { role: "payout_sink" }>,
-  node: { nodeId: string; templateKind: string },
+  binding: Exclude<
+    BlockBinding,
+    {
+      role: "payout_sink";
+    }
+  >,
+  node: {
+    nodeId: string;
+    templateKind: string;
+  },
   blocks: Map<string, FlowNode>,
 ): boolean {
   switch (binding.role) {
@@ -188,7 +191,6 @@ function roleMatches(
     }
   }
 }
-
 /** Checks the compiler's recorded coverage; never invent bindings for a deployed graph. */
 export function implementationIssues(
   graph: FlowGraph,
@@ -203,13 +205,14 @@ export function implementationIssues(
   const blocks = new Map(graph.nodes.map((n) => [n.id, n]));
   const covered = new Set<string>();
   const contractIds = new Set<string>();
-  const payoutReferences = new Map<string, { blockId: string; recipientIndex: number }>();
+  const payoutReferences = new Map<
+    string,
+    {
+      blockId: string;
+      recipientIndex: number;
+    }
+  >();
   const payoutBindings = new Map<string, number>();
-  // Dev non-payroll compilation preserves existing cash-out contract recipients.
-  // Their addresses are validated by the graph validator; they are dependencies,
-  // not contracts generated/deployed by this pipeline.
-  const generatesPayouts =
-    graph.devMode !== true || graph.nodes.some((node) => node.type === "payroll");
   const report = (id: string, message: string) =>
     issues.push({
       path: `nodes.${id}`,
@@ -221,13 +224,13 @@ export function implementationIssues(
   for (const node of pipeline) {
     const params = node.params;
     const recipients =
-      params?.kind === "payer" || params?.kind === "payer_dev"
+      params?.kind === "payer"
         ? [{ address: params.recipient, isCashOut: params.isCashOut }]
-        : params?.kind === "splitter" || params?.kind === "splitter_dev"
+        : params?.kind === "splitter"
           ? params.recipients
           : [];
     for (const [recipientIndex, recipient] of recipients.entries()) {
-      if (!generatesPayouts || !recipient.isCashOut) continue;
+      if (!recipient.isCashOut) continue;
       if (!recipient.address || payoutReferences.has(recipient.address)) {
         report(
           node.nodeId,
@@ -291,10 +294,10 @@ export function implementationIssues(
         if (
           !recipient ||
           recipient.payoutMode !== "fiat" ||
-          !["CASH_OUT", "CASH_OUT_DEV"].includes(node.templateKind) ||
+          !["CASH_OUT"].includes(node.templateKind) ||
           reference?.blockId !== block.id ||
           reference.recipientIndex !== binding.recipientIndex ||
-          (params?.kind !== "cash_out" && params?.kind !== "cash_out_dev") ||
+          params?.kind !== "cash_out" ||
           params.parentNodeId !== block.id
         ) {
           report(block.id, "A generated payout contract has an invalid recipient binding.");
@@ -329,7 +332,7 @@ export function implementationIssues(
     const recipients =
       block.type === "pay" ? [block.config] : block.type === "split" ? block.config.recipients : [];
     for (const [recipientIndex, recipient] of recipients.entries()) {
-      if (!generatesPayouts || recipient.payoutMode !== "fiat") continue;
+      if (recipient.payoutMode !== "fiat") continue;
       if (payoutBindings.get(JSON.stringify([block.id, recipientIndex])) !== 1) {
         report(
           block.id,
@@ -345,7 +348,6 @@ export function implementationIssues(
   }
   return issues;
 }
-
 /** Display recorded block associations without looking up the current editable flow. */
 export function implementationLabel(value: unknown): string | null {
   const parsed = PipelineImplementationSchema.safeParse(value);

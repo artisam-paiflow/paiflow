@@ -143,7 +143,7 @@ An action decides **where** money goes. A flow must contain at least one.
 |     | Block             | Does                                                     | Notes that matter                                                                                                                                              |
 | --- | ----------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ●   | `hold`            | Strictly locks funds until a time condition deadline     | Terminal before-side marker; after side must have a destination. No early release.                                                                             |
-| ●   | `return_to_owner` | Returns the full incoming amount to the deploying wallet | Terminal after amount, time, or multisig conditions; refused after `oracle_gte`. Recipient resolves during preparation, immutable even in dev mode.            |
+| ●   | `return_to_owner` | Returns the full incoming amount to the deploying wallet | Terminal after amount, time, or multisig conditions; refused after `oracle_gte`. Recipient resolves during preparation, fixed at deployment.                   |
 | ●   | `pay`             | Sends to one recipient                                   | Fixed amount, a percentage of what arrived, or the full amount. Supports a fiat payout mode.                                                                   |
 | ●   | `split`           | Fans out to up to 20 recipients                          | Percentage mode (basis points) or fixed mode — never mixed. See the invariants below.                                                                          |
 | ●   | `swap`            | Exchanges `assetIn` for `assetOut` on Soroswap           | A real DEX swap with a slippage bound; forwards the whole output to exactly one next step. See below.                                                          |
@@ -196,7 +196,7 @@ ledger time is refused, never redirected.
 
 A `hold` marker on the before side changes a time condition to a strict lock: neither the wallet nor the relayer can release early. At or after the deadline the full balance follows the after destination. Hold is absorbed into that condition and has no contract of its own.
 
-`return_to_owner` pays 100% of the incoming amount to the wallet signing deployment, never an address guessed when saving. It stays immutable in dev mode. It can follow amount, time and multisig conditions, but not `oracle_gte`, whose fixed-amount release cannot express full-balance return. Both outcomes require exactly one incoming condition edge and no outgoing edges.
+`return_to_owner` pays 100% of the incoming amount to the wallet signing deployment, never an address guessed when saving. Its recipient stays fixed at deployment. It can follow amount, time and multisig conditions, but not `oracle_gte`, whose fixed-amount release cannot express full-balance return. Both outcomes require exactly one incoming condition edge and no outgoing edges.
 
 Every other kind has only the True output. An edge saved without a branch is the True branch.
 
@@ -241,16 +241,11 @@ Fiat payouts:
 
 Deferred configuration:
 
-- `FEATURE_DEV_MODE_ENABLED=false` hides Dev builder and deployment configuration controls,
-  rejects Dev flow creation/graph updates and new deployments (including prepared submissions),
-  and disables `dev-*` APIs and v1 per-payment recipient payouts. Existing contract execution,
-  cancellation, status/event reads and scheduled automation continue. The flag defaults on;
-  set it explicitly to false in the hackathon environment.
-
 - Addresses may be left **pending** at design time and resolved before deploy.
-- "Fill via API after deploy" (an empty split roster, `fillValueViaApi`, `fillScheduleViaApi`) is
-  only legal in dev mode, where the deployed contract is mutable. Background:
-  [`docs/design/2026-06-24-dev-mode-mutable-flows.md`](./docs/design/2026-06-24-dev-mode-mutable-flows.md).
+- Recipients, payment values and schedules must satisfy ordinary validation before deployment.
+  Post-deployment API-filled configuration and mutable dev-mode contracts have been removed
+  ([#1138](https://github.com/webnxt-2030/pinkraft/issues/1138)). Incomplete drafts may still be
+  saved, but cannot deploy until their required configuration is complete.
 
 ### 3.5 English Preview Pane
 
@@ -269,18 +264,17 @@ The block library is what a user assembles. This is the rest of the product surf
 have no palette entry. Each is one line plus where the truth lives; nothing here restates an
 implementation.
 
-| Surface                    | What it is                                                                                                                                                                      | Where it lives                                                                                           |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| **Relayer automation**     | Why `on_schedule`, `subscription`, `payroll` and timelock conditions fire at all. Paiflow's own key signs `*_by_relayer` calls on a cron so the user doesn't sign every period. | `app/api/cron/*`, `lib/stellar/relayer.ts`; [`CLAUDE.md` §2](./CLAUDE.md#2-architecture)                 |
-| **Payroll**                | A recipient roster that changes between runs: employees, bank details, per-run payout records, and a catch-up limit so a lapsed schedule can't fire a year of charges at once.  | `Employee`, `PayrollRun`, `PayrollPayout`; `cron/auto-charge-payroll`                                    |
-| **Fiat off-ramp**          | Payouts marked fiat become jobs walking `PENDING → RUNNING → QUOTED → INITIATED → COMPLETED \| FAILED \| CANCELLED`. A **mock provider is the default**; PDAX is opt-in.        | [`docs/pdax-institution-api.md`](./docs/pdax-institution-api.md)                                         |
-| **Dev mode**               | A per-flow flag swapping in `_DEV` contract variants so values left blank at design time can be filled after deploy, authenticated by a token rather than a session.            | [`docs/design/2026-06-24-dev-mode-mutable-flows.md`](./docs/design/2026-06-24-dev-mode-mutable-flows.md) |
-| **QR-triggered execution** | Every deployment renders a public SEP-7 URL. Anyone with a wallet can scan, sign, and fire it — no account on Paiflow required.                                                 | `/trigger/[deploymentId]`                                                                                |
-| **Live event feed**        | On-chain events are ingested, never trusted from the client: cron poll → `ContractEvent` → Redis → SSE to the open page.                                                        | [`CLAUDE.md` §2](./CLAUDE.md#2-architecture)                                                             |
-| **Raft Log**               | Edit a flow by voice or text. Speech → transcript → a JSON patch that must pass the same validator as a hand-drawn edit before it touches the graph.                            | `/api/transcribe`, `/api/flows/[id]/edit`                                                                |
-| **Address book**           | Saved labels for Stellar addresses, reused by the builder and given to the AI so "pay Alice" resolves.                                                                          | `AddressBookEntry`, `lib/address-book.ts`                                                                |
-| **Admin console**          | Users, audit log, and off-ramp provider credentials — the last so PDAX's ~10-minute tokens can be rotated without a redeploy.                                                   | `/admin/*`                                                                                               |
-| **Deploys via a factory**  | One transaction deploys a whole pipeline, with child addresses pre-computed from deterministic salts.                                                                           | [`docs/soroban-smart-contracts.md`](./docs/soroban-smart-contracts.md) §4                                |
+| Surface                    | What it is                                                                                                                                                                      | Where it lives                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **Relayer automation**     | Why `on_schedule`, `subscription`, `payroll` and timelock conditions fire at all. Paiflow's own key signs `*_by_relayer` calls on a cron so the user doesn't sign every period. | `app/api/cron/*`, `lib/stellar/relayer.ts`; [`CLAUDE.md` §2](./CLAUDE.md#2-architecture) |
+| **Payroll**                | A recipient roster that changes between runs: employees, bank details, per-run payout records, and a catch-up limit so a lapsed schedule can't fire a year of charges at once.  | `Employee`, `PayrollRun`, `PayrollPayout`; `cron/auto-charge-payroll`                    |
+| **Fiat off-ramp**          | Payouts marked fiat become jobs walking `PENDING → RUNNING → QUOTED → INITIATED → COMPLETED \| FAILED \| CANCELLED`. A **mock provider is the default**; PDAX is opt-in.        | [`docs/pdax-institution-api.md`](./docs/pdax-institution-api.md)                         |
+| **QR-triggered execution** | Every deployment renders a public SEP-7 URL. Anyone with a wallet can scan, sign, and fire it — no account on Paiflow required.                                                 | `/trigger/[deploymentId]`                                                                |
+| **Live event feed**        | On-chain events are ingested, never trusted from the client: cron poll → `ContractEvent` → Redis → SSE to the open page.                                                        | [`CLAUDE.md` §2](./CLAUDE.md#2-architecture)                                             |
+| **Raft Log**               | Edit a flow by voice or text. Speech → transcript → a JSON patch that must pass the same validator as a hand-drawn edit before it touches the graph.                            | `/api/transcribe`, `/api/flows/[id]/edit`                                                |
+| **Address book**           | Saved labels for Stellar addresses, reused by the builder and given to the AI so "pay Alice" resolves.                                                                          | `AddressBookEntry`, `lib/address-book.ts`                                                |
+| **Admin console**          | Users, audit log, and off-ramp provider credentials — the last so PDAX's ~10-minute tokens can be rotated without a redeploy.                                                   | `/admin/*`                                                                               |
+| **Deploys via a factory**  | One transaction deploys a whole pipeline, with child addresses pre-computed from deterministic salts.                                                                           | [`docs/soroban-smart-contracts.md`](./docs/soroban-smart-contracts.md) §4                |
 
 Two things deliberately absent: there is **no** per-deploy network picker (the network is pinned per
 environment — [`CLAUDE.md` §7.5](./CLAUDE.md#75-networks)), and **no** in-app changelog. Feature
@@ -379,8 +373,9 @@ Consequences worth stating as product requirements rather than implementation de
   unsure whether they are about to spend testnet or mainnet funds.
 - **Amounts are integers, always.** Stroops as strings at every boundary; a float loses precision at
   exactly the resolution a stroop encodes.
-- **Deployed contracts are immutable by default.** Dev mode's mutable variants are a separate,
-  explicitly-chosen contract family, not a flag on the normal ones.
+- **Deployment configuration is validated before signing.** There is no dev-mode contract
+  family or deferred-configuration bypass. Supported standard controls and payroll operations
+  retain their explicit authorization rules.
 - **Generic auth errors, specific audit logs.** The user learns nothing from a failed login; the
   audit log records everything about it.
 
