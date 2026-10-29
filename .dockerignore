@@ -27,8 +27,6 @@
 !public/**
 !prisma/
 !prisma/**
-!patches/
-!patches/**
 !scripts/
 !scripts/**
 !packages/

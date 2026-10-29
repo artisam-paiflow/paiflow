@@ -175,7 +175,6 @@ model User {
   passkeys            Passkey[]
   sessions            Session[]
   auditLogs           AuditLog[]
-  files               FileAsset[]
   addressBookEntries  AddressBookEntry[]
   passwordResetTokens PasswordResetToken[]
   developerApiTokens  DeveloperApiToken[]
@@ -858,20 +857,6 @@ model CashOutJobFailure {
   contractEvent ContractEvent @relation(fields: [contractEventId], references: [id], onDelete: Cascade)
 
   @@index([deploymentId, createdAt])
-}
-
-model FileAsset {
-  id          String   @id @default(uuid()) @db.Uuid
-  ownerId     String   @db.Uuid
-  storageKey  String   @unique
-  filename    String
-  contentType String
-  size        Int
-  createdAt   DateTime @default(now())
-
-  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-
-  @@index([ownerId, createdAt(sort: Desc)])
 }
 
 // Rotates current templates/factory independently of deployments, including failures.

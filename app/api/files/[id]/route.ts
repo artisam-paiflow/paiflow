@@ -1,49 +1,44 @@
-import { NextRequest } from "next/server";
-import { db } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
-import { AppError, withErrorHandler } from "@/lib/errors";
-import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
-import { storage } from "@/lib/files/storage";
+import { NextRequest, NextResponse } from "next/server";
+import { requireSession } from "@/lib/auth";
+import { withErrorHandler } from "@/lib/errors";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
-export const runtime = "nodejs";
-
-function safeFilename(name: string): string {
-  return name.replace(/[\r\n"]/g, "").slice(0, 200);
-}
-
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { id } = await ctx.params;
-  const session = await getSessionUser();
-  if (!session) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-  const f = await db.fileAsset.findFirst({
-    where: { id, ownerId: session.id },
-  });
-  if (!f) throw new AppError("NOT_FOUND", "File not found");
-  const { stream, size } = await storage().get(f.storageKey);
-  return new Response(stream as unknown as ReadableStream, {
-    status: 200,
-    headers: {
-      "Content-Type": f.contentType,
-      "Content-Length": String(size),
-      "Content-Disposition": `attachment; filename="${safeFilename(f.filename)}"`,
-      "Cache-Control": "private, max-age=0, no-store",
-      "X-Content-Type-Options": "nosniff",
-    },
-  });
-}
-
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(_req: NextRequest) {
   return withErrorHandler(async () => {
-    const { id } = await ctx.params;
-    const session = await getSessionUser();
-    if (!session) throw new AppError("UNAUTHENTICATED", "Authentication required");
-    await enforceWriteRateLimit("fileDelete", session.id);
-    const f = await db.fileAsset.findFirst({ where: { id, ownerId: session.id } });
-    if (!f) throw new AppError("NOT_FOUND", "File not found");
-    await storage().remove(f.storageKey);
-    await db.fileAsset.delete({ where: { id } });
-    return new Response(null, { status: 204 });
+    const user = await requireSession();
+    await enforceRateLimit({
+      key: `file:retired:${user.id}`,
+      limit: 60,
+      windowSeconds: 60,
+    });
+    return NextResponse.json(
+      {
+        error: {
+          code: "FILE_STORAGE_RETIRED",
+          message: "Stored-file uploads, downloads and deletion have been retired.",
+        },
+      },
+      { status: 410, headers: { "Cache-Control": "private, no-store" } },
+    );
+  });
+}
+
+export async function DELETE(_req: NextRequest) {
+  return withErrorHandler(async () => {
+    const user = await requireSession();
+    await enforceRateLimit({
+      key: `file:retired:${user.id}`,
+      limit: 60,
+      windowSeconds: 60,
+    });
+    return NextResponse.json(
+      {
+        error: {
+          code: "FILE_STORAGE_RETIRED",
+          message: "Stored-file uploads, downloads and deletion have been retired.",
+        },
+      },
+      { status: 410, headers: { "Cache-Control": "private, no-store" } },
+    );
   });
 }
