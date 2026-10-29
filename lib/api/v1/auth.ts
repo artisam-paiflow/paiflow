@@ -14,12 +14,14 @@ import { AppError } from "@/lib/errors";
 
 export const DEPLOYMENT_API_TOKEN_PATTERN = /^pfk_[0-9a-f]{64}$/;
 
+type RecordedDeployment = Deployment & { flow?: { templateKind: string } };
+
 type LegacyTokenAuth = {
   tokenType: "deployment_token";
   ownerId: string;
   tokenCreatorId: string | null;
   token: Omit<DeploymentApiToken, "tokenHash">;
-  deployment: Deployment;
+  deployment: RecordedDeployment;
   analyticsAudience: Audience;
 };
 
@@ -30,10 +32,10 @@ export type DeveloperTokenAuth = {
   ownerId: string;
   tokenCreatorId: string;
   analyticsAudience: Audience;
-  deployment: Deployment | null;
+  deployment: RecordedDeployment | null;
 };
 export type ApiCredentialAuth = LegacyTokenAuth | DeveloperTokenAuth;
-export type DeploymentTokenAuth = ApiCredentialAuth & { deployment: Deployment };
+export type DeploymentTokenAuth = ApiCredentialAuth & { deployment: RecordedDeployment };
 
 /** A live credential with no grant. Do not negatively cache its mutable deployment selection. */
 export class DeploymentGrantRefusal extends AppError {
@@ -85,7 +87,9 @@ export async function requireDeploymentToken(
   if (DEVELOPER_API_TOKEN_PATTERN.test(raw)) {
     const row = await db.developerApiToken.findUnique({
       where: { tokenHash: hashApiToken(raw) },
-      include: { owner: { select: { isActive: true, role: true, analyticsAudience: true } } },
+      include: {
+        owner: { select: { isActive: true, role: true, analyticsAudience: true } },
+      },
     });
     if (
       !row ||
@@ -106,6 +110,7 @@ export async function requireDeploymentToken(
     };
     if (deploymentId) {
       const deployment = await db.deployment.findFirst({
+        include: { flow: { select: { templateKind: true } } },
         where: {
           id: deploymentId,
           ownerId: row.ownerId,
@@ -131,7 +136,10 @@ export async function requireDeploymentToken(
     where: { tokenHash: hashApiToken(raw) },
     include: {
       deployment: {
-        include: { owner: { select: { isActive: true, role: true, analyticsAudience: true } } },
+        include: {
+          owner: { select: { isActive: true, role: true, analyticsAudience: true } },
+          flow: { select: { templateKind: true } },
+        },
       },
     },
   });

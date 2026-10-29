@@ -493,6 +493,7 @@ describe("retired payroll cannot fall back to subscription automation", () => {
     mockEnv.STELLAR_RELAYER_ADDRESS = "GDRELAYER";
   });
   it.each([
+    { flow: { templateKind: "PAYROLL" } },
     { graphSnapshot: { nodes: [{ type: "payroll" }] } },
     { paramsSnapshot: [{ params: { kind: "payroll_trigger" } }] },
     { pipelineSnapshot: [{ templateKind: "PAYROLL", contractAddress: "C123" }] },
@@ -509,6 +510,13 @@ describe("retired payroll cannot fall back to subscription automation", () => {
       },
     ]);
     const result = await (await POST(makeRequest("cron-secret"))).json();
+    expect(mockDb.deployment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ flow: { templateKind: { not: "PAYROLL" } } }),
+        select: expect.objectContaining({ flow: { select: { templateKind: true } } }),
+        take: expect.any(Number),
+      }),
+    );
     expect(result.data.platformCharged).toBe(0);
     expect(result.data.userCharged).toBe(0);
     expect(result.data.details).toEqual([

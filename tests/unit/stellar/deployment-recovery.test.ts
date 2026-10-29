@@ -196,3 +196,17 @@ it("rejects bare expiry and missing server network metadata", () => {
     }).success,
   ).toBe(false);
 });
+
+it.each([
+  { flow: { templateKind: "PAYROLL" } },
+  { graphSnapshot: { nodes: [{ type: "payroll" }] } },
+  { paramsSnapshot: [{ params: { kind: "payroll_trigger" } }] },
+  { pipelineSnapshot: [{ templateKind: "PAYROLL" }] },
+])("never advertises signing recovery for retained payroll %j", async (recorded) => {
+  expect(await preparedDeploymentRecovery({ ...deployment(), ...recorded })).toEqual({
+    status: "BLOCKED",
+  });
+  expect(signed).not.toHaveBeenCalled();
+  expect(getTransaction).not.toHaveBeenCalled();
+  expect(getLatestLedger).not.toHaveBeenCalled();
+});

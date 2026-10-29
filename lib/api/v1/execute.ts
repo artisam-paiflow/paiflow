@@ -8,6 +8,7 @@ import {
   xdr,
   type Transaction,
 } from "@stellar/stellar-sdk";
+import { hasRetiredPayrollInput, PAYROLL_RETIRED_MESSAGE } from "@/lib/flows/retired-payroll";
 import type { Deployment, TemplateKind } from "@prisma/client";
 import { AppError } from "@/lib/errors";
 import { stellarPassphrase } from "@/lib/env";
@@ -34,6 +35,8 @@ function refusedHeadLabel(kind: TemplateKind): string | null {
   switch (kind) {
     case "DEPOSIT_TRIGGER":
       return null;
+    case "PAYROLL":
+      return "retired payroll";
     case "SUBSCRIPTION":
       return "subscription";
     case "WEBHOOK":
@@ -74,8 +77,9 @@ function refusedHeadLabel(kind: TemplateKind): string | null {
  * into the flow's trigger.
  */
 export function resolveExecutablePipeline(
-  deployment: Pick<Deployment, "status" | "pipelineSnapshot">,
+  deployment: Pick<Deployment, "status" | "pipelineSnapshot"> & { flow?: { templateKind: string } },
 ): ExecutablePipeline {
+  if (hasRetiredPayrollInput(deployment)) throw new AppError("NOT_FOUND", PAYROLL_RETIRED_MESSAGE);
   if (deployment.status !== "CONFIRMED") {
     throw new AppError("NOT_FOUND", "Deployment not found or not confirmed");
   }

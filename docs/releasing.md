@@ -73,10 +73,12 @@ The maintainer-approved [payroll retirement in #1144](payroll-retirement.md)
 intentionally discontinues payroll runtime, management APIs and affected public
 API/SDK payroll metadata. No replacement payroll API is provided. This is an
 explicit compatibility exception for payroll only; ordinary subscriptions, crypto
-payments and their API contracts remain supported. The guarded migration may
-remove only the approved unchanged undeployed payroll draft and empty payroll
-storage/configuration. It must preserve audit and financial evidence and refuse
-unexpected payroll deployments or payment records. Retained archive databases
+payments and their API contracts remain supported. Runtime retirement preserves the historical payroll enum, ignored storage models,
+reviewed deployment/roster snapshots and financial/audit evidence. Destructive
+cleanup is deferred; the preservation migration permits only the fingerprint-bound
+reviewed cancelled fixture and refuses unexpected or unresolved obligations. The
+retirement procedure records the narrow pre-staging migration correction and the
+forward schema restoration for targets that completed the original empty cleanup. Retained archive databases
 remain untouched. Record this removal and its cutover requirements in Unreleased
 and named release notes. Source changes do not apply a live migration, stop an
 external scheduler, cancel an on-chain contract or revoke an allowance.

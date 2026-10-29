@@ -10,6 +10,7 @@ import {
   xdr,
 } from "@stellar/stellar-sdk";
 import { z } from "zod";
+import { hasRetiredPayrollInput } from "@/lib/flows/retired-payroll";
 import { TemplateKind } from "@prisma/client";
 import { withDeploymentBatch } from "@/lib/deployments/service-work";
 import { env, stellarFactoryAddress, stellarPassphrase, stellarWasmHash } from "@/lib/env";
@@ -427,7 +428,7 @@ export async function runTtlMaintenance(): Promise<TtlSummary> {
   // Fresh DB configuration, with env fallback; avoid process-lifetime config caches.
   const [templates, factory, deployments, cursor] = await Promise.all([
     db.contractTemplate.findMany({
-      where: { network: config.STELLAR_NETWORK },
+      where: { network: config.STELLAR_NETWORK, kind: { not: "PAYROLL" } },
       select: { kind: true, wasmHash: true },
     }),
     db.factoryDeployment.findUnique({
@@ -438,12 +439,21 @@ export async function runTtlMaintenance(): Promise<TtlSummary> {
       where: {
         network: config.STELLAR_NETWORK,
         status: "CONFIRMED",
+        flow: { templateKind: { not: "PAYROLL" } },
         serviceState: "ACTIVE",
         owner: { role: { not: "SANDBOX" } },
       },
       orderBy: [{ ttlCheckedAt: { sort: "asc", nulls: "first" } }, { id: "asc" }],
       take: TTL_LIMITS.batch + 1,
-      select: { id: true, pipelineSnapshot: true, contractAddress: true, ttlScanOffset: true },
+      select: {
+        id: true,
+        pipelineSnapshot: true,
+        graphSnapshot: true,
+        paramsSnapshot: true,
+        flow: { select: { templateKind: true } },
+        contractAddress: true,
+        ttlScanOffset: true,
+      },
     }),
     db.ttlMaintenanceState.upsert({
       where: { network: config.STELLAR_NETWORK },
@@ -451,8 +461,13 @@ export async function runTtlMaintenance(): Promise<TtlSummary> {
       update: {},
     }),
   ]);
-  const current = new Map(templates.map((row) => [row.kind, row.wasmHash]));
+  const current = new Map(
+    templates
+      .filter((row) => row.kind !== TemplateKind.PAYROLL)
+      .map((row) => [row.kind, row.wasmHash]),
+  );
   for (const kind of Object.values(TemplateKind)) {
+    if (kind === TemplateKind.PAYROLL) continue;
     if (!current.has(kind)) {
       const hash = stellarWasmHash(kind);
       if (hash) current.set(kind, hash);
@@ -516,6 +531,7 @@ export async function runTtlMaintenance(): Promise<TtlSummary> {
     }> = [];
     const invalid: Array<(typeof deployments)[number]> = [];
     for (const deployment of deployments.slice(0, TTL_LIMITS.batch)) {
+      if (hasRetiredPayrollInput(deployment)) continue;
       try {
         const addresses = ttlSnapshotAddresses(
           deployment.pipelineSnapshot,

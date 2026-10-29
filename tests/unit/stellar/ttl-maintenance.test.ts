@@ -7,16 +7,15 @@ vi.mock("@/lib/deployments/service-work", () => ({
   assertDeploymentService: vi.fn(async () => undefined),
   withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
   runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
-  withDeploymentBatch: async (
-    ids: string[],
-    _kind: string,
-    fn: (ids: string[]) => Promise<unknown>,
-  ) => fn(ids),
+  withDeploymentBatch: vi.fn(
+    async (ids: string[], _kind: string, fn: (ids: string[]) => Promise<unknown>) => fn(ids),
+  ),
   beforeExternalRelayer: vi.fn(async () => undefined),
   observeExternalRelayer: vi.fn(async () => undefined),
   beforeServiceSubmission: vi.fn(async () => undefined),
   observeServiceTransaction: vi.fn(async () => undefined),
 }));
+import { withDeploymentBatch } from "@/lib/deployments/service-work";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Account, Address, Keypair, Networks, SorobanDataBuilder, xdr } from "@stellar/stellar-sdk";
 import { TemplateKind } from "@prisma/client";
@@ -200,6 +199,7 @@ describe("TTL inventory", () => {
         where: {
           network: "testnet",
           status: "CONFIRMED",
+          flow: { templateKind: { not: "PAYROLL" } },
           serviceState: "ACTIVE",
           owner: { role: { not: "SANDBOX" } },
         },
@@ -394,7 +394,10 @@ describe("TTL inventory", () => {
     const mod = await load();
     const hashes = Array.from({ length: 10 }, (_, n) => (n + 1).toString(16).padStart(64, "0"));
     mockDb.contractTemplate.findMany.mockResolvedValue(
-      hashes.map((wasmHash, n) => ({ kind: Object.values(TemplateKind)[n]!, wasmHash })),
+      hashes.map((wasmHash, n) => ({
+        kind: Object.values(TemplateKind).filter((kind) => kind !== TemplateKind.PAYROLL)[n]!,
+        wasmHash,
+      })),
     );
     for (const hash of hashes)
       entries.set(mod.ttlCodeKey(hash).toXDR("base64"), {
@@ -445,7 +448,10 @@ describe("TTL inventory", () => {
     const mod = await load();
     const hashes = Array.from({ length: 10 }, (_, n) => (n + 1).toString(16).padStart(64, "0"));
     mockDb.contractTemplate.findMany.mockResolvedValue(
-      hashes.map((wasmHash, n) => ({ kind: Object.values(TemplateKind)[n]!, wasmHash })),
+      hashes.map((wasmHash, n) => ({
+        kind: Object.values(TemplateKind).filter((kind) => kind !== TemplateKind.PAYROLL)[n]!,
+        wasmHash,
+      })),
     );
     mockDb.deployment.findMany.mockResolvedValue(
       Array.from({ length: 20 }, (_, n) => ({
@@ -880,4 +886,47 @@ describe("TTL transaction safety", () => {
     expect(channel.trackPending).not.toHaveBeenCalled();
     sign.mockRestore();
   });
+});
+
+it("never admits retained payroll contracts or their retained template to paid TTL maintenance", async () => {
+  process.env.STELLAR_TTL_MAINTENANCE_ENABLED = "true";
+  const mod = await load();
+  const retired = contract(31),
+    ordinary = contract(32);
+  mockDb.contractTemplate.findMany.mockResolvedValue([
+    { kind: TemplateKind.PAYROLL, wasmHash: HASH },
+    { kind: TemplateKind.SUBSCRIPTION, wasmHash: OLD_HASH },
+  ]);
+  mockDb.deployment.findMany.mockResolvedValue([
+    {
+      id: "retired",
+      flow: { templateKind: "PAYROLL" },
+      pipelineSnapshot: [{ contractAddress: retired, templateKind: "SUBSCRIPTION" }],
+      ttlScanOffset: 0,
+    },
+    {
+      id: "ordinary",
+      flow: { templateKind: "SUBSCRIPTION" },
+      pipelineSnapshot: [{ contractAddress: ordinary, templateKind: "SUBSCRIPTION" }],
+      ttlScanOffset: 0,
+    },
+  ]);
+  const result = await mod.runTtlMaintenance();
+  expect(result.scans.map((scan) => scan.deploymentId)).toEqual(["ordinary"]);
+  expect(withDeploymentBatch).toHaveBeenCalledWith(
+    ["ordinary"],
+    "ttl-maintenance",
+    expect.any(Function),
+  );
+  expect(result.details.some((entry) => entry.target === retired || entry.target === HASH)).toBe(
+    false,
+  );
+  expect(result.details.some((entry) => entry.target === ordinary)).toBe(true);
+  expect(mockDb.deployment.findMany).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: expect.objectContaining({ flow: { templateKind: { not: "PAYROLL" } } }),
+    }),
+  );
+  expect(mockRpc.simulateTransaction).not.toHaveBeenCalled();
+  expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
 });

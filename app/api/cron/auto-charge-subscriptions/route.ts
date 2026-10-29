@@ -146,12 +146,14 @@ async function runSubscriptionCharges() {
   const deployments = await db.deployment.findMany({
     where: {
       status: "CONFIRMED",
+      flow: { templateKind: { not: "PAYROLL" } },
       serviceState: "ACTIVE",
       chargeRelayerMode: { in: [ChargeRelayerMode.PLATFORM, ChargeRelayerMode.USER] },
       OR: [{ nextChargeAt: { lte: now } }, { nextChargeAt: null }],
     },
     select: {
       id: true,
+      flow: { select: { templateKind: true } },
       chargeEndAt: true,
       chargeRelayerMode: true,
       chargeRelayerAddress: true,
@@ -194,6 +196,15 @@ async function runSubscriptionCharges() {
       truncated = true;
       break;
     }
+    if (hasRetiredPayrollInput(d)) {
+      results.push({
+        deploymentId: d.id,
+        contractAddress: "",
+        status: "skipped",
+        error: "Retired payroll instructions",
+      });
+      continue;
+    }
     await runDeploymentWork(d.id, "auto-charge-subscriptions", async () => {
       // Unattempted deployments keep their nextChargeAt, so the next run finds them still due.
       if (deadline.expired()) {
@@ -202,15 +213,6 @@ async function runSubscriptionCharges() {
           { budgetMs: deadline.budgetMs, attempted, deploymentCount: deployments.length },
           "auto-charge-subscriptions cron out of time; the rest waits for the next run",
         );
-        return;
-      }
-      if (hasRetiredPayrollInput(d)) {
-        results.push({
-          deploymentId: d.id,
-          contractAddress: "",
-          status: "skipped",
-          error: "Retired payroll instructions",
-        });
         return;
       }
       attempted += 1;

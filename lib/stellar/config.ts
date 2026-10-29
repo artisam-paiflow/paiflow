@@ -69,6 +69,7 @@ export async function getWasmHashes(
   const missing: TemplateKind[] = [];
 
   for (const kind of Object.values(TemplateKind)) {
+    if (kind === TemplateKind.PAYROLL) continue;
     const key = wasmHashCacheKey(kind, net);
     const cached = c.wasmHashes.get(key);
     if (cached) {
@@ -83,13 +84,14 @@ export async function getWasmHashes(
 
     const foundKinds = new Set<TemplateKind>();
     for (const [kind, hash] of dbHashes) {
+      if (kind === TemplateKind.PAYROLL) continue;
       result.set(kind, hash);
       c.wasmHashes.set(wasmHashCacheKey(kind, net), hash);
       foundKinds.add(kind);
     }
 
     for (const kind of missing) {
-      if (foundKinds.has(kind)) continue;
+      if (kind === TemplateKind.PAYROLL || foundKinds.has(kind)) continue;
       const envKey = `STELLAR_WASM_HASH_${kind}_${net.toUpperCase()}`;
       const fallback = stellarWasmHash(kind);
       if (fallback) {
@@ -111,6 +113,7 @@ export async function getWasmHash(
   kind: TemplateKind,
   network?: "testnet" | "mainnet",
 ): Promise<string | undefined> {
+  if (kind === TemplateKind.PAYROLL) return undefined;
   const net = network ?? networkName();
   const c = cache();
   const key = wasmHashCacheKey(kind, net);
