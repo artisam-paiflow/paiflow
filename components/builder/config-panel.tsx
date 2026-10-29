@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useMemo } from "react";
 import type { FlowNode, FlowGraph } from "@/lib/flows/schema";
 import {
@@ -34,18 +33,6 @@ import { NodeAssetField } from "./panels/node-asset-field";
 import { RecipientEmailField } from "./notification-settings";
 import AddressInput from "./address-input";
 import { AddressPicker } from "./inputs/address-picker";
-
-/**
- * Sentinel for an address field a developer chose to leave blank at design time
- * and fill via the API after deploy (dev mode only). It is a `PENDING:` value, so
- * `isPendingAddress` recognizes it and the deploy resolver encodes it as a blank
- * (`None` / `ScVal::Void`) on the matching `_DEV` contract.
- */
-const API_FILL_ADDRESS = "PENDING:__api__";
-function isApiFillAddress(addr: string): boolean {
-  return addr === API_FILL_ADDRESS;
-}
-
 const TIMEZONES = [
   "UTC",
   "America/New_York",
@@ -67,7 +54,6 @@ const TIMEZONES = [
   "Australia/Sydney",
   "Pacific/Auckland",
 ];
-
 function getTimezoneOffsetMinutes(timeZone: string, date: Date): number {
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone,
@@ -82,14 +68,12 @@ function getTimezoneOffsetMinutes(timeZone: string, date: Date): number {
   const mins = match[2] ? parseInt(match[2], 10) : 0;
   return hours * 60 + Math.sign(hours) * mins;
 }
-
 function formatIsoForTimezone(iso: string, timeZone: string): string {
   const d = new Date(iso);
   const offset = getTimezoneOffsetMinutes(timeZone, d);
   const adjusted = new Date(d.getTime() + offset * 60000);
   return adjusted.toISOString().slice(0, 16);
 }
-
 function isoFromLocalAndTimezone(local: string, timeZone: string): string {
   const [datePart, timePart] = local.split("T");
   if (!datePart || !timePart) return new Date().toISOString();
@@ -106,7 +90,6 @@ function isoFromLocalAndTimezone(local: string, timeZone: string): string {
   const diff = (browserOffset - targetOffset) * 60000;
   return new Date(browserDate.getTime() + diff).toISOString();
 }
-
 type Props = {
   node: FlowNode | null;
   graph: FlowGraph;
@@ -137,7 +120,6 @@ type Props = {
   features: FeatureFlags;
   sandbox?: boolean;
 };
-
 export default function ConfigPanel({
   node,
   graph,
@@ -159,7 +141,6 @@ export default function ConfigPanel({
     () => (node ? (computeAssetFlow(graph).get(node.id) ?? null) : null),
     [graph, node],
   );
-
   const nodeErrors = useMemo(
     () =>
       node
@@ -171,12 +152,10 @@ export default function ConfigPanel({
         : { field: new Map<string, string>(), general: [] },
     [errors, graph.nodes, node],
   );
-
   const fieldError = (name: string): string | null => nodeErrors.field.get(name) ?? null;
   // Every AssetField edits `config.asset`; a Zod issue lands under it
   // (`asset.code`, `asset.issuer`), validateFlow's mismatch on it (#407).
   const assetError = fieldErrorUnder(nodeErrors.field, "asset");
-
   if (!node) {
     return (
       <aside
@@ -186,23 +165,13 @@ export default function ConfigPanel({
       </aside>
     );
   }
-
   const trigger = graph.nodes.find(isTrigger);
   const triggerType = trigger?.type ?? null;
   const sourceAmount = sourceAmountStroops(graph);
-  const devMode = features.devMode && graph.devMode === true;
-
-  // Native fiat payout (bank transfer via an auto-generated cash-out contract)
-  // is available on pay/split nodes for non-dev flows whose payouts route
-  // through the payer/splitter. Payroll also allows it in dev mode (bank
-  // details are filled via the API after deploy).
-  // Off on this server (#722), fiat is not offered; a pay step saved with it
-  // still shows the selector, so it can be switched back to crypto.
-  const fiatPayoutAvailable = fiatAvailable(features.offramp, triggerType, devMode);
+  const fiatPayoutAvailable = fiatAvailable(features.offramp, triggerType);
   const payPayoutSelect =
     node.type === "pay" &&
     showPayoutModeSelect(fiatPayoutAvailable, features.offramp, node.config.payoutMode);
-
   // Payroll distributions must be fixed salary amounts. If a user switches an
   // existing percentage split to a payroll trigger, convert the recipients to
   // fixed amounts so the UI stays consistent and the flow can validate.
@@ -231,7 +200,6 @@ export default function ConfigPanel({
       },
     } as FlowNode);
   }, [triggerType, node, onChange]);
-
   // Streamer (on_schedule) vests a fixed amount per interval — "send full
   // amount" and percentage mode have no referent because the funded total is
   // derived from the configured amount (unlike on_receive, where the incoming
@@ -250,7 +218,6 @@ export default function ConfigPanel({
       },
     } as FlowNode);
   }, [triggerType, node, onChange]);
-
   return (
     <aside
       data-testid="config-panel"
@@ -520,7 +487,7 @@ export default function ConfigPanel({
         <>
           {!sandbox && (
             <RecipientEmailField
-              shared={!devMode && triggerType !== "payroll" && node.config.payoutMode !== "fiat"}
+              shared={triggerType !== "payroll" && node.config.payoutMode !== "fiat"}
               value={node.config.email}
               onChange={(email) => onChange({ ...node, config: { ...node.config, email } })}
             />
@@ -536,37 +503,7 @@ export default function ConfigPanel({
 
           {!(fiatPayoutAvailable && node.config.payoutMode === "fiat") && (
             <>
-              {devMode ? (
-                <ApiFillField
-                  label="Recipient (G… or PENDING:)"
-                  devMode={devMode}
-                  active={isApiFillAddress(node.config.recipient)}
-                  onActivate={() =>
-                    onChange({ ...node, config: { ...node.config, recipient: API_FILL_ADDRESS } })
-                  }
-                  onDeactivate={() =>
-                    onChange({ ...node, config: { ...node.config, recipient: "" } })
-                  }
-                  hint="Recipient set via the API after deploy"
-                  error={fieldError("recipient")}
-                >
-                  <AddressInput
-                    value={node.config.recipient}
-                    onChange={(recipient) =>
-                      onChange({
-                        ...node,
-                        config: { ...node.config, recipient },
-                      })
-                    }
-                    pending={isPendingAddress(node.config.recipient)}
-                    error={!!fieldError("recipient")}
-                    addressBook={addressBook}
-                    onAddressBookChange={refreshAddressBook}
-                    addressBookLoading={addressBookLoading}
-                    addressBookError={addressBookError}
-                  />
-                </ApiFillField>
-              ) : (
+              {
                 <AddressPicker
                   label="Recipient (G… or PENDING:)"
                   error={fieldError("recipient")}
@@ -583,7 +520,7 @@ export default function ConfigPanel({
                   addressBookLoading={addressBookLoading}
                   addressBookError={addressBookError}
                 />
-              )}
+              }
             </>
           )}
 
@@ -609,7 +546,7 @@ export default function ConfigPanel({
                             : isPendingAddress(node.config.recipient)
                               ? "PENDING:unnamed"
                               : node.config.recipient,
-                        ...(mode === "fiat" && !devMode
+                        ...(mode === "fiat"
                           ? {
                               accountName: node.config.accountName ?? "",
                               accountNumber: node.config.accountNumber ?? "",
@@ -627,7 +564,7 @@ export default function ConfigPanel({
                 </select>
               </Field>
 
-              {fiatPayoutAvailable && node.config.payoutMode === "fiat" && !devMode && (
+              {fiatPayoutAvailable && node.config.payoutMode === "fiat" && (
                 <>
                   <Field label="Account name" error={fieldError("accountName")}>
                     <input
@@ -674,38 +611,13 @@ export default function ConfigPanel({
                 </>
               )}
 
-              {fiatPayoutAvailable && node.config.payoutMode === "fiat" && devMode && (
-                <div className="rounded border border-amber-800/40 bg-amber-950/20 px-2 py-1 text-[10px] text-amber-300">
-                  Bank details configured via API after deploy.
-                </div>
-              )}
+              {false}
             </div>
           )}
 
-          {devMode && (
-            <label className="flex cursor-pointer items-center justify-between rounded border border-amber-800/40 bg-amber-950/10 px-3 py-2">
-              <span className="text-xs text-amber-300">
-                Fill payment value via API after deploy
-              </span>
-              <input
-                type="checkbox"
-                checked={node.config.fillValueViaApi}
-                onChange={(e) =>
-                  onChange({
-                    ...node,
-                    config: { ...node.config, fillValueViaApi: e.target.checked },
-                  } as FlowNode)
-                }
-              />
-            </label>
-          )}
+          {false}
 
-          {node.config.fillValueViaApi ? (
-            <div className="flex items-center gap-1.5 rounded border border-amber-800/40 bg-amber-950/20 px-3 py-2 font-mono text-[12px] text-amber-300">
-              <span className="material-symbols-outlined text-[14px]">tune</span>
-              Payment value set via the API after deploy
-            </div>
-          ) : triggerType === "on_schedule" ? (
+          {triggerType === "on_schedule" ? (
             // Scheduled streams vest a fixed amount per interval — full-amount
             // and percentage modes are not offered here.
             <AmountInput
@@ -838,41 +750,9 @@ export default function ConfigPanel({
             expectedAsset={expectedAsset}
           />
 
-          {devMode && (
-            <label className="flex cursor-pointer items-center justify-between rounded border border-amber-800/40 bg-amber-950/10 px-3 py-2">
-              <span className="text-xs text-amber-300">Fill recipients via API after deploy</span>
-              <input
-                type="checkbox"
-                checked={node.config.recipients.length === 0}
-                onChange={(e) =>
-                  onChange({
-                    ...node,
-                    config: {
-                      ...node.config,
-                      recipients: e.target.checked
-                        ? []
-                        : [
-                            {
-                              address: "PENDING:unnamed",
-                              mode: "percentage" as const,
-                              bps: TOTAL_BPS,
-                            },
-                          ],
-                    },
-                  } as FlowNode)
-                }
-              />
-            </label>
-          )}
+          {false}
 
-          {devMode && node.config.recipients.length === 0 ? (
-            <div className="flex items-center gap-1.5 rounded border border-amber-800/40 bg-amber-950/20 px-3 py-2 font-mono text-[12px] text-amber-300">
-              <span className="material-symbols-outlined text-[14px]">tune</span>
-              Recipients set via the API after deploy
-            </div>
-          ) : (
-            <></>
-          )}
+          {<></>}
 
           {triggerType === "on_schedule" &&
             (node.config.recipients.length > 0 &&
@@ -927,10 +807,16 @@ export default function ConfigPanel({
 
           {node.type === "split" && (
             <SplitRecipientsEditor
-              node={node as Extract<FlowNode, { type: "split" }>}
+              node={
+                node as Extract<
+                  FlowNode,
+                  {
+                    type: "split";
+                  }
+                >
+              }
               trigger={trigger}
               sourceAmount={sourceAmount}
-              devMode={devMode}
               addressBook={addressBook}
               refreshAddressBook={refreshAddressBook}
               addressBookLoading={addressBookLoading}
@@ -999,37 +885,7 @@ export default function ConfigPanel({
             }
           />
           <>
-            {devMode ? (
-              <ApiFillField
-                label="Subscriber address (G… or PENDING:)"
-                devMode={devMode}
-                active={isApiFillAddress(node.config.subscriber)}
-                onActivate={() =>
-                  onChange({ ...node, config: { ...node.config, subscriber: API_FILL_ADDRESS } })
-                }
-                onDeactivate={() =>
-                  onChange({ ...node, config: { ...node.config, subscriber: "" } })
-                }
-                hint="Subscriber set via the API after deploy"
-                error={fieldError("subscriber")}
-              >
-                <AddressInput
-                  value={node.config.subscriber}
-                  onChange={(subscriber) =>
-                    onChange({
-                      ...node,
-                      config: { ...node.config, subscriber },
-                    })
-                  }
-                  pending={isPendingAddress(node.config.subscriber)}
-                  error={!!fieldError("subscriber")}
-                  addressBook={addressBook}
-                  onAddressBookChange={refreshAddressBook}
-                  addressBookLoading={addressBookLoading}
-                  addressBookError={addressBookError}
-                />
-              </ApiFillField>
-            ) : (
+            {
               <AddressPicker
                 label="Subscriber address (G… or PENDING:)"
                 error={fieldError("subscriber")}
@@ -1046,7 +902,7 @@ export default function ConfigPanel({
                 addressBookLoading={addressBookLoading}
                 addressBookError={addressBookError}
               />
-            )}
+            }
           </>
           {(() => {
             // When the subscription feeds a split whose recipients are all
@@ -1089,19 +945,7 @@ export default function ConfigPanel({
                 commit="draft"
                 echo={false}
                 asset={node.config.asset}
-                hint={
-                  <>
-                    <ApiFillHint
-                      show={
-                        devMode &&
-                        (!node.config.amountPerPeriodStroops ||
-                          node.config.amountPerPeriodStroops === "0")
-                      }
-                    >
-                      Leave empty to set the amount via the API after deploy.
-                    </ApiFillHint>
-                  </>
-                }
+                hint={<>{null}</>}
               />
             );
           })()}
@@ -1223,17 +1067,7 @@ export default function ConfigPanel({
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
           />
-          <ApiFillField
-            label="Employer address (G… or PENDING:)"
-            devMode={devMode}
-            active={isApiFillAddress(node.config.employer)}
-            onActivate={() =>
-              onChange({ ...node, config: { ...node.config, employer: API_FILL_ADDRESS } })
-            }
-            onDeactivate={() => onChange({ ...node, config: { ...node.config, employer: "" } })}
-            hint="Employer set via the API after deploy"
-            error={fieldError("employer")}
-          >
+          <Field label="Employer address (G… or PENDING:)" error={fieldError("employer")}>
             <AddressInput
               value={node.config.employer}
               onChange={(employer) =>
@@ -1249,43 +1083,21 @@ export default function ConfigPanel({
               addressBookLoading={addressBookLoading}
               addressBookError={addressBookError}
             />
-          </ApiFillField>
+          </Field>
           {(() => {
             const cfg = node.config as {
               intervalAmount?: number;
               intervalUnit?: "minute" | "hour" | "day" | "week" | "month";
               endsAt?: string;
               occurrences?: number;
-              fillScheduleViaApi?: boolean;
             };
             const amount = cfg.intervalAmount ?? 1;
             const unit = cfg.intervalUnit ?? "week";
             return (
               <>
-                {devMode && (
-                  <label className="flex cursor-pointer items-center justify-between rounded border border-amber-800/40 bg-amber-950/10 px-3 py-2">
-                    <span className="text-xs text-amber-300">
-                      Fill schedule via API after deploy
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={cfg.fillScheduleViaApi ?? false}
-                      onChange={(e) =>
-                        onChange({
-                          ...node,
-                          config: { ...cfg, fillScheduleViaApi: e.target.checked },
-                        } as FlowNode)
-                      }
-                    />
-                  </label>
-                )}
+                {false}
 
-                {devMode && cfg.fillScheduleViaApi ? (
-                  <div className="flex items-center gap-1.5 rounded border border-amber-800/40 bg-amber-950/20 px-3 py-2 font-mono text-[12px] text-amber-300">
-                    <span className="material-symbols-outlined text-[14px]">tune</span>
-                    Schedule set via the API after deploy
-                  </div>
-                ) : (
+                {
                   <>
                     <IntervalField
                       amount={amount}
@@ -1371,11 +1183,10 @@ export default function ConfigPanel({
                       />
                     </Field>
                   </>
-                )}
+                }
 
                 <div className="rounded border border-zinc-800 bg-zinc-900/50 p-2 text-xs text-zinc-400">
-                  Connect a Split action with fixed amounts to set employee salaries, or leave the
-                  Split recipients empty in dev mode to configure salaries via the API. The payroll
+                  Connect a Split action with fixed amounts to set employee salaries. The payroll
                   contract pulls the total from the employer each period and distributes it.
                 </div>
               </>
@@ -1458,7 +1269,7 @@ export default function ConfigPanel({
         <p className="text-on-surface-variant text-body-sm">
           {node.type === "hold"
             ? "Connect Hold to the before side of a time condition. Funds stay strictly locked until the deadline, then follow the after destination. Early release is impossible."
-            : "Returns 100% of the incoming amount to the wallet that signs deployment. The recipient is resolved during preparation and stays immutable, including in dev mode. Connect directly after an amount, time, or multisig condition."}
+            : "Returns 100% of the incoming amount to the wallet that signs deployment. The recipient is resolved during preparation and stays immutable. Connect directly after an amount, time, or multisig condition."}
         </p>
       )}
 
@@ -1468,10 +1279,7 @@ export default function ConfigPanel({
             <span className="material-symbols-outlined text-[14px]">payments</span>
             <span>
               Terminal cash-out. Funds leave the chain to the off-ramp treasury, then a bank payout
-              is made via PDAX.{" "}
-              {devMode
-                ? "Bank details can be left blank and filled via the API after deploy."
-                : "Bank details must be set before deploy."}
+              is made via PDAX. {"Bank details must be set before deploy."}
             </span>
           </div>
           <AssetField
@@ -1518,24 +1326,12 @@ export default function ConfigPanel({
                 } as FlowNode)
               }
             >
-              <option value="">
-                {devMode ? "— set via API after deploy —" : "— select bank —"}
-              </option>
+              <option value="">{"— select bank —"}</option>
               <option value="BASECPH">BASECPH — BDO</option>
               <option value="BACTBPH">BACTBPH — BPI</option>
             </select>
           </Field>
-          <ApiFillHint
-            show={
-              devMode &&
-              !node.config.accountName &&
-              !node.config.accountNumber &&
-              !node.config.bankCode
-            }
-          >
-            Leave the bank fields empty to fill them via the API after deploy. The contract deploys
-            &ldquo;not configured&rdquo; and guards execution until they are set.
-          </ApiFillHint>
+          {null}
         </>
       )}
 
@@ -1719,7 +1515,12 @@ export default function ConfigPanel({
             })()}
           {node.config.kind === "multisig" &&
             (() => {
-              const cfg = node.config as Extract<typeof node.config, { kind: "multisig" }>;
+              const cfg = node.config as Extract<
+                typeof node.config,
+                {
+                  kind: "multisig";
+                }
+              >;
               return (
                 <>
                   <Field label="Signers" error={fieldError("signers")}>
@@ -1808,70 +1609,4 @@ export default function ConfigPanel({
       `}</style>
     </aside>
   );
-}
-
-/**
- * A field with an explicit "Fill via API" affordance, shown only in dev mode.
- * When the toggle is on, the input is replaced by a banner and the underlying
- * value is the blank sentinel; the developer fills it through the API after
- * deploy. Outside dev mode it renders as a plain `Field`.
- */
-function ApiFillField({
-  label,
-  devMode,
-  active,
-  onActivate,
-  onDeactivate,
-  hint = "Set via the API after deploy",
-  error,
-  children,
-}: {
-  label: string;
-  devMode: boolean;
-  active: boolean;
-  onActivate: () => void;
-  onDeactivate: () => void;
-  hint?: string;
-  error?: string | null;
-  children: React.ReactNode;
-}) {
-  if (!devMode) {
-    return (
-      <Field label={label} error={error}>
-        {children}
-      </Field>
-    );
-  }
-  return (
-    <div className="grid gap-1">
-      <div className="flex items-center justify-between">
-        <span className={cn("text-xs", error && !active ? "text-error" : "text-zinc-400")}>
-          {label}
-        </span>
-        <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-amber-400">
-          <input
-            type="checkbox"
-            checked={active}
-            onChange={(e) => (e.target.checked ? onActivate() : onDeactivate())}
-          />
-          Fill via API
-        </label>
-      </div>
-      {active ? (
-        <div className="flex items-center gap-1.5 rounded border border-amber-800/40 bg-amber-950/20 px-3 py-2 font-mono text-[12px] text-amber-300">
-          <span className="material-symbols-outlined text-[14px]">tune</span>
-          {hint}
-        </div>
-      ) : (
-        children
-      )}
-      {error && !active && <span className="text-error text-[11px] leading-snug">{error}</span>}
-    </div>
-  );
-}
-
-/** Inline amber hint shown under an already-emptyable field in dev mode. */
-function ApiFillHint({ show, children }: { show: boolean; children: React.ReactNode }) {
-  if (!show) return null;
-  return <div className="mt-0.5 text-[11px] text-amber-400/80">{children}</div>;
 }

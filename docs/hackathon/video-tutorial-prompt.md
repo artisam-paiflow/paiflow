@@ -36,7 +36,7 @@ Use a snack shop where a customer's payment automatically splits:
 Show the complete journey:
 
 1. Open https://beta.app.paiflow.xyz and explain the sandbox.
-2. Create an “on receive → split” flow with Dev mode off. Explain that Dev mode will stay disabled for the duration of the hackathon; configure recipients before deployment.
+2. Create an “on receive → split” flow and configure recipients before deployment.
 3. Configure the asset, recipient addresses and percentages.
 4. Review the flow's English preview.
 5. Demonstrate deployment with a testnet wallet and wait for CONFIRMED.
@@ -51,7 +51,7 @@ Keep the integration explanation brief and visual. Explain that one deployment s
 - Participants can explore the sandbox and watch tutorials to learn how Paiflow works.
 - Explain app scaffolding: setting up the project, building screens and developing non-payment features.
 - Explain that teams may deploy, integrate and test payments before the event once credentials are available. Follow the participant brief for qualifying evidence and submission rules.
-- Preparation mode is optional: choose team mode as soon as the confirmed deployment and API token are ready. Dev mode stays disabled throughout the hackathon.
+- Preparation mode is optional: choose team mode as soon as the confirmed deployment and API token are ready.
 - Clearly distinguish learning in the sandbox from building and testing the team's actual hackathon deployment.
 - Do not present one event's preparation rules as universal.
 

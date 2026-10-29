@@ -29,10 +29,6 @@ enum TemplateKind {
   YIELD
   PAYER
   PAYROLL
-  PAYER_DEV
-  SPLITTER_DEV
-  SUBSCRIPTION_DEV
-  CASH_OUT_DEV
   CASH_OUT
   /// A timelock with a "before" and an "after" next step (#721). Its own kind,
   /// so TIMELOCK contracts already deployed keep their ABI.
@@ -183,7 +179,7 @@ model User {
   addressBookEntries  AddressBookEntry[]
   passwordResetTokens PasswordResetToken[]
   developerApiTokens  DeveloperApiToken[]
-  devApiTokens        DevApiToken[]
+  retiredDevApiTokens RetiredDevApiToken[] @ignore
   deploymentApiTokens DeploymentApiToken[]
   signedTransactions  SignedTransaction[]  @relation("signingSession")
   callerTransactions  SignedTransaction[]  @relation("transactionCaller")
@@ -191,22 +187,19 @@ model User {
   analyticsAudience   AnalyticsAudience    @default(UNCLASSIFIED)
 }
 
-/// A per-developer API token that maps a machine caller to a Paiflow user.
-/// The only machine credential the dev-auth endpoints accept: every one of them
-/// filters on the owner it resolves to. Only the SHA-256 hash of the token is
-/// stored; the plaintext is shown once at creation time.
-model DevApiToken {
-  id         String    @id @default(uuid()) @db.Uuid
+/// Revoked legacy credential evidence retained by #1138; no generated client or auth path.
+model RetiredDevApiToken {
+  id         String    @id(map: "DevApiToken_pkey") @db.Uuid
   userId     String    @db.Uuid
-  tokenHash  String    @unique
+  tokenHash  String    @unique(map: "DevApiToken_tokenHash_key")
   label      String?
   createdAt  DateTime  @default(now())
   lastUsedAt DateTime?
   revokedAt  DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade, map: "DevApiToken_userId_fkey")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
+  @@index([userId], map: "DevApiToken_userId_idx")
+  @@ignore
 }
 
 /// A partner API token bound to exactly one deployment; the only credential

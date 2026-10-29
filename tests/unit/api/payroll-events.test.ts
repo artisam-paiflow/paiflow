@@ -13,7 +13,6 @@ vi.mock("@/lib/deployments/service-work", () => ({
   observeServiceTransaction: vi.fn(async () => undefined),
 }));
 import { describe, it, expect, vi, beforeEach } from "vitest";
-
 const { mockDb } = vi.hoisted(() => {
   const mockDb = {
     deployment: { findFirst: vi.fn() },
@@ -22,25 +21,22 @@ const { mockDb } = vi.hoisted(() => {
   };
   return { mockDb };
 });
-
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/auth", () => ({
-  requireDevAuth: vi.fn(async () => ({ user: { id: "owner-1", username: "owner", role: "USER" } })),
+  requirePayrollSession: vi.fn(async () => ({
+    user: { id: "owner-1", username: "owner", role: "USER" },
+  })),
 }));
-
 import { GET as deploymentFeed } from "@/app/api/deployments/[id]/payroll-events/route";
 import { GET as runFeed } from "@/app/api/deployments/[id]/payroll-runs/[runId]/events/route";
-
 function makeRequest(url: string) {
   return {
     url,
     headers: { get: (n: string) => (n === "x-dev-api-secret" ? "dev-secret" : null) },
   } as unknown as import("next/server").NextRequest;
 }
-
 const DEPLOY_ID = "11111111-1111-1111-1111-111111111111";
 const RUN_ID = "22222222-2222-2222-2222-222222222222";
-
 beforeEach(() => {
   vi.clearAllMocks();
   mockDb.deployment.findFirst.mockResolvedValue({ id: DEPLOY_ID });
@@ -70,7 +66,6 @@ beforeEach(() => {
   ]);
   mockDb.offRampPayoutJob.findMany.mockResolvedValue([]);
 });
-
 describe("GET /api/deployments/:id/payroll-events", () => {
   it("returns a synthesized, newest-first feed", async () => {
     const res = await deploymentFeed(
@@ -89,7 +84,6 @@ describe("GET /api/deployments/:id/payroll-events", () => {
     const times = body.data.map((e: { occurredAt: string }) => e.occurredAt);
     expect([...times]).toEqual([...times].sort().reverse());
   });
-
   it("404s for an unknown deployment", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(null);
     const res = await deploymentFeed(
@@ -100,7 +94,6 @@ describe("GET /api/deployments/:id/payroll-events", () => {
     );
     expect(res.status).toBe(404);
   });
-
   it("respects the limit and returns a cursor", async () => {
     const res = await deploymentFeed(
       makeRequest(`http://x/api/deployments/${DEPLOY_ID}/payroll-events?limit=1`),
@@ -111,7 +104,6 @@ describe("GET /api/deployments/:id/payroll-events", () => {
     expect(body.nextCursor).not.toBeNull();
   });
 });
-
 describe("GET /api/deployments/:id/payroll-runs/:runId/events", () => {
   it("404s when the run does not belong to the deployment", async () => {
     mockDb.payrollRun.findFirst.mockResolvedValue(null);
@@ -121,7 +113,6 @@ describe("GET /api/deployments/:id/payroll-runs/:runId/events", () => {
     );
     expect(res.status).toBe(404);
   });
-
   it("returns the run's events when it exists", async () => {
     mockDb.payrollRun.findFirst.mockResolvedValue({ id: RUN_ID });
     const res = await runFeed(

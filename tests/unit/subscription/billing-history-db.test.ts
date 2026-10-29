@@ -9,7 +9,6 @@ import {
   refreshSubscriptionSchedule,
   subscriptionBillingEmitter,
 } from "@/lib/subscription/billing-history";
-
 const mocks = vi.hoisted(() => ({
   rpc: { getEvents: vi.fn(), getHealth: vi.fn(), sendTransaction: vi.fn() },
   publish: vi.fn(async () => 1),
@@ -26,14 +25,13 @@ vi.mock("@/lib/stellar/dashboard-balance-cache", () => ({
 vi.mock("@/lib/flow-notifications", () => ({
   sendEmailNotificationsForTransactions: vi.fn(async () => undefined),
 }));
-
 let ownerId: string;
 let flowId: string;
 const ids: string[] = [];
 const subscriber = Keypair.random().publicKey();
 const time = new Date("2026-10-20T02:15:19Z");
-const older = new Date(time.getTime() - 60_000);
-const newer = new Date(time.getTime() + 60_000);
+const older = new Date(time.getTime() - 60000);
+const newer = new Date(time.getTime() + 60000);
 beforeAll(async () => {
   ownerId = (
     await db.user.create({ data: { username: `billing-${randomUUID()}`, passwordHash: "unused" } })
@@ -64,7 +62,6 @@ afterAll(async () => {
   await db.flow.delete({ where: { id: flowId } });
   await db.user.delete({ where: { id: ownerId } });
 });
-
 async function fixture(kind: TemplateKind = "SUBSCRIPTION") {
   const emitter = StrKey.encodeContract(randomBytes(32));
   const pipeline = [{ nodeId: "subscription", contractAddress: emitter, templateKind: kind }];
@@ -111,9 +108,8 @@ function rpcEvent(event: ReturnType<typeof evidence>) {
   };
 }
 const read = (id: string) => db.deployment.findUniqueOrThrow({ where: { id } });
-
 describe("confirmed Subscription history with PostgreSQL ingestion/admission", () => {
-  it.each(["SUBSCRIPTION", "SUBSCRIPTION_DEV"] as const)(
+  it.each(["SUBSCRIPTION"] as const)(
     "projects %s ledger time and replays duplicates monotonically",
     async (kind) => {
       const f = await fixture(kind);
@@ -252,7 +248,6 @@ describe("confirmed Subscription history with PostgreSQL ingestion/admission", (
     expect(subscriptionBillingEmitter(null, "SUBSCRIPTION")).toBeNull();
   });
 });
-
 describe("database-maintained scheduling revisions", () => {
   it("advances every config/schedule/lifecycle observation, including no-op and ABA writes", async () => {
     const f = await fixture();

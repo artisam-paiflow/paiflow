@@ -13,19 +13,18 @@ import { checkPayoutTrustlines } from "@/lib/stellar/trustline-check";
 import DeployReview from "@/components/deploy/deploy-review";
 import { env } from "@/lib/env";
 import { serverFeatures } from "@/lib/features";
-
 export const dynamic = "force-dynamic";
-
 export default async function DeployReviewPage({
   params,
 }: {
-  params: Promise<{ flowId: string }>;
+  params: Promise<{
+    flowId: string;
+  }>;
 }) {
   const user = await requirePageSession();
   const { flowId } = await params;
   const flow = await db.flow.findFirst({ where: { id: flowId, ownerId: user.id } });
   if (!flow) notFound();
-
   const graph = FlowGraphSchema.safeParse(flow.graph);
   const validation = graph.success
     ? validateFlow(graph.data, { features: serverFeatures(), ignoreOwnerEmail: true })
@@ -38,7 +37,6 @@ export default async function DeployReviewPage({
     validation?.ok && graph.success
       ? checkPayoutTrustlines(payoutRecipients(graph.data))
       : undefined;
-
   let streamerPreview: {
     totalStroops: string;
     perPeriodStroops: string;
@@ -47,17 +45,20 @@ export default async function DeployReviewPage({
     startDate: string;
     endDate: string;
     asset: Asset;
-    apiFilled: {
-      amount: boolean;
-      schedule: boolean;
-    };
   } | null = null;
   // One per swap node: nothing caps a flow at a single swap, and a chained
   // swap -> swap would otherwise show a quote for the first leg only.
   const swapPreviews = graph.success
     ? graph.data.nodes
         .filter(
-          (n): n is Extract<FlowGraph["nodes"][number], { type: "swap" }> => n.type === "swap",
+          (
+            n,
+          ): n is Extract<
+            FlowGraph["nodes"][number],
+            {
+              type: "swap";
+            }
+          > => n.type === "swap",
         )
         .map((n) => ({
           id: n.id,
@@ -80,22 +81,15 @@ export default async function DeployReviewPage({
               intervalAmount?: number;
               intervalUnit?: string;
               interval?: string;
-              fillScheduleViaApi?: boolean;
               employer?: string;
             };
           }
         | undefined;
-      const fillScheduleViaApi =
-        triggerNode?.type === "payroll" ? (triggerNode.config.fillScheduleViaApi ?? false) : false;
       const intervalAmount = triggerNode?.config.intervalAmount ?? 1;
       const intervalUnit =
         triggerNode?.config.intervalUnit ?? triggerNode?.config.interval ?? "hour";
-      const intervalLabel = fillScheduleViaApi
-        ? "(set via API)"
-        : intervalAmount === 1
-          ? `every ${intervalUnit}`
-          : `every ${intervalAmount} ${intervalUnit}s`;
-
+      const intervalLabel =
+        intervalAmount === 1 ? `every ${intervalUnit}` : `every ${intervalAmount} ${intervalUnit}s`;
       const action = graph.data!.nodes.find(
         (n) => n.type === "pay" || n.type === "split" || n.type === "swap" || n.type === "yield",
       );
@@ -103,10 +97,6 @@ export default async function DeployReviewPage({
         action?.type === "swap"
           ? action.config.assetIn
           : (action?.config.asset ?? { kind: "native" });
-
-      const fillAmountViaApi =
-        isPayrollTrigger && action?.type === "split" && action.config.recipients.length === 0;
-
       // Prefer the preview's per-period amount, but fall back to summing the
       // action's fixed recipients so payroll/splitter previews never show 0 when
       // the recipients have real fixed amounts.
@@ -126,23 +116,17 @@ export default async function DeployReviewPage({
             ? (action.config.amountStroops ?? "0")
             : "0";
       const perPeriodStroops = previewPerPeriod !== "0" ? previewPerPeriod : actionPerPeriod;
-
       streamerPreview = {
-        totalStroops: fillAmountViaApi ? "(set via API)" : sp.totalStroops,
-        perPeriodStroops: fillAmountViaApi ? "(set via API)" : perPeriodStroops,
+        totalStroops: sp.totalStroops,
+        perPeriodStroops: perPeriodStroops,
         durationSecs: sp.durationSecs,
         intervalLabel,
-        startDate: fillScheduleViaApi ? "(set via API)" : new Date(sp.startTs * 1000).toISOString(),
-        endDate: fillScheduleViaApi ? "(set via API)" : new Date(sp.endTs * 1000).toISOString(),
+        startDate: new Date(sp.startTs * 1000).toISOString(),
+        endDate: new Date(sp.endTs * 1000).toISOString(),
         asset,
-        apiFilled: {
-          amount: fillAmountViaApi,
-          schedule: fillScheduleViaApi,
-        },
       };
     }
   }
-
   return (
     <>
       <Topbar username={user.username} />
@@ -237,14 +221,12 @@ export default async function DeployReviewPage({
                     : "Total vest amount"}
                 </div>
                 <div className="font-mono text-lg text-amber-200">
-                  {streamerPreview.apiFilled.amount ? (
-                    streamerPreview.perPeriodStroops
-                  ) : (
+                  {
                     <>
-                      {(Number(streamerPreview.perPeriodStroops) / 10_000_000).toLocaleString()}{" "}
+                      {(Number(streamerPreview.perPeriodStroops) / 10000000).toLocaleString()}{" "}
                       {assetLabel(streamerPreview.asset)}
                     </>
-                  )}
+                  }
                 </div>
               </div>
               <div>
@@ -271,9 +253,7 @@ export default async function DeployReviewPage({
                 <>
                   This {isPayrollTrigger ? "payroll" : "subscription"} will pull{" "}
                   <strong>
-                    {streamerPreview.apiFilled.amount
-                      ? streamerPreview.perPeriodStroops
-                      : `${(Number(streamerPreview.perPeriodStroops) / 10_000_000).toLocaleString()} ${assetLabel(streamerPreview.asset)}`}
+                    {`${(Number(streamerPreview.perPeriodStroops) / 10000000).toLocaleString()} ${assetLabel(streamerPreview.asset)}`}
                   </strong>{" "}
                   each billing interval from the {isPayrollTrigger ? "employer" : "subscriber"}. The{" "}
                   {isPayrollTrigger ? "employer" : "subscriber"} must maintain sufficient token
@@ -283,7 +263,7 @@ export default async function DeployReviewPage({
                 <>
                   This contract will vest{" "}
                   <strong>
-                    {(Number(streamerPreview.totalStroops) / 10_000_000).toLocaleString()}{" "}
+                    {(Number(streamerPreview.totalStroops) / 10000000).toLocaleString()}{" "}
                     {assetLabel(streamerPreview.asset)}
                   </strong>{" "}
                   over its lifetime. You must top up the contract with sufficient funds for claims

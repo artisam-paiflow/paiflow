@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
-import { requireDevAuth } from "@/lib/auth";
+import { requirePayrollSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import type { TemplateKind } from "@prisma/client";
-
 const SenderSchema = z.object({
   firstName: z.string().min(1).max(128),
   middleName: z.string().max(128).optional(),
@@ -26,17 +25,13 @@ const SenderSchema = z.object({
   sourceOfFunds: z.string().min(1).max(128),
   email: z.string().email().max(256).optional(),
 });
-
 const PostSchema = SenderSchema;
-
-const OFFRAMP_TEMPLATE_KINDS: TemplateKind[] = ["PAYROLL", "CASH_OUT", "CASH_OUT_DEV"];
-
+const OFFRAMP_TEMPLATE_KINDS: TemplateKind[] = ["PAYROLL", "CASH_OUT"];
 type PipelineNodeSnapshot = {
   nodeId: string;
   contractAddress: string;
   templateKind: TemplateKind;
 };
-
 async function requireOffRampDeployment(id: string, userId: string) {
   const where = { id, ownerId: userId };
   const d = await db.deployment.findFirst({
@@ -44,10 +39,8 @@ async function requireOffRampDeployment(id: string, userId: string) {
     include: { flow: { select: { templateKind: true } } },
   });
   if (!d) throw new AppError("NOT_FOUND", "Deployment not found");
-
   // Payroll deployments are always allowed.
   if (d.flow.templateKind === "PAYROLL") return d;
-
   // Cash-out deployments are identified by their pipeline snapshot.
   const pipeline = (d.pipelineSnapshot as PipelineNodeSnapshot[] | null) ?? [];
   const hasOffRampNode = pipeline.some((n) => OFFRAMP_TEMPLATE_KINDS.includes(n.templateKind));
@@ -56,32 +49,40 @@ async function requireOffRampDeployment(id: string, userId: string) {
   }
   return d;
 }
-
-async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(
+  req: NextRequest,
+  ctx: {
+    params: Promise<{
+      id: string;
+    }>;
+  },
+) {
   return withErrorHandler(async () => {
-    const { user } = await requireDevAuth(req);
+    const { user } = await requirePayrollSession(req);
     const { id } = await ctx.params;
     await requireOffRampDeployment(id, user.id);
-
     const profile = await db.offRampSenderProfile.findUnique({
       where: { deploymentId: id },
     });
-
     return NextResponse.json({ data: { profile } });
   });
 }
-
-async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(
+  req: NextRequest,
+  ctx: {
+    params: Promise<{
+      id: string;
+    }>;
+  },
+) {
   return withErrorHandler(async () => {
-    const { user } = await requireDevAuth(req);
+    const { user } = await requirePayrollSession(req);
     const { id } = await ctx.params;
     const rlKey = `offramp-sender:${user.id}`;
     const rl = await rateLimit(rlKey, 30, 60);
     if (!rl.ok) throw rateLimitedError(rl, "Too many sender profile updates");
     await requireOffRampDeployment(id, user.id);
-
     const body = PostSchema.parse(await req.json());
-
     const profile = await db.offRampSenderProfile.upsert({
       where: { deploymentId: id },
       create: {
@@ -92,11 +93,8 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
         ...body,
       },
     });
-
     return NextResponse.json({ data: { profile } });
   });
 }
-
-export const GET = deploymentServiceRoute(GETHandler, "dev");
-
-export const POST = deploymentServiceRoute(POSTHandler, "dev");
+export const GET = deploymentServiceRoute(GETHandler, "payroll");
+export const POST = deploymentServiceRoute(POSTHandler, "payroll");

@@ -31,7 +31,7 @@ const { mockDb, mockAuth, mockRelayer } = vi.hoisted(() => {
   };
 
   const mockAuth = {
-    requireDevAuth: vi.fn(async () => ({
+    requirePayrollSession: vi.fn(async () => ({
       user: { id: "owner-1", username: "owner", role: "USER" },
     })),
   };
@@ -53,7 +53,7 @@ vi.mock("@/lib/rate-limit", () => ({
   clientIp: vi.fn(() => "127.0.0.1"),
 }));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn() }));
-vi.mock("@/lib/stellar/dev-mutate", () => mockRelayer);
+vi.mock("@/lib/stellar/treasury", () => mockRelayer);
 
 import { GET, POST, DELETE } from "@/app/api/deployments/[id]/employees/bank/route";
 
@@ -248,13 +248,10 @@ describe("employees/bank", () => {
     );
     const json = await res.json();
 
-    expect(res.status).toBe(200);
-    expect(mockRelayer.updateBankByRelayer).toHaveBeenCalledWith("CCashOut", {
-      accountName: "Fiat",
-      accountNumber: "789",
-      bankCode: "METRO",
-    });
-    expect(json.data.cashOutTxHash).toBe("tx-bank");
+    expect(res.status).toBe(422);
+    expect(mockDb.employeeBankDetail.upsert).not.toHaveBeenCalled();
+    expect(mockRelayer.updateBankByRelayer).not.toHaveBeenCalled();
+    expect(json.error.code).toBe("VALIDATION");
   });
 
   it("DELETE removes bank details by employeeId", async () => {
@@ -299,5 +296,43 @@ describe("employees/bank", () => {
         where: { deploymentId_address: { deploymentId: "dep-1", address: cryptoAddress } },
       }),
     );
+  });
+});
+
+describe("immutable bank destinations", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
+  });
+  it("rejects changing immutable bank metadata before writing", async () => {
+    mockDb.employee.findUnique.mockResolvedValue({
+      id: employeeId,
+      deploymentId: "dep-1",
+      cashOutContractAddress: "CCASHOUT",
+    });
+    const response = await POST(
+      makeRequest({
+        deploymentId: "dep-1",
+        body: { employeeId, accountName: "Changed", accountNumber: "123", bankCode: "BANK" },
+      }),
+      makeContext("dep-1"),
+    );
+    expect(response.status).toBe(422);
+    expect(mockDb.employeeBankDetail.upsert).not.toHaveBeenCalled();
+  });
+  it("rejects deleting immutable bank metadata before writing", async () => {
+    mockDb.employee.findUnique.mockResolvedValue({
+      id: employeeId,
+      deploymentId: "dep-1",
+      cashOutContractAddress: "CCASHOUT",
+      bankDetail: { accountName: "Original" },
+    });
+    const req = makeRequest({ deploymentId: "dep-1" });
+    const response = await DELETE(
+      Object.assign(req, { url: req.url + "?employeeId=" + employeeId }),
+      makeContext("dep-1"),
+    );
+    expect(response.status).toBe(422);
+    expect(mockDb.employeeBankDetail.delete).not.toHaveBeenCalled();
   });
 });

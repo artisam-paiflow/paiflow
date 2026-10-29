@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import ContractCallButton from "./contract-call-button";
@@ -10,20 +9,17 @@ import { formatStroops } from "@/lib/utils";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
 import type { Asset } from "@/lib/flows/schema";
 import { apiError } from "@/lib/friendly-error";
-
 type PayrollRecipient = {
   address: string;
   amount: string;
   label?: string | null;
   payoutMode?: "crypto" | "fiat";
 };
-
 type BankDetail = {
   accountName: string;
   accountNumber: string;
   bankCode: string;
 };
-
 export default function PayrollPanel({
   deploymentId,
   contractAddress,
@@ -36,7 +32,11 @@ export default function PayrollPanel({
   contractAddress: string;
   network: StellarNetwork;
   graph: FlowGraph;
-  pipeline?: Array<{ nodeId: string; contractAddress: string; templateKind: string }> | null;
+  pipeline?: Array<{
+    nodeId: string;
+    contractAddress: string;
+    templateKind: string;
+  }> | null;
   canEditRecipients?: boolean;
 }) {
   const [allowance, setAllowance] = useState<bigint | null>(null);
@@ -51,14 +51,15 @@ export default function PayrollPanel({
   const [recipients, setRecipients] = useState<PayrollRecipient[]>([]);
   const [bankDetails, setBankDetails] = useState<Record<string, BankDetail | null>>({});
   const [tick, setTick] = useState(0);
-
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/deployments/${deploymentId}/payroll-allowance`)
       .then(async (res) => {
         if (!res.ok) {
           const json = (await res.json().catch(() => ({}))) as {
-            error?: { message?: string };
+            error?: {
+              message?: string;
+            };
           };
           if (!cancelled) {
             setAllowanceError(json.error?.message ?? `Failed to load allowance (${res.status})`);
@@ -94,13 +95,16 @@ export default function PayrollPanel({
       cancelled = true;
     };
   }, [deploymentId, tick]);
-
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/deployments/${deploymentId}/payroll-recipients`)
       .then(async (res) => {
         if (!res.ok) return;
-        const json = (await res.json()) as { data: { recipients: PayrollRecipient[] } };
+        const json = (await res.json()) as {
+          data: {
+            recipients: PayrollRecipient[];
+          };
+        };
         if (!cancelled) setRecipients(json.data.recipients);
       })
       .catch(() => null);
@@ -108,13 +112,16 @@ export default function PayrollPanel({
       cancelled = true;
     };
   }, [deploymentId, tick]);
-
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/deployments/${deploymentId}/payroll-status`)
       .then(async (res) => {
         if (!res.ok) return;
-        const json = (await res.json()) as { data: { isCancelled: boolean } };
+        const json = (await res.json()) as {
+          data: {
+            isCancelled: boolean;
+          };
+        };
         if (!cancelled) setIsCancelled(json.data.isCancelled);
       })
       .catch(() => null);
@@ -122,14 +129,16 @@ export default function PayrollPanel({
       cancelled = true;
     };
   }, [deploymentId, tick]);
-
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/deployments/${deploymentId}/employees/bank`)
       .then(async (res) => {
         if (!res.ok) return;
         const json = (await res.json()) as {
-          data: Array<{ address: string; bankDetail: BankDetail | null }>;
+          data: Array<{
+            address: string;
+            bankDetail: BankDetail | null;
+          }>;
         };
         if (!cancelled) {
           const map: Record<string, BankDetail | null> = {};
@@ -144,23 +153,15 @@ export default function PayrollPanel({
       cancelled = true;
     };
   }, [deploymentId, tick]);
-
   const total = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n);
   const hasFiatRecipient = recipients.some((r) => r.payoutMode === "fiat");
-
-  // Immutable non-dev payrolls deploy SUBSCRIPTION → SPLITTER → CASH_OUT.
-  // They do not include the legacy PAYROLL monolith or dev-mode _DEV contracts.
   const isImmutablePayroll = (() => {
     if (!pipeline) return false;
     const hasPayroll = pipeline.some((n) => n.templateKind === "PAYROLL");
-    const hasDev = pipeline.some(
-      (n) => n.templateKind === "SUBSCRIPTION_DEV" || n.templateKind === "SPLITTER_DEV",
-    );
     const hasSubscription = pipeline.some((n) => n.templateKind === "SUBSCRIPTION");
     const hasSplitter = pipeline.some((n) => n.templateKind === "SPLITTER");
-    return !hasPayroll && !hasDev && hasSubscription && hasSplitter;
+    return !hasPayroll && hasSubscription && hasSplitter;
   })();
-
   return (
     <div className="mt-md space-y-md">
       <p className="text-label-sm text-on-surface-variant font-mono">
@@ -214,8 +215,13 @@ export default function PayrollPanel({
                   body: JSON.stringify({ amount: tokenAmountToStroops(amount) }),
                 });
                 const json = (await res.json()) as {
-                  data?: { unsignedXdr: string; networkPassphrase: string };
-                  error?: { message?: string };
+                  data?: {
+                    unsignedXdr: string;
+                    networkPassphrase: string;
+                  };
+                  error?: {
+                    message?: string;
+                  };
                 };
                 if (!res.ok) throw apiError(json, "Unknown error");
                 const data = json.data;
@@ -229,8 +235,12 @@ export default function PayrollPanel({
                   body: JSON.stringify({ signedXdr }),
                 });
                 const json = (await res.json()) as {
-                  data?: { txHash: string };
-                  error?: { message?: string };
+                  data?: {
+                    txHash: string;
+                  };
+                  error?: {
+                    message?: string;
+                  };
                 };
                 if (!res.ok) throw apiError(json, "Submit failed");
                 if (!json.data) throw new Error("Submit response missing txHash");
@@ -247,8 +257,8 @@ export default function PayrollPanel({
 
         {employerConfigured === false && (
           <div className="rounded border border-amber-900 bg-amber-950/20 p-3 text-xs text-amber-300">
-            <strong>Employer not configured.</strong> For dev payroll, set the employer address via
-            the payroll API before granting allowance.
+            <strong>Employer not configured.</strong> Check the original deployment configuration
+            for the employer address. the payroll API before granting allowance.
           </div>
         )}
 
@@ -365,8 +375,13 @@ export default function PayrollPanel({
               body: JSON.stringify({}),
             });
             const json = (await res.json()) as {
-              data?: { unsignedXdr: string; networkPassphrase: string };
-              error?: { message?: string };
+              data?: {
+                unsignedXdr: string;
+                networkPassphrase: string;
+              };
+              error?: {
+                message?: string;
+              };
             };
             if (!res.ok) throw apiError(json, "Unknown error");
             const data = json.data;
@@ -380,12 +395,15 @@ export default function PayrollPanel({
               body: JSON.stringify({ signedXdr }),
             });
             const json = (await res.json()) as {
-              data?: { txHash: string };
-              error?: { message?: string };
+              data?: {
+                txHash: string;
+              };
+              error?: {
+                message?: string;
+              };
             };
             if (!res.ok) throw apiError(json, "Submit failed");
             if (!json.data) throw new Error("Submit response missing txHash");
-
             // Book-keep the manual charge so off-ramp jobs can be created.
             const recordRes = await fetch(`/api/deployments/${deploymentId}/payroll-record-run`, {
               method: "POST",
@@ -393,15 +411,19 @@ export default function PayrollPanel({
               body: JSON.stringify({ txHash: json.data.txHash }),
             });
             const recordJson = (await recordRes.json()) as {
-              data?: { offRampJobIds?: string[]; offRampError?: string };
-              error?: { message?: string };
+              data?: {
+                offRampJobIds?: string[];
+                offRampError?: string;
+              };
+              error?: {
+                message?: string;
+              };
             };
             if (!recordRes.ok) {
               console.warn("Failed to record payroll run:", recordJson.error?.message);
             } else if (recordJson.data?.offRampError) {
               console.warn("Off-ramp job creation failed:", recordJson.data.offRampError);
             }
-
             return { txHash: json.data.txHash };
           }}
           onSuccess={() => {
@@ -435,8 +457,13 @@ export default function PayrollPanel({
                 body: JSON.stringify({}),
               });
               const json = (await res.json()) as {
-                data?: { unsignedXdr: string; networkPassphrase: string };
-                error?: { message?: string };
+                data?: {
+                  unsignedXdr: string;
+                  networkPassphrase: string;
+                };
+                error?: {
+                  message?: string;
+                };
               };
               if (!res.ok) throw apiError(json, "Unknown error");
               const data = json.data;
@@ -450,8 +477,12 @@ export default function PayrollPanel({
                 body: JSON.stringify({ signedXdr }),
               });
               const json = (await res.json()) as {
-                data?: { txHash: string };
-                error?: { message?: string };
+                data?: {
+                  txHash: string;
+                };
+                error?: {
+                  message?: string;
+                };
               };
               if (!res.ok) throw apiError(json, "Submit failed");
               if (!json.data) throw new Error("Submit response missing txHash");
@@ -479,8 +510,13 @@ export default function PayrollPanel({
                 body: JSON.stringify({}),
               });
               const json = (await res.json()) as {
-                data?: { unsignedXdr: string; networkPassphrase: string };
-                error?: { message?: string };
+                data?: {
+                  unsignedXdr: string;
+                  networkPassphrase: string;
+                };
+                error?: {
+                  message?: string;
+                };
               };
               if (!res.ok) throw apiError(json, "Unknown error");
               const data = json.data;
@@ -494,8 +530,12 @@ export default function PayrollPanel({
                 body: JSON.stringify({ signedXdr }),
               });
               const json = (await res.json()) as {
-                data?: { txHash: string };
-                error?: { message?: string };
+                data?: {
+                  txHash: string;
+                };
+                error?: {
+                  message?: string;
+                };
               };
               if (!res.ok) throw apiError(json, "Submit failed");
               if (!json.data) throw new Error("Submit response missing txHash");

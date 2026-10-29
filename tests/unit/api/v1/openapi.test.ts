@@ -17,10 +17,8 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
 import type { z } from "zod";
-
 // No Redis: the rate limit runs on its in-memory bucket.
 vi.mock("@/lib/redis", () => ({ redis: () => null }));
-
 import { GET } from "@/app/api/v1/openapi.json/route";
 import { APP_ERROR_STATUS } from "@/lib/errors";
 import { ERROR_STATUS, examples, openApiDocument } from "@/lib/api/v1/openapi";
@@ -39,22 +37,16 @@ import {
   DemoTokenSchema,
   CreateApiTokenSchema,
   CreatedApiTokenSchema,
-  PayoutPrepareSchema,
-  PayoutPreparedSchema,
-  PayoutSubmitSchema,
   ExecutePrepareSchema,
   ExecutePreparedSchema,
   ExecuteSubmitSchema,
   ExecuteSubmittedSchema,
   ListEventsResponseSchema,
 } from "@/lib/api/v1/schema";
-
 const root = process.cwd();
 const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
-
 type Operations = Record<string, Record<string, unknown>>;
 const paths = openApiDocument.paths as Operations;
-
 /** `path/method` pairs exported by every `route.ts` under an `app/api` subtree. */
 function routeOperations(dir: string): string[] {
   const base = path.join(root, "app");
@@ -71,14 +63,12 @@ function routeOperations(dir: string): string[] {
     })
     .sort();
 }
-
 function specOperations(prefix: string): string[] {
   return Object.entries(paths)
     .filter(([p]) => p.startsWith(prefix))
     .flatMap(([p, ops]) => Object.keys(ops).map((m) => `${p} ${m}`))
     .sort();
 }
-
 describe("OpenAPI document", () => {
   it("balances example matches its response schema", () => {
     expect(DeploymentBalancesSchema.safeParse(examples.balances.data).success).toBe(true);
@@ -97,14 +87,12 @@ describe("OpenAPI document", () => {
       SubscriptionControlReconciledSchema.parse(examples.subscriptionControlReconciled.data),
     ).toEqual(examples.subscriptionControlReconciled.data);
   });
-
   it("matches the committed docs/api/openapi.json (run `pnpm api:openapi`)", () => {
     const committed = JSON.parse(
       fs.readFileSync(path.join(root, "docs/api/openapi.json"), "utf8"),
     ) as unknown;
     expect(committed).toEqual(JSON.parse(JSON.stringify(openApiDocument)));
   });
-
   it("documents every published /api/v1 route and method, and nothing that does not exist", () => {
     // Per-payment recipient endpoints remain implemented but are hidden while Dev mode is disabled.
     const routes = routeOperations("api/v1").filter(
@@ -113,7 +101,6 @@ describe("OpenAPI document", () => {
     expect(routes.length).toBeGreaterThan(0);
     expect(specOperations("/api/v1/")).toEqual(routes);
   });
-
   it("documents the owner-session token routes as they exist", () => {
     expect(specOperations("/api/developer-tokens")).toEqual(
       routeOperations("api/developer-tokens"),
@@ -121,14 +108,18 @@ describe("OpenAPI document", () => {
     const routes = routeOperations("api/deployments/[id]/api-tokens");
     expect(specOperations("/api/deployments/{id}/api-tokens")).toEqual(routes);
   });
-
   it("keeps developer management session-only and metadata separate from one-time secrets", () => {
     for (const [, operations] of Object.entries(paths).filter(([p]) =>
       p.startsWith("/api/developer-tokens"),
     )) {
       for (const operation of Object.values(operations) as Array<Record<string, unknown>>) {
         expect(operation.security).toEqual([{ cookieAuth: [] }]);
-        const responses = operation.responses as Record<string, { headers?: unknown }>;
+        const responses = operation.responses as Record<
+          string,
+          {
+            headers?: unknown;
+          }
+        >;
         expect((responses["200"] ?? responses["201"])?.headers).toEqual({
           "Cache-Control": { schema: { type: "string", const: "no-store" } },
         });
@@ -144,15 +135,22 @@ describe("OpenAPI document", () => {
       "^pfd_[0-9a-f]{64}$",
     );
   });
-
   it("has an error table equal to lib/errors.ts", () => {
     expect({ ...ERROR_STATUS }).toEqual(APP_ERROR_STATUS);
   });
-
   it("gives session routes a session 401 and token routes a token 401", () => {
     const operations = Object.values(paths).flatMap((ops) => Object.values(ops)) as Array<{
       security: Array<Record<string, unknown>>;
-      responses: Record<string, { content?: { "application/json": { example?: unknown } } }>;
+      responses: Record<
+        string,
+        {
+          content?: {
+            "application/json": {
+              example?: unknown;
+            };
+          };
+        }
+      >;
     }>;
     const authed = operations.filter((op) => op.responses["401"]);
     expect(authed.length).toBeGreaterThan(0);
@@ -164,14 +162,12 @@ describe("OpenAPI document", () => {
       );
     }
   });
-
   it("documents the webhook route and secret authentication", () => {
     expect(specOperations("/api/webhooks/")).toEqual(routeOperations("api/webhooks/[id]"));
     expect(openApiDocument.paths["/api/webhooks/{id}"].post.security).toEqual([
       { webhookSecret: [] },
     ]);
   });
-
   it("resolves every $ref", () => {
     const refs = JSON.stringify(openApiDocument).match(/"#\/components\/schemas\/\w+"/g) ?? [];
     const schemas = openApiDocument.components.schemas as Record<string, unknown>;
@@ -179,7 +175,6 @@ describe("OpenAPI document", () => {
       expect(schemas).toHaveProperty(ref.slice(1, -1).split("/").pop()!);
     }
   });
-
   const parses: Array<[string, z.ZodTypeAny, unknown]> = [
     ["fundingDiscovery", FundingDiscoverySchema, examples.fundingDiscovery.data],
     ["fundingPrepare", FundingPrepareSchema, examples.fundingPrepare],
@@ -193,9 +188,6 @@ describe("OpenAPI document", () => {
     ["deployment capabilities", DeploymentCapabilitiesSchema, examples.capabilities.data],
     ["keyed webhook", WebhookAttemptResponseSchema, examples.webhookPending.data],
     ["transaction status", TransactionStatusSchema, examples.transactionStatus.data],
-    ["payout request", PayoutPrepareSchema, examples.payoutRequest],
-    ["payout response", PayoutPreparedSchema, { ...examples.executeResponse.data, nodeId: "pay" }],
-    ["payout submit", PayoutSubmitSchema, examples.submitRequest],
     ["execute request", ExecutePrepareSchema, examples.executeRequest],
     ["execute response", ExecutePreparedSchema, examples.executeResponse.data],
     ["submit request", ExecuteSubmitSchema, examples.submitRequest],
@@ -212,7 +204,6 @@ describe("OpenAPI document", () => {
     expect(schema.safeParse(value).success).toBe(true);
   });
 });
-
 describe("GET /api/v1/openapi.json", () => {
   it("serves the document without a token or the data envelope", async () => {
     const res = await GET(new Request("http://localhost/api/v1/openapi.json") as NextRequest);
@@ -220,18 +211,27 @@ describe("GET /api/v1/openapi.json", () => {
     expect(await res.json()).toEqual(JSON.parse(JSON.stringify(openApiDocument)));
   });
 });
-
 describe("Postman collection", () => {
   const collection = JSON.parse(
     fs.readFileSync(path.join(root, "docs/api/paiflow-api-v1.postman_collection.json"), "utf8"),
   ) as {
     item: Array<{
       name: string;
-      request: { method: string; url: { path: string[] }; auth?: { type: string } };
-      response: Array<{ name: string; body: string }>;
+      request: {
+        method: string;
+        url: {
+          path: string[];
+        };
+        auth?: {
+          type: string;
+        };
+      };
+      response: Array<{
+        name: string;
+        body: string;
+      }>;
     }>;
   };
-
   it("has a request for every /api/v1 operation", () => {
     const requests = collection.item
       .map(({ request }) => {
@@ -250,7 +250,6 @@ describe("Postman collection", () => {
       ].sort(),
     );
   });
-
   it("disables inherited bearer auth on every developer management request", () => {
     const management = collection.item.filter(({ request }) =>
       request.url.path.join("/").startsWith("api/developer-tokens"),
@@ -258,7 +257,6 @@ describe("Postman collection", () => {
     expect(management).toHaveLength(6);
     for (const { request } of management) expect(request.auth).toEqual({ type: "noauth" });
   });
-
   it("saves the spec's examples as its example responses", () => {
     const body = (item: string, response: string) =>
       JSON.parse(

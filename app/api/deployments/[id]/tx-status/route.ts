@@ -171,18 +171,6 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
   return withErrorHandler(async () => {
     const { id } = await ctx.params;
     const ip = clientIp(req);
-    // IP-wide first, and deliberately NOT keyed on `id`: the route is public, so
-    // a caller who varies the deployment id would otherwise get a fresh bucket
-    // per request and never hit a limit at all.
-    //
-    // Loose on purpose. This bucket exists to stop that amplification, not to be
-    // fair between pollers — the per-deployment limit below does that. Everyone
-    // behind one NAT shares this one, and a demo-booth wifi or a carrier's CGNAT
-    // is exactly the sandbox audience; a dev-mode payroll save also polls every
-    // returned hash in parallel from a single browser. 600/min is about twenty
-    // concurrent pollers at the hook's 2s interval, and still caps a single
-    // address at 10 req/s of work that no longer touches the database unless the
-    // transaction has confirmed.
     await enforceRateLimit({ key: `tx-status:ip:${ip}`, limit: 600, windowSeconds: 60 });
     await enforceRateLimit({ key: `tx-status:${id}:${ip}`, limit: 60, windowSeconds: 60 });
 

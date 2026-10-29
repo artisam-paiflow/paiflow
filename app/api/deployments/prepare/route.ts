@@ -29,33 +29,27 @@ import { stellarRelayerAddress, offRampTreasuryAddress } from "@/lib/env";
 import { Role } from "@prisma/client";
 import { SANDBOX_TEMPLATE_KINDS } from "@/lib/sandbox";
 import { assertNoHiddenSurfaces, serverFeatures } from "@/lib/features";
-
 const PrepareInputSchema = z.object({
   flowId: z.string().guid({ error: "Invalid uuid" }),
   sourceAccount: z.string().optional(),
 });
-
 const PrepareSchema = z.object({
   flowId: z.string().guid({ error: "Invalid uuid" }),
   sourceAccount: z
     .string()
     .refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar account"),
 });
-
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     const rl = await rateLimit(`deploy:${user.id}`, 10, 60);
     if (!rl.ok) throw rateLimitedError(rl, "Too many deploys");
-
     const input = PrepareInputSchema.parse(await req.json());
     const network = env().STELLAR_NETWORK;
-
     const flow = await db.flow.findFirst({
       where: { id: input.flowId, ownerId: user.id },
     });
     if (!flow) throw new AppError("NOT_FOUND", "Flow not found");
-
     const parsedGraph = FlowGraphSchema.parse(migrateFlowGraph(flow.graph));
     const graph = user.role === "SANDBOX" ? sandboxNotifications(parsedGraph) : parsedGraph;
     if (
@@ -65,7 +59,6 @@ export async function POST(req: NextRequest) {
       throw new AppError("VALIDATION", "Return to owner requires the deploying wallet address");
     }
     const body = PrepareSchema.parse(input);
-
     // Switched-off surfaces (#722) are refused on their node here, so an old
     // flow, an AI edit or a crafted save cannot deploy a hidden block.
     const features = serverFeatures();
@@ -73,26 +66,13 @@ export async function POST(req: NextRequest) {
     if (!v.ok) {
       throw new AppError("VALIDATION", "Flow is invalid", issuesToFields(v.errors));
     }
-
-    // Dev-mode flows are allowed to deploy with blank (pending) recipients —
-    // that is the whole point: deploy now, fill the values via the API later.
-    // The mutable contracts deploy "not yet configured" and guard execution.
     const pending = getPendingLabels(graph);
-    if (!graph.devMode && pending.length > 0) {
+    if (pending.length > 0) {
       throw new AppError(
         "VALIDATION",
         `Cannot deploy: these recipients need Stellar addresses first: ${pending.join(", ")}. Resolve them in the flow editor before deploying.`,
       );
     }
-
-    // A sandbox identity is disposable and needs no account, so it must not be
-    // able to create a deployment the platform later signs for. Checked against
-    // every node of the pipeline rather than the flow's top-level kind: a
-    // `web2_webhook -> swap` graph classifies as SWAPPER yet emits a WEBHOOK
-    // node the public /api/webhooks/:id route signs with the relayer key, and a
-    // devMode graph swaps in relayer-admin `*_DEV` contracts under an otherwise
-    // allowed kind. `v.pipeline` is the real flowToPipeline() output, so it
-    // reflects both.
     if (user.role === Role.SANDBOX) {
       const disallowed = [
         ...new Set(v.pipeline.filter((k) => !SANDBOX_TEMPLATE_KINDS.includes(k))),
@@ -104,7 +84,6 @@ export async function POST(req: NextRequest) {
         );
       }
     }
-
     const trigger = v.graph.nodes.find((n) => n.type === "web2_webhook");
     const relayerAddress = stellarRelayerAddress();
     if (trigger && !relayerAddress) {
@@ -113,11 +92,9 @@ export async function POST(req: NextRequest) {
         "STELLAR_RELAYER_ADDRESS is required to deploy an HTTP Webhook flow. Set it in your environment.",
       );
     }
-
     if (v.graph.nodes.some((n) => n.type === "swap") && !soroswapRouterAddress()) {
       throw new AppError("VALIDATION", SWAP_ROUTER_UNSET_MESSAGE);
     }
-
     const pipeline = flowToPipeline(v.graph, relayerAddress, offRampTreasuryAddress(), {
       ownerAddress: body.sourceAccount,
     });
@@ -128,7 +105,6 @@ export async function POST(req: NextRequest) {
       pipeline.map((n) => n.templateKind),
       features,
     );
-
     // Ensure every pipeline node has a corresponding WASM template on-chain.
     const wasmHashes = await getWasmHashes(network);
     const deployNodes = pipeline.map((node) => {
@@ -147,10 +123,8 @@ export async function POST(req: NextRequest) {
         implementation: node.implementation,
       };
     });
-
     return withInteractiveRpcBudget(async () => {
       await checkAccountFunding(body.sourceAccount);
-
       const deployment = await db.deployment.create({
         data: {
           flowId: flow.id,
@@ -162,7 +136,6 @@ export async function POST(req: NextRequest) {
           sourceAccount: body.sourceAccount,
         },
       });
-
       try {
         const prepared = await preparePipelineDeployTx({
           sourceAccount: body.sourceAccount,
@@ -170,12 +143,9 @@ export async function POST(req: NextRequest) {
           graph,
           nodes: deployNodes,
         });
-
         assertDeploymentPreparationBudget(deployment.id);
-
         // Use the trigger contract (first node) as the primary contract address.
         const triggerNode = prepared.pipeline[0];
-
         await db.deployment.update({
           where: { id: deployment.id },
           data: {

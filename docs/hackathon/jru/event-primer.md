@@ -6,16 +6,16 @@ Build an app that solves a real problem with automated payments through Paiflow.
 
 ## At a glance
 
-| Item | Details |
-| --- | --- |
-| When and where | October 14, 2026 · José Rizal University · 10:30 AM–6:00 PM PHT |
-| Format | One-day, in-person hackathon for students |
-| Teams | 10 teams of 1–4 people |
-| Online onboarding | October 12, 2026 · 9:00 PM PHT |
-| Registration closes | October 11, 2026 · 12:59 PM PHT |
-| Event development time | Four hours, with a one-hour lunch break |
-| Prize pool | PHP 10,000 |
-| Network | Stellar testnet |
+| Item                   | Details                                                         |
+| ---------------------- | --------------------------------------------------------------- |
+| When and where         | October 14, 2026 · José Rizal University · 10:30 AM–6:00 PM PHT |
+| Format                 | One-day, in-person hackathon for students                       |
+| Teams                  | 10 teams of 1–4 people                                          |
+| Online onboarding      | October 12, 2026 · 9:00 PM PHT                                  |
+| Registration closes    | October 11, 2026 · 12:59 PM PHT                                 |
+| Event development time | Four hours, with a one-hour lunch break                         |
+| Prize pool             | PHP 10,000                                                      |
+| Network                | Stellar testnet                                                 |
 
 ## Event program
 
@@ -29,16 +29,16 @@ All times below are in Philippine Time (PHT).
 
 ### Hackathon schedule
 
-| Time | Activity | What happens |
-| --- | --- | --- |
-| 10:30 AM–12:30 PM | Development, part 1 | Finish integration and verify a confirmed payout |
-| 12:30–1:30 PM | Lunch and checkpoint | Optional coding; check your deployment and payout evidence |
-| 1:30–3:30 PM | Development, part 2 | Complete integration and prepare your demo |
-| 3:00–3:30 PM | Submission | During the final 30 minutes of development, submit before 3:30 PM with your deployment ID and payout transaction |
-| 3:30–4:30 PM | Pitching | 10 teams × 8 minutes (5-minute pitch and demo + 3-minute Q&A); random order drawn at 3:30 PM |
-| 4:30–5:00 PM | Judging | Judges deliberate and finalise scores |
-| 5:00–5:30 PM | Announcement of winners | Announce prize winners |
-| 5:30–6:00 PM | Closing | Closing remarks |
+| Time              | Activity                | What happens                                                                                                     |
+| ----------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 10:30 AM–12:30 PM | Development, part 1     | Finish integration and verify a confirmed payout                                                                 |
+| 12:30–1:30 PM     | Lunch and checkpoint    | Optional coding; check your deployment and payout evidence                                                       |
+| 1:30–3:30 PM      | Development, part 2     | Complete integration and prepare your demo                                                                       |
+| 3:00–3:30 PM      | Submission              | During the final 30 minutes of development, submit before 3:30 PM with your deployment ID and payout transaction |
+| 3:30–4:30 PM      | Pitching                | 10 teams × 8 minutes (5-minute pitch and demo + 3-minute Q&A); random order drawn at 3:30 PM                     |
+| 4:30–5:00 PM      | Judging                 | Judges deliberate and finalise scores                                                                            |
+| 5:00–5:30 PM      | Announcement of winners | Announce prize winners                                                                                           |
+| 5:30–6:00 PM      | Closing                 | Closing remarks                                                                                                  |
 
 ## Preparation and integration timeline
 
@@ -54,7 +54,7 @@ All times below are in Philippine Time (PHT).
 
 ## The challenge
 
-**Dev mode will stay disabled for the duration of the hackathon.** Configure recipients and required values before deploying. Per-payment recipients, **Fill value via API** and **Dev values** are unavailable; standard Pay and Split flows remain available. `PAIFLOW_MODE=team` and `pnpm dev` do not enable flow Dev mode.
+Configure recipients and required values before deploying. Mutable dev-mode flows and per-payment recipient APIs have been removed (#1138); standard Pay and Split flows remain available. `PAIFLOW_MODE=team` selects the integration mode and `pnpm dev` starts the local server.
 
 The theme is open. Start with a problem you or people around you have, then choose the Paiflow blocks that fit. These examples show how blocks combine and can inspire your own idea.
 

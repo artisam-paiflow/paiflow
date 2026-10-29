@@ -3,7 +3,6 @@ import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { ModuleKind, ScriptTarget, transpileModule } from "typescript";
 import { describe, expect, it } from "vitest";
-
 const root = process.cwd();
 const guide = readFileSync(path.join(root, "docs/hackathon/llms.md"), "utf8");
 const apiRoot = path.join(root, "app/api/v1");
@@ -16,7 +15,6 @@ const routes = new Set(
         .replace(/\[([A-Za-z0-9_]+)\]/g, ":$1"),
     ),
 );
-
 describe("hackathon AI context pack", () => {
   it("preserves SDK errors and refuses unsupported payment deployments", () => {
     const helper = guide.match(/```ts\n(import "server-only";[\s\S]*?)\n```/)?.[1];
@@ -52,11 +50,9 @@ describe("hackathon AI context pack", () => {
       stdio: ["pipe", "pipe", "pipe"],
     });
   });
-
   it("does not mention disabled surfaces or operator-only tokens", () => {
     expect(guide).not.toMatch(/payroll|off[ -]?ramp|oracle|DevApiToken/i);
   });
-
   it("names only existing v1 routes (with the namespace allowed in prose)", () => {
     const mentions = [...guide.matchAll(/\/api\/v1(?:\/[A-Za-z0-9_.$:{}\[\]-]+)*/g)].map(([url]) =>
       url

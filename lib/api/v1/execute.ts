@@ -22,23 +22,19 @@ import { sorobanRpc } from "@/lib/stellar/client";
 import { pollEventsFor } from "@/lib/stellar/events";
 import { buildPipelineErrorHint } from "@/lib/stellar/pipeline-error-hint";
 import { translateSorobanError } from "@/lib/stellar/soroban-errors";
-
 export const NOT_EXECUTABLE_FLOW =
   "Only flows that start with a deposit trigger can be executed through the v1 API";
-
 export type ExecutablePipeline = {
   nodes: PipelineSnapshotNode[];
   /** The deposit trigger at the head of the pipeline: the only contract execute may invoke. */
   triggerAddress: string;
 };
-
 /** How each head kind reads in a refusal; null for the one kind execute drives. Exhaustive. */
 function refusedHeadLabel(kind: TemplateKind): string | null {
   switch (kind) {
     case "DEPOSIT_TRIGGER":
       return null;
     case "SUBSCRIPTION":
-    case "SUBSCRIPTION_DEV":
       return "subscription";
     case "WEBHOOK":
       return "webhook";
@@ -50,13 +46,10 @@ function refusedHeadLabel(kind: TemplateKind): string | null {
     case "TIMELOCK_BRANCH":
       return "timelock";
     case "SPLITTER":
-    case "SPLITTER_DEV":
       return "splitter";
     case "PAYER":
-    case "PAYER_DEV":
       return "payer";
     case "CASH_OUT":
-    case "CASH_OUT_DEV":
       return "cash out";
     case "STREAMER":
     case "CONDITIONAL":
@@ -72,7 +65,6 @@ function refusedHeadLabel(kind: TemplateKind): string | null {
     }
   }
 }
-
 /**
  * Resolve the pipeline a v1 execute runs through, from the deployment's
  * `pipelineSnapshot` rather than its graph (CLAUDE.md §2).
@@ -106,7 +98,6 @@ export function resolveExecutablePipeline(
   if (!head.contractAddress) throw new AppError("VALIDATION", NOT_EXECUTABLE_FLOW);
   return { nodes, triggerAddress: head.contractAddress };
 }
-
 /**
  * Parse a signed envelope and refuse anything but one `deposit` invocation on
  * this deployment's trigger contract.
@@ -154,7 +145,6 @@ export function assertDepositEnvelope(signedXdr: string, triggerAddress: string)
   }
   return parsed;
 }
-
 /** The transaction's `maxTime` — execute uses 180 seconds; payout deposits use 60. */
 export function envelopeExpiresAt(unsignedXdr: string): string {
   const tx = TransactionBuilder.fromXDR(unsignedXdr, stellarPassphrase());
@@ -162,21 +152,22 @@ export function envelopeExpiresAt(unsignedXdr: string): string {
   if (!max) throw new AppError("INTERNAL", "Prepared transaction has no expiry");
   return new Date(max * 1000).toISOString();
 }
-
 // Standalone callers retain the confirmation cap. Interactive routes share one
 // operation budget across preflight, send, confirmation and event ingestion.
-export const CONFIRM_DEADLINE_MS = 25_000;
-export const CONFIRM_POLL_INTERVAL_MS = 1_500;
+export const CONFIRM_DEADLINE_MS = 25000;
+export const CONFIRM_POLL_INTERVAL_MS = 1500;
 // Best-effort, as in `tx-status`: the cron poller re-runs whatever this cuts short.
-export const EVENT_INGEST_DEADLINE_MS = 5_000;
-
+export const EVENT_INGEST_DEADLINE_MS = 5000;
 /**
  * Poll `getTransaction` until the transaction is final or the deadline passes.
  * Returns the last response, which is `NOT_FOUND` when time ran out.
  */
 export async function waitForFinal(
   txHash: string,
-  opts: { deadlineMs?: number; intervalMs?: number } = {},
+  opts: {
+    deadlineMs?: number;
+    intervalMs?: number;
+  } = {},
 ): Promise<rpc.Api.GetTransactionResponse> {
   const server = sorobanRpc();
   const deadline = Date.now() + remainingInteractiveRpcMs(opts.deadlineMs ?? CONFIRM_DEADLINE_MS);
@@ -196,7 +187,6 @@ export async function waitForFinal(
     await new Promise((r) => setTimeout(r, interval));
   }
 }
-
 /**
  * Pull the deployment's new contract events into the store so the events
  * endpoint shows the swap as soon as submit returns, without waiting longer
@@ -224,9 +214,10 @@ export async function ingestEventsBounded(deploymentId: string, txHash: string):
   ]);
   clearTimeout(timer);
 }
-
-export type ExecuteFailure = { code: string; message: string };
-
+export type ExecuteFailure = {
+  code: string;
+  message: string;
+};
 const RESULT_MESSAGES: Record<string, string> = {
   txTooLate:
     "The transaction's 180-second window expired before it reached the network. Prepare it again.",
@@ -240,11 +231,9 @@ const RESULT_MESSAGES: Record<string, string> = {
   txSorobanInvalid:
     "The network rejected the transaction's resource declaration. Prepare it again.",
 };
-
 const GENERIC_FAILURE =
   "The network rejected this transaction. Prepare the deposit again; if it keeps failing, check " +
   "that `from` is funded and the payout recipient holds a trustline for the output asset.";
-
 /**
  * Render diagnostic events in the text shape `translateSorobanError` reads from
  * a simulation dump (`contract:C…, topics:[error, Error(Contract, #N)]`),
@@ -270,14 +259,16 @@ function renderDiagnostics(events: xdr.DiagnosticEvent[]): string {
   }
   return lines.join("\n");
 }
-
 /**
  * Turn a rejected or reverted transaction into a message a partner can act on.
  * The pipeline hint costs RPC calls for a swapper (the Soroswap factory
  * lookup), so it is built here, on the failure path only (#436).
  */
 export async function explainFailedTx(
-  failure: { resultXdr?: xdr.TransactionResult; diagnosticEventsXdr?: xdr.DiagnosticEvent[] },
+  failure: {
+    resultXdr?: xdr.TransactionResult;
+    diagnosticEventsXdr?: xdr.DiagnosticEvent[];
+  },
   nodes: PipelineSnapshotNode[],
 ): Promise<ExecuteFailure> {
   const rendered = renderDiagnostics(failure.diagnosticEventsXdr ?? []);
@@ -285,7 +276,6 @@ export async function explainFailedTx(
     const t = translateSorobanError(rendered, await buildPipelineErrorHint(nodes));
     if (t.matched) return { code: t.errorName ?? "CONTRACT_ERROR", message: t.friendly };
   }
-
   const result = failure.resultXdr?.result().switch().name;
   if (result && RESULT_MESSAGES[result]) return { code: result, message: RESULT_MESSAGES[result] };
   return { code: result ?? "FAILED", message: GENERIC_FAILURE };

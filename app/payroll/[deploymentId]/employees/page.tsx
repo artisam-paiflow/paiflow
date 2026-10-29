@@ -3,41 +3,36 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { requirePageSession } from "@/lib/auth";
 import { isFeatureEnabled } from "@/lib/features";
-import { usesDevMode } from "@/lib/feature-flags";
 import Topbar from "@/components/app/topbar";
 import EmployeeManager from "@/components/payroll/employee-manager";
 import { assetLabel, type Asset } from "@/lib/flows/schema";
-
 export default async function PayrollEmployeesPage({
   params,
 }: {
-  params: Promise<{ deploymentId: string }>;
+  params: Promise<{
+    deploymentId: string;
+  }>;
 }) {
   const user = await requirePageSession();
   const { deploymentId } = await params;
-
   const deployment = await db.deployment.findFirst({
     where: { id: deploymentId, serviceState: "ACTIVE", ownerId: user.id },
     include: { flow: { select: { templateKind: true } } },
   });
-
   if (!deployment || deployment.flow.templateKind !== "PAYROLL") {
     notFound();
   }
-  if (
-    !isFeatureEnabled("devMode") &&
-    usesDevMode(deployment.graphSnapshot, deployment.pipelineSnapshot)
-  )
-    notFound();
-
   if (deployment.network !== "testnet" && deployment.network !== "mainnet") notFound();
-
   const graph = deployment.graphSnapshot as {
-    nodes: Array<{ type: string; config?: { asset?: Asset } }>;
+    nodes: Array<{
+      type: string;
+      config?: {
+        asset?: Asset;
+      };
+    }>;
   };
   const triggerNode = graph.nodes.find((n) => n.type === "payroll");
   const asset: Asset = (triggerNode?.config?.asset ?? { kind: "known", symbol: "USDC" }) as Asset;
-
   return (
     <div className="min-h-screen bg-zinc-950">
       <Topbar username={user.username} />

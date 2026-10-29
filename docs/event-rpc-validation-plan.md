@@ -206,7 +206,7 @@ are native test XLM; notification settings are Off and payout mode is on-chain.
 | A: five contracts | Deposit → Pay A1 → Pay A2 → Pay A3 → Split A4. Deposit `100000` stroops; each Pay sends `10000` to R1 and forwards its remainder. The terminal Split sends the remaining `70000` 50/50 to R1 and R2. R1 receives `65000`, R2 `35000`.          |
 | B: six contracts  | Deposit → Pay B1 → Pay B2 → Pay B3 → Pay B4 → Split B5. Deposit `100000` stroops; each Pay sends `10000` to R1 and forwards its remainder. The terminal Split sends the remaining `60000` 50/50 to R1 and R2. R1 receives `70000`, R2 `30000`. |
 
-Use standard immutable contracts, dev mode off. One outgoing money edge per
+Use standard contracts. One outgoing money edge per
 nonterminal node avoids Deposit's multi-child funding behavior. The Split has
 distinct recipients and basis points `5000 + 5000 = 10000`. Each graph has one
 trigger root and at least one action, consistent with [SPEC §3](../SPEC.md#3-block-library).

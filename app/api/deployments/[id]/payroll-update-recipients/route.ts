@@ -3,22 +3,15 @@ import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
 import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
-import { requireDevAuth } from "@/lib/auth";
+import { requirePayrollSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
-import { refuseNewFiatRecipients, requireDevConfiguration } from "@/lib/features";
+import { refuseNewFiatRecipients } from "@/lib/features";
 import { preparePayrollUpdateRecipientsInvocation } from "@/lib/stellar/invoke";
-import {
-  submitUpdateRecipientsByRelayer,
-  submitSetSubscriptionAmountByRelayer,
-  updatePaymentByRelayer,
-} from "@/lib/stellar/dev-mutate";
-import { prepareDevCashOutRecipients } from "@/lib/stellar/cash-out";
 import { syncEmployees, deriveFiatPlaceholderAddress } from "@/lib/employees";
 import { stellarPassphrase, offRampTreasuryAddress } from "@/lib/env";
 import { assetContractId } from "@/lib/stellar/assets";
 import type { FlowGraph } from "@/lib/flows/schema";
-
 const RecipientSchema = z
   .object({
     address: z
@@ -48,17 +41,23 @@ const RecipientSchema = z
     },
     { message: "fiat recipients require bankDetail (accountName, accountNumber, bankCode)" },
   );
-
 const PostSchema = z.object({
   recipients: z.array(RecipientSchema).min(1).max(20),
 });
-
 type Recipient = z.infer<typeof RecipientSchema>;
-type NormalizedRecipient = Omit<Recipient, "address"> & { address: string };
-
-async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+type NormalizedRecipient = Omit<Recipient, "address"> & {
+  address: string;
+};
+async function POSTHandler(
+  req: NextRequest,
+  ctx: {
+    params: Promise<{
+      id: string;
+    }>;
+  },
+) {
   return withErrorHandler(async () => {
-    const { user } = await requireDevAuth(req);
+    const { user } = await requirePayrollSession(req);
     await enforceWriteRateLimit("payrollWrite", user.id);
     const { id } = await ctx.params;
     const body = PostSchema.parse(await req.json());
@@ -67,15 +66,11 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
       include: { flow: { select: { templateKind: true } } },
     });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found");
-    requireDevConfiguration(d.graphSnapshot, d.pipelineSnapshot);
+
     if (d.flow.templateKind !== "PAYROLL") {
       throw new AppError("VALIDATION", "Deployment is not a payroll");
     }
-    // A new fiat recipient deploys a CASH_OUT_DEV sink and queues off-ramp
-    // jobs: new off-ramp use, refused while it is switched off (#722). Crypto
-    // recipients and fiat ones already on this deployment keep updating.
     await refuseNewFiatRecipients(d.id, body.recipients);
-
     const normalizedRecipients = body.recipients.map((r) => {
       if (r.payoutMode === "fiat" && !r.address) {
         return {
@@ -89,116 +84,12 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
       }
       return r as NormalizedRecipient;
     });
-
     const pipeline = d.pipelineSnapshot as Array<{
       nodeId: string;
       contractAddress: string;
       templateKind: string;
     }> | null;
     const payrollNode = pipeline?.find((n) => n.templateKind === "PAYROLL");
-    const splitterDevNode = pipeline?.find((n) => n.templateKind === "SPLITTER_DEV");
-    const subscriptionDevNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION_DEV");
-    const splitterNode = pipeline?.find((n) => n.templateKind === "SPLITTER");
-    const payerNode = pipeline?.find((n) => n.templateKind === "PAYER");
-    const payerDevNode = pipeline?.find((n) => n.templateKind === "PAYER_DEV");
-
-    // Immutable non-dev payrolls bake recipients into the on-chain SPLITTER /
-    // PAYER at deploy time and cannot be changed afterwards.
-    if (
-      (splitterNode?.contractAddress || payerNode?.contractAddress) &&
-      !payrollNode &&
-      !splitterDevNode
-    ) {
-      throw new AppError(
-        "VALIDATION",
-        "This payroll is immutable. Recipients cannot be updated after deploy.",
-      );
-    }
-
-    // Dev-mode single-pay payroll: SUBSCRIPTION_DEV → PAYER_DEV. The first
-    // recipient is the single employee; a fiat employee gets a generated
-    // CASH_OUT_DEV contract just like fiat split recipients.
-    if (!splitterDevNode?.contractAddress && payerDevNode?.contractAddress) {
-      const r = normalizedRecipients[0]!;
-      const graph = (d.graphSnapshot ?? null) as FlowGraph | null;
-      const asset =
-        graph?.nodes.find((n) => n.type === "payroll")?.config.asset ??
-        graph?.nodes.find((n) => n.type === "subscription")?.config.asset;
-      if (!asset) {
-        throw new AppError("VALIDATION", "Payroll asset not found in graph snapshot");
-      }
-      const assetContract = assetContractId(asset);
-      const treasury = offRampTreasuryAddress() ?? payerDevNode.contractAddress;
-
-      const existingEmployees = await db.employee.findMany({
-        where: { deploymentId: d.id },
-        select: { address: true, cashOutContractAddress: true },
-      });
-
-      const { onChainRecipients, txHashes, cashOutByInputAddress } =
-        await prepareDevCashOutRecipients({
-          splitterContractAddress: payerDevNode.contractAddress,
-          adminAddress: d.sourceAccount ?? payerDevNode.contractAddress,
-          assetContractAddress: assetContract,
-          treasury,
-          existingEmployees,
-          inputRecipients: [
-            {
-              address: r.address,
-              amount: r.amount,
-              bps: 0,
-              payoutMode: r.payoutMode,
-              bankDetail: r.bankDetail,
-            },
-          ],
-        });
-
-      const onChain = onChainRecipients[0];
-      if (!onChain) {
-        throw new AppError("VALIDATION", "No recipient provided for the pay node");
-      }
-
-      const payResult = await updatePaymentByRelayer(payerDevNode.contractAddress, {
-        recipient: onChain.address,
-        amountStroops: r.amount,
-        percentageBps: 0,
-        isCashOut: onChain.isCashOut,
-      });
-      if (payResult.status !== "SUCCESS") {
-        throw new AppError("UPSTREAM_RPC", payResult.errorMessage ?? "update_payment failed");
-      }
-      txHashes.push(payResult.txHash);
-
-      if (subscriptionDevNode?.contractAddress) {
-        const amountResult = await submitSetSubscriptionAmountByRelayer(
-          subscriptionDevNode.contractAddress,
-          r.amount,
-        );
-        txHashes.push(amountResult.txHash);
-      }
-
-      await syncEmployees(
-        d.id,
-        [
-          {
-            address: r.address,
-            amountStroops: r.amount,
-            label: r.label,
-            payoutMode: r.payoutMode,
-            bankDetail: r.bankDetail,
-          },
-        ],
-        cashOutByInputAddress,
-      );
-
-      return NextResponse.json({
-        data: {
-          txHashes,
-          contractAddress: payerDevNode.contractAddress,
-        },
-      });
-    }
-
     // Execute the on-chain mutation first. Only after it succeeds do we mirror
     // the change into the Employee table. This prevents DB/chain divergence if
     // the on-chain call fails.
@@ -206,13 +97,11 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
       if (!d.sourceAccount) {
         throw new AppError("VALIDATION", "Deployment source account is not available");
       }
-
       const { xdr } = await preparePayrollUpdateRecipientsInvocation({
         contractAddress: payrollNode.contractAddress,
         adminAddress: d.sourceAccount,
         recipients: normalizedRecipients.map((r) => ({ address: r.address, amount: r.amount })),
       });
-
       await syncEmployees(
         d.id,
         normalizedRecipients.map((r) => ({
@@ -223,7 +112,6 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
           bankDetail: r.bankDetail,
         })),
       );
-
       return NextResponse.json({
         data: {
           unsignedXdr: xdr,
@@ -232,82 +120,10 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
         },
       });
     }
-
-    if (!splitterDevNode?.contractAddress) {
-      throw new AppError("VALIDATION", "Payroll contract address not available");
-    }
-
-    // Dev-mode payroll: the splitter contract is updated by the relayer, and
-    // the subscription amount is kept in sync with the sum of fixed salaries.
-    // These submissions return immediately with pending txHashes; the UI polls
-    // for finality so the HTTP request doesn't block on network finality.
-    const graph = (d.graphSnapshot ?? null) as FlowGraph | null;
-    const asset =
-      graph?.nodes.find((n) => n.type === "payroll")?.config.asset ??
-      graph?.nodes.find((n) => n.type === "subscription")?.config.asset;
-    if (!asset) {
-      throw new AppError("VALIDATION", "Payroll asset not found in graph snapshot");
-    }
-    const assetContract = assetContractId(asset);
-    const treasury = offRampTreasuryAddress() ?? splitterDevNode.contractAddress;
-
-    const existingEmployees = await db.employee.findMany({
-      where: { deploymentId: d.id },
-      select: { address: true, cashOutContractAddress: true },
-    });
-
-    const { onChainRecipients, txHashes, cashOutByInputAddress } =
-      await prepareDevCashOutRecipients({
-        splitterContractAddress: splitterDevNode.contractAddress,
-        adminAddress: d.sourceAccount ?? splitterDevNode.contractAddress,
-        assetContractAddress: assetContract,
-        treasury,
-        existingEmployees,
-        inputRecipients: normalizedRecipients.map((r) => ({
-          address: r.address,
-          amount: r.amount,
-          bps: 0,
-          payoutMode: r.payoutMode,
-          bankDetail: r.bankDetail,
-        })),
-      });
-
-    const recipientsResult = await submitUpdateRecipientsByRelayer(
-      splitterDevNode.contractAddress,
-      onChainRecipients,
+    throw new AppError(
+      "VALIDATION",
+      "This payroll is immutable. Recipients cannot be updated after deploy.",
     );
-    txHashes.push(recipientsResult.txHash);
-
-    if (subscriptionDevNode?.contractAddress) {
-      const totalStroops = normalizedRecipients
-        .reduce((sum, r) => sum + BigInt(r.amount), 0n)
-        .toString();
-      const amountResult = await submitSetSubscriptionAmountByRelayer(
-        subscriptionDevNode.contractAddress,
-        totalStroops,
-      );
-      txHashes.push(amountResult.txHash);
-    }
-
-    await syncEmployees(
-      d.id,
-      normalizedRecipients.map((r) => ({
-        address: r.address,
-        amountStroops: r.amount,
-        label: r.label,
-        payoutMode: r.payoutMode,
-        bankDetail: r.bankDetail,
-      })),
-      cashOutByInputAddress,
-    );
-
-    return NextResponse.json({
-      data: {
-        txHashes,
-        contractAddress: splitterDevNode.contractAddress,
-      },
-    });
   });
 }
-
-export const POST = deploymentServiceRoute(POSTHandler, "dev");
+export const POST = deploymentServiceRoute(POSTHandler, "payroll");

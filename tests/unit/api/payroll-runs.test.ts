@@ -18,7 +18,6 @@ import {
   countCompletedPayouts,
   type PayoutForSerialize,
 } from "@/lib/payroll/run-serialize";
-
 const { mockDb } = vi.hoisted(() => {
   const mockDb = {
     deployment: { findFirst: vi.fn() },
@@ -26,30 +25,27 @@ const { mockDb } = vi.hoisted(() => {
   };
   return { mockDb };
 });
-
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/auth", () => ({
-  requireDevAuth: vi.fn(async () => ({ user: { id: "owner-1", username: "owner", role: "USER" } })),
+  requirePayrollSession: vi.fn(async () => ({
+    user: { id: "owner-1", username: "owner", role: "USER" },
+  })),
 }));
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: vi.fn(async () => ({ ok: true })),
   clientIp: vi.fn(() => "127.0.0.1"),
 }));
-
 import { GET as listGET } from "@/app/api/deployments/[id]/payroll-runs/route";
 import { GET as detailGET } from "@/app/api/deployments/[id]/payroll-runs/[runId]/route";
-
 // Path params are UUID-validated by the routes, so tests must use real UUIDs.
 const DEP_ID = "11111111-1111-1111-1111-111111111111";
 const RUN_ID = "22222222-2222-2222-2222-222222222222";
-
 function makeRequest(url: string, secret = "dev-secret") {
   return {
     url,
     headers: { get: (n: string) => (n === "x-dev-api-secret" ? secret : null) },
   } as unknown as import("next/server").NextRequest;
 }
-
 function payout(overrides: Partial<PayoutForSerialize> = {}): PayoutForSerialize {
   return {
     id: "p1",
@@ -61,23 +57,19 @@ function payout(overrides: Partial<PayoutForSerialize> = {}): PayoutForSerialize
     ...overrides,
   };
 }
-
 describe("derivePayoutStatus", () => {
   it("is PENDING without a charge tx", () => {
     expect(derivePayoutStatus("CRYPTO", null, null)).toBe("PENDING");
     expect(derivePayoutStatus("FIAT", null, "COMPLETED")).toBe("PENDING");
   });
-
   it("is COMPLETED for a pure-crypto payout with a tx", () => {
     expect(derivePayoutStatus("CRYPTO", "tx", null)).toBe("COMPLETED");
   });
-
   it("is SENT (not COMPLETED) for a FIAT payout charged but with no off-ramp job yet", () => {
     // Job creation is best-effort and can be skipped/swallowed; the fiat leg
     // is what completes the payout, so it must never read COMPLETED here.
     expect(derivePayoutStatus("FIAT", "tx", null)).toBe("SENT");
   });
-
   it("mirrors the off-ramp job lifecycle", () => {
     expect(derivePayoutStatus("FIAT", "tx", "PENDING")).toBe("SENT");
     expect(derivePayoutStatus("FIAT", "tx", "RUNNING")).toBe("SENT");
@@ -88,7 +80,6 @@ describe("derivePayoutStatus", () => {
     expect(derivePayoutStatus("FIAT", "tx", "CANCELLED")).toBe("FAILED");
   });
 });
-
 describe("countCompletedPayouts", () => {
   it("counts only completed payouts", () => {
     const payouts = [
@@ -107,10 +98,8 @@ describe("countCompletedPayouts", () => {
     expect(countCompletedPayouts(payouts)).toBe(1);
   });
 });
-
 describe("GET payroll-runs (list)", () => {
   beforeEach(() => vi.clearAllMocks());
-
   it("returns runs with payout counts and a nextCursor when full", async () => {
     mockDb.deployment.findFirst.mockResolvedValue({ id: "dep-1" });
     const now = new Date("2026-01-01T00:00:00.000Z");
@@ -134,12 +123,10 @@ describe("GET payroll-runs (list)", () => {
     });
     // limit defaults to 20; return 2 runs (< limit) → no nextCursor
     mockDb.payrollRun.findMany.mockResolvedValue([makeRun("r1"), makeRun("r2")]);
-
     const res = await listGET(makeRequest(`https://x/api/deployments/${DEP_ID}/payroll-runs`), {
       params: Promise.resolve({ id: DEP_ID }),
     });
     const json = await res.json();
-
     expect(json.data).toHaveLength(2);
     expect(json.data[0]).toMatchObject({
       id: "r1",
@@ -150,7 +137,6 @@ describe("GET payroll-runs (list)", () => {
     });
     expect(json.nextCursor).toBeNull();
   });
-
   it("emits a nextCursor when more than `limit` rows are returned", async () => {
     mockDb.deployment.findFirst.mockResolvedValue({ id: "dep-1" });
     const now = new Date("2026-01-01T00:00:00.000Z");
@@ -166,7 +152,6 @@ describe("GET payroll-runs (list)", () => {
       payouts: [],
     }));
     mockDb.payrollRun.findMany.mockResolvedValue(rows);
-
     const res = await listGET(
       makeRequest(`https://x/api/deployments/${DEP_ID}/payroll-runs?limit=2`),
       {
@@ -174,11 +159,9 @@ describe("GET payroll-runs (list)", () => {
       },
     );
     const json = await res.json();
-
     expect(json.data).toHaveLength(2);
     expect(json.nextCursor).toBe("r1"); // last returned row, not the popped lookahead
   });
-
   it("404s when the deployment is not found", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(null);
     const res = await listGET(makeRequest(`https://x/api/deployments/${DEP_ID}/payroll-runs`), {
@@ -186,7 +169,6 @@ describe("GET payroll-runs (list)", () => {
     });
     expect(res.status).toBe(404);
   });
-
   it("404s on a malformed (non-UUID) deployment id without touching the db", async () => {
     const res = await listGET(makeRequest("https://x/api/deployments/not-a-uuid/payroll-runs"), {
       params: Promise.resolve({ id: "not-a-uuid" }),
@@ -194,7 +176,6 @@ describe("GET payroll-runs (list)", () => {
     expect(res.status).toBe(404);
     expect(mockDb.deployment.findFirst).not.toHaveBeenCalled();
   });
-
   // #247: a machine caller used to reach any deployment because the shared
   // DEV_API_SECRET resolved to no user at all. Every caller now carries an
   // owner, so the lookup is always narrowed to the rows they own — a request
@@ -210,10 +191,8 @@ describe("GET payroll-runs (list)", () => {
     );
   });
 });
-
 describe("GET payroll-runs/:runId (detail)", () => {
   beforeEach(() => vi.clearAllMocks());
-
   it("returns a run with serialized payouts", async () => {
     mockDb.deployment.findFirst.mockResolvedValue({ id: "dep-1" });
     const now = new Date("2026-01-01T00:00:00.000Z");
@@ -241,7 +220,6 @@ describe("GET payroll-runs/:runId (detail)", () => {
         }),
       ],
     });
-
     const res = await detailGET(
       makeRequest(`https://x/api/deployments/${DEP_ID}/payroll-runs/${RUN_ID}`),
       {
@@ -249,7 +227,6 @@ describe("GET payroll-runs/:runId (detail)", () => {
       },
     );
     const json = await res.json();
-
     expect(json.id).toBe("run-1");
     expect(json.errorMessage).toBeNull();
     expect(json.payouts[0]).toMatchObject({
@@ -267,11 +244,9 @@ describe("GET payroll-runs/:runId (detail)", () => {
       offRampJobStatus: "INITIATED",
     });
   });
-
   it("404s when the run does not belong to the deployment", async () => {
     mockDb.deployment.findFirst.mockResolvedValue({ id: DEP_ID });
     mockDb.payrollRun.findFirst.mockResolvedValue(null);
-
     const res = await detailGET(
       makeRequest(
         `https://x/api/deployments/${DEP_ID}/payroll-runs/33333333-3333-3333-3333-333333333333`,
@@ -282,7 +257,6 @@ describe("GET payroll-runs/:runId (detail)", () => {
     );
     expect(res.status).toBe(404);
   });
-
   it("404s on a malformed (non-UUID) runId without touching the db", async () => {
     const res = await detailGET(
       makeRequest(`https://x/api/deployments/${DEP_ID}/payroll-runs/not-a-uuid`),

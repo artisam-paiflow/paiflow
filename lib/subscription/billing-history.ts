@@ -3,20 +3,15 @@ import { StrKey } from "@stellar/stellar-sdk";
 import { EventKind, type Prisma, type TemplateKind } from "@prisma/client";
 import { db } from "@/lib/db";
 import { pipelineNodesOfKind } from "@/lib/pipeline-snapshot";
-
 const MAX_I128 = (1n << 127n) - 1n;
 export const BILLING_HISTORY_EVENT_BATCH = 100;
-
 /** Payroll has its own financial records, even when its trigger is a Subscription. */
 export function subscriptionBillingEmitter(
   snapshot: unknown,
   flowKind: TemplateKind,
 ): string | null {
   if (flowKind === "PAYROLL") return null;
-  const nodes = [
-    ...pipelineNodesOfKind(snapshot, "SUBSCRIPTION"),
-    ...pipelineNodesOfKind(snapshot, "SUBSCRIPTION_DEV"),
-  ];
+  const nodes = [...pipelineNodesOfKind(snapshot, "SUBSCRIPTION")];
   if (nodes.length !== 1 || !StrKey.isValidContract(nodes[0]!.contractAddress)) return null;
   const address = nodes[0]!.contractAddress;
   // An ambiguous snapshot must not attribute another node's event to a subscription.
@@ -31,7 +26,6 @@ export function subscriptionBillingEmitter(
     ? address
     : null;
 }
-
 type HistoryEvent = {
   deploymentId: string;
   kind: EventKind;
@@ -40,7 +34,6 @@ type HistoryEvent = {
   payload: unknown;
   occurredAt: Date;
 };
-
 function isCharge(event: HistoryEvent, emitter: string): boolean {
   if (
     event.kind !== EventKind.RECEIVE ||
@@ -71,7 +64,6 @@ function isCharge(event: HistoryEvent, emitter: string): boolean {
     BigInt(value) <= MAX_I128
   );
 }
-
 /** A projection of committed charge history, never proof to send another charge.
  * Ledger-close time is monotonic; mode/cancellation/configuration are independent.
  * Called inside existing event-poll admission, including retirement's cutoff scan.
@@ -90,7 +82,6 @@ export async function projectSubscriptionCharge(
     data: { lastChargedAt: event.occurredAt },
   });
 }
-
 /** Repair an already-advanced cursor from retained evidence, including MANUAL or
  * cancelled subscriptions. Filtering by emitter/topic keeps unrelated later events
  * out of this bounded latest-first pass. Only the maximum valid time is needed.
@@ -124,7 +115,6 @@ export async function reconcileStoredSubscriptionCharges(opts: {
   const latest = events.find((event) => isCharge(event, opts.emitter));
   if (latest) await projectSubscriptionCharge(latest, opts.emitter);
 }
-
 /** CAS fences a stale RPC observation against every schedule/config/lifecycle
  * writer. The database trigger advances this revision even for same-value writes.
  */

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
-import { requireDevAuth } from "@/lib/auth";
+import { requirePayrollSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import {
@@ -10,41 +10,40 @@ import {
   countCompletedPayouts,
   type PayoutStatusInput,
 } from "@/lib/payroll/run-serialize";
-
 const Query = z.object({
   cursor: z.string().guid({ error: "Invalid uuid" }).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
-
 /** A malformed (non-UUID) id can't match any row; treat it as not-found rather
  * than letting it reach Prisma and surface as a generic 500. */
 const isUuid = (v: string) => z.string().guid({ error: "Invalid uuid" }).safeParse(v).success;
-
 /**
  * List a deployment's payroll runs, newest first, with per-run payout counts.
  *
  * Cursor-based pagination on (createdAt, id): pass the returned `nextCursor`
  * back as `?cursor=` to fetch the next page.
  */
-async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(
+  req: NextRequest,
+  ctx: {
+    params: Promise<{
+      id: string;
+    }>;
+  },
+) {
   return withErrorHandler(async () => {
-    const { user } = await requireDevAuth(req);
-
+    const { user } = await requirePayrollSession(req);
     const rlKey = `payroll-runs-list:${user.id}`;
     const rl = await rateLimit(rlKey, 60, 60);
     if (!rl.ok) throw rateLimitedError(rl, "Too many payroll run list requests");
-
     const { id } = await ctx.params;
     if (!isUuid(id)) throw new AppError("NOT_FOUND", "Deployment not found");
-
     const deployment = await db.deployment.findFirst({
       where: { id, ownerId: user.id },
       select: { id: true },
     });
     if (!deployment) throw new AppError("NOT_FOUND", "Deployment not found");
-
     const q = Query.parse(Object.fromEntries(new URL(req.url).searchParams));
-
     const runs = await db.payrollRun.findMany({
       where: { deploymentId: deployment.id },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -64,11 +63,9 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
         },
       },
     });
-
     const hasMore = runs.length > q.limit;
     if (hasMore) runs.pop(); // drop the lookahead row; it is not part of this page
     const nextCursor = hasMore ? runs.at(-1)!.id : null;
-
     const data = runs.map((run) => {
       const payouts = run.payouts as PayoutStatusInput[];
       return {
@@ -84,9 +81,7 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
         completedPayoutCount: countCompletedPayouts(payouts),
       };
     });
-
     return NextResponse.json(RunListResponseSchema.parse({ data, nextCursor }));
   });
 }
-
-export const GET = deploymentServiceRoute(GETHandler, "dev");
+export const GET = deploymentServiceRoute(GETHandler, "payroll");

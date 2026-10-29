@@ -20,7 +20,6 @@ vi.mock("@/lib/analytics/outcomes", () => ({
   transactionObservation: vi.fn(async () => undefined),
 }));
 import { describe, it, expect, vi, beforeEach } from "vitest";
-
 const { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR, fakeTx } = vi.hoisted(
   () => {
     const mockDb = {
@@ -43,15 +42,19 @@ const { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR, fakeT
       user: { findUnique: vi.fn(async () => null) },
       analyticsDelivery: { createMany: vi.fn(async () => ({ count: 1 })) },
       signedTransaction: {
-        findUnique: vi.fn(async () => null as { deploymentId: string; network: string } | null),
+        findUnique: vi.fn(
+          async () =>
+            null as {
+              deploymentId: string;
+              network: string;
+            } | null,
+        ),
         createMany: vi.fn(async () => ({ count: 1 })),
       },
     };
-
     const mockDeploy = {
       submitDeployTx: vi.fn(),
     };
-
     const mockEnv = {
       STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
       STELLAR_RELAYER_ADDRESS: null as string | null,
@@ -63,18 +66,15 @@ const { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR, fakeT
       STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID: undefined as string | undefined,
       STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL: undefined as string | undefined,
     };
-
     const mockRedis = {
       client: {
         publish: vi.fn().mockResolvedValue(undefined),
       },
       eventChannel: vi.fn((id: string) => `events:${id}`),
     };
-
     const mockStreamer = {
       scheduleNextStreamerClaimJob: vi.fn(),
     };
-
     // The shape `lib/stellar/signer.ts` reads off a parsed envelope: a source
     // account and a signature list, plus the hash the route compares.
     const fakeTx = (hashHex: string) => ({
@@ -83,11 +83,9 @@ const { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR, fakeT
       hash: vi.fn(() => Buffer.from(hashHex, "hex")),
     });
     const mockFromXDR = vi.fn(() => fakeTx("aabbccdd"));
-
     return { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR, fakeTx };
   },
 );
-
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/stellar/deploy", () => mockDeploy);
 vi.mock("@/lib/env", () => ({
@@ -113,26 +111,21 @@ vi.mock("@stellar/stellar-sdk", async () => {
     },
   };
 });
-
 import { POST } from "@/app/api/deployments/[id]/submit/route";
 import { audit } from "@/lib/audit";
 import { captureServer } from "@/lib/analytics/server";
 import { requireSession } from "@/lib/auth";
-
 const auditActions = () => vi.mocked(audit).mock.calls.map(([a]) => a.action);
 const capturedEvents = () => vi.mocked(captureServer).mock.calls.map(([, event]) => event);
-
 function makeRequest({ deploymentId, signedXdr }: { deploymentId: string; signedXdr: string }) {
   return {
     json: async () => ({ signedXdr }),
     headers: new Headers({ "x-forwarded-for": "203.0.113.9" }),
   } as unknown as import("next/server").NextRequest;
 }
-
 function makeContext(deploymentId: string) {
   return { params: Promise.resolve({ id: deploymentId }) };
 }
-
 function makeDeployment(overrides: Record<string, unknown> = {}) {
   return {
     id: "dep-1",
@@ -148,32 +141,17 @@ function makeDeployment(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
-
 const TX_HASH = "aabbccdd";
-
 function makePrismaError(code: string, message: string) {
   const err = new Error(message);
-  (err as { code?: string }).code = code;
+  (
+    err as {
+      code?: string;
+    }
+  ).code = code;
   return err;
 }
-
 describe("deployments/[id]/submit", () => {
-  it.each([
-    { graphSnapshot: { devMode: true }, pipelineSnapshot: [] },
-    { graphSnapshot: null, pipelineSnapshot: [{ templateKind: "PAYER_DEV" }] },
-  ])("refuses a previously prepared Dev deployment after disablement: %j", async (snapshots) => {
-    mockEnv.FEATURE_DEV_MODE_ENABLED = false;
-    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment(snapshots));
-    const response = await POST(
-      makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
-      makeContext("dep-1"),
-    );
-    expect(response.status).toBe(422);
-    expect((await response.json()).error.code).toBe("VALIDATION");
-    expect(mockDeploy.submitDeployTx).not.toHaveBeenCalled();
-    expect(mockDb.deployment.update).not.toHaveBeenCalled();
-    expect(mockDb.deployment.updateMany).not.toHaveBeenCalled();
-  });
   beforeEach(() => {
     vi.clearAllMocks();
     // Duplicate signed-row reads are part of retry isolation. Reset queued outcomes so a
@@ -191,7 +169,6 @@ describe("deployments/[id]/submit", () => {
       role: "USER",
     });
   });
-
   it("returns the original pending result for a same-hash retry without broadcasting", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(
       makeDeployment({ status: "SUBMITTED", deployTxHash: TX_HASH }),
@@ -205,7 +182,6 @@ describe("deployments/[id]/submit", () => {
     expect(mockDeploy.submitDeployTx).not.toHaveBeenCalled();
     expect(mockDb.$transaction).not.toHaveBeenCalled();
   });
-
   it("refuses a different envelope while the original deployment is submitted", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(
       makeDeployment({ status: "SUBMITTED", deployTxHash: "different-hash" }),
@@ -217,11 +193,10 @@ describe("deployments/[id]/submit", () => {
     expect(response.status).toBe(409);
     expect(mockDeploy.submitDeployTx).not.toHaveBeenCalled();
   });
-
   it("returns accepted rehearsal submissions without confirmation/setup or failure events", async () => {
     mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID = "flow-1";
     mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL = new Date(
-      Date.now() + 60_000,
+      Date.now() + 60000,
     ).toISOString();
     vi.mocked(requireSession).mockResolvedValue({
       id: "user-1",
@@ -258,7 +233,6 @@ describe("deployments/[id]/submit", () => {
     expect(capturedEvents()).not.toContain("deploy_confirmed");
     expect(capturedEvents()).not.toContain("deploy_failed");
   });
-
   it.each([
     ["USER", "flow-1", "testnet"],
     ["SANDBOX", "flow-1", "testnet"],
@@ -267,7 +241,7 @@ describe("deployments/[id]/submit", () => {
   ] as const)("keeps ordinary confirmation for %s / %s / %s", async (role, flowId, network) => {
     mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID = "flow-1";
     mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL = new Date(
-      Date.now() + 60_000,
+      Date.now() + 60000,
     ).toISOString();
     vi.mocked(requireSession).mockResolvedValue({ id: "user-1", username: "test-user", role });
     mockDb.deployment.findFirst.mockResolvedValue(makeDeployment({ flowId, network }));
@@ -282,11 +256,10 @@ describe("deployments/[id]/submit", () => {
     );
     expect(mockDeploy.submitDeployTx).toHaveBeenCalledWith("signed-xdr");
   });
-
   it("cannot use the rehearsal to bypass deployment ownership", async () => {
     mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID = "flow-1";
     mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL = new Date(
-      Date.now() + 60_000,
+      Date.now() + 60000,
     ).toISOString();
     vi.mocked(requireSession).mockResolvedValue({
       id: "user-1",
@@ -302,7 +275,6 @@ describe("deployments/[id]/submit", () => {
     expect(mockDeploy.submitDeployTx).not.toHaveBeenCalled();
     expect(mockDb.deployment.update).not.toHaveBeenCalled();
   });
-
   it("keeps a finality timeout submitted for server reconciliation", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
     mockDeploy.submitDeployTx.mockResolvedValue({
@@ -324,7 +296,6 @@ describe("deployments/[id]/submit", () => {
     expect(auditActions()).not.toContain("DEPLOY_FAIL");
     expect(capturedEvents()).not.toContain("deploy_failed");
   });
-
   it("retains prepared block bindings when confirming a deployment", async () => {
     const pipeline = [
       {
@@ -361,7 +332,6 @@ describe("deployments/[id]/submit", () => {
     // Confirmation updates status/finality fields without replacing the prepared snapshot.
     expect(confirmation).not.toHaveProperty("pipelineSnapshot");
   });
-
   it("returns idempotently when a concurrent request already confirmed (P2025 race-loser)", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
     mockDeploy.submitDeployTx.mockResolvedValue({
@@ -382,18 +352,15 @@ describe("deployments/[id]/submit", () => {
       contractAddress: "CABC",
       pipelineSnapshot: [{ nodeId: "n1", contractAddress: "CABC", templateKind: "SPLITTER" }],
     });
-
     const req = makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" });
     const res = await POST(req, makeContext("dep-1"));
     const json = await res.json();
-
     expect(res.status).toBe(200);
     expect(json.data.status).toBe("CONFIRMED");
     expect(json.data.txHash).toBe(TX_HASH);
     expect(mockDb.deployment.update).toHaveBeenCalledTimes(2);
     expect(mockDb.deployment.findUnique).toHaveBeenCalledTimes(1);
   });
-
   it("throws CONFLICT when P2025 occurs with a different txHash", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
     mockDeploy.submitDeployTx.mockResolvedValue({
@@ -414,25 +381,20 @@ describe("deployments/[id]/submit", () => {
       contractAddress: "CABC",
       pipelineSnapshot: [{ nodeId: "n1", contractAddress: "CABC", templateKind: "SPLITTER" }],
     });
-
     const req = makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" });
     const res = await POST(req, makeContext("dep-1"));
     const json = await res.json();
-
     expect(res.status).toBe(409);
     expect(json.error.code).toBe("CONFLICT");
   });
-
   it("refuses a concurrent duplicate: the PENDING_SIGNATURE claim fails before the chain call", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
     mockDb.deployment.update.mockRejectedValueOnce(
       makePrismaError("P2025", "An operation failed because it depends on one or more records"),
     );
-
     const req = makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" });
     const res = await POST(req, makeContext("dep-1"));
     const json = await res.json();
-
     expect(res.status).toBe(409);
     expect(json.error.code).toBe("CONFLICT");
     expect(mockDb.deployment.update.mock.calls[0]?.[0]).toMatchObject({
@@ -441,7 +403,6 @@ describe("deployments/[id]/submit", () => {
     expect(mockDeploy.submitDeployTx).not.toHaveBeenCalled();
     expect(mockDb.signedTransaction.createMany).not.toHaveBeenCalled();
   });
-
   it.each([
     { deploymentId: "another-deployment", network: "testnet" },
     { deploymentId: "dep-1", network: "mainnet" },
@@ -461,7 +422,6 @@ describe("deployments/[id]/submit", () => {
       expect(auditActions()).toEqual([]);
     },
   );
-
   it("marks FAILED only while still SUBMITTED, so a confirmed deployment is never overwritten", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
     mockDeploy.submitDeployTx.mockResolvedValue({
@@ -474,30 +434,25 @@ describe("deployments/[id]/submit", () => {
       .mockRejectedValueOnce(
         makePrismaError("P2025", "An operation failed because it depends on one or more records"),
       );
-
     const req = makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" });
     const res = await POST(req, makeContext("dep-1"));
-
     expect(res.status).toBe(502);
     expect(mockDb.deployment.update.mock.calls.at(-1)?.[0]).toMatchObject({
       where: { id: "dep-1", status: "SUBMITTED" },
       data: { status: "FAILED" },
     });
   });
-
   // #557: TRY_AGAIN_LATER means the network never queued the transaction.
   describe("a send the network did not accept", () => {
     it("hands the claim back: PENDING_SIGNATURE, no hash, no DEPLOY_FAIL, 502", async () => {
       mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
       mockDeploy.submitDeployTx.mockResolvedValue({ status: "NOT_ACCEPTED" });
       mockDb.deployment.update.mockResolvedValue(undefined);
-
       const res = await POST(
         makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
         makeContext("dep-1"),
       );
       const json = await res.json();
-
       expect(res.status).toBe(502);
       expect(json.error.code).toBe("UPSTREAM_RPC");
       expect(json.error.message).toContain("submit the same envelope again");
@@ -509,7 +464,6 @@ describe("deployments/[id]/submit", () => {
       expect(auditActions()).toEqual(["DEPLOY_SUBMIT"]);
       expect(capturedEvents()).not.toContain("deploy_failed");
     });
-
     it("the same signed envelope can then be submitted again and confirm", async () => {
       mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
       mockDb.deployment.update.mockResolvedValue({
@@ -531,7 +485,6 @@ describe("deployments/[id]/submit", () => {
       mockDeploy.submitDeployTx
         .mockResolvedValueOnce({ status: "NOT_ACCEPTED" })
         .mockResolvedValueOnce({ status: "SUCCESS", txHash: TX_HASH, contractAddress: "CABC" });
-
       const first = await POST(
         makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
         makeContext("dep-1"),
@@ -540,7 +493,6 @@ describe("deployments/[id]/submit", () => {
         makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
         makeContext("dep-1"),
       );
-
       expect(first.status).toBe(502);
       expect(second.status).toBe(200);
       expect((await second.json()).data).toMatchObject({ status: "CONFIRMED", txHash: TX_HASH });
@@ -553,30 +505,26 @@ describe("deployments/[id]/submit", () => {
       });
       expect(capturedEvents()).not.toContain("deploy_failed");
     });
-
     it("still answers 502 when the row stopped being SUBMITTED in the meantime", async () => {
       mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
       mockDeploy.submitDeployTx.mockResolvedValue({ status: "NOT_ACCEPTED" });
       mockDb.deployment.update
         .mockResolvedValueOnce(undefined)
         .mockRejectedValueOnce(makePrismaError("P2025", "No record was found for an update"));
-
       const res = await POST(
         makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
         makeContext("dep-1"),
       );
-
       expect(res.status).toBe(502);
       expect((await res.json()).error.code).toBe("UPSTREAM_RPC");
       expect(auditActions()).toEqual(["DEPLOY_SUBMIT"]);
     });
   });
-
   it.each([false, true])("rejects mismatched signed XDR (rehearsal: %s)", async (rehearsal) => {
     if (rehearsal) {
       mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID = "flow-1";
       mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL = new Date(
-        Date.now() + 60_000,
+        Date.now() + 60000,
       ).toISOString();
       vi.mocked(requireSession).mockResolvedValue({
         id: "user-1",
@@ -590,29 +538,23 @@ describe("deployments/[id]/submit", () => {
     mockDb.deployment.findFirst.mockResolvedValue(
       makeDeployment({ flowId: "flow-1", network: "testnet" }),
     );
-
     const req = makeRequest({ deploymentId: "dep-1", signedXdr: "tampered-signed-xdr" });
     const res = await POST(req, makeContext("dep-1"));
     const json = await res.json();
-
     expect(res.status).toBe(422);
     expect(json.error.code).toBe("VALIDATION");
     expect(mockDb.deployment.update).not.toHaveBeenCalled();
     expect(mockDeploy.submitDeployTx).not.toHaveBeenCalled();
   });
-
   it("rejects when the deployment has no prepared transaction", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(makeDeployment({ unsignedXdr: null }));
-
     const req = makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" });
     const res = await POST(req, makeContext("dep-1"));
     const json = await res.json();
-
     expect(res.status).toBe(409);
     expect(json.error.code).toBe("CONFLICT");
     expect(mockDeploy.submitDeployTx).not.toHaveBeenCalled();
   });
-
   it("upserts the sender KYC profile from graphSnapshot.senderKyc on confirm", async () => {
     const pipelineSnapshot = [
       { nodeId: "n1", contractAddress: "CABC", templateKind: "SPLITTER" },
@@ -642,10 +584,8 @@ describe("deployments/[id]/submit", () => {
       graphSnapshot: { senderKyc },
       pipelineSnapshot,
     });
-
     const req = makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" });
     const res = await POST(req, makeContext("dep-1"));
-
     expect(res.status).toBe(200);
     expect(mockDb.offRampSenderProfile.upsert).toHaveBeenCalledTimes(1);
     expect(mockDb.offRampSenderProfile.upsert).toHaveBeenCalledWith({
@@ -654,7 +594,6 @@ describe("deployments/[id]/submit", () => {
       update: { ...senderKyc },
     });
   });
-
   it("skips the sender KYC upsert when graphSnapshot has no senderKyc", async () => {
     const pipelineSnapshot = [
       { nodeId: "n1", contractAddress: "CABC", templateKind: "SPLITTER" },
@@ -678,14 +617,11 @@ describe("deployments/[id]/submit", () => {
       graphSnapshot: { nodes: [] },
       pipelineSnapshot,
     });
-
     const req = makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" });
     const res = await POST(req, makeContext("dep-1"));
-
     expect(res.status).toBe(200);
     expect(mockDb.offRampSenderProfile.upsert).not.toHaveBeenCalled();
   });
-
   it("skips the sender KYC upsert when the pipeline has no off-ramp node", async () => {
     const pipelineSnapshot = [{ nodeId: "n1", contractAddress: "CABC", templateKind: "SPLITTER" }];
     mockDb.deployment.findFirst.mockResolvedValue(makeDeployment({ pipelineSnapshot }));
@@ -713,28 +649,22 @@ describe("deployments/[id]/submit", () => {
       },
       pipelineSnapshot,
     });
-
     const req = makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" });
     const res = await POST(req, makeContext("dep-1"));
-
     expect(res.status).toBe(200);
     expect(mockDb.offRampSenderProfile.upsert).not.toHaveBeenCalled();
   });
-
   it("rejects malformed signed XDR before touching the deployment", async () => {
     mockFromXDR.mockImplementation(() => {
       throw new Error("invalid XDR");
     });
-
     const req = makeRequest({ deploymentId: "dep-1", signedXdr: "not-valid-xdr" });
     const res = await POST(req, makeContext("dep-1"));
     const json = await res.json();
-
     expect(res.status).toBe(422);
     expect(json.error.code).toBe("VALIDATION");
     expect(mockDb.deployment.findFirst).not.toHaveBeenCalled();
   });
-
   it("sets chargeEndAt from the subscription schedule node's endTs on confirm", async () => {
     const startTs = Math.floor(Date.now() / 1000) + 3600;
     const endTs = startTs + 7200;
@@ -768,10 +698,8 @@ describe("deployments/[id]/submit", () => {
         contractAddress: "CSUB",
         pipelineSnapshot: [{ nodeId: "n1", contractAddress: "CSUB", templateKind: "SUBSCRIPTION" }],
       });
-
       const req = makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" });
       const res = await POST(req, makeContext("dep-1"));
-
       expect(res.status).toBe(200);
       const confirmCall = mockDb.deployment.update.mock.calls.at(-1)?.[0] as {
         data: Record<string, unknown>;
@@ -783,57 +711,5 @@ describe("deployments/[id]/submit", () => {
     } finally {
       mockEnv.STELLAR_RELAYER_ADDRESS = null;
     }
-  });
-
-  it("sets chargeEndAt for a payroll flow whose schedule node is SUBSCRIPTION_DEV", async () => {
-    const startTs = 1_784_174_000;
-    const endTs = 1_784_999_999;
-    mockDb.deployment.findFirst.mockResolvedValue(
-      makeDeployment({
-        flow: { templateKind: "PAYROLL" },
-        pipelineSnapshot: [
-          { nodeId: "n1", contractAddress: "CSUBDEV", templateKind: "SUBSCRIPTION_DEV" },
-          { nodeId: "n2", contractAddress: "CSPLIT", templateKind: "SPLITTER_DEV" },
-        ],
-        paramsSnapshot: [
-          {
-            nodeId: "n1",
-            templateKind: "SUBSCRIPTION_DEV",
-            params: { kind: "subscription_dev_trigger", relayer: "GOTHER", startTs, endTs },
-          },
-          {
-            nodeId: "n2",
-            templateKind: "SPLITTER_DEV",
-            params: { kind: "splitter_dev", recipients: [] },
-          },
-        ],
-      }),
-    );
-    mockDeploy.submitDeployTx.mockResolvedValue({
-      status: "SUCCESS",
-      txHash: TX_HASH,
-      contractAddress: "CSUBDEV",
-    });
-    mockDb.deployment.update.mockResolvedValue({
-      id: "dep-1",
-      status: "CONFIRMED",
-      serviceState: "ACTIVE",
-      deployTxHash: TX_HASH,
-      contractAddress: "CSUBDEV",
-      pipelineSnapshot: [
-        { nodeId: "n1", contractAddress: "CSUBDEV", templateKind: "SUBSCRIPTION_DEV" },
-      ],
-    });
-
-    const req = makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" });
-    const res = await POST(req, makeContext("dep-1"));
-
-    expect(res.status).toBe(200);
-    const confirmCall = mockDb.deployment.update.mock.calls.at(-1)?.[0] as {
-      data: Record<string, unknown>;
-    };
-    expect(confirmCall.data.chargeEndAt).toEqual(new Date(endTs * 1000));
-    // Relayer does not match the (unset) platform relayer, so charges stay manual.
-    expect(confirmCall.data.chargeRelayerMode).toBe("MANUAL");
   });
 });

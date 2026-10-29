@@ -52,9 +52,6 @@ export default async function TriggerPage({
   const requirement =
     isWebhook || isStreamer || !graph ? { kind: "variable" as const } : inboundRequirement(graph);
 
-  // Not awaited: streamed behind a Suspense boundary so a slow Horizon never
-  // holds up the page. Uses the graph as deployed; a dev-mode recipient changed
-  // on-chain after deploy is not reflected (#574).
   const trustlineCheck = graph ? checkPayoutTrustlines(payoutRecipients(graph)) : undefined;
 
   return (

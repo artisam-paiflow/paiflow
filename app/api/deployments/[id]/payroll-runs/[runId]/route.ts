@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
-import { requireDevAuth } from "@/lib/auth";
+import { requirePayrollSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import {
@@ -10,36 +10,35 @@ import {
   serializePayout,
   type PayoutForSerialize,
 } from "@/lib/payroll/run-serialize";
-
 /** A malformed (non-UUID) path segment can't match any row; treat it as
  * not-found rather than letting it reach Prisma and surface as a generic 500. */
 const isUuid = (v: string) => z.string().guid({ error: "Invalid uuid" }).safeParse(v).success;
-
 /**
  * Return a single payroll run with its per-payout status, including off-ramp
  * job progress. 404s if the run does not belong to the given deployment.
  */
 async function GETHandler(
   req: NextRequest,
-  ctx: { params: Promise<{ id: string; runId: string }> },
+  ctx: {
+    params: Promise<{
+      id: string;
+      runId: string;
+    }>;
+  },
 ) {
   return withErrorHandler(async () => {
-    const { user } = await requireDevAuth(req);
-
+    const { user } = await requirePayrollSession(req);
     const rlKey = `payroll-runs-detail:${user.id}`;
     const rl = await rateLimit(rlKey, 60, 60);
     if (!rl.ok) throw rateLimitedError(rl, "Too many payroll run detail requests");
-
     const { id, runId } = await ctx.params;
     if (!isUuid(id)) throw new AppError("NOT_FOUND", "Deployment not found");
     if (!isUuid(runId)) throw new AppError("NOT_FOUND", "Payroll run not found");
-
     const deployment = await db.deployment.findFirst({
       where: { id, ownerId: user.id },
       select: { id: true },
     });
     if (!deployment) throw new AppError("NOT_FOUND", "Deployment not found");
-
     const run = await db.payrollRun.findFirst({
       where: { id: runId, deploymentId: deployment.id },
       include: {
@@ -61,7 +60,6 @@ async function GETHandler(
       },
     });
     if (!run) throw new AppError("NOT_FOUND", "Payroll run not found");
-
     const body = {
       id: run.id,
       status: run.status,
@@ -74,9 +72,7 @@ async function GETHandler(
       updatedAt: run.updatedAt.toISOString(),
       payouts: (run.payouts as PayoutForSerialize[]).map(serializePayout),
     };
-
     return NextResponse.json(RunDetailResponseSchema.parse(body));
   });
 }
-
-export const GET = deploymentServiceRoute(GETHandler, "dev");
+export const GET = deploymentServiceRoute(GETHandler, "payroll");

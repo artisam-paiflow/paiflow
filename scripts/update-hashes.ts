@@ -17,14 +17,12 @@ import { config } from "dotenv";
 import { TemplateKind } from "@prisma/client";
 import { db } from "@/lib/prisma";
 import { setWasmHash, setFactoryAddress } from "@/lib/stellar/template-db";
-
 // Neither call overrides, so dotenv's first-write-wins gives shell > .env.local
 // > .env. The shell has to win: this script writes to whatever DATABASE_URL
 // names, and an operator syncing hashes into a deployed database must not have
 // a local .env.local silently redirect every write to their dev Postgres.
 config({ path: resolve(".env.local") });
 config({ path: resolve(".env") });
-
 async function update() {
   const network = process.env.STELLAR_NETWORK ?? "testnet";
   const suffix = network.toUpperCase();
@@ -45,33 +43,20 @@ async function update() {
     { kind: TemplateKind.YIELD, envKey: `STELLAR_WASM_HASH_YIELD_${suffix}` },
     { kind: TemplateKind.PAYER, envKey: `STELLAR_WASM_HASH_PAYER_${suffix}` },
     { kind: TemplateKind.PAYROLL, envKey: `STELLAR_WASM_HASH_PAYROLL_${suffix}` },
-    { kind: TemplateKind.PAYER_DEV, envKey: `STELLAR_WASM_HASH_PAYER_DEV_${suffix}` },
-    { kind: TemplateKind.SPLITTER_DEV, envKey: `STELLAR_WASM_HASH_SPLITTER_DEV_${suffix}` },
-    {
-      kind: TemplateKind.SUBSCRIPTION_DEV,
-      envKey: `STELLAR_WASM_HASH_SUBSCRIPTION_DEV_${suffix}`,
-    },
-    {
-      kind: TemplateKind.CASH_OUT_DEV,
-      envKey: `STELLAR_WASM_HASH_CASH_OUT_DEV_${suffix}`,
-    },
     {
       kind: TemplateKind.CASH_OUT,
       envKey: `STELLAR_WASM_HASH_CASH_OUT_${suffix}`,
     },
   ];
-
   for (const t of templates) {
     const hash = process.env[t.envKey];
     if (!hash) {
       console.log(`${t.envKey} not set, skipping`);
       continue;
     }
-
     await setWasmHash(t.kind, network, hash);
     console.log(`Synced ${t.kind}: ${hash.slice(0, 12)}...`);
   }
-
   const factoryAddress = process.env[`STELLAR_FACTORY_ADDRESS_${suffix}`];
   if (factoryAddress) {
     await setFactoryAddress(network, factoryAddress);
@@ -80,7 +65,6 @@ async function update() {
     console.log(`STELLAR_FACTORY_ADDRESS_${suffix} not set, skipping`);
   }
 }
-
 update()
   .catch(console.error)
   .finally(async () => {

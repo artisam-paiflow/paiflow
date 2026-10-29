@@ -2,11 +2,9 @@ import type { ValidationIssue } from "./issue";
 import { I128_MAX } from "./primitives";
 import { subscriptionAmountPerPeriodStroops, type FlowGraph } from "./schema";
 import type { PipelineNode } from "./to-params";
-
 function inAmountRange(amount: string): boolean {
   return /^\d{1,39}$/.test(amount) && BigInt(amount) <= I128_MAX;
 }
-
 function rangeIssue(path: string): ValidationIssue {
   return {
     path,
@@ -14,11 +12,10 @@ function rangeIssue(path: string): ValidationIssue {
     friendlyMessage: "Reduce this amount so the payment can be represented on chain.",
   };
 }
-
 /** Deployment checks only: incomplete amounts must remain saveable as drafts. */
 export function paymentAmountIssues(graph: FlowGraph): ValidationIssue[] {
   // Mutable contract improvements and payroll are separate workstreams (#795).
-  if (graph.devMode || graph.nodes.some((n) => n.type === "payroll")) return [];
+  if (graph.nodes.some((n) => n.type === "payroll")) return [];
   const issues: ValidationIssue[] = [];
   const scheduled = graph.nodes.some((n) => n.type === "on_schedule");
   for (const node of graph.nodes) {
@@ -67,7 +64,6 @@ export function paymentAmountIssues(graph: FlowGraph): ValidationIssue[] {
   }
   return issues;
 }
-
 /** Use the compiled schedule so defaults, occurrences, and legacy rates match deployment. */
 export function scheduledPaymentIssues(pipeline: PipelineNode[]): ValidationIssue[] {
   const issues: ValidationIssue[] = [];

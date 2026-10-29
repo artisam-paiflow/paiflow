@@ -7,17 +7,14 @@ import { AppError } from "@/lib/errors";
 import {
   disabledTemplateKinds,
   featureOffMessage,
-  usesDevMode,
   type FeatureFlags,
   type FeatureSurface,
 } from "@/lib/feature-flags";
 import { hiddenSurfaceIssues } from "@/lib/flows/feature-gates";
 import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { FlowGraphSchema, migrateFlowGraph, type FlowGraph } from "@/lib/flows/schema";
-
 /** The surface switches for this server, from `FEATURE_*_ENABLED` (all default on). */
 const warnedUnrecognised = new Set<string>();
-
 /**
  * Only an explicit ON keeps a surface on: unset is ON (the env default), a
  * recognised off is OFF, and a value `env()` could not read is OFF too, with a
@@ -37,14 +34,12 @@ function switchOn(name: string, value: boolean | "unrecognised" | undefined): bo
   }
   return value !== false;
 }
-
 export function serverFeatures(): FeatureFlags {
   const e = env();
   // A caller holding a partial env (a test double) reads unset, so ON.
   return {
     offramp: switchOn("FEATURE_OFFRAMP_ENABLED", e.FEATURE_OFFRAMP_ENABLED),
     payroll: switchOn("FEATURE_PAYROLL_ENABLED", e.FEATURE_PAYROLL_ENABLED),
-    devMode: switchOn("FEATURE_DEV_MODE_ENABLED", e.FEATURE_DEV_MODE_ENABLED),
     aiAssistant: switchOn("FEATURE_AI_ASSISTANT_ENABLED", e.FEATURE_AI_ASSISTANT_ENABLED),
     oracleCondition: switchOn(
       "FEATURE_ORACLE_CONDITION_ENABLED",
@@ -52,11 +47,9 @@ export function serverFeatures(): FeatureFlags {
     ),
   };
 }
-
 export function isFeatureEnabled(surface: FeatureSurface): boolean {
   return serverFeatures()[surface];
 }
-
 /**
  * The guard for a route that only exists for a surface. A switched-off surface
  * answers 404 NOT_FOUND, the same as its pages' `notFound()`: to a caller the
@@ -68,12 +61,6 @@ export function requireFeature(surface: FeatureSurface): void {
     throw new AppError("NOT_FOUND", featureOffMessage(surface));
   }
 }
-
-/** Shared Payroll routes also serve standard deployments; gate Dev configuration only. */
-export function requireDevConfiguration(graph: unknown, pipeline: unknown): void {
-  if (usesDevMode(graph, pipeline)) requireFeature("devMode");
-}
-
 /**
  * The guard for a request to a route that stays up for existing deployments
  * but asks, in its body, for new use of a switched-off surface (turning the
@@ -86,10 +73,8 @@ export function refuseIfFeatureOff(surface: FeatureSurface, field: string): void
     throw new AppError("VALIDATION", message, { [field]: [message] });
   }
 }
-
 /**
- * For the routes that replace a deployed roster (dev-splitter,
- * payroll-update-recipients): with the off-ramp off, a fiat recipient already
+ * For payroll-update-recipients: with the off-ramp off, a fiat recipient already
  * on this deployment (same bank account) may stay, so crypto edits and amount
  * changes keep working; a new fiat recipient, which would deploy a cash-out
  * sink and queue off-ramp jobs, is refused. Call after the ownership check.
@@ -98,7 +83,10 @@ export async function refuseNewFiatRecipients(
   deploymentId: string,
   recipients: ReadonlyArray<{
     payoutMode?: string;
-    bankDetail?: { accountNumber: string; bankCode: string };
+    bankDetail?: {
+      accountNumber: string;
+      bankCode: string;
+    };
   }>,
 ): Promise<void> {
   if (isFeatureEnabled("offramp")) return;
@@ -121,7 +109,6 @@ export async function refuseNewFiatRecipients(
     throw new AppError("VALIDATION", message, { recipients: [message] });
   }
 }
-
 /**
  * Refuses a deploy that would create a switched-off surface: every node of the
  * graph, then every contract kind of the generated pipeline, the way the
@@ -147,7 +134,6 @@ export function assertNoHiddenSurfaces(
     );
   }
 }
-
 /**
  * The same refusal for a deployment prepared earlier and submitted now: a
  * switch turned off between prepare and submit still stops the deploy, since
@@ -159,16 +145,13 @@ export function assertPreparedDeploymentAllowed(
   pipelineSnapshot: unknown,
   features: FeatureFlags = serverFeatures(),
 ): void {
-  // Check the raw flag too: an old or malformed graph must not bypass the
-  // gate merely because schema parsing failed or it has no _DEV nodes.
-  if (usesDevMode(graphSnapshot, []) && !features.devMode) {
-    throw new AppError("VALIDATION", featureOffMessage("devMode"), {
-      devMode: [featureOffMessage("devMode")],
-    });
-  }
   const parsed = FlowGraphSchema.safeParse(migrateFlowGraph(graphSnapshot));
   const kinds = Array.isArray(pipelineSnapshot)
-    ? (pipelineSnapshot as Array<{ templateKind?: TemplateKind }>)
+    ? (
+        pipelineSnapshot as Array<{
+          templateKind?: TemplateKind;
+        }>
+      )
         .map((n) => n?.templateKind)
         .filter((k): k is TemplateKind => typeof k === "string")
     : [];

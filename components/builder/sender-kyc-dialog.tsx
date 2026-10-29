@@ -20,10 +20,6 @@ const EMPTY: FormState = {
   sourceOfFunds: "",
 };
 
-// Design-time sender KYC dialog: collects the PDAX-required sender profile in
-// the builder so non-dev flows with fiat payouts deploy with it on file. The
-// field layout/labels mirror components/payroll/offramp-sender-form.tsx, which
-// remains the post-deploy editing path.
 export default function SenderKycDialog({
   initial,
   onSave,

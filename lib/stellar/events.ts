@@ -22,32 +22,23 @@ import { sendEmailNotificationsForTransactions } from "@/lib/flow-notifications"
 import { inboundAssetForContract, type PipelineNodeSnapshot } from "@/lib/flows/event-assets";
 import { createCashOutJob } from "@/lib/offramp/jobs";
 import { bankDetailsFromGraph, eventCreatesOffRampJob } from "@/lib/offramp/cash-out-bank";
-
 // Paranoia buffer: when polling events for the first time we start a few
 // ledgers before the deployment transaction to avoid missing events emitted
 // at the exact ledger of deployment finalization.
 const FIRST_POLL_LEDGER_BUFFER = 200;
-
 type ScValNative = ReturnType<typeof scValToNative>;
-
 type DecodedData = Record<string, ScValNative> | null;
-
 type DecodedEvent = {
   kind: EventKind;
   decodedData: DecodedData;
 };
-
 type EventTopics = (ScValNative | null)[];
-
 type DecodeFn = (topics: EventTopics, value: ScValNative | null) => DecodedData;
-
 type EventEntry = {
   kind: EventKind;
   decode: DecodeFn;
 };
-
 type EventRegistry = Record<string, EventEntry>;
-
 const SPLITTER_REGISTRY: EventRegistry = {
   payout: {
     kind: EventKind.PAYOUT,
@@ -67,7 +58,10 @@ const SPLITTER_REGISTRY: EventRegistry = {
       // 1. distribute(): ("distrib", from), (asset, amount) — value is an object.
       // 2. execute_step()/receive_and_forward(): ("distrib", asset), amount — value is a scalar.
       if (value && typeof value === "object" && !Array.isArray(value)) {
-        const v = value as { 0?: ScValNative; 1?: ScValNative };
+        const v = value as {
+          0?: ScValNative;
+          1?: ScValNative;
+        };
         const from = topic1;
         const asset = v[0] ?? null;
         const amount = v[1] ?? null;
@@ -82,7 +76,10 @@ const SPLITTER_REGISTRY: EventRegistry = {
     kind: EventKind.PAYOUT,
     decode: (topics, value) => {
       if (!value || typeof value !== "object") return null;
-      const v = value as { 0?: ScValNative; 1?: ScValNative };
+      const v = value as {
+        0?: ScValNative;
+        1?: ScValNative;
+      };
       const recipient = topics[1] ?? null;
       const asset = v[0] ?? null;
       const payment = v[1] ?? null;
@@ -115,7 +112,6 @@ const SPLITTER_REGISTRY: EventRegistry = {
     },
   },
 };
-
 const STREAMER_REGISTRY: EventRegistry = {
   deposit: {
     kind: EventKind.RECEIVE,
@@ -164,7 +160,6 @@ const STREAMER_REGISTRY: EventRegistry = {
     },
   },
 };
-
 const CONDITIONAL_REGISTRY: EventRegistry = {
   release: {
     kind: EventKind.PAYOUT,
@@ -182,13 +177,15 @@ const CONDITIONAL_REGISTRY: EventRegistry = {
     },
   },
 };
-
 const PAYER_REGISTRY: EventRegistry = {
   pay: {
     kind: EventKind.PAYOUT,
     decode: (topics, value) => {
       if (!value || typeof value !== "object") return null;
-      const v = value as { 0?: ScValNative; 1?: ScValNative };
+      const v = value as {
+        0?: ScValNative;
+        1?: ScValNative;
+      };
       const recipient = topics[1] ?? null;
       const asset = v[0] ?? null;
       const payment = v[1] ?? null;
@@ -241,7 +238,6 @@ const PAYER_REGISTRY: EventRegistry = {
     },
   },
 };
-
 const SWAPPER_REGISTRY: EventRegistry = {
   swap: {
     kind: EventKind.PAYOUT,
@@ -258,7 +254,6 @@ const SWAPPER_REGISTRY: EventRegistry = {
     },
   },
 };
-
 const YIELD_REGISTRY: EventRegistry = {
   deposit: {
     kind: EventKind.RECEIVE,
@@ -269,7 +264,6 @@ const YIELD_REGISTRY: EventRegistry = {
     },
   },
 };
-
 const DEPOSIT_TRIGGER_REGISTRY: EventRegistry = {
   deposit: {
     kind: EventKind.RECEIVE,
@@ -280,7 +274,6 @@ const DEPOSIT_TRIGGER_REGISTRY: EventRegistry = {
     },
   },
 };
-
 const WEBHOOK_REGISTRY: EventRegistry = {
   deposit: {
     kind: EventKind.RECEIVE,
@@ -307,7 +300,6 @@ const WEBHOOK_REGISTRY: EventRegistry = {
     },
   },
 };
-
 const SUBSCRIPTION_REGISTRY: EventRegistry = {
   charge: {
     kind: EventKind.RECEIVE,
@@ -332,7 +324,6 @@ const SUBSCRIPTION_REGISTRY: EventRegistry = {
     },
   },
 };
-
 const PAYROLL_REGISTRY: EventRegistry = {
   charge: {
     kind: EventKind.RECEIVE,
@@ -419,8 +410,7 @@ const PAYROLL_REGISTRY: EventRegistry = {
     },
   },
 };
-
-const CASH_OUT_DEV_REGISTRY: EventRegistry = {
+const CASH_OUT_REGISTRY: EventRegistry = {
   cash_out: {
     kind: EventKind.CASH_OUT,
     decode: (topics, value) => {
@@ -437,7 +427,6 @@ const CASH_OUT_DEV_REGISTRY: EventRegistry = {
     },
   },
 };
-
 const ORACLE_REGISTRY: EventRegistry = {
   execute: {
     kind: EventKind.RECEIVE,
@@ -451,7 +440,6 @@ const ORACLE_REGISTRY: EventRegistry = {
     },
   },
 };
-
 const ROUTER_REGISTRY: EventRegistry = {
   route: {
     kind: EventKind.PAYOUT,
@@ -462,7 +450,6 @@ const ROUTER_REGISTRY: EventRegistry = {
     },
   },
 };
-
 const TIMELOCK_REGISTRY: EventRegistry = {
   receive: {
     kind: EventKind.RECEIVE,
@@ -481,7 +468,6 @@ const TIMELOCK_REGISTRY: EventRegistry = {
     },
   },
 };
-
 const TIMELOCK_BRANCH_REGISTRY: EventRegistry = {
   receive: TIMELOCK_REGISTRY.receive!,
   release: {
@@ -495,7 +481,6 @@ const TIMELOCK_BRANCH_REGISTRY: EventRegistry = {
     },
   },
 };
-
 const MULTISIG_REGISTRY: EventRegistry = {
   receive: {
     kind: EventKind.RECEIVE,
@@ -520,7 +505,6 @@ const MULTISIG_REGISTRY: EventRegistry = {
     },
   },
 };
-
 function getRegistry(templateKind: TemplateKind): EventRegistry {
   switch (templateKind) {
     case TemplateKind.SPLITTER:
@@ -553,14 +537,12 @@ function getRegistry(templateKind: TemplateKind): EventRegistry {
       return TIMELOCK_BRANCH_REGISTRY;
     case TemplateKind.MULTISIG:
       return MULTISIG_REGISTRY;
-    case TemplateKind.CASH_OUT_DEV:
     case TemplateKind.CASH_OUT:
-      return CASH_OUT_DEV_REGISTRY;
+      return CASH_OUT_REGISTRY;
     default:
       return {};
   }
 }
-
 function decodeEventByKind(
   topics: EventTopics,
   value: ScValNative | null,
@@ -569,38 +551,31 @@ function decodeEventByKind(
   const first = typeof topics[0] === "string" ? (topics[0] as string).toLowerCase() : "";
   const registry = getRegistry(templateKind);
   const entry = registry[first];
-
   if (entry) {
     const decodedData = entry.decode(topics, value);
     if (decodedData) {
       return { kind: entry.kind, decodedData };
     }
   }
-
   const fallback = classifyEvent(topics);
   const generic = genericDecode(topics, value);
   return { kind: fallback, decodedData: generic };
 }
-
 function isStellarAddress(value: unknown): value is string {
   if (typeof value !== "string") return false;
   return (value.startsWith("G") || value.startsWith("C")) && value.length === 56;
 }
-
 function isAmountLike(value: unknown): boolean {
   if (typeof value === "bigint") return true;
   if (typeof value !== "string") return false;
   return /^\d+$/.test(value) && value.length > 0;
 }
-
 function isAssetLike(value: unknown): boolean {
   if (typeof value !== "string") return false;
   return value.length > 0 && value.length <= 12 && !isStellarAddress(value) && !/^\d+$/.test(value);
 }
-
 function genericDecode(topics: EventTopics, value: ScValNative | null): DecodedData {
   const result: Record<string, ScValNative> = {};
-
   const topic1 = topics[1];
   if (topic1 !== undefined && topic1 !== null) {
     if (isStellarAddress(topic1)) {
@@ -611,11 +586,9 @@ function genericDecode(topics: EventTopics, value: ScValNative | null): DecodedD
       result.topic1 = topic1;
     }
   }
-
   if (value === null || value === undefined) {
     return Object.keys(result).length > 0 ? result : null;
   }
-
   if (isAmountLike(value)) {
     result.amount = value;
   } else if (Array.isArray(value)) {
@@ -658,10 +631,8 @@ function genericDecode(topics: EventTopics, value: ScValNative | null): DecodedD
       }
     }
   }
-
   return Object.keys(result).length > 0 ? result : null;
 }
-
 function classifyEvent(topics: EventTopics): EventKind {
   const first = typeof topics[0] === "string" ? (topics[0] as string).toLowerCase() : "";
   const payoutTopics = new Set([
@@ -681,7 +652,6 @@ function classifyEvent(topics: EventTopics): EventKind {
   if (first === "claim") return EventKind.CLAIM;
   return EventKind.STATUS_CHANGE;
 }
-
 async function getDeploymentLedger(txHash: string): Promise<number> {
   const server = sorobanRpc();
   const tx = await server.getTransaction(txHash);
@@ -690,7 +660,6 @@ async function getDeploymentLedger(txHash: string): Promise<number> {
   }
   return tx.ledger;
 }
-
 /** Recursively convert bigint values to strings so they survive JSON.stringify. */
 function convertBigInts<T>(value: T): T {
   if (typeof value === "bigint") return value.toString() as unknown as T;
@@ -702,8 +671,9 @@ function convertBigInts<T>(value: T): T {
   }
   return value;
 }
-
-function transactionFromEnvelope(envelopeXdr: string): { operations: unknown[] } | null {
+function transactionFromEnvelope(envelopeXdr: string): {
+  operations: unknown[];
+} | null {
   let tx;
   try {
     tx = TransactionBuilder.fromXDR(envelopeXdr, stellarPassphrase());
@@ -714,11 +684,12 @@ function transactionFromEnvelope(envelopeXdr: string): { operations: unknown[] }
     tx = (tx as any).innerTransaction;
   }
   if ("operations" in tx) {
-    return tx as { operations: unknown[] };
+    return tx as {
+      operations: unknown[];
+    };
   }
   return null;
 }
-
 export function detectAllowanceFromEnvelope(envelopeXdr: string): {
   tokenContractAddress: string;
   from: string;
@@ -727,22 +698,17 @@ export function detectAllowanceFromEnvelope(envelopeXdr: string): {
 } | null {
   const tx = transactionFromEnvelope(envelopeXdr);
   if (!tx) return null;
-
   for (const op of tx.operations) {
     const anyOp = op as any;
     if (anyOp.type !== "invokeHostFunction" || !anyOp.func) continue;
-
     const hostFn = anyOp.func as xdr.HostFunction;
     if (hostFn.switch().value !== xdr.HostFunctionType.hostFunctionTypeInvokeContract().value)
       continue;
-
     const invoke = hostFn.invokeContract();
     const functionName = Buffer.from(invoke.functionName() as Uint8Array).toString();
     if (functionName !== "approve") continue;
-
     const args = invoke.args();
     if (args.length < 4) continue;
-
     try {
       const fromArg = args[0];
       const spenderArg = args[1];
@@ -764,10 +730,8 @@ export function detectAllowanceFromEnvelope(envelopeXdr: string): {
       continue;
     }
   }
-
   return null;
 }
-
 export async function recordAllowanceEvent(opts: {
   deploymentId: string;
   envelopeXdr: string;
@@ -778,14 +742,12 @@ export async function recordAllowanceEvent(opts: {
 }): Promise<void> {
   const allowance = detectAllowanceFromEnvelope(opts.envelopeXdr);
   if (!allowance) return;
-
   const symbolMap = buildAssetSymbolMap(opts.graph);
   let asset = symbolMap.get(allowance.tokenContractAddress);
   if (!asset) {
     // Fall back to a short display of the token contract address.
     asset = allowance.tokenContractAddress;
   }
-
   const decodedData = {
     from: allowance.from,
     spender: allowance.spender,
@@ -800,7 +762,6 @@ export async function recordAllowanceEvent(opts: {
     spender: allowance.spender,
     amount: allowance.amount,
   }) as Prisma.InputJsonValue;
-
   try {
     const created = await db.contractEvent.create({
       data: {
@@ -814,7 +775,6 @@ export async function recordAllowanceEvent(opts: {
         occurredAt: opts.occurredAt,
       },
     });
-
     const client = redis();
     if (client) {
       client
@@ -847,7 +807,11 @@ export async function recordAllowanceEvent(opts: {
         });
     }
   } catch (err) {
-    const code = (err as { code?: string })?.code;
+    const code = (
+      err as {
+        code?: string;
+      }
+    )?.code;
     if (code !== "P2002") {
       log.warn(
         { err, deploymentId: opts.deploymentId, txHash: opts.txHash },
@@ -856,25 +820,45 @@ export async function recordAllowanceEvent(opts: {
     }
   }
 }
-
-function extractAssetsFromGraph(
-  graph: FlowGraph,
-): Array<{ kind: string; symbol?: string; code?: string; issuer?: string }> {
-  const assets: Array<{ kind: string; symbol?: string; code?: string; issuer?: string }> = [];
+function extractAssetsFromGraph(graph: FlowGraph): Array<{
+  kind: string;
+  symbol?: string;
+  code?: string;
+  issuer?: string;
+}> {
+  const assets: Array<{
+    kind: string;
+    symbol?: string;
+    code?: string;
+    issuer?: string;
+  }> = [];
   for (const node of graph.nodes) {
     if (!("config" in node)) continue;
     const config = node.config as Record<string, unknown>;
-    if (config.asset) assets.push(config.asset as { kind: string });
-    if (config.assetIn) assets.push(config.assetIn as { kind: string });
-    if (config.assetOut) assets.push(config.assetOut as { kind: string });
+    if (config.asset)
+      assets.push(
+        config.asset as {
+          kind: string;
+        },
+      );
+    if (config.assetIn)
+      assets.push(
+        config.assetIn as {
+          kind: string;
+        },
+      );
+    if (config.assetOut)
+      assets.push(
+        config.assetOut as {
+          kind: string;
+        },
+      );
   }
   return assets;
 }
-
 function buildAssetSymbolMap(graph: FlowGraph | null): Map<string, string> {
   const map = new Map<string, string>();
   if (!graph) return map;
-
   for (const asset of extractAssetsFromGraph(graph)) {
     try {
       const id = assetContractId(asset as Parameters<typeof assetContractId>[0]);
@@ -886,7 +870,6 @@ function buildAssetSymbolMap(graph: FlowGraph | null): Map<string, string> {
   }
   return map;
 }
-
 function resolveAssetSymbols(
   decodedData: DecodedData,
   symbolMap: Map<string, string>,
@@ -902,7 +885,6 @@ function resolveAssetSymbols(
   }
   return next;
 }
-
 /**
  * Most inbound events carry no asset topic — deposit_trigger, webhook,
  * subscription, payroll, streamer deposit and yield all keep the asset in
@@ -922,17 +904,14 @@ function stampInboundAsset(params: {
   if (decodedData.amount === undefined || decodedData.amount === null) return decodedData;
   // Never override an asset a decoder read from a real topic.
   if (decodedData.asset || decodedData.assetIn || decodedData.assetOut) return decodedData;
-
   const asset = inboundAssetForContract(params);
   return asset ? { ...decodedData, asset: assetLabel(asset) } : decodedData;
 }
-
 export const EVENTS_PAGE_LIMIT = 100;
 /** RPC permits at most five contract IDs across a getEvents request. */
 export const MAX_EVENT_CONTRACTS_PER_REQUEST = 5;
 /** Page allowance per requested contract; groups retain the pre-batching total request budget. */
 export const MAX_EVENT_PAGES_PER_POLL = 5;
-
 /**
  * The ledger a `getEvents` cursor points into. Its first part is a TOID, whose
  * high 32 bits are the ledger sequence.
@@ -942,7 +921,6 @@ function cursorLedger(cursor: string | undefined): number | null {
   if (!toid || !/^\d+$/.test(toid)) return null;
   return Number(BigInt(toid) >> 32n);
 }
-
 export type EventScanStatus = "complete" | "partial" | "failed" | "skipped";
 export type EventScanReason =
   | "rpc-error"
@@ -956,7 +934,6 @@ export type EventScanReason =
   | "missing-start-ledger"
   | "deployment-ledger-error"
   | "no-contracts";
-
 type ScanResult = {
   written: number;
   /** Every retained event through this ledger has been persisted or deduplicated. */
@@ -964,17 +941,19 @@ type ScanResult = {
   status: Exclude<EventScanStatus, "skipped">;
   reasons: EventScanReason[];
 };
-
 export type EventPollResult = {
   status: EventScanStatus;
   written: number;
   /** Safe shared coverage for this attempt; null when no start ledger was available. */
   scannedThrough: number | null;
   /** Group members share scan coverage/status; written counts are per emitting contract. */
-  contracts: Array<ScanResult & { contractAddress: string }>;
+  contracts: Array<
+    ScanResult & {
+      contractAddress: string;
+    }
+  >;
   reasons: EventScanReason[];
 };
-
 /**
  * Pages forward through a group's events from `startLedger`. An RPC scans a
  * bounded ledger window per call (10,000 on SDF testnet) and answers a window
@@ -1006,7 +985,6 @@ async function pollEventsWithStartLedger(
     status: "failed",
     reasons: ["rpc-error"],
   };
-
   if (cutoff !== undefined && startLedger > cutoff)
     return { written: 0, scannedThrough: cutoff, status: "complete", reasons };
   let resp: rpc.Api.GetEventsResponse;
@@ -1062,7 +1040,6 @@ async function pollEventsWithStartLedger(
       return { ...failed, reasons: [...reasons, "rpc-error"] };
     }
   }
-
   let written = 0;
   let safeThrough = startLedger - 1;
   for (let page = 1; ; page++) {
@@ -1077,7 +1054,6 @@ async function pollEventsWithStartLedger(
       pipeline,
       flowTemplateKind,
     );
-
     written += ingested.written;
     if (ingested.failure !== null) {
       // A ledger is atomic for coverage even if earlier events in it were stored.
@@ -1090,7 +1066,6 @@ async function pollEventsWithStartLedger(
         reasons: [...reasons, ingested.failure.reason],
       };
     }
-
     const full = events.length >= EVENTS_PAGE_LIMIT;
     if (
       cutoff !== undefined &&
@@ -1130,7 +1105,6 @@ async function pollEventsWithStartLedger(
     }
   }
 }
-
 async function ingestEventPage(
   deploymentId: string,
   emitters: Map<string, TemplateKind>,
@@ -1142,7 +1116,10 @@ async function ingestEventPage(
   flowTemplateKind: TemplateKind,
 ): Promise<{
   written: number;
-  failure: { ledger: number; reason: "insert-error" | "unexpected-emitter" } | null;
+  failure: {
+    ledger: number;
+    reason: "insert-error" | "unexpected-emitter";
+  } | null;
 }> {
   let written = 0;
   for (const ev of events) {
@@ -1185,7 +1162,6 @@ async function ingestEventPage(
       ...(ev.inSuccessfulContractCall === false ? { inSuccessfulContractCall: false } : {}),
     }) as object;
     const safeDecodedData = convertBigInts(resolvedData) as Prisma.InputJsonValue | null;
-
     let persisted = false;
     try {
       let fresh = true;
@@ -1203,7 +1179,14 @@ async function ingestEventPage(
           },
         })
         .catch(async (error: unknown) => {
-          if ((error as { code?: string })?.code !== "P2002") throw error;
+          if (
+            (
+              error as {
+                code?: string;
+              }
+            )?.code !== "P2002"
+          )
+            throw error;
           fresh = false;
           return db.contractEvent.findUniqueOrThrow({ where: { eventId: ev.id } });
         });
@@ -1247,12 +1230,10 @@ async function ingestEventPage(
       } else if (!client && fresh) {
         log.warn({ deploymentId, eventId: ev.id }, "event publisher: no redis client");
       }
-
       // Replayed rows retry this checkpoint even when insertion already succeeded.
       // Keep fresh balance invalidation/publish bookkeeping before this fallible projection.
       const billingEmitter = subscriptionBillingEmitter(pipeline, flowTemplateKind);
       if (billingEmitter) await projectSubscriptionCharge(created, billingEmitter);
-
       // Persist cash_out obligations before advancing the cursor so the PDAX leg
       // can run asynchronously. Payroll deployments are excluded: their jobs
       // are created by the payroll cron (with payrollRunId/employeeId) and
@@ -1292,7 +1273,11 @@ async function ingestEventPage(
         }
       }
     } catch (err) {
-      const code = (err as { code?: string })?.code;
+      const code = (
+        err as {
+          code?: string;
+        }
+      )?.code;
       if (!persisted && code === "P2002") continue;
       log.warn({ err, deploymentId, eventId: ev.id }, "event ingestion failed");
       return { written, failure: { ledger: ev.ledger, reason: "insert-error" } };
@@ -1300,19 +1285,16 @@ async function ingestEventPage(
   }
   return { written, failure: null };
 }
-
 type PipelineNode = {
   nodeId: string;
   contractAddress: string;
   templateKind: TemplateKind;
 };
-
 type CashOutBank = {
   accountName: string;
   accountNumber: string;
   bankCode: string;
 };
-
 /**
  * Locate the bank details configured for the cash_out node that owns
  * `contractAddress`. We match by address in the pipeline snapshot, then resolve
@@ -1331,7 +1313,6 @@ async function findCashOutBank(
     const bank = bankDetailsFromGraph(graph, snapshot.nodeId);
     if (bank) return bank;
   }
-
   // Auto-generated CASH_OUT nodes for immutable payroll flows exist in the
   // pipeline snapshot but not in the graph snapshot. Fall back to the Employee
   // table, which is populated at deploy time for those employees.
@@ -1346,10 +1327,8 @@ async function findCashOutBank(
       bankCode: employee.bankDetail.bankCode,
     };
   }
-
   return null;
 }
-
 /** Bounded recovery of persisted pre-cutoff cash-outs, including payroll events
  * normally serviced by payroll jobs. Link exact run/hash matches before creating
  * obligations; ambiguous legacy matches must be reconciled, never paid twice. */
@@ -1421,7 +1400,6 @@ export async function reconcileStoredCashOutObligations(
     })) === 0
   );
 }
-
 /** Compatible inserted-row count for SSE, transaction ingestion and manual/v1 callers. */
 export async function pollEventsFor(deploymentId: string): Promise<number> {
   const result = await pollEventsForWithOutcome(deploymentId);
@@ -1430,10 +1408,11 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
   }
   return result.written;
 }
-
 export async function pollEventsForWithOutcome(
   deploymentId: string,
-  options?: { retirementCutoff: number },
+  options?: {
+    retirementCutoff: number;
+  },
 ): Promise<EventPollResult> {
   const result = await runDeploymentWork(
     deploymentId,
@@ -1451,10 +1430,11 @@ export async function pollEventsForWithOutcome(
     }
   );
 }
-
 async function pollEventsForWithOutcomeInner(
   deploymentId: string,
-  options?: { retirementCutoff: number },
+  options?: {
+    retirementCutoff: number;
+  },
 ): Promise<EventPollResult> {
   const skipped = (reason: EventScanReason): EventPollResult => ({
     status: "skipped",
@@ -1478,13 +1458,11 @@ async function pollEventsForWithOutcomeInner(
       options?.retirementCutoff !== deployment.retirementCutoffLedger)
   )
     return skipped("deployment-unavailable");
-
   const flowTemplateKind = deployment.flow?.templateKind;
   if (!flowTemplateKind) {
     log.warn({ deploymentId }, "pollEventsFor: flow templateKind not found, skipping");
     return skipped("missing-template");
   }
-
   const billingEmitter = subscriptionBillingEmitter(deployment.pipelineSnapshot, flowTemplateKind);
   if (billingEmitter)
     await reconcileStoredSubscriptionCharges({
@@ -1492,18 +1470,14 @@ async function pollEventsForWithOutcomeInner(
       emitter: billingEmitter,
       cutoff: options?.retirementCutoff,
     });
-
   const graph = FlowGraphSchema.safeParse(migrateFlowGraph(deployment.graphSnapshot)).data ?? null;
   const symbolMap = buildAssetSymbolMap(graph);
-
   const contracts: PipelineNode[] = [];
   const seen = new Set<string>();
-
   const pipeline = deployment.pipelineSnapshot as PipelineNode[] | null;
   const rootNode = Array.isArray(pipeline)
     ? pipeline.find((n) => n?.contractAddress === deployment.contractAddress)
     : undefined;
-
   // The snapshot holds the root contract's own kind. `flowTemplateKind` names
   // the pipeline as a whole (a swap flow is SWAPPER), and that registry has no
   // `deposit` topic, so decoding the trigger with it drops the event through to
@@ -1515,7 +1489,6 @@ async function pollEventsForWithOutcomeInner(
     templateKind: rootNode?.templateKind ?? flowTemplateKind,
   });
   seen.add(deployment.contractAddress);
-
   if (Array.isArray(pipeline)) {
     for (const node of pipeline) {
       if (node?.contractAddress && node?.templateKind && !seen.has(node.contractAddress)) {
@@ -1524,15 +1497,12 @@ async function pollEventsForWithOutcomeInner(
       }
     }
   }
-
   if (contracts.length === 0) {
     log.warn({ deploymentId }, "pollEventsFor: no contracts to poll, skipping");
     return skipped("no-contracts");
   }
-
   let startLedger: number;
   let emptySetSentinel: number;
-
   if (deployment.cursor) {
     startLedger = deployment.cursor.lastLedger + 1;
     emptySetSentinel = startLedger - 1;
@@ -1549,13 +1519,11 @@ async function pollEventsForWithOutcomeInner(
     log.warn({ deploymentId }, "pollEventsFor: no cursor and no deployTxHash, skipping");
     return skipped("missing-start-ledger");
   }
-
   const scans: EventPollResult["contracts"] = [];
   let totalWritten = 0;
   // The cursor is shared by every contract, so it may only move as far as the
   // least-advanced one; a failed scan holds it where it is.
   let scannedThrough = Number.POSITIVE_INFINITY;
-
   // Keep groups sequential: the cron already bounds deployment concurrency.
   // All members share coverage because pagination spans every emitter in the group.
   for (let offset = 0; offset < contracts.length; offset += MAX_EVENT_CONTRACTS_PER_REQUEST) {
@@ -1587,7 +1555,6 @@ async function pollEventsForWithOutcomeInner(
         : Math.max(emptySetSentinel, result.scannedThrough),
     );
   }
-
   const reasons = [...new Set(scans.flatMap((scan) => scan.reasons))];
   if (scannedThrough > emptySetSentinel) {
     await advanceEventCursor(deploymentId, scannedThrough);
@@ -1599,7 +1566,6 @@ async function pollEventsForWithOutcomeInner(
       log.warn({ err, deploymentId }, "email notification dispatch failed");
     });
   }
-
   const status: EventScanStatus =
     scans.every((scan) => scan.status === "complete") && !reasons.includes("retention-gap")
       ? "complete"
@@ -1608,7 +1574,6 @@ async function pollEventsForWithOutcomeInner(
         : "partial";
   return { status, written: totalWritten, scannedThrough, contracts: scans, reasons };
 }
-
 /**
  * Move the cursor forward, never back. The cron, the v1 events read, tx-status and the SSE
  * handler all poll the same deployment, and a slower poll that read an older cursor would

@@ -1,39 +1,14 @@
 import { TemplateKind } from "@prisma/client";
 
-/**
- * The surfaces an operator can switch off per environment (#722). Each one is
- * an env var read by `lib/features.ts` on the server; this module is the
- * client-safe half, shared by the builder, the validator and the routes.
- *
- * Every flag defaults to ON. Off hides the surface in the UI and refuses NEW
- * use on the server (flow validation, `/api/deployments/prepare`, `submit`, the
- * surface's own routes). Deployments that already exist keep running: the
- * crons, SSE and ordinary contract execution do not read these flags. Dev mode
- * also hides existing configuration controls on deployment pages and refuses
- * Dev configuration APIs and per-payment recipient mutations.
- *
- * Deliberately not `NEXT_PUBLIC_*`: those are inlined at build time, and these
- * must flip with a restart. The server reads them and hands them to client
- * components as props.
- */
-export const FEATURE_SURFACES = [
-  "offramp",
-  "payroll",
-  "devMode",
-  "aiAssistant",
-  "oracleCondition",
-] as const;
+export const FEATURE_SURFACES = ["offramp", "payroll", "aiAssistant", "oracleCondition"] as const;
 export type FeatureSurface = (typeof FEATURE_SURFACES)[number];
 export type FeatureFlags = Readonly<Record<FeatureSurface, boolean>>;
-
 export const ALL_FEATURES_ON: FeatureFlags = {
   offramp: true,
   payroll: true,
-  devMode: true,
   aiAssistant: true,
   oracleCondition: true,
 };
-
 /**
  * What each surface covers in a flow graph and a pipeline. This is the single
  * source of truth for "which blocks can be hidden": the validator, the prepare
@@ -62,20 +37,6 @@ export const FEATURE_GATED_BLOCKS: Readonly<
     }
   >
 > = {
-  devMode: {
-    envVar: "FEATURE_DEV_MODE_ENABLED",
-    label: "Dev mode",
-    remedy: "Use a standard flow with recipients and amounts configured before deployment.",
-    nodeTypes: [],
-    conditionKinds: [],
-    fiatPayout: false,
-    templateKinds: [
-      TemplateKind.PAYER_DEV,
-      TemplateKind.SPLITTER_DEV,
-      TemplateKind.SUBSCRIPTION_DEV,
-      TemplateKind.CASH_OUT_DEV,
-    ],
-  },
   offramp: {
     envVar: "FEATURE_OFFRAMP_ENABLED",
     label: "Fiat off-ramp",
@@ -83,7 +44,7 @@ export const FEATURE_GATED_BLOCKS: Readonly<
     nodeTypes: ["cash_out"],
     conditionKinds: [],
     fiatPayout: true,
-    templateKinds: [TemplateKind.CASH_OUT, TemplateKind.CASH_OUT_DEV],
+    templateKinds: [TemplateKind.CASH_OUT],
   },
   payroll: {
     envVar: "FEATURE_PAYROLL_ENABLED",
@@ -117,32 +78,14 @@ export const FEATURE_GATED_BLOCKS: Readonly<
     templateKinds: [TemplateKind.CONDITIONAL],
   },
 };
-
 /** The sentence shown when a surface is refused, on a node or from a route. */
 export function featureOffMessage(surface: FeatureSurface): string {
   return `${FEATURE_GATED_BLOCKS[surface].label} is turned off on this server.`;
 }
-
 export function disabledSurfaces(features: FeatureFlags): FeatureSurface[] {
   return FEATURE_SURFACES.filter((s) => !features[s]);
 }
-
 /** Contract kinds a pipeline may not contain under these flags. */
 export function disabledTemplateKinds(features: FeatureFlags): TemplateKind[] {
   return disabledSurfaces(features).flatMap((s) => FEATURE_GATED_BLOCKS[s].templateKinds);
-}
-
-/** Check persisted snapshots without recompiling a graph or requiring it to parse. */
-export function usesDevMode(graph: unknown, pipeline: unknown): boolean {
-  if (graph && typeof graph === "object" && "devMode" in graph && graph.devMode === true)
-    return true;
-  return (
-    Array.isArray(pipeline) &&
-    pipeline.some(
-      (node) =>
-        node &&
-        typeof node === "object" &&
-        FEATURE_GATED_BLOCKS.devMode.templateKinds.includes(node.templateKind),
-    )
-  );
 }

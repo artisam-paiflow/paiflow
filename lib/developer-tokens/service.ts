@@ -15,7 +15,6 @@ import {
   type DeveloperTokenListQuery,
   type DeveloperTokenDeploymentQuery,
 } from "./schema";
-
 export const DEVELOPER_TOKEN_SELECT = {
   id: true,
   tokenPrefix: true,
@@ -27,7 +26,9 @@ export const DEVELOPER_TOKEN_SELECT = {
   revokedAt: true,
   grants: { select: { deploymentId: true }, orderBy: { deploymentId: "asc" as const } },
 } as const;
-type TokenRow = Prisma.DeveloperApiTokenGetPayload<{ select: typeof DEVELOPER_TOKEN_SELECT }>;
+type TokenRow = Prisma.DeveloperApiTokenGetPayload<{
+  select: typeof DEVELOPER_TOKEN_SELECT;
+}>;
 export function developerTokenMetadata(row: TokenRow) {
   const { grants, ...metadata } = row;
   return { ...metadata, deploymentIds: grants.map((grant) => grant.deploymentId) };
@@ -53,7 +54,11 @@ async function validateSelection(tx: Prisma.TransactionClient, ownerId: string, 
   if (!ids.length) return;
   // Stable locking order avoids competing overlapping selections deadlocking. This
   // conflicts with retirement/status/owner updates until the grants commit.
-  const eligible = await tx.$queryRaw<{ id: string }[]>`
+  const eligible = await tx.$queryRaw<
+    {
+      id: string;
+    }[]
+  >`
     SELECT id FROM "Deployment" WHERE id IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
     AND "ownerId" = ${ownerId}::uuid AND status = 'CONFIRMED' AND "serviceState" = 'ACTIVE'
     ORDER BY id FOR SHARE`;
@@ -107,7 +112,7 @@ export async function createDeveloperToken(
         label: input.label ?? null,
         permission: input.permission,
         expiresAt: input.expiresInDays
-          ? new Date(now.getTime() + input.expiresInDays * 86_400_000)
+          ? new Date(now.getTime() + input.expiresInDays * 86400000)
           : null,
         grants: { create: input.deploymentIds.map((deploymentId) => ({ deploymentId })) },
       },

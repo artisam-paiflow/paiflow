@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { flowToEnglish } from "@/lib/flows/english";
-
 const ADDR = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const ADDR_B = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
-
 describe("flowToEnglish", () => {
   it("describes a 60/30/10 split", () => {
     const out = flowToEnglish({
@@ -33,7 +31,6 @@ describe("flowToEnglish", () => {
     expect(out).toContain("30% to Bob");
     expect(out).toContain("10% to Charlie");
   });
-
   it("describes a split with minAmountStroops trigger", () => {
     const out = flowToEnglish({
       nodes: [
@@ -63,7 +60,6 @@ describe("flowToEnglish", () => {
     expect(out).toContain("50% (2.5 XLM) to A");
     expect(out).toContain("50% (2.5 XLM) to B");
   });
-
   it("shows projected amounts when source amount is known", () => {
     const out = flowToEnglish({
       nodes: [
@@ -92,7 +88,6 @@ describe("flowToEnglish", () => {
     expect(out).toContain("60% (0.6 USDC) to Savings");
     expect(out).toContain("40% (0.4 USDC) to Spending");
   });
-
   it("describes a streamer", () => {
     const out = flowToEnglish({
       nodes: [
@@ -118,7 +113,6 @@ describe("flowToEnglish", () => {
     expect(out).toContain("every hour");
     expect(out).toContain("pay 2 XLM");
   });
-
   it("formats an on_schedule start as a readable date, not a raw ISO timestamp", () => {
     const out = flowToEnglish({
       nodes: [
@@ -150,7 +144,6 @@ describe("flowToEnglish", () => {
     expect(out).not.toContain("2026-06-25T05:25:13.993Z");
     expect(out).not.toContain("T05:25");
   });
-
   it("describes a scheduled split (streamer)", () => {
     const out = flowToEnglish({
       nodes: [
@@ -179,7 +172,6 @@ describe("flowToEnglish", () => {
     expect(out).toContain("60% to A");
     expect(out).toContain("40% to B");
   });
-
   it("describes a fixed split", () => {
     const out = flowToEnglish({
       nodes: [
@@ -206,7 +198,6 @@ describe("flowToEnglish", () => {
     expect(out).toContain("1 USDC to Alice");
     expect(out).toContain("0.5 USDC to Bob");
   });
-
   it("describes a flow with condition", () => {
     const out = flowToEnglish({
       nodes: [
@@ -240,7 +231,6 @@ describe("flowToEnglish", () => {
       "otherwise, nothing is connected yet (connect a step to the False output)",
     );
   });
-
   it("describes a pay node with percentage mode", () => {
     const out = flowToEnglish({
       nodes: [
@@ -265,7 +255,6 @@ describe("flowToEnglish", () => {
     });
     expect(out).toContain("pay 25% of incoming USDC");
   });
-
   it("describes a pay node with fullAmount", () => {
     const out = flowToEnglish({
       nodes: [
@@ -289,7 +278,6 @@ describe("flowToEnglish", () => {
     });
     expect(out).toContain("pay full incoming XLM");
   });
-
   it("describes a web2_webhook → swap → pay flow", () => {
     const out = flowToEnglish({
       nodes: [
@@ -328,7 +316,6 @@ describe("flowToEnglish", () => {
     expect(out).toContain("When HTTP webhook fires for USDC");
     expect(out).toContain("swap XLM to USDC via Soroswap with up to 1% slippage");
   });
-
   it("describes a subscription trigger with interval", () => {
     const out = flowToEnglish({
       nodes: [
@@ -360,7 +347,6 @@ describe("flowToEnglish", () => {
     expect(out).toContain("When subscription pulls 1 USDC every minute");
     expect(out).toContain("pay 1 USDC");
   });
-
   it("describes a subscription trigger with plural interval", () => {
     const out = flowToEnglish({
       nodes: [
@@ -391,37 +377,6 @@ describe("flowToEnglish", () => {
     });
     expect(out).toContain("When subscription pulls 1 USDC every 5 days");
   });
-
-  it("describes a dev-mode payroll trigger with API-filled employer and schedule", () => {
-    const out = flowToEnglish({
-      devMode: true,
-      nodes: [
-        {
-          id: "t",
-          type: "payroll",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            employer: "PENDING:__api__",
-            intervalAmount: 5,
-            intervalUnit: "minute",
-            fillScheduleViaApi: true,
-          },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(out).toContain("When payroll pulls from (employer set via API) (schedule set via API)");
-    expect(out).not.toContain("every 5 minutes");
-  });
-
   it("uses account name for fiat split recipients", () => {
     const out = flowToEnglish({
       nodes: [
@@ -433,7 +388,6 @@ describe("flowToEnglish", () => {
             employer: ADDR,
             intervalAmount: 1,
             intervalUnit: "week",
-            fillScheduleViaApi: false,
           },
         },
         {
@@ -469,7 +423,6 @@ describe("flowToEnglish", () => {
     expect(out).not.toContain("(needs address)");
     expect(out).toContain("0.5 USDC to Bob");
   });
-
   it("includes the total fixed distribution as the payroll pull amount", () => {
     const out = flowToEnglish({
       nodes: [
@@ -481,7 +434,6 @@ describe("flowToEnglish", () => {
             employer: ADDR,
             intervalAmount: 1,
             intervalUnit: "week",
-            fillScheduleViaApi: false,
           },
         },
         {

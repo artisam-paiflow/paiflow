@@ -4,13 +4,11 @@ import { StrKey } from "@stellar/stellar-sdk";
 import type { ComponentProps } from "react";
 import type ApiAccessPanel from "@/components/deploy/api-access-panel";
 import type DeploymentView from "@/components/deploy/deployment-view";
-
 const mocks = vi.hoisted(() => ({
   deployment: vi.fn(),
   session: vi.fn(),
   panel: vi.fn(),
   overview: vi.fn(),
-  devModeEnabled: true,
 }));
 vi.mock("@/lib/db", () => ({ db: { deployment: { findFirst: mocks.deployment } } }));
 vi.mock("@/lib/auth", () => ({ requirePageSession: mocks.session }));
@@ -18,7 +16,7 @@ vi.mock("@/lib/env", () => ({
   env: () => ({
     STELLAR_NETWORK: "testnet",
     LOG_LEVEL: "silent",
-    FEATURE_DEV_MODE_ENABLED: mocks.devModeEnabled,
+    FEATURE_DEV_MODE_ENABLED: false,
   }),
 }));
 vi.mock("next/navigation", () => ({
@@ -40,9 +38,7 @@ vi.mock("@/components/deploy/api-access-panel", () => ({
     return <div>Integration panel</div>;
   },
 }));
-
 import DeploymentPage from "@/app/deployments/[deploymentId]/page";
-
 const id = "00000000-0000-4000-8000-000000000000";
 const address = StrKey.encodeContract(Buffer.alloc(32, 1));
 const params = Promise.resolve({ deploymentId: id });
@@ -79,11 +75,10 @@ function deployment(overrides: Record<string, unknown> = {}) {
 }
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.devModeEnabled = true;
+
   mocks.session.mockResolvedValue({ id: "owner", username: "Owner", role: "USER" });
   mocks.deployment.mockResolvedValue(deployment());
 });
-
 describe("owner deployment integration panel", () => {
   it.each([
     ["on_receive", "On Receive"],
@@ -107,7 +102,6 @@ describe("owner deployment integration panel", () => {
       expect(mocks.overview.mock.calls[0]![0].templateKind).toBe("SPLITTER");
     },
   );
-
   it("lists branching outcome types once without implying a linear path", async () => {
     const fixture = deployment();
     mocks.deployment.mockResolvedValue(
@@ -133,7 +127,6 @@ describe("owner deployment integration panel", () => {
       view.getByText("Blocks: HTTP Webhook · Pay · Condition · Hold · Return to owner"),
     ).toBeTruthy();
   });
-
   it("shows retirement progress without execution or integration controls", async () => {
     mocks.deployment.mockResolvedValue(
       deployment({
@@ -153,17 +146,6 @@ describe("owner deployment integration panel", () => {
     expect(mocks.panel).not.toHaveBeenCalled();
     expect(mocks.overview).not.toHaveBeenCalled();
   });
-
-  it("removes Dev configuration while retaining the overview and API panel", async () => {
-    mocks.devModeEnabled = false;
-    render(await DeploymentPage({ params }));
-    expect(mocks.overview.mock.calls[0]![0]).toMatchObject({
-      canEditDevValues: false,
-      devModeEnabled: false,
-    });
-    expect(screen.getByText("Overview")).toBeTruthy();
-    expect(screen.getByText("Integration panel")).toBeTruthy();
-  });
   it("uses the owner guard, passes capabilities without a token and keeps funding in the overview", async () => {
     render(await DeploymentPage({ params }));
     expect(mocks.session).toHaveBeenCalled();
@@ -180,13 +162,11 @@ describe("owner deployment integration panel", () => {
     expect(mocks.overview.mock.calls[0]![0].qrUrl).toBe(`/api/deployments/${id}/qr?action=trigger`);
     expect(mocks.overview.mock.calls[0]![0]).not.toHaveProperty("webhookSecret");
   });
-
   it("refuses a deployment not returned by the owner-scoped lookup", async () => {
     mocks.deployment.mockResolvedValue(null);
     await expect(DeploymentPage({ params })).rejects.toThrow("not-found");
     expect(mocks.panel).not.toHaveBeenCalled();
   });
-
   it.each(["SANDBOX", "PENDING"])("keeps the panel unavailable for %s", async (state) => {
     if (state === "SANDBOX")
       mocks.session.mockResolvedValue({ id: "owner", username: "Owner", role: "SANDBOX" });
@@ -196,7 +176,6 @@ describe("owner deployment integration panel", () => {
     expect(mocks.panel).not.toHaveBeenCalled();
     expect(mocks.overview.mock.calls[0]![0]).not.toHaveProperty("webhookSecret");
   });
-
   it("keeps the overview available when the deployment belongs to another network", async () => {
     mocks.deployment.mockResolvedValue(deployment({ network: "mainnet" }));
     render(await DeploymentPage({ params }));

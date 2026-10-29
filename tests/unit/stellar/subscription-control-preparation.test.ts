@@ -12,7 +12,6 @@ import {
   rpc,
   xdr,
 } from "@stellar/stellar-sdk";
-
 const mocks = vi.hoisted(() => ({
   state: vi.fn(),
   relayerAddress: vi.fn(),
@@ -52,7 +51,6 @@ vi.mock("@/lib/api/v1/control-intent", () => ({
 }));
 vi.mock("@/lib/api/v1/control-submission", () => ({ submitControlIntent: vi.fn() }));
 vi.mock("@/lib/api/request-history/context", () => ({ linkApiTransaction: vi.fn() }));
-
 import { prepareSubscriptionControl } from "@/lib/api/v1/subscription-controls";
 import { POST as ownerReactivate } from "@/app/api/deployments/[id]/subscription-subscribe/route";
 import { POST as ownerCancel } from "@/app/api/deployments/[id]/subscription-unsubscribe/route";
@@ -65,7 +63,6 @@ import {
 } from "@/lib/stellar/interactive-rpc-budget";
 import { SimulationError } from "@/lib/stellar/sim-error";
 import { paymentAccountResponse } from "./payment-account-fixture";
-
 const wallet = Keypair.random().publicKey();
 const contract = StrKey.encodeContract(Buffer.alloc(32, 1));
 const asset = StrKey.encodeContract(Buffer.alloc(32, 2));
@@ -106,7 +103,10 @@ const success = () => ({
   results: [{ auth: [], xdr: xdr.ScVal.scvVoid().toXDR("base64") }],
   events: [],
 });
-type RpcCall = { method: string; params?: unknown };
+type RpcCall = {
+  method: string;
+  params?: unknown;
+};
 function rpcFetch(handle: (call: RpcCall, init: RequestInit) => Promise<unknown>) {
   vi.stubGlobal(
     "fetch",
@@ -159,7 +159,6 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
-
 describe("Subscription preparation through the real SDK client and builders", () => {
   it.each(["getLedgerEntries", "simulateTransaction"])(
     "classifies a %s timeout as upstream without reserving an intent or changing billing",
@@ -167,7 +166,7 @@ describe("Subscription preparation through the real SDK client and builders", ()
       rpcFetch(async (call, init) => (call.method === method ? stalled(init) : normal(call)));
       const result = prepare();
       const rejected = expect(result).rejects.toMatchObject({ code: "UPSTREAM_RPC", status: 502 });
-      await vi.advanceTimersByTimeAsync(25_000);
+      await vi.advanceTimersByTimeAsync(25000);
       await rejected;
       unchanged();
       const calls = vi.mocked(fetch).mock.calls.map((call) => JSON.parse(call[1]!.body as string));
@@ -179,14 +178,13 @@ describe("Subscription preparation through the real SDK client and builders", ()
       ).toBe(true);
     },
   );
-
   it("uses one deadline for eligibility, ledger, account, simulation and final eligibility", async () => {
     const budgets: unknown[] = [];
     const remaining: number[] = [];
     const observe = () => {
       budgets.push(interactiveRpcBudget());
       remaining.push(remainingInteractiveRpcMs());
-      vi.setSystemTime(Date.now() + 4_000);
+      vi.setSystemTime(Date.now() + 4000);
     };
     mocks.latest.mockImplementation(async () => observe());
     mocks.state.mockImplementation(async () => {
@@ -198,38 +196,35 @@ describe("Subscription preparation through the real SDK client and builders", ()
       return normal(call);
     });
     await expect(prepare()).resolves.toMatchObject({ action: "subscription.reactivate" });
-    expect(remaining).toEqual([25_000, 21_000, 17_000, 13_000, 9_000]);
+    expect(remaining).toEqual([25000, 21000, 17000, 13000, 9000]);
     expect(budgets.every((budget) => budget === budgets[0] && budget !== undefined)).toBe(true);
     expect(mocks.createIntent).toHaveBeenCalledOnce();
     expect(sorobanRpc().httpClient.defaults.timeout).toBe(STELLAR_HTTP_TIMEOUT_MS);
-    expect(STELLAR_HTTP_TIMEOUT_MS).toBe(10_000);
+    expect(STELLAR_HTTP_TIMEOUT_MS).toBe(10000);
   });
-
   it("does not reserve an intent after final eligibility consumes the remaining budget", async () => {
     mocks.state
       .mockImplementationOnce(async () => state)
       .mockImplementationOnce(async () => {
-        vi.setSystemTime(Date.now() + 25_000);
+        vi.setSystemTime(Date.now() + 25000);
         return state;
       });
     await expect(prepare()).rejects.toMatchObject({ code: "UPSTREAM_RPC", status: 502 });
     unchanged();
   });
-
   it("does not give nested preparation another 25 seconds", async () => {
     rpcFetch(async (call, init) =>
       call.method === "simulateTransaction" ? stalled(init) : normal(call),
     );
     const result = withInteractiveRpcBudget(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 20_000));
+      await new Promise((resolve) => setTimeout(resolve, 20000));
       return prepare();
     });
     const rejected = expect(result).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
-    await vi.advanceTimersByTimeAsync(25_000);
+    await vi.advanceTimersByTimeAsync(25000);
     await rejected;
     unchanged();
   });
-
   it("preserves a genuine contract simulation failure and its diagnostic details", async () => {
     rpcFetch(async (call) =>
       call.method === "simulateTransaction"
@@ -245,7 +240,6 @@ describe("Subscription preparation through the real SDK client and builders", ()
     expect(String(error)).not.toContain("could not simulate this subscription control");
     unchanged();
   });
-
   it.each(["FORBIDDEN", "CONFLICT", "VALIDATION"] as const)(
     "preserves %s eligibility refusals",
     async (code) => {
@@ -256,7 +250,6 @@ describe("Subscription preparation through the real SDK client and builders", ()
       expect(fetch).not.toHaveBeenCalled();
     },
   );
-
   it.each([
     ["initial", "getLedgerEntries", 1],
     ["initial", "simulateTransaction", 1],
@@ -277,7 +270,11 @@ describe("Subscription preparation through the real SDK client and builders", ()
           return stalled(init);
         if (call.method !== "simulateTransaction") return normal(call);
         const tx = TransactionBuilder.fromXDR(
-          (call.params as { transaction: string }).transaction,
+          (
+            call.params as {
+              transaction: string;
+            }
+          ).transaction,
           Networks.TESTNET,
         );
         if (!(tx instanceof Transaction)) throw new Error("Unexpected fee-bump transaction");
@@ -297,7 +294,7 @@ describe("Subscription preparation through the real SDK client and builders", ()
       });
       const result = prepare();
       const rejected = expect(result).rejects.toMatchObject({ code: "UPSTREAM_RPC", status: 502 });
-      await vi.advanceTimersByTimeAsync(25_000);
+      await vi.advanceTimersByTimeAsync(25000);
       await rejected;
       expect(mocks.state).toHaveBeenCalledTimes(stateRead);
       expect(mocks.state).toHaveBeenCalledWith(deployment.id, {
@@ -307,7 +304,6 @@ describe("Subscription preparation through the real SDK client and builders", ()
       unchanged();
     },
   );
-
   it("preserves genuinely absent eligibility read-source classification", async () => {
     const real = await vi.importActual<typeof import("@/lib/subscription/state")>(
       "@/lib/subscription/state",
@@ -319,7 +315,6 @@ describe("Subscription preparation through the real SDK client and builders", ()
     await expect(prepare()).rejects.toMatchObject({ code: "INSUFFICIENT_FUNDS", status: 402 });
     unchanged();
   });
-
   it.each([
     ["subscriber", xdr.ScVal.scvVoid(), "VALIDATION"],
     ["subscriber", xdr.ScVal.scvU32(1), "UPSTREAM_RPC"],
@@ -338,7 +333,11 @@ describe("Subscription preparation through the real SDK client and builders", ()
       rpcFetch(async (call) => {
         if (call.method !== "simulateTransaction") return normal(call);
         const tx = TransactionBuilder.fromXDR(
-          (call.params as { transaction: string }).transaction,
+          (
+            call.params as {
+              transaction: string;
+            }
+          ).transaction,
           Networks.TESTNET,
         );
         if (!(tx instanceof Transaction)) throw new Error("Unexpected fee-bump transaction");
@@ -360,14 +359,12 @@ describe("Subscription preparation through the real SDK client and builders", ()
       unchanged();
     },
   );
-
   it("does not misclassify a durable intent storage error as an RPC failure", async () => {
     const error = new Error("intent storage failed");
     mocks.createIntent.mockRejectedValueOnce(error);
     await expect(prepare()).rejects.toBe(error);
     expect(mocks.createIntent).toHaveBeenCalledOnce();
   });
-
   it.each([
     ["cancel", ownerCancel],
     ["reactivate", ownerReactivate],
@@ -377,8 +374,8 @@ describe("Subscription preparation through the real SDK client and builders", ()
       const budgets: unknown[] = [];
       rpcFetch(async (call) => {
         budgets.push(interactiveRpcBudget());
-        expect(remainingInteractiveRpcMs()).toBe(budgets.length === 1 ? 25_000 : 9_000);
-        if (budgets.length === 1) vi.setSystemTime(Date.now() + 16_000);
+        expect(remainingInteractiveRpcMs()).toBe(budgets.length === 1 ? 25000 : 9000);
+        if (budgets.length === 1) vi.setSystemTime(Date.now() + 16000);
         return normal(call);
       });
       const response = await handler(
@@ -393,11 +390,10 @@ describe("Subscription preparation through the real SDK client and builders", ()
       expect(budgets).toHaveLength(2);
       expect(budgets[0]).toBeDefined();
       expect(budgets[1]).toBe(budgets[0]);
-      expect(sorobanRpc().httpClient.defaults.timeout).toBe(10_000);
+      expect(sorobanRpc().httpClient.defaults.timeout).toBe(10000);
     },
   );
 });
-
 describe("Subscription already-active guard through real SDK diagnostics", () => {
   function event(
     origin: string | undefined,
@@ -460,7 +456,6 @@ describe("Subscription already-active guard through real SDK diagnostics", () =>
       }) as NextRequest,
       { params: Promise.resolve({ id: deployment.id }) },
     );
-
   it("returns participant409 for verified target subscribe error7 without producing XDR", async () => {
     serve(refusal());
     const response = await participant();
@@ -474,7 +469,6 @@ describe("Subscription already-active guard through real SDK diagnostics", () =>
     expect(body.data).toBeUndefined();
     unchanged();
   });
-
   it("accepts a corroborated root target encoded as a contract address", async () => {
     serve(
       refusal([
@@ -489,8 +483,7 @@ describe("Subscription already-active guard through real SDK diagnostics", () =>
     expect((await participant()).status).toBe(409);
     unchanged();
   });
-
-  it.each(["SUBSCRIPTION", "SUBSCRIPTION_DEV"])(
+  it.each(["SUBSCRIPTION"])(
     "classifies a %s state race after the SDK cancelled precheck without reserving intent",
     async (kind) => {
       const selected = {
@@ -506,8 +499,7 @@ describe("Subscription already-active guard through real SDK diagnostics", () =>
       unchanged();
     },
   );
-
-  it.each(["SUBSCRIPTION", "SUBSCRIPTION_DEV"])(
+  it.each(["SUBSCRIPTION"])(
     "preserves valid %s preparation and simulated source/network/method",
     async (kind) => {
       const selected = {
@@ -530,21 +522,18 @@ describe("Subscription already-active guard through real SDK diagnostics", () =>
       expect(mocks.charge).not.toHaveBeenCalled();
     },
   );
-
   it("preserves the SDK active precheck409 without any builder RPC", async () => {
     mocks.state.mockResolvedValue({ ...state, isCancelled: false });
     await expect(prepare()).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
     expect(fetch).not.toHaveBeenCalled();
     unchanged();
   });
-
   it("preserves participant success and wrong-wallet422 before RPC", async () => {
     expect((await participant(Keypair.random().publicKey())).status).toBe(422);
     expect(fetch).not.toHaveBeenCalled();
     expect((await participant()).status).toBe(200);
     unchanged();
   });
-
   it("preserves a real transport failure502 without exposing provider details", async () => {
     rpcFetch(async (call) => {
       if (call.method === "simulateTransaction") throw new Error("private provider failure");
@@ -555,7 +544,6 @@ describe("Subscription already-active guard through real SDK diagnostics", () =>
     expect(JSON.stringify(await response.json())).not.toContain("private provider failure");
     unchanged();
   });
-
   it.each([
     ["no diagnostics", () => refusal([])],
     [
@@ -651,7 +639,6 @@ describe("Subscription already-active guard through real SDK diagnostics", () =>
     expect((await response.json()).error.code).toBe("UPSTREAM_RPC");
     unchanged();
   });
-
   it("does not classify subscribe diagnostics on the unsubscribe builder", async () => {
     serve(refusal());
     const response = await ownerCancel(

@@ -5,11 +5,9 @@ import { pipelineNodeConstructorArgs } from "@/lib/stellar/scval";
 import { timelockSideBranch } from "@/lib/flows/branches";
 import { flowToParams, flowToPipeline } from "@/lib/flows/to-params";
 import { FlowGraphSchema, sourceAmountStroops, bpsToPct, pctToBps } from "@/lib/flows/schema";
-
 const ADDR_A = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const ADDR_B = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
 const RELAYER = "GDRELAYER7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5XYZ";
-
 function splitGraph(opts?: {
   minAmount?: string;
   condition?: boolean;
@@ -25,8 +23,11 @@ function splitGraph(opts?: {
       },
     },
   ];
-  const edges: Array<{ id: string; source: string; target: string }> = [];
-
+  const edges: Array<{
+    id: string;
+    source: string;
+    target: string;
+  }> = [];
   if (opts?.condition) {
     nodes.push({
       id: "c",
@@ -35,7 +36,6 @@ function splitGraph(opts?: {
     });
     edges.push({ id: "e0", source: "t", target: "c" });
   }
-
   nodes.push({
     id: "a",
     type: "split",
@@ -48,13 +48,10 @@ function splitGraph(opts?: {
       ...(opts?.amountPerInterval ? { amountPerIntervalStroops: opts.amountPerInterval } : {}),
     },
   });
-
   const lastNode = opts?.condition ? "c" : "t";
   edges.push({ id: "e1", source: lastNode, target: "a" });
-
   return { nodes, edges } as const;
 }
-
 function scheduleSplitGraph(opts?: { condition?: boolean; amountPerInterval?: string }) {
   const nodes: Array<Record<string, unknown>> = [
     {
@@ -67,8 +64,11 @@ function scheduleSplitGraph(opts?: { condition?: boolean; amountPerInterval?: st
       },
     },
   ];
-  const edges: Array<{ id: string; source: string; target: string }> = [];
-
+  const edges: Array<{
+    id: string;
+    source: string;
+    target: string;
+  }> = [];
   if (opts?.condition) {
     nodes.push({
       id: "c",
@@ -77,7 +77,6 @@ function scheduleSplitGraph(opts?: { condition?: boolean; amountPerInterval?: st
     });
     edges.push({ id: "e0", source: "t", target: "c" });
   }
-
   nodes.push({
     id: "a",
     type: "split",
@@ -90,13 +89,10 @@ function scheduleSplitGraph(opts?: { condition?: boolean; amountPerInterval?: st
       ...(opts?.amountPerInterval ? { amountPerIntervalStroops: opts.amountPerInterval } : {}),
     },
   });
-
   const lastNode = opts?.condition ? "c" : "t";
   edges.push({ id: "e1", source: lastNode, target: "a" });
-
   return { nodes, edges } as const;
 }
-
 describe("flowToParams", () => {
   // ── SPLITTER ──
   it("produces splitter params (on_receive → split)", () => {
@@ -111,7 +107,6 @@ describe("flowToParams", () => {
       expect(out.recipients[1]!.bps).toBe(4000);
     }
   });
-
   it("produces splitter params with minAmountStroops", () => {
     const out = flowToParams(
       splitGraph({ minAmount: "50000000" }) as Parameters<typeof flowToParams>[0],
@@ -122,7 +117,6 @@ describe("flowToParams", () => {
       expect(out.minAmountStroops).toBe("50000000");
     }
   });
-
   it("produces splitter params from pay-through (on_receive → pay)", () => {
     const out = flowToParams(
       {
@@ -154,7 +148,6 @@ describe("flowToParams", () => {
       expect(out.recipients[0]!.bps).toBe(10000);
     }
   });
-
   // ── STREAMER ──
   it("produces streamer params (on_schedule → pay)", () => {
     const out = flowToParams(
@@ -196,7 +189,6 @@ describe("flowToParams", () => {
       expect(out.pauseAllowed).toBe(true);
     }
   });
-
   it("produces streamer params for scheduled split", () => {
     const out = flowToParams(
       scheduleSplitGraph({ amountPerInterval: "500" }) as Parameters<typeof flowToParams>[0],
@@ -213,7 +205,6 @@ describe("flowToParams", () => {
       expect(out.pauseAllowed).toBe(true);
     }
   });
-
   it("derives streamer bps from fixed amounts for scheduled split", () => {
     const out = flowToParams(
       {
@@ -251,13 +242,12 @@ describe("flowToParams", () => {
       expect(out.recipients[0]!.amount).toBe("1000000000");
       expect(out.recipients[1]!.amount).toBe("2000000000");
       // Sum must be exactly TOTAL_BPS so the contract constructor accepts it.
-      expect(out.recipients.reduce((s, r) => s + r.bps, 0)).toBe(10_000);
+      expect(out.recipients.reduce((s, r) => s + r.bps, 0)).toBe(10000);
       // Fixed mode: the per-interval base is the sum of the amounts, so each
       // recipient receives exactly their amount every interval.
       expect(out.amountPerIntervalStroops).toBe("3000000000");
     }
   });
-
   it("lets fixed amounts take precedence over a stale amount per interval", () => {
     // A leftover amountPerIntervalStroops from a prior percentage-mode
     // configuration must not contradict the fixed recipient amounts.
@@ -295,7 +285,6 @@ describe("flowToParams", () => {
       expect(out.amountPerIntervalStroops).toBe("3000000000");
     }
   });
-
   it("gives integer-division dust to the last streamer recipient", () => {
     const out = flowToParams(
       {
@@ -332,11 +321,10 @@ describe("flowToParams", () => {
       expect(out.recipients[0]!.bps).toBe(3333);
       expect(out.recipients[1]!.bps).toBe(3333);
       expect(out.recipients[2]!.bps).toBe(3334);
-      expect(out.recipients.reduce((s, r) => s + r.bps, 0)).toBe(10_000);
+      expect(out.recipients.reduce((s, r) => s + r.bps, 0)).toBe(10000);
       expect(out.amountPerIntervalStroops).toBe("3");
     }
   });
-
   it("derives streamer bps from fixed amounts in the pipeline builder", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -367,14 +355,15 @@ describe("flowToParams", () => {
     expect(pipeline[0]!.templateKind).toBe("STREAMER");
     const params = pipeline[0]!.params as Extract<
       (typeof pipeline)[0]["params"],
-      { kind: "streamer" }
+      {
+        kind: "streamer";
+      }
     >;
     expect(params.recipients[0]!.bps).toBe(3333);
     expect(params.recipients[1]!.bps).toBe(6667);
-    expect(params.recipients.reduce((s, r) => s + r.bps, 0)).toBe(10_000);
+    expect(params.recipients.reduce((s, r) => s + r.bps, 0)).toBe(10000);
     expect(params.amountPerIntervalStroops).toBe("3000000000");
   });
-
   it("honors pauseAllowed: false in streamer params", () => {
     const out = flowToParams(
       {
@@ -410,7 +399,6 @@ describe("flowToParams", () => {
       expect(out.pauseAllowed).toBe(false);
     }
   });
-
   it("defaults retrieveAllowed to false in streamer params", () => {
     const out = flowToParams(
       {
@@ -445,7 +433,6 @@ describe("flowToParams", () => {
       expect(out.retrieveAllowed).toBe(false);
     }
   });
-
   it("honors retrieveAllowed: false in streamer params", () => {
     const out = flowToParams(
       {
@@ -481,7 +468,6 @@ describe("flowToParams", () => {
       expect(out.retrieveAllowed).toBe(false);
     }
   });
-
   // ── CONDITIONAL ──
   it("produces conditional params (on_receive + condition → pay)", () => {
     const out = flowToParams(
@@ -524,7 +510,6 @@ describe("flowToParams", () => {
       expect(out.condition).toEqual({ kind: "amount_gt", amountStroops: "50000000" });
     }
   });
-
   it("produces conditional params for split with condition (on_receive + condition → split)", () => {
     const out = flowToParams(
       splitGraph({ condition: true }) as Parameters<typeof flowToParams>[0],
@@ -540,7 +525,6 @@ describe("flowToParams", () => {
       expect(out.amountStroops).toBe("50000000");
     }
   });
-
   it("produces conditional params for scheduled split with condition", () => {
     const out = flowToParams(
       scheduleSplitGraph({ condition: true }) as Parameters<typeof flowToParams>[0],
@@ -555,7 +539,6 @@ describe("flowToParams", () => {
       });
     }
   });
-
   it("produces conditional params for on_schedule + condition → pay", () => {
     const out = flowToParams(
       {
@@ -604,7 +587,6 @@ describe("flowToParams", () => {
       });
     }
   });
-
   it("uses trigger minAmountStroops as source for conditional split", () => {
     const graph = splitGraph({ minAmount: "50000000", condition: true });
     // override condition to not be amount-based so we get trigger's min amount
@@ -651,7 +633,6 @@ describe("flowToParams", () => {
     expect(pipeline).toHaveLength(2);
     expect(pipeline.map((n) => n.nodeId)).toEqual(["t", "a"]);
   });
-
   it("produces payroll pipeline (payroll trigger → split with fixed amounts)", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -664,7 +645,6 @@ describe("flowToParams", () => {
             intervalAmount: 1,
             intervalUnit: "week",
             occurrences: 4,
-            fillScheduleViaApi: false,
           },
         },
         {
@@ -699,67 +679,8 @@ describe("flowToParams", () => {
       expect(split!.params.recipients[1]!.amount).toBe("40000000");
     }
   });
-
-  it("decomposes a dev-mode payroll into SUBSCRIPTION_DEV → SPLITTER_DEV", () => {
-    const pipeline = flowToPipeline(
-      {
-        devMode: true,
-        nodes: [
-          {
-            id: "t",
-            type: "payroll",
-            config: {
-              asset: { kind: "known", symbol: "USDC" },
-              employer: ADDR_A,
-              intervalAmount: 1,
-              intervalUnit: "week",
-              occurrences: 4,
-              fillScheduleViaApi: false,
-            },
-          },
-          {
-            id: "a",
-            type: "split",
-            config: {
-              asset: { kind: "known", symbol: "USDC" },
-              recipients: [
-                { address: ADDR_A, mode: "fixed", amountStroops: "60000000", label: "Alice" },
-                { address: ADDR_B, mode: "fixed", amountStroops: "40000000", label: "Bob" },
-              ],
-            },
-          },
-        ],
-        edges: [{ id: "e", source: "t", target: "a" }],
-      },
-      "GRELAYER000000000000000000000000000000000000000000000000",
-    );
-
-    expect(pipeline).toHaveLength(2);
-    const [sub, split] = pipeline;
-    // Employer pull leg.
-    expect(sub!.nodeId).toBe("t");
-    expect(sub!.templateKind).toBe(TemplateKind.SUBSCRIPTION_DEV);
-    expect(sub!.params.kind).toBe("subscription_dev_trigger");
-    if (sub!.params.kind === "subscription_dev_trigger") {
-      expect(sub!.params.subscriber).toBe(ADDR_A);
-      expect(sub!.params.amountPerPeriodStroops).toBe("100000000");
-      expect(sub!.params.intervalSeconds).toBe(60 * 60 * 24 * 7);
-      expect(sub!.params.nextStepNodeIds).toEqual(["a"]);
-    }
-    // Distribution leg — fixed salaries.
-    expect(split!.nodeId).toBe("a");
-    expect(split!.templateKind).toBe(TemplateKind.SPLITTER_DEV);
-    expect(split!.params.kind).toBe("splitter_dev");
-    if (split!.params.kind === "splitter_dev") {
-      expect(split!.params.recipients).toHaveLength(2);
-      expect(split!.params.recipients[0]!.amount).toBe("60000000");
-      expect(split!.params.recipients[1]!.amount).toBe("40000000");
-    }
-  });
-
   it("decomposes non-dev payroll into SUBSCRIPTION → SPLITTER", () => {
     const pipeline = flowToPipeline({
-      devMode: false,
       nodes: [
         {
           id: "t",
@@ -770,7 +691,6 @@ describe("flowToParams", () => {
             intervalAmount: 1,
             intervalUnit: "week",
             occurrences: 4,
-            fillScheduleViaApi: false,
           },
         },
         {
@@ -790,11 +710,9 @@ describe("flowToParams", () => {
     expect(pipeline[0]!.templateKind).toBe(TemplateKind.SUBSCRIPTION);
     expect(pipeline[1]!.templateKind).toBe(TemplateKind.SPLITTER);
   });
-
   it("decomposes non-dev payroll with fiat recipients into SUBSCRIPTION → SPLITTER → CASH_OUT", () => {
     const pipeline = flowToPipeline(
       {
-        devMode: false,
         nodes: [
           {
             id: "t",
@@ -805,7 +723,6 @@ describe("flowToParams", () => {
               intervalAmount: 1,
               intervalUnit: "week",
               occurrences: 4,
-              fillScheduleViaApi: false,
             },
           },
           {
@@ -833,20 +750,17 @@ describe("flowToParams", () => {
       RELAYER,
       ADDR_B,
     );
-
     expect(pipeline).toHaveLength(3);
     const [sub, split, cashOut] = pipeline;
     expect(sub!.templateKind).toBe(TemplateKind.SUBSCRIPTION);
     expect(split!.templateKind).toBe(TemplateKind.SPLITTER);
     expect(cashOut!.templateKind).toBe(TemplateKind.CASH_OUT);
-
     if (split && split.params.kind === "splitter") {
       const fiatRecipient = split.params.recipients.find((r) => r.isCashOut);
       expect(fiatRecipient).toBeDefined();
       expect(fiatRecipient!.address).toMatch(/^a-cashout-/);
       expect(fiatRecipient!.amount).toBe("40000000");
     }
-
     if (cashOut && cashOut.params.kind === "cash_out") {
       expect(cashOut!.params.accountName).toBe("Bob");
       expect(cashOut!.params.accountNumber).toBe("1234567890");
@@ -855,11 +769,9 @@ describe("flowToParams", () => {
       expect(cashOut!.params.parentNodeId).toBe("a");
     }
   });
-
   it("synthesizes CASH_OUT for a fiat split recipient in a non-dev on_receive flow", () => {
     const pipeline = flowToPipeline(
       {
-        devMode: false,
         nodes: [
           { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
           {
@@ -887,14 +799,12 @@ describe("flowToParams", () => {
       RELAYER,
       ADDR_B,
     );
-
     expect(pipeline).toHaveLength(3);
     const [trigger, split, cashOut] = pipeline;
     expect(trigger!.templateKind).toBe(TemplateKind.DEPOSIT_TRIGGER);
     expect(split!.templateKind).toBe(TemplateKind.SPLITTER);
     expect(cashOut!.templateKind).toBe(TemplateKind.CASH_OUT);
     expect(cashOut!.nodeId).toBe("a-cashout-1");
-
     if (split!.params.kind === "splitter") {
       const crypto = split!.params.recipients.find((r) => r.address === ADDR_A);
       const fiat = split!.params.recipients.find((r) => r.isCashOut);
@@ -909,11 +819,9 @@ describe("flowToParams", () => {
       expect(cashOut!.params.parentNodeId).toBe("a");
     }
   });
-
   it("synthesizes CASH_OUT for a fiat pay node in a non-dev webhook flow", () => {
     const pipeline = flowToPipeline(
       {
-        devMode: false,
         nodes: [
           {
             id: "t",
@@ -941,13 +849,11 @@ describe("flowToParams", () => {
       RELAYER,
       ADDR_B,
     );
-
     expect(pipeline).toHaveLength(3);
     const [trigger, payer, cashOut] = pipeline;
     expect(trigger!.templateKind).toBe(TemplateKind.WEBHOOK);
     expect(payer!.templateKind).toBe(TemplateKind.PAYER);
     expect(cashOut!.templateKind).toBe(TemplateKind.CASH_OUT);
-
     if (payer!.params.kind === "payer") {
       expect(payer!.params.isCashOut).toBe(true);
       expect(payer!.params.recipient).toBe("a-cashout-0");
@@ -958,11 +864,9 @@ describe("flowToParams", () => {
       expect(cashOut!.params.parentNodeId).toBe("a");
     }
   });
-
   it("synthesizes CASH_OUT for fiat split recipients in a non-dev subscription flow", () => {
     const pipeline = flowToPipeline(
       {
-        devMode: false,
         nodes: [
           {
             id: "t",
@@ -999,7 +903,6 @@ describe("flowToParams", () => {
       RELAYER,
       ADDR_B,
     );
-
     expect(pipeline).toHaveLength(3);
     const [sub, split, cashOut] = pipeline;
     expect(sub!.templateKind).toBe(TemplateKind.SUBSCRIPTION);
@@ -1014,44 +917,6 @@ describe("flowToParams", () => {
       expect(cashOut!.params.parentNodeId).toBe("a");
     }
   });
-
-  it("does not synthesize cash-out nodes for dev-mode non-payroll flows", () => {
-    const pipeline = flowToPipeline(
-      {
-        devMode: true,
-        nodes: [
-          { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
-          {
-            id: "a",
-            type: "split",
-            config: {
-              asset: { kind: "native" },
-              recipients: [
-                {
-                  address: ADDR_B,
-                  mode: "percentage",
-                  bps: 10000,
-                  payoutMode: "fiat",
-                },
-              ],
-            },
-          },
-        ],
-        edges: [{ id: "e", source: "t", target: "a" }],
-      },
-      RELAYER,
-      ADDR_B,
-    );
-
-    expect(pipeline.find((n) => n.templateKind === TemplateKind.CASH_OUT_DEV)).toBeUndefined();
-    expect(pipeline.find((n) => n.templateKind === TemplateKind.CASH_OUT)).toBeUndefined();
-    const split = pipeline.find((n) => n.templateKind === TemplateKind.SPLITTER_DEV);
-    if (split!.params.kind === "splitter_dev") {
-      // Left untouched — validation rejects dev-mode fiat outside payroll.
-      expect(split!.params.recipients[0]!.address).toBe(ADDR_B);
-    }
-  });
-
   it("keeps email_notify out of nextStepNodeIds", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -1088,7 +953,6 @@ describe("flowToParams", () => {
     });
   });
 });
-
 describe("bps helpers", () => {
   it("converts bps to pct", () => {
     expect(bpsToPct(10000)).toBe(100);
@@ -1096,21 +960,18 @@ describe("bps helpers", () => {
     expect(bpsToPct(3333)).toBe(33.33);
     expect(bpsToPct(100)).toBe(1);
   });
-
   it("converts pct to bps", () => {
     expect(pctToBps(100)).toBe(10000);
     expect(pctToBps(50)).toBe(5000);
     expect(pctToBps(33.33)).toBe(3333);
     expect(pctToBps(1)).toBe(100);
   });
-
   it("is lossless for whole percentages", () => {
     for (let pct = 0; pct <= 100; pct++) {
       expect(bpsToPct(pctToBps(pct))).toBe(pct);
     }
   });
 });
-
 describe("sourceAmountStroops", () => {
   it("reads from on_receive trigger minAmountStroops", () => {
     const out = sourceAmountStroops({
@@ -1128,7 +989,6 @@ describe("sourceAmountStroops", () => {
     });
     expect(out).toBe("50000000");
   });
-
   it("reads from amount_gt condition", () => {
     const out = sourceAmountStroops({
       nodes: [
@@ -1143,7 +1003,6 @@ describe("sourceAmountStroops", () => {
     });
     expect(out).toBe("10000000");
   });
-
   it("reads from amount_lt condition", () => {
     const out = sourceAmountStroops({
       nodes: [
@@ -1158,7 +1017,6 @@ describe("sourceAmountStroops", () => {
     });
     expect(out).toBe("20000000");
   });
-
   it("returns undefined when no source amount", () => {
     const out = sourceAmountStroops({
       nodes: [
@@ -1174,7 +1032,6 @@ describe("sourceAmountStroops", () => {
     expect(out).toBeUndefined();
   });
 });
-
 describe("flowToPipeline", () => {
   it("produces subscription_trigger → payer for subscription → pay", () => {
     const pipeline = flowToPipeline({
@@ -1222,7 +1079,6 @@ describe("flowToPipeline", () => {
       expect(pipeline[1]!.params.amountStroops).toBe("1000000");
     }
   });
-
   it("passes relayer address into subscription_trigger params", () => {
     const RELAYER = "GAPPG3VDBPONOHRYQL6D7XIVZFDZDXCC2QE3CBTN2GDRBMOBMSAT6TQK";
     const pipeline = flowToPipeline(
@@ -1265,7 +1121,6 @@ describe("flowToPipeline", () => {
     expect(subParams.relayer).toBe(RELAYER);
     expect(subParams.intervalSeconds).toBe(86400);
   });
-
   it("derives the subscription pull from the fixed split sum, overriding the config amount", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -1309,43 +1164,6 @@ describe("flowToPipeline", () => {
       expect(sub!.params.amountPerPeriodStroops).toBe("2100000000");
     }
   });
-
-  it("derives the subscription pull from the fixed split sum in dev mode too", () => {
-    const pipeline = flowToPipeline({
-      devMode: true,
-      nodes: [
-        {
-          id: "t",
-          type: "subscription",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            subscriber: ADDR_A,
-            amountPerPeriodStroops: "2000000000",
-            intervalAmount: 1,
-            intervalUnit: "day",
-          },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [
-              { address: ADDR_A, mode: "fixed", amountStroops: "1100000000" },
-              { address: ADDR_B, mode: "fixed", amountStroops: "1000000000" },
-            ],
-          },
-        },
-      ],
-      edges: [{ id: "e", source: "t", target: "a" }],
-    });
-    const sub = pipeline.find((n) => n.templateKind === "SUBSCRIPTION_DEV");
-    expect(sub!.params.kind).toBe("subscription_dev_trigger");
-    if (sub!.params.kind === "subscription_dev_trigger") {
-      expect(sub!.params.amountPerPeriodStroops).toBe("2100000000");
-    }
-  });
-
   it("keeps the configured amount when the split uses percentages", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -1380,7 +1198,6 @@ describe("flowToPipeline", () => {
       expect(sub!.params.amountPerPeriodStroops).toBe("2000000000");
     }
   });
-
   it("sourceAmountStroops reflects the derived fixed split sum", () => {
     const graph = {
       nodes: [
@@ -1413,7 +1230,6 @@ describe("flowToPipeline", () => {
       "2100000000",
     );
   });
-
   it("produces deposit_trigger → splitter for on_receive → split", () => {
     const pipeline = flowToPipeline(splitGraph() as Parameters<typeof flowToPipeline>[0]);
     expect(pipeline).toHaveLength(2);
@@ -1430,7 +1246,6 @@ describe("flowToPipeline", () => {
       minAmountStroops: "0",
     });
   });
-
   it("produces deposit_trigger → splitter for on_receive → fixed split", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -1460,7 +1275,6 @@ describe("flowToPipeline", () => {
       minAmountStroops: "0",
     });
   });
-
   it("produces deposit_trigger → timelock_branch → splitter for time_after condition", () => {
     const graph = splitGraph() as Parameters<typeof flowToPipeline>[0];
     graph.nodes.push({
@@ -1472,7 +1286,6 @@ describe("flowToPipeline", () => {
     graph.edges.push({ id: "e1", source: "c", target: "a" });
     // Remove direct edge from trigger to action
     graph.edges = graph.edges.filter((e) => !(e.source === "t" && e.target === "a"));
-
     const pipeline = flowToPipeline(graph);
     expect(pipeline).toHaveLength(3);
     expect(pipeline[0]!.templateKind).toBe("DEPOSIT_TRIGGER");
@@ -1486,7 +1299,6 @@ describe("flowToPipeline", () => {
     });
     expect(pipeline[2]!.templateKind).toBe("SPLITTER");
   });
-
   it("produces deposit_trigger → router → splitter for amount_gt condition", () => {
     const graph = splitGraph({ condition: true }) as Parameters<typeof flowToPipeline>[0];
     // Override condition to amount_gt
@@ -1507,7 +1319,6 @@ describe("flowToPipeline", () => {
     });
     expect(pipeline[2]!.templateKind).toBe("SPLITTER");
   });
-
   it("produces deposit_trigger → conditional for oracle_gte condition", () => {
     const graph = {
       nodes: [
@@ -1536,7 +1347,6 @@ describe("flowToPipeline", () => {
         { id: "e2", source: "c", target: "a" },
       ],
     } as Parameters<typeof flowToPipeline>[0];
-
     const pipeline = flowToPipeline(graph);
     expect(pipeline).toHaveLength(2);
     expect(pipeline[0]!.templateKind).toBe("DEPOSIT_TRIGGER");
@@ -1549,7 +1359,6 @@ describe("flowToPipeline", () => {
       nextStepNodeIds: [],
     });
   });
-
   it("produces standalone streamer for on_schedule → pay", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -1576,7 +1385,6 @@ describe("flowToPipeline", () => {
     expect(pipeline[0]!.templateKind).toBe("STREAMER");
     expect(pipeline[0]!.params.kind).toBe("streamer");
   });
-
   it("converts pay amount to amount per interval for on_schedule streamer", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -1613,7 +1421,6 @@ describe("flowToPipeline", () => {
     expect(streamer.amountPerIntervalStroops).toBe("60000");
     expect(streamer.intervalSeconds).toBe(60);
   });
-
   it("defaults pauseAllowed to true for on_schedule streamer", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -1637,10 +1444,11 @@ describe("flowToPipeline", () => {
       edges: [{ id: "e", source: "t", target: "a" }],
     });
     expect(pipeline).toHaveLength(1);
-    const streamer = pipeline[0]!.params as { pauseAllowed: boolean };
+    const streamer = pipeline[0]!.params as {
+      pauseAllowed: boolean;
+    };
     expect(streamer.pauseAllowed).toBe(true);
   });
-
   it("passes pauseAllowed: false through flowToPipeline", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -1669,10 +1477,11 @@ describe("flowToPipeline", () => {
       edges: [{ id: "e", source: "t", target: "a" }],
     });
     expect(pipeline).toHaveLength(1);
-    const streamer = pipeline[0]!.params as { pauseAllowed: boolean };
+    const streamer = pipeline[0]!.params as {
+      pauseAllowed: boolean;
+    };
     expect(streamer.pauseAllowed).toBe(false);
   });
-
   it("defaults retrieveAllowed to false for on_schedule streamer", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -1696,10 +1505,11 @@ describe("flowToPipeline", () => {
       edges: [{ id: "e", source: "t", target: "a" }],
     });
     expect(pipeline).toHaveLength(1);
-    const streamer = pipeline[0]!.params as { retrieveAllowed: boolean };
+    const streamer = pipeline[0]!.params as {
+      retrieveAllowed: boolean;
+    };
     expect(streamer.retrieveAllowed).toBe(false);
   });
-
   it("passes retrieveAllowed: false through flowToPipeline", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -1728,10 +1538,11 @@ describe("flowToPipeline", () => {
       edges: [{ id: "e", source: "t", target: "a" }],
     });
     expect(pipeline).toHaveLength(1);
-    const streamer = pipeline[0]!.params as { retrieveAllowed: boolean };
+    const streamer = pipeline[0]!.params as {
+      retrieveAllowed: boolean;
+    };
     expect(streamer.retrieveAllowed).toBe(false);
   });
-
   it("wires nextStepNodeIds from graph edges", () => {
     const pipeline = flowToPipeline(splitGraph() as Parameters<typeof flowToPipeline>[0]);
     const trigger = pipeline.find((n) => n.params.kind === "deposit_trigger");
@@ -1740,7 +1551,6 @@ describe("flowToPipeline", () => {
       nextStepNodeIds: ["a"],
     });
   });
-
   it("maps pay node with percentage mode", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -1774,7 +1584,6 @@ describe("flowToPipeline", () => {
       recipient: ADDR_A,
     });
   });
-
   it("maps pay node with fullAmount", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -1807,7 +1616,6 @@ describe("flowToPipeline", () => {
       recipient: ADDR_A,
     });
   });
-
   it("maps web2_webhook to WEBHOOK with app relayer address", () => {
     const RELAYER = "GAPPG3VDBPONOHRYQL6D7XIVZFDZDXCC2QE3CBTN2GDRBMOBMSAT6TQK";
     const pipeline = flowToPipeline(
@@ -1843,7 +1651,6 @@ describe("flowToPipeline", () => {
     });
     expect(pipeline[1]!.templateKind).toBe("SWAPPER");
   });
-
   it("uses placeholder relayer when web2_webhook is mapped without relayerAddress", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -1867,11 +1674,13 @@ describe("flowToPipeline", () => {
     });
     expect(pipeline).toHaveLength(2);
     expect(pipeline[0]!.templateKind).toBe("WEBHOOK");
-    const triggerParams = pipeline[0]!.params as { kind: string; relayer: string };
+    const triggerParams = pipeline[0]!.params as {
+      kind: string;
+      relayer: string;
+    };
     expect(triggerParams.kind).toBe("webhook_trigger");
     expect(triggerParams.relayer).toBe("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWH2");
   });
-
   it("converts 2 XLM per minute for 5 occurrences to correct streamer params", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -1915,9 +1724,8 @@ describe("flowToPipeline", () => {
     expect(streamer.endTs - streamer.startTs).toBe(5 * 60);
     // After 3 minutes exactly 3 intervals have vested => 6 XLM
     const vestedAfter3Min = BigInt(streamer.amountPerIntervalStroops) * 3n;
-    expect(vestedAfter3Min).toBe(60_000_000n);
+    expect(vestedAfter3Min).toBe(60000000n);
   });
-
   it("computes endTs from occurrences and intervalAmount/intervalUnit", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -1946,11 +1754,14 @@ describe("flowToPipeline", () => {
       edges: [{ id: "e", source: "t", target: "a" }],
     });
     expect(pipeline).toHaveLength(1);
-    const streamer = pipeline[0]!.params as { kind: string; startTs: number; endTs: number };
+    const streamer = pipeline[0]!.params as {
+      kind: string;
+      startTs: number;
+      endTs: number;
+    };
     expect(streamer.kind).toBe("streamer");
     expect(streamer.endTs - streamer.startTs).toBe(5 * 2 * 3600);
   });
-
   it("computes endTs from occurrences with legacy interval field", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -1978,10 +1789,13 @@ describe("flowToPipeline", () => {
       ],
       edges: [{ id: "e", source: "t", target: "a" }],
     });
-    const streamer = pipeline[0]!.params as { kind: string; startTs: number; endTs: number };
+    const streamer = pipeline[0]!.params as {
+      kind: string;
+      startTs: number;
+      endTs: number;
+    };
     expect(streamer.endTs - streamer.startTs).toBe(3 * 86400);
   });
-
   it("prefers endsAt over occurrences", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -2010,14 +1824,16 @@ describe("flowToPipeline", () => {
       ],
       edges: [{ id: "e", source: "t", target: "a" }],
     });
-    const streamer = pipeline[0]!.params as { kind: string; startTs: number; endTs: number };
+    const streamer = pipeline[0]!.params as {
+      kind: string;
+      startTs: number;
+      endTs: number;
+    };
     expect(streamer.endTs - streamer.startTs).toBe(14 * 86400);
   });
-
   it("clamps on_schedule startTs to now when startsAt is in the past", () => {
     const now = new Date("2030-01-01T12:00:00.000Z").getTime();
     vi.setSystemTime(now);
-
     const pipeline = flowToPipeline({
       nodes: [
         {
@@ -2045,7 +1861,6 @@ describe("flowToPipeline", () => {
       ],
       edges: [{ id: "e", source: "t", target: "a" }],
     });
-
     const streamer = pipeline[0]!.params as {
       kind: string;
       startTs: number;
@@ -2056,10 +1871,8 @@ describe("flowToPipeline", () => {
     // Duration is still computed from occurrences * interval, not from the
     // original (now-past) startsAt.
     expect(streamer.endTs - streamer.startTs).toBe(5 * 60);
-
     vi.useRealTimers();
   });
-
   it("chains splitter → payer and wires nextStepNodeIds on both", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -2095,23 +1908,24 @@ describe("flowToPipeline", () => {
         { id: "e2", source: "split", target: "pay" },
       ],
     } as Parameters<typeof flowToPipeline>[0]);
-
     expect(pipeline).toHaveLength(3);
     expect(pipeline[0]!.params.kind).toBe("deposit_trigger");
     expect(pipeline[1]!.params.kind).toBe("splitter");
     expect(pipeline[2]!.params.kind).toBe("payer");
-
-    const trigger = pipeline[0]!.params as { nextStepNodeIds: string[] };
+    const trigger = pipeline[0]!.params as {
+      nextStepNodeIds: string[];
+    };
     expect(trigger.nextStepNodeIds).toEqual(["split"]);
-
-    const splitter = pipeline[1]!.params as { nextStepNodeIds: string[] };
+    const splitter = pipeline[1]!.params as {
+      nextStepNodeIds: string[];
+    };
     expect(splitter.nextStepNodeIds).toEqual(["pay"]);
-
-    const payer = pipeline[2]!.params as { nextStepNodeIds: string[] };
+    const payer = pipeline[2]!.params as {
+      nextStepNodeIds: string[];
+    };
     expect(payer.nextStepNodeIds).toEqual([]);
   });
 });
-
 describe("time condition relayer authorization", () => {
   it.each(["time_before", "time_after"] as const)(
     "%s pins the relayer in branch and Hold constructors",

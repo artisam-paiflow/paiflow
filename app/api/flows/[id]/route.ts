@@ -9,14 +9,19 @@ import { FlowPatchSchema, sandboxNotifications } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
 import { refuseIfFeatureOff } from "@/lib/features";
-
 async function getOwned(id: string, userId: string) {
   const flow = await db.flow.findFirst({ where: { id, ownerId: userId } });
   if (!flow) throw new AppError("NOT_FOUND", "Flow not found");
   return flow;
 }
-
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(
+  _req: NextRequest,
+  ctx: {
+    params: Promise<{
+      id: string;
+    }>;
+  },
+) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     const { id } = await ctx.params;
@@ -24,20 +29,24 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ data: flow });
   });
 }
-
-export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function PATCH(
+  req: NextRequest,
+  ctx: {
+    params: Promise<{
+      id: string;
+    }>;
+  },
+) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     await enforceWriteRateLimit("flowMutate", user.id);
     const { id } = await ctx.params;
     const flow = await getOwned(id, user.id);
-
     const body = FlowPatchSchema.parse(await req.json());
     let templateKind = flow.templateKind;
     let parameters = flow.parameters;
     let graph = flow.graph;
     if (body.graph) {
-      if (body.graph.devMode) refuseIfFeatureOff("devMode", "devMode");
       if (user.role === "SANDBOX") body.graph = sandboxNotifications(body.graph);
       const v = validateFlow(body.graph, { ignoreOwnerEmail: true });
       if (v.ok) {
@@ -49,7 +58,6 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       // Always save the graph even if flow validation fails (intermediate editing state).
       graph = body.graph;
     }
-
     const updated = await db.flow.update({
       where: { id },
       data: {
@@ -65,8 +73,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ data: updated });
   });
 }
-
-export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  req: NextRequest,
+  ctx: {
+    params: Promise<{
+      id: string;
+    }>;
+  },
+) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     await enforceWriteRateLimit("flowMutate", user.id);
@@ -80,7 +94,13 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
       // turn this into a cascade or erase retained retirement/payment history.
       await db.flow.delete({ where: { id } });
     } catch (error) {
-      if ((error as { code?: string })?.code === "P2003")
+      if (
+        (
+          error as {
+            code?: string;
+          }
+        )?.code === "P2003"
+      )
         throw new AppError("CONFLICT", "Flows with any deployment cannot be permanently deleted");
       throw error;
     }

@@ -3,13 +3,10 @@ import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
 import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
-import { requireDevAuth } from "@/lib/auth";
+import { requirePayrollSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
-import { updateBankByRelayer } from "@/lib/stellar/dev-mutate";
-import { requireDevConfiguration } from "@/lib/features";
-
 const BankDetailSchema = z.object({
   employeeId: z.string().guid({ error: "Invalid uuid" }).optional(),
   address: z
@@ -20,11 +17,9 @@ const BankDetailSchema = z.object({
   accountNumber: z.string().min(1).max(64),
   bankCode: z.string().min(1).max(32),
 });
-
 const PostSchema = BankDetailSchema.refine((v) => !!v.employeeId !== !!v.address, {
   message: "Provide exactly one of employeeId or address",
 });
-
 async function requirePayrollDeployment(id: string, userId: string) {
   const where = { id, ownerId: userId };
   const d = await db.deployment.findFirst({
@@ -37,18 +32,22 @@ async function requirePayrollDeployment(id: string, userId: string) {
   }
   return d;
 }
-
-async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(
+  req: NextRequest,
+  ctx: {
+    params: Promise<{
+      id: string;
+    }>;
+  },
+) {
   return withErrorHandler(async () => {
-    const { user } = await requireDevAuth(req);
+    const { user } = await requirePayrollSession(req);
     const { id } = await ctx.params;
     await requirePayrollDeployment(id, user.id);
-
     const employees = await db.employee.findMany({
       where: { deploymentId: id },
       include: { bankDetail: true },
     });
-
     const data = employees.map((e) => ({
       id: e.id,
       address: e.address,
@@ -62,23 +61,26 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
           }
         : null,
     }));
-
     return NextResponse.json({ data });
   });
 }
-
-async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(
+  req: NextRequest,
+  ctx: {
+    params: Promise<{
+      id: string;
+    }>;
+  },
+) {
   return withErrorHandler(async () => {
-    const { user } = await requireDevAuth(req);
+    const { user } = await requirePayrollSession(req);
     const { id } = await ctx.params;
     const rlKey = `employee-bank:${user.id}`;
     const rl = await rateLimit(rlKey, 60, 60);
     if (!rl.ok) throw rateLimitedError(rl, "Too many bank detail updates");
     const deployment = await requirePayrollDeployment(id, user.id);
-    requireDevConfiguration(deployment.graphSnapshot, deployment.pipelineSnapshot);
 
     const body = PostSchema.parse(await req.json());
-
     let employee;
     if (body.employeeId) {
       employee = await db.employee.findUnique({
@@ -98,7 +100,12 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
         update: {},
       });
     }
-
+    if (employee.cashOutContractAddress) {
+      throw new AppError(
+        "VALIDATION",
+        "This recipient has immutable bank details. Deploy a new flow to change its bank destination.",
+      );
+    }
     const bankDetail = await db.employeeBankDetail.upsert({
       where: { employeeId: employee.id },
       create: {
@@ -113,27 +120,9 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
         bankCode: body.bankCode,
       },
     });
-
-    // If this employee is configured for fiat payout, mirror the bank details
-    // onto the on-chain CASH_OUT_DEV contract so it can sink funds to treasury.
-    let cashOutTxHash: string | null = null;
-    if (employee.payoutMode === "FIAT" && employee.cashOutContractAddress) {
-      const update = await updateBankByRelayer(employee.cashOutContractAddress, {
-        accountName: body.accountName,
-        accountNumber: body.accountNumber,
-        bankCode: body.bankCode,
-      });
-      if (update.status !== "SUCCESS") {
-        throw new AppError(
-          "UPSTREAM_RPC",
-          update.errorMessage ?? "Failed to update cash-out bank details",
-        );
-      }
-      cashOutTxHash = update.txHash;
-    }
-
+    const cashOutTxHash = null;
     await audit({
-      action: "DEV_UPDATE_BANK",
+      action: "PAYROLL_UPDATE_BANK",
       userId: user.id,
       metadata: {
         deploymentId: id,
@@ -142,27 +131,30 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
         cashOutTxHash,
       },
     });
-
     return NextResponse.json({
       data: { success: true, employeeId: employee.id, bankDetail, cashOutTxHash },
     });
   });
 }
-
-async function DELETEHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function DELETEHandler(
+  req: NextRequest,
+  ctx: {
+    params: Promise<{
+      id: string;
+    }>;
+  },
+) {
   return withErrorHandler(async () => {
-    const { user } = await requireDevAuth(req);
+    const { user } = await requirePayrollSession(req);
     const { id } = await ctx.params;
     const rlKey = `employee-bank:${user.id}`;
     const rl = await rateLimit(rlKey, 60, 60);
     if (!rl.ok) throw rateLimitedError(rl, "Too many bank detail updates");
     const deployment = await requirePayrollDeployment(id, user.id);
-    requireDevConfiguration(deployment.graphSnapshot, deployment.pipelineSnapshot);
 
     const { searchParams } = new URL(req.url);
     const address = searchParams.get("address");
     const employeeId = searchParams.get("employeeId");
-
     if (employeeId) {
       if (!z.string().guid({ error: "Invalid uuid" }).safeParse(employeeId).success) {
         throw new AppError("VALIDATION", "Invalid employeeId");
@@ -170,7 +162,6 @@ async function DELETEHandler(req: NextRequest, ctx: { params: Promise<{ id: stri
     } else if (!address || !StrKey.isValidEd25519PublicKey(address)) {
       throw new AppError("VALIDATION", "Invalid or missing Stellar address");
     }
-
     let employee;
     if (employeeId) {
       if (!z.string().guid({ error: "Invalid uuid" }).safeParse(employeeId).success) {
@@ -192,27 +183,26 @@ async function DELETEHandler(req: NextRequest, ctx: { params: Promise<{ id: stri
         throw new AppError("NOT_FOUND", "Bank details not found");
       }
     }
-
     if (!employee.bankDetail) {
       throw new AppError("NOT_FOUND", "Bank details not found");
     }
-
+    if (employee.cashOutContractAddress) {
+      throw new AppError(
+        "VALIDATION",
+        "This recipient has immutable bank details. Deploy a new flow to change its bank destination.",
+      );
+    }
     await db.employeeBankDetail.delete({
       where: { employeeId: employee.id },
     });
-
     await audit({
-      action: "DEV_UPDATE_BANK",
+      action: "PAYROLL_UPDATE_BANK",
       userId: user.id,
       metadata: { deploymentId: id, employeeId: employee.id, address: employee.address },
     });
-
     return NextResponse.json({ data: { success: true } });
   });
 }
-
-export const GET = deploymentServiceRoute(GETHandler, "dev");
-
-export const POST = deploymentServiceRoute(POSTHandler, "dev");
-
-export const DELETE = deploymentServiceRoute(DELETEHandler, "dev");
+export const GET = deploymentServiceRoute(GETHandler, "payroll");
+export const POST = deploymentServiceRoute(POSTHandler, "payroll");
+export const DELETE = deploymentServiceRoute(DELETEHandler, "payroll");

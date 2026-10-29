@@ -214,7 +214,7 @@ export async function createOffRampJobsForPayrollRun(prisma: PrismaLike, payroll
 /**
  * Create an off-ramp job from an on-chain cash_out event. The contract only
  * emits the amount and source address; the bank details are read from the
- * deployment's stored cash_out node config (filled via API after deploy).
+ * deployment's immutable cash_out node configuration.
  */
 export async function createCashOutJob(
   prisma: PrismaClient,

@@ -39,7 +39,7 @@ All event-day times below are in Philippine Time (PHT).
 | ---------------- | --------------------- | ------------------------------------------------------------------------------------------------------------ |
 | 8:00–8:30 AM     | Registration          | Check in and get your team ready                                                                             |
 | 8:30–9:00 AM     | Opening and briefing  | Review the challenge, rules, schedule and submission requirements                                            |
-| 9:00 AM–12:00 PM | Build and integration | Finish integration and verify an event-day payout                           |
+| 9:00 AM–12:00 PM | Build and integration | Finish integration and verify an event-day payout                                                            |
 | 12:00–1:00 PM    | Lunch break           | Optional coding; check your deployment and payout evidence                                                   |
 | 1:00–3:00 PM     | Build and integration | Complete integration and prepare your demo                                                                   |
 | 2:30–3:00 PM     | Submission            | During the final 30 minutes of development, submit by 3:00 PM with your deployment ID and payout transaction |
@@ -59,7 +59,7 @@ All event-day times below are in Philippine Time (PHT).
 
 ## The challenge
 
-**Dev mode will stay disabled for the duration of the hackathon.** Teams must configure recipients and required values before deployment. Per-payment recipients, **Fill value via API** and **Dev values** are unavailable; use standard flows with configured recipients.
+Teams must configure recipients and required values before deployment. Mutable dev-mode flows and per-payment recipient APIs have been removed (#1138); use standard flows with configured recipients.
 
 The theme is open. Start with a problem you or people around you have, then choose the Paiflow blocks that fit. These examples show how blocks combine and can inspire your own idea.
 

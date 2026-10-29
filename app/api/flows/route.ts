@@ -10,12 +10,10 @@ import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
 import { refuseIfFeatureOff } from "@/lib/features";
-
 const ListQuerySchema = z.object({
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
-
 export async function GET(req: NextRequest) {
   return withErrorHandler(async () => {
     const user = await requireSession();
@@ -39,15 +37,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: { items, nextCursor } });
   });
 }
-
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     const rl = await rateLimit(`flow:write:${user.id}`, 30, 60);
     if (!rl.ok) throw rateLimitedError(rl, "Too many writes");
-
     const body = FlowSaveSchema.parse(await req.json());
-    if (body.graph.devMode) refuseIfFeatureOff("devMode", "devMode");
     if (user.role === "SANDBOX") body.graph = sandboxNotifications(body.graph);
     else if (!body.graph.notify) {
       const account = await db.user.findUnique({ where: { id: user.id }, select: { email: true } });
@@ -58,7 +53,6 @@ export async function POST(req: NextRequest) {
       throw new AppError("VALIDATION", "Invalid flow graph", issuesToFields(v.errors));
     }
     const pipeline = flowToPipeline(v.graph, undefined, undefined, { forValidation: true });
-
     const flow = await db.flow.create({
       data: {
         ownerId: user.id,

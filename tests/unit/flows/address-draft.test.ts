@@ -10,14 +10,12 @@ import { FlowGraphSchema, FlowPatchSchema, getPendingLabels } from "@/lib/flows/
 import { validateFlow } from "@/lib/flows/validate";
 import { addressFields, addressIssues, isAcceptedFlowAddress } from "@/lib/flows/address-rules";
 import { SECRET_SEED_MESSAGE } from "@/lib/flows/secret-seed";
-
 const ADDR_A = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const ADDR_B = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
 const CONTRACT = "CAEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQTD2L";
 // ADDR_A with its last character changed: right length and prefix, bad checksum.
 const BAD_CHECKSUM = ADDR_A.slice(0, -1) + (ADDR_A.endsWith("A") ? "B" : "A");
 const USDC = { kind: "known", symbol: "USDC" } as const;
-
 // Every draft the panel can autosave while an address is being typed or fixed.
 const DRAFTS = [
   "",
@@ -31,7 +29,6 @@ const DRAFTS = [
   // A valid muxed (M…) form of ADDR_A: never accepted, before or after #588.
   "MBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLEAAAAAAAAAAAFJN3W",
 ];
-
 function payFlow(recipient: string) {
   return {
     nodes: [
@@ -45,7 +42,6 @@ function payFlow(recipient: string) {
     edges: [{ id: "e1", source: "t", target: "p" }],
   };
 }
-
 function splitFlow(addresses: string[], payoutMode?: "fiat") {
   return {
     nodes: [
@@ -58,7 +54,7 @@ function splitFlow(addresses: string[], payoutMode?: "fiat") {
           recipients: addresses.map((address, i) => ({
             address,
             mode: "percentage",
-            bps: i === 0 ? 10_000 - (addresses.length - 1) * 1000 : 1000,
+            bps: i === 0 ? 10000 - (addresses.length - 1) * 1000 : 1000,
             ...(payoutMode ? { payoutMode } : {}),
           })),
         },
@@ -67,15 +63,17 @@ function splitFlow(addresses: string[], payoutMode?: "fiat") {
     edges: [{ id: "e1", source: "t", target: "s" }],
   };
 }
-
 const payTo = (id: string) => ({
   id,
   type: "pay",
   config: { recipient: ADDR_B, asset: USDC, mode: "fixed", amountStroops: "10000000" },
 });
-
 // One graph per remaining address field, with `value` in that field.
-const OTHER_FIELDS: { name: string; path: string; graph: (value: string) => unknown }[] = [
+const OTHER_FIELDS: {
+  name: string;
+  path: string;
+  graph: (value: string) => unknown;
+}[] = [
   {
     name: "webhook relayer",
     path: "nodes.t.config.relayer",
@@ -157,7 +155,6 @@ const OTHER_FIELDS: { name: string; path: string; graph: (value: string) => unkn
     }),
   },
 ];
-
 const ALL_FIELDS = [
   { name: "pay recipient", path: "nodes.p.config.recipient", graph: payFlow },
   {
@@ -167,12 +164,10 @@ const ALL_FIELDS = [
   },
   ...OTHER_FIELDS,
 ];
-
 function errorsOf(graph: unknown) {
   const r = validateFlow(graph);
   return r.ok ? [] : r.errors;
 }
-
 describe("a draft address saves (#588)", () => {
   it.each(ALL_FIELDS)(
     "$name: every draft parses under FlowGraphSchema and FlowPatchSchema",
@@ -184,7 +179,6 @@ describe("a draft address saves (#588)", () => {
       }
     },
   );
-
   it("stores the draft exactly as typed: parse neither trims, upper-cases nor rewrites it", () => {
     for (const draft of DRAFTS) {
       const parsed = FlowGraphSchema.parse(payFlow(draft));
@@ -192,7 +186,6 @@ describe("a draft address saves (#588)", () => {
       expect(pay?.type === "pay" && pay.config.recipient).toBe(draft);
     }
   });
-
   it("a custom asset's issuer is typed in no panel and stays strict at parse time", () => {
     const g = {
       nodes: [
@@ -206,7 +199,6 @@ describe("a draft address saves (#588)", () => {
     };
     expect(FlowGraphSchema.safeParse(g).success).toBe(false);
   });
-
   it("a contract (C…) as a crypto split recipient saves, and validateFlow refuses it on its address", () => {
     const crypto = splitFlow([ADDR_A, CONTRACT]);
     expect(FlowPatchSchema.safeParse({ graph: crypto }).success).toBe(true);
@@ -222,7 +214,6 @@ describe("a draft address saves (#588)", () => {
       ),
     ).toBe(false);
   });
-
   it.each(ALL_FIELDS)(
     "$name: a secret seed, whole or partial, is refused at parse and never stored",
     ({ graph }) => {
@@ -241,7 +232,6 @@ describe("a draft address saves (#588)", () => {
     },
   );
 });
-
 describe("validateFlow refuses a draft address (#588)", () => {
   it.each(ALL_FIELDS)("$name: one issue on the field's path for every draft", ({ graph, path }) => {
     for (const draft of DRAFTS) {
@@ -253,7 +243,6 @@ describe("validateFlow refuses a draft address (#588)", () => {
       );
     }
   });
-
   it("asks for an address when the field is empty", () => {
     const [issue] = errorsOf(payFlow("")).filter((e) => e.path === "nodes.p.config.recipient");
     expect(issue!.friendlyMessage).toBe(
@@ -262,7 +251,6 @@ describe("validateFlow refuses a draft address (#588)", () => {
     expect(issue!.nodeId).toBe("p");
     expect(issue!.field).toBe("recipient");
   });
-
   it("gives a concise correction without repeating the typed address", () => {
     const [issue] = errorsOf(payFlow("GABC")).filter((e) => e.path === "nodes.p.config.recipient");
     expect(issue!.friendlyMessage).toBe(
@@ -270,7 +258,6 @@ describe("validateFlow refuses a draft address (#588)", () => {
     );
     expect(issue!.friendlyMessage).not.toContain("GABC");
   });
-
   it("says a lower-case address is lower case, without committing the upper-case one", () => {
     const lower = ADDR_A.toLowerCase();
     const [issue] = errorsOf(payFlow(lower)).filter((e) => e.path === "nodes.p.config.recipient");
@@ -278,25 +265,27 @@ describe("validateFlow refuses a draft address (#588)", () => {
     expect(issue!.friendlyMessage).not.toContain(lower);
     expect(issue!.friendlyMessage).not.toContain(ADDR_A);
   });
-
   it("says a padded address has spaces around it", () => {
     const [issue] = errorsOf(payFlow(` ${ADDR_A}`)).filter(
       (e) => e.path === "nodes.p.config.recipient",
     );
     expect(issue!.friendlyMessage).toContain("Remove the spaces around the address");
   });
-
   it("says a contract address can't go in a wallet-only field", () => {
     const [issue] = errorsOf(payFlow(CONTRACT)).filter(
       (e) => e.path === "nodes.p.config.recipient",
     );
     expect(issue!.friendlyMessage).toContain("needs a wallet address (G…)");
   });
-
   it("names a split recipient by label, or by position", () => {
     const labelled = splitFlow([ADDR_A, "BAD"]);
-    (labelled.nodes[1]!.config as { recipients: { label?: string }[] }).recipients[1]!.label =
-      "Bob";
+    (
+      labelled.nodes[1]!.config as {
+        recipients: {
+          label?: string;
+        }[];
+      }
+    ).recipients[1]!.label = "Bob";
     const [byLabel] = errorsOf(labelled).filter(
       (e) => e.path === "nodes.s.config.recipients.1.address",
     );
@@ -306,48 +295,36 @@ describe("validateFlow refuses a draft address (#588)", () => {
     );
     expect(byPos!.friendlyMessage).toContain("split recipient #2");
   });
-
   it("two blank split recipients are missing addresses, not also duplicates", () => {
     const errors = errorsOf(splitFlow([ADDR_A, "", ""]));
     expect(errors.filter((e) => e.message.startsWith("Duplicate address"))).toEqual([]);
     expect(errors.filter((e) => e.message === "Missing Stellar address")).toHaveLength(2);
   });
-
   it("a real duplicate is still reported", () => {
     const errors = errorsOf(splitFlow([ADDR_A, ADDR_B, ADDR_B]));
     expect(errors.some((e) => e.message.startsWith("Duplicate address"))).toBe(true);
   });
-
-  it("refuses a draft in dev mode too, where a PENDING: placeholder would deploy", () => {
-    const errors = errorsOf({ ...payFlow("GABC"), devMode: true });
-    expect(errors.some((e) => e.path === "nodes.p.config.recipient")).toBe(true);
-  });
-
   it("refuses a fiat pay's recipient if it is not the sentinel or an address", () => {
     const g = payFlow("GABC");
     Object.assign(g.nodes[1]!.config, { payoutMode: "fiat" });
     expect(errorsOf(g).some((e) => e.path === "nodes.p.config.recipient")).toBe(true);
   });
 });
-
 describe("complete addresses and PENDING: placeholders behave as before (#588)", () => {
   it("a pay flow to a G… account validates, with nothing pending", () => {
     const r = validateFlow(payFlow(ADDR_A));
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.pendingLabels).toEqual([]);
   });
-
   it("a split to two G… accounts validates", () => {
     expect(validateFlow(splitFlow([ADDR_A, ADDR_B])).ok).toBe(true);
   });
-
   it("a PENDING: pay recipient validates and is reported pending, as before", () => {
     const r = validateFlow(payFlow("PENDING:alice"));
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.pendingLabels).toEqual(["alice"]);
     expect(getPendingLabels(FlowGraphSchema.parse(payFlow("PENDING:alice")))).toEqual(["alice"]);
   });
-
   it.each(ALL_FIELDS)(
     "$name: a G… account and a PENDING: label raise no address issue",
     ({ graph }) => {
@@ -356,7 +333,6 @@ describe("complete addresses and PENDING: placeholders behave as before (#588)",
       }
     },
   );
-
   it("only a split recipient accepts a C… contract", () => {
     for (const f of ALL_FIELDS) {
       // Every field raises one issue, including a crypto split recipient.
@@ -370,7 +346,6 @@ describe("complete addresses and PENDING: placeholders behave as before (#588)",
       ),
     ).toEqual([]);
   });
-
   it("isAcceptedFlowAddress keeps the old acceptance: G…, C… for splits only, PENDING:, nothing muxed", () => {
     expect(isAcceptedFlowAddress(ADDR_A, "account")).toBe(true);
     expect(isAcceptedFlowAddress(CONTRACT, "account")).toBe(false);
@@ -379,7 +354,6 @@ describe("complete addresses and PENDING: placeholders behave as before (#588)",
     expect(isAcceptedFlowAddress(DRAFTS.at(-1)!, "account_or_contract")).toBe(false);
     for (const d of DRAFTS) expect(isAcceptedFlowAddress(d, "account_or_contract")).toBe(false);
   });
-
   it("covers every address field a node carries", () => {
     const fields = ALL_FIELDS.flatMap((f) =>
       FlowGraphSchema.parse(f.graph(ADDR_A)).nodes.flatMap((n) =>

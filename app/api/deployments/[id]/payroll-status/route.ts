@@ -4,28 +4,29 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { readPayrollIsCancelled, readSubscriptionIsCancelled } from "@/lib/stellar/relayer";
-
 type PipelineNode = {
   nodeId: string;
   contractAddress: string;
   templateKind: string;
 };
-
-const PAYROLL_KINDS = new Set(["PAYROLL", "SUBSCRIPTION_DEV", "SUBSCRIPTION"]);
-
+const PAYROLL_KINDS = new Set(["PAYROLL", "SUBSCRIPTION"]);
 function findPayrollNode(pipeline: PipelineNode[] | null): PipelineNode | null {
   return pipeline?.find((n) => PAYROLL_KINDS.has(n.templateKind)) ?? null;
 }
-
 function isSubscriptionLike(templateKind: string): boolean {
-  return templateKind === "SUBSCRIPTION" || templateKind === "SUBSCRIPTION_DEV";
+  return templateKind === "SUBSCRIPTION";
 }
-
-async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(
+  req: NextRequest,
+  ctx: {
+    params: Promise<{
+      id: string;
+    }>;
+  },
+) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     const { id } = await ctx.params;
-
     const d = await db.deployment.findFirst({
       where: { id, ownerId: user.id },
       include: { flow: { select: { templateKind: true } } },
@@ -34,18 +35,15 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
     if (d.flow.templateKind !== "PAYROLL") {
       throw new AppError("VALIDATION", "Deployment is not a payroll");
     }
-
     const pipeline = d.pipelineSnapshot as PipelineNode[] | null;
     const payrollNode = findPayrollNode(pipeline);
     if (!payrollNode?.contractAddress) {
       throw new AppError("VALIDATION", "Payroll contract address not available");
     }
-
     const isSubscription = isSubscriptionLike(payrollNode.templateKind);
     const isCancelled = isSubscription
       ? await readSubscriptionIsCancelled(payrollNode.contractAddress)
       : await readPayrollIsCancelled(payrollNode.contractAddress);
-
     return NextResponse.json({
       data: {
         isCancelled,
@@ -54,5 +52,4 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
     });
   });
 }
-
 export const GET = deploymentServiceRoute(GETHandler, "owner");

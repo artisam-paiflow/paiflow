@@ -154,7 +154,7 @@ the same as a perfect run. We match your answers to your test account by the nam
 first section, and we'll reply about the incentive on the message this guide came in.
 
 Please leave everything else in the app alone: other block types (apart from the Swap block in
-B5), **Dev mode**, and the Profile page
+B5) and the Profile page
 aren't part of this round.
 
 **Thank you.** Twenty-five minutes of somebody's real attention is the most useful thing we get.

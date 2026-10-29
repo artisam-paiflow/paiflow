@@ -1,6 +1,6 @@
 # API v1 developer token permissions
 
-Developer credentials (`pfd_`) authorize only explicitly selected existing deployments that are still confirmed, active and owned by the active non-sandbox token owner. New deployments require explicit grants. Legacy deployment credentials (`pfk_`) keep their existing single-deployment behavior. Neither family authorizes legacy `pkdev_` routes or flow/deployment creation.
+Developer credentials (`pfd_`) authorize only explicitly selected existing deployments that are still confirmed, active and owned by the active non-sandbox token owner. New deployments require explicit grants. Legacy deployment credentials (`pfk_`) keep their existing single-deployment behavior. Neither family authorizes owner-session payroll management or flow/deployment creation. Legacy `pkdev_` authentication was removed in #1138.
 
 `READ_ONLY` allows the reads below. `READ_OPERATE` allows every listed operation. An unlisted operation fails closed until explicitly classified. Wallet signatures, webhook secrets, deployment capability restrictions and retirement admission still apply. Reconciliation is an operate permission even though its response contains status; ordinary transaction-status reads are available to read-only credentials.
 
@@ -21,8 +21,6 @@ For deployment operations, append the listed path to `/api/v1/deployments/{id}/`
 | `POST funding`                           | `READ_OPERATE`     |
 | `POST funding/reconcile`                 | `READ_OPERATE`     |
 | `POST funding/submit`                    | `READ_OPERATE`     |
-| `POST payouts`                           | `READ_OPERATE`     |
-| `POST payouts/submit`                    | `READ_OPERATE`     |
 | `POST release-early`                     | `READ_OPERATE`     |
 | `POST schedule/pause`                    | `READ_OPERATE`     |
 | `POST schedule/pause/reconcile`          | `READ_OPERATE`     |

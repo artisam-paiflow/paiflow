@@ -16,7 +16,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ChargeRelayerMode, PayrollRunStatus } from "@prisma/client";
 import { observeExternalRelayer } from "@/lib/deployments/service-work";
 import { log } from "@/lib/log";
-
 const { mockDb, mockEnv, mockRelayer, mockInvoke, mockClient, mockJobs, mockUrlGuard } = vi.hoisted(
   () => {
     const mockDb = {
@@ -37,7 +36,6 @@ const { mockDb, mockEnv, mockRelayer, mockInvoke, mockClient, mockJobs, mockUrlG
       },
       $transaction: vi.fn((cb: any) => cb(mockDb)),
     };
-
     const mockEnv = {
       CRON_SECRET: "cron-secret",
       STELLAR_NETWORK: "testnet",
@@ -46,7 +44,6 @@ const { mockDb, mockEnv, mockRelayer, mockInvoke, mockClient, mockJobs, mockUrlG
       CONTRACT_READ_CACHE_ENABLED: true,
       CONTRACT_READ_CACHE_TTL_SECONDS: 300,
     };
-
     const mockRelayer = {
       preparePayrollChargeByRelayerTx: vi.fn(),
       submitPayrollChargeByRelayerTx: vi.fn(),
@@ -67,26 +64,20 @@ const { mockDb, mockEnv, mockRelayer, mockInvoke, mockClient, mockJobs, mockUrlG
       readSubscriptionRelayer: vi.fn(),
       readSplitterDevRecipients: vi.fn(),
     };
-
     const mockInvoke = {
       preparePayrollChargeByRelayerUnsigned: vi.fn(),
     };
-
     const mockClient = {
       withRelayerLock: vi.fn((fn: any) => fn()),
       TENANT_RELAYER_TIMEOUT_MS: 25,
     };
-
     const mockJobs = {
       createOffRampJobsForPayrollRun: vi.fn(),
     };
-
     const mockUrlGuard = { assertPublicUrl: vi.fn() };
-
     return { mockDb, mockEnv, mockRelayer, mockInvoke, mockClient, mockJobs, mockUrlGuard };
   },
 );
-
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/env", () => ({
   env: () => mockEnv,
@@ -110,10 +101,8 @@ vi.mock("@/lib/net/assert-public-url", async () => {
   );
   return { ...actual, assertPublicUrl: mockUrlGuard.assertPublicUrl };
 });
-
 import { UnsafeUrlError } from "@/lib/net/assert-public-url";
 import { POST } from "@/app/api/cron/auto-charge-payroll/route";
-
 function makeRequest(secret?: string) {
   return {
     headers: {
@@ -121,13 +110,11 @@ function makeRequest(secret?: string) {
     },
   } as unknown as import("next/server").NextRequest;
 }
-
 const now = new Date();
 const nextChargeAt = Math.floor(now.getTime() / 1000) - 60;
 /** A tenant relayer's `txHash` is persisted and rendered into a link, so the
  * route now holds the response to the shape of a real hash. */
 const TX_HASH_OK = "a".repeat(64);
-
 function makeDeployment(overrides: Record<string, unknown> = {}) {
   return {
     id: "dep-1",
@@ -146,32 +133,25 @@ function makeDeployment(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
-
 describe("auto-charge-payroll", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockEnv.STELLAR_RELAYER_ADDRESS = "GDRELAYER";
     mockUrlGuard.assertPublicUrl.mockImplementation(async (raw: string) => new URL(raw));
   });
-
   afterEach(() => {
     vi.unstubAllGlobals();
   });
-
   it("rejects requests without the cron secret", async () => {
     const res = await POST(makeRequest("wrong-secret"));
     expect(res.status).toBe(403);
   });
-
   it("skips when relayer address is not configured", async () => {
     mockEnv.STELLAR_RELAYER_ADDRESS = undefined;
-
     const res = await POST(makeRequest("cron-secret"));
     const json = await res.json();
-
     expect(json.data.notice).toContain("STELLAR_RELAYER_ADDRESS is not configured");
   });
-
   it("charges a platform payroll and creates run + payouts", async () => {
     mockDb.deployment.findMany.mockResolvedValue([makeDeployment()]);
     mockRelayer.readPayrollIsCancelled.mockResolvedValue(false);
@@ -184,7 +164,7 @@ describe("auto-charge-payroll", () => {
     ]);
     mockRelayer.readPayrollEmployer.mockResolvedValue("GEMPLOYER");
     mockRelayer.readPayrollAsset.mockResolvedValue("CASSET");
-    mockRelayer.readTokenAllowance.mockResolvedValue(10_000_000n);
+    mockRelayer.readTokenAllowance.mockResolvedValue(10000000n);
     mockRelayer.readPayrollRelayer.mockResolvedValue("GDRELAYER");
     mockRelayer.preparePayrollChargeByRelayerTx.mockResolvedValue({ xdr: "xdr-1" });
     mockRelayer.submitPayrollChargeByRelayerTx.mockResolvedValue({
@@ -194,10 +174,8 @@ describe("auto-charge-payroll", () => {
     mockDb.payrollRun.create.mockResolvedValue({ id: "run-1" });
     mockDb.employee.findMany.mockResolvedValue([]);
     mockDb.employee.upsert.mockResolvedValue({ id: "emp-1" });
-
     const res = await POST(makeRequest("cron-secret"));
     const json = await res.json();
-
     expect(json.data.platformCharged).toBe(1);
     expect(mockDb.payrollRun.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -213,7 +191,6 @@ describe("auto-charge-payroll", () => {
       }),
     );
   });
-
   it("marks the run as FAILED when the charge fails", async () => {
     mockDb.deployment.findMany.mockResolvedValue([makeDeployment()]);
     mockRelayer.readPayrollIsCancelled.mockResolvedValue(false);
@@ -223,7 +200,7 @@ describe("auto-charge-payroll", () => {
     mockRelayer.readPayrollRecipients.mockResolvedValue([{ address: "GEMP1", amount: "5000000" }]);
     mockRelayer.readPayrollEmployer.mockResolvedValue("GEMPLOYER");
     mockRelayer.readPayrollAsset.mockResolvedValue("CASSET");
-    mockRelayer.readTokenAllowance.mockResolvedValue(10_000_000n);
+    mockRelayer.readTokenAllowance.mockResolvedValue(10000000n);
     mockRelayer.readPayrollRelayer.mockResolvedValue("GDRELAYER");
     mockRelayer.preparePayrollChargeByRelayerTx.mockResolvedValue({ xdr: "xdr-1" });
     mockRelayer.submitPayrollChargeByRelayerTx.mockResolvedValue({
@@ -232,10 +209,8 @@ describe("auto-charge-payroll", () => {
     });
     mockDb.payrollRun.create.mockResolvedValue({ id: "run-1" });
     mockDb.employee.findMany.mockResolvedValue([]);
-
     const res = await POST(makeRequest("cron-secret"));
     const json = await res.json();
-
     expect(json.data.failed).toBe(1);
     expect(mockDb.payrollRun.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -244,7 +219,6 @@ describe("auto-charge-payroll", () => {
       }),
     );
   });
-
   it("creates off-ramp jobs for non-dev payroll when a fiat employee has bank details", async () => {
     mockDb.deployment.findMany.mockResolvedValue([makeDeployment({ offRampEnabled: false })]);
     mockRelayer.readPayrollIsCancelled.mockResolvedValue(false);
@@ -254,7 +228,7 @@ describe("auto-charge-payroll", () => {
     mockRelayer.readPayrollRecipients.mockResolvedValue([{ address: "GEMP1", amount: "5000000" }]);
     mockRelayer.readPayrollEmployer.mockResolvedValue("GEMPLOYER");
     mockRelayer.readPayrollAsset.mockResolvedValue("CASSET");
-    mockRelayer.readTokenAllowance.mockResolvedValue(10_000_000n);
+    mockRelayer.readTokenAllowance.mockResolvedValue(10000000n);
     mockRelayer.readPayrollRelayer.mockResolvedValue("GDRELAYER");
     mockRelayer.preparePayrollChargeByRelayerTx.mockResolvedValue({ xdr: "xdr-1" });
     mockRelayer.submitPayrollChargeByRelayerTx.mockResolvedValue({
@@ -274,13 +248,10 @@ describe("auto-charge-payroll", () => {
     mockDb.employee.upsert.mockResolvedValue({ id: "emp-1" });
     mockDb.payrollPayout.create.mockResolvedValue({ id: "payout-1" });
     mockJobs.createOffRampJobsForPayrollRun.mockResolvedValue(["job-1"]);
-
     const res = await POST(makeRequest("cron-secret"));
     await res.json();
-
     expect(mockJobs.createOffRampJobsForPayrollRun).toHaveBeenCalledWith(mockDb, "run-1");
   });
-
   it("does not create off-ramp jobs when no fiat employee has bank details", async () => {
     mockDb.deployment.findMany.mockResolvedValue([makeDeployment({ offRampEnabled: false })]);
     mockRelayer.readPayrollIsCancelled.mockResolvedValue(false);
@@ -290,7 +261,7 @@ describe("auto-charge-payroll", () => {
     mockRelayer.readPayrollRecipients.mockResolvedValue([{ address: "GEMP1", amount: "5000000" }]);
     mockRelayer.readPayrollEmployer.mockResolvedValue("GEMPLOYER");
     mockRelayer.readPayrollAsset.mockResolvedValue("CASSET");
-    mockRelayer.readTokenAllowance.mockResolvedValue(10_000_000n);
+    mockRelayer.readTokenAllowance.mockResolvedValue(10000000n);
     mockRelayer.readPayrollRelayer.mockResolvedValue("GDRELAYER");
     mockRelayer.preparePayrollChargeByRelayerTx.mockResolvedValue({ xdr: "xdr-1" });
     mockRelayer.submitPayrollChargeByRelayerTx.mockResolvedValue({
@@ -310,13 +281,10 @@ describe("auto-charge-payroll", () => {
     mockDb.employee.upsert.mockResolvedValue({ id: "emp-1" });
     mockDb.payrollPayout.create.mockResolvedValue({ id: "payout-1" });
     mockJobs.createOffRampJobsForPayrollRun.mockResolvedValue(["job-1"]);
-
     const res = await POST(makeRequest("cron-secret"));
     await res.json();
-
     expect(mockJobs.createOffRampJobsForPayrollRun).not.toHaveBeenCalled();
   });
-
   it("fails a USER deployment whose relayer never answers and carries on to the next", async () => {
     const user = {
       chargeRelayerMode: ChargeRelayerMode.USER,
@@ -334,7 +302,7 @@ describe("auto-charge-payroll", () => {
     mockRelayer.readPayrollRecipients.mockResolvedValue([{ address: "GEMP1", amount: "5000000" }]);
     mockRelayer.readPayrollEmployer.mockResolvedValue("GEMPLOYER");
     mockRelayer.readPayrollAsset.mockResolvedValue("CASSET");
-    mockRelayer.readTokenAllowance.mockResolvedValue(10_000_000n);
+    mockRelayer.readTokenAllowance.mockResolvedValue(10000000n);
     mockRelayer.readPayrollRelayer.mockResolvedValue("GTENANT");
     mockInvoke.preparePayrollChargeByRelayerUnsigned.mockResolvedValue({ xdr: "unsigned-xdr" });
     mockDb.payrollRun.create
@@ -342,7 +310,6 @@ describe("auto-charge-payroll", () => {
       .mockResolvedValueOnce({ id: "run-ok" });
     mockDb.employee.findMany.mockResolvedValue([]);
     mockDb.employee.upsert.mockResolvedValue({ id: "emp-1" });
-
     // The route fetches the validated `URL`, not the raw string.
     const fetchMock = vi.fn((url: URL, init: RequestInit) => {
       if (String(url).includes("hung")) {
@@ -356,10 +323,8 @@ describe("auto-charge-payroll", () => {
       );
     });
     vi.stubGlobal("fetch", fetchMock);
-
     const res = await POST(makeRequest("cron-secret"));
     const json = await res.json();
-
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[0]?.[1].signal).toBeInstanceOf(AbortSignal);
     expect(json.data.failed).toBe(1);
@@ -381,16 +346,12 @@ describe("auto-charge-payroll", () => {
       }),
     );
   });
-
   it("skips when no chargeable contract is in the pipeline", async () => {
     mockDb.deployment.findMany.mockResolvedValue([makeDeployment({ pipelineSnapshot: [] })]);
-
     const res = await POST(makeRequest("cron-secret"));
     const json = await res.json();
-
     expect(json.data.skipped).toBe(1);
   });
-
   /**
    * #581. The tenant chooses the relayer URL and everything its endpoint
    * answers, and `PayrollRun.lastError` is read back by the owner, so the cron
@@ -414,13 +375,13 @@ describe("auto-charge-payroll", () => {
       // loop after a single iteration.
       mockRelayer.readPayrollNextChargeAt
         .mockResolvedValueOnce(BigInt(nextChargeAt))
-        .mockResolvedValue(BigInt(nextChargeAt + 86_400));
+        .mockResolvedValue(BigInt(nextChargeAt + 86400));
       mockRelayer.readPayrollRecipients.mockResolvedValue([
         { address: "GEMP1", amount: "5000000" },
       ]);
       mockRelayer.readPayrollEmployer.mockResolvedValue("GEMPLOYER");
       mockRelayer.readPayrollAsset.mockResolvedValue("CASSET");
-      mockRelayer.readTokenAllowance.mockResolvedValue(10_000_000n);
+      mockRelayer.readTokenAllowance.mockResolvedValue(10000000n);
       mockRelayer.readPayrollRelayer.mockResolvedValue("GTENANT");
       mockInvoke.preparePayrollChargeByRelayerUnsigned.mockResolvedValue({ xdr: "unsigned-xdr" });
       mockDb.payrollRun.create.mockResolvedValue({ id: "run-user" });
@@ -428,7 +389,6 @@ describe("auto-charge-payroll", () => {
       mockDb.employee.upsert.mockResolvedValue({ id: "emp-1" });
       mockDb.payrollPayout.create.mockResolvedValue({ id: "payout-1" });
     }
-
     function stubFetch(response: Response | (() => Response)) {
       const fetchMock = vi.fn((_url: URL, _init: RequestInit) =>
         Promise.resolve(typeof response === "function" ? response() : response),
@@ -436,15 +396,23 @@ describe("auto-charge-payroll", () => {
       vi.stubGlobal("fetch", fetchMock);
       return fetchMock;
     }
-
     function lastErrorOf(): string {
-      type UpdateArg = { data?: { lastError?: string } };
+      type UpdateArg = {
+        data?: {
+          lastError?: string;
+        };
+      };
       const call = mockDb.payrollRun.update.mock.calls.find(
         (c: unknown[]) => (c[0] as UpdateArg | undefined)?.data?.lastError !== undefined,
       );
-      return (call?.[0] as { data: { lastError: string } }).data.lastError;
+      return (
+        call?.[0] as {
+          data: {
+            lastError: string;
+          };
+        }
+      ).data.lastError;
     }
-
     it("checks the stored URL once per deployment, before connecting", async () => {
       primeUserDeployment();
       // A fresh Response per call: a body can only be read once.
@@ -452,9 +420,7 @@ describe("auto-charge-payroll", () => {
         () =>
           new Response(JSON.stringify({ status: "SUCCESS", txHash: TX_HASH_OK }), { status: 200 }),
       );
-
       await POST(makeRequest("cron-secret"));
-
       expect(mockUrlGuard.assertPublicUrl).toHaveBeenCalledWith(
         "https://relayer.example.com/charge",
         expect.objectContaining({ field: "chargeRelayerUrl" }),
@@ -464,7 +430,6 @@ describe("auto-charge-payroll", () => {
       // The validated URL is what gets fetched, not the raw column value.
       expect(fetchMock.mock.calls[0]?.[0]).toBeInstanceOf(URL);
     });
-
     // These are application-behavior tests: mocked fetch does not exercise
     // Undici's decoder, which may run before fetch returns on an unpatched runtime.
     it.each([undefined, "", "identity", "IDENTITY"])(
@@ -479,9 +444,7 @@ describe("auto-charge-payroll", () => {
             headers,
           }),
         );
-
         const json = await (await POST(makeRequest("cron-secret"))).json();
-
         const requestHeaders = new Headers(fetchMock.mock.calls[0]?.[1].headers);
         expect(requestHeaders.get("accept-encoding")).toBe("identity");
         expect(requestHeaders.get("content-type")).toBe("application/json");
@@ -490,7 +453,6 @@ describe("auto-charge-payroll", () => {
         expect(json.data.failed).toBe(0);
       },
     );
-
     it.each([
       ["br", false],
       ["gzip", false],
@@ -513,9 +475,7 @@ describe("auto-charge-payroll", () => {
         const cancel = vi.spyOn(response.body!, "cancel");
         if (cancelFails) cancel.mockRejectedValue(new Error("SECRET_CANCEL_ERROR"));
         const fetchMock = stubFetch(response);
-
         const json = await (await POST(makeRequest("cron-secret"))).json();
-
         expect(fetchMock).toHaveBeenCalledTimes(1);
         expect(cancel).toHaveBeenCalledTimes(1);
         expect(readJson).not.toHaveBeenCalled();
@@ -537,7 +497,6 @@ describe("auto-charge-payroll", () => {
         expect(reported).not.toContain("benign-placeholder");
       },
     );
-
     it("fails the run and stops scheduling when the URL is refused for good", async () => {
       primeUserDeployment({ chargeRelayerUrl: "https://redis.railway.internal/charge" });
       const fetchMock = stubFetch(new Response("", { status: 200 }));
@@ -549,9 +508,7 @@ describe("auto-charge-payroll", () => {
           "chargeRelayerUrl",
         ),
       );
-
       const json = await (await POST(makeRequest("cron-secret"))).json();
-
       expect(fetchMock).not.toHaveBeenCalled();
       expect(lastErrorOf()).toContain("private or internal name");
       expect(mockDb.deployment.update).toHaveBeenCalledWith(
@@ -562,7 +519,6 @@ describe("auto-charge-payroll", () => {
       expect(json.data.details[0]).toMatchObject({ status: "failed" });
       expect(json.data.skipped).toBe(0);
     });
-
     it("keeps the schedule when the refusal is only a DNS hiccup", async () => {
       primeUserDeployment();
       stubFetch(new Response("", { status: 200 }));
@@ -574,9 +530,7 @@ describe("auto-charge-payroll", () => {
           "chargeRelayerUrl",
         ),
       );
-
       const json = await (await POST(makeRequest("cron-secret"))).json();
-
       expect(json.data.details[0]).toMatchObject({ status: "failed" });
       expect(mockDb.deployment.update).not.toHaveBeenCalledWith(
         expect.objectContaining({
@@ -584,7 +538,6 @@ describe("auto-charge-payroll", () => {
         }),
       );
     });
-
     it("does not let a refusal mentioning 'insufficient' become an expected skip", async () => {
       primeUserDeployment({ chargeRelayerUrl: "https://insufficient.internal/charge" });
       stubFetch(new Response("", { status: 200 }));
@@ -596,13 +549,10 @@ describe("auto-charge-payroll", () => {
           "chargeRelayerUrl",
         ),
       );
-
       const json = await (await POST(makeRequest("cron-secret"))).json();
-
       expect(json.data.details[0]).toMatchObject({ status: "failed" });
       expect(json.data.skipped).toBe(0);
     });
-
     it("refuses a redirect instead of following it", async () => {
       primeUserDeployment();
       const fetchMock = stubFetch(
@@ -611,30 +561,24 @@ describe("auto-charge-payroll", () => {
           headers: { location: "http://169.254.169.254/latest/meta-data/" },
         }),
       );
-
       const json = await (await POST(makeRequest("cron-secret"))).json();
-
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ redirect: "manual" });
       expect(lastErrorOf()).toContain("redirect");
       expect(lastErrorOf()).not.toContain("169.254");
       expect(json.data.details[0]).toMatchObject({ status: "failed" });
     });
-
     it("never persists the upstream response body", async () => {
       primeUserDeployment();
       stubFetch(
         new Response("root:x:0:0:root:/root:/bin/bash\nSECRET_TOKEN=abc123", { status: 500 }),
       );
-
       const json = await (await POST(makeRequest("cron-secret"))).json();
-
       expect(lastErrorOf()).toBe("User relayer returned 500");
       const persisted = JSON.stringify(mockDb.payrollRun.update.mock.calls) + JSON.stringify(json);
       expect(persisted).not.toContain("SECRET_TOKEN");
       expect(persisted).not.toContain("root:x:0:0");
     });
-
     it("never persists an errorMessage from a 2xx payload", async () => {
       primeUserDeployment();
       stubFetch(
@@ -642,32 +586,24 @@ describe("auto-charge-payroll", () => {
           status: 200,
         }),
       );
-
       const json = await (await POST(makeRequest("cron-secret"))).json();
-
       expect(lastErrorOf()).toBe("User relayer did not return a success payload");
       expect(JSON.stringify(json)).not.toContain("SECRET_TOKEN");
     });
-
     it("rejects a payload whose txHash is not a transaction hash", async () => {
       primeUserDeployment();
       stubFetch(
         new Response(JSON.stringify({ status: "SUCCESS", txHash: "../../evil" }), { status: 200 }),
       );
-
       const json = await (await POST(makeRequest("cron-secret"))).json();
-
       expect(lastErrorOf()).toBe("User relayer returned an unrecognised payload");
       expect(mockDb.payrollPayout.create).not.toHaveBeenCalled();
       expect(JSON.stringify(json)).not.toContain("evil");
     });
-
     it("rejects a non-JSON 200 without quoting it", async () => {
       primeUserDeployment();
       stubFetch(new Response("<html>SECRET_TOKEN=abc123</html>", { status: 200 }));
-
       const json = await (await POST(makeRequest("cron-secret"))).json();
-
       expect(lastErrorOf()).toBe("User relayer returned an unrecognised payload");
       expect(JSON.stringify(json)).not.toContain("SECRET_TOKEN");
     });

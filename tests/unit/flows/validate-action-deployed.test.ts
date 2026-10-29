@@ -18,12 +18,10 @@
 import { describe, expect, it } from "vitest";
 import { validateFlow } from "@/lib/flows/validate";
 import { absorbedActionIds, flowToPipeline } from "@/lib/flows/to-params";
-
 const ACCOUNT = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
 const OTHER = "GC5Q654OUY2FMR6TVBCTQYNGZLGX4ZCGUJ5XDE2UMBSLYYHTNIN3L6O6";
 const XLM = { kind: "native" } as const;
 const USDC = { kind: "known", symbol: "USDC" } as const;
-
 const swap = {
   id: "s",
   type: "swap",
@@ -50,7 +48,7 @@ const onSchedule = {
   type: "on_schedule",
   config: {
     asset: XLM,
-    startsAt: new Date(Date.now() + 3_600_000).toISOString(),
+    startsAt: new Date(Date.now() + 3600000).toISOString(),
     intervalAmount: 1,
     intervalUnit: "day",
     amountPerIntervalStroops: "10000000",
@@ -64,10 +62,8 @@ const payroll = {
     employer: ACCOUNT,
     intervalAmount: 1,
     intervalUnit: "week",
-    fillScheduleViaApi: false,
   },
 };
-
 describe("every contract action reaches the deployed pipeline", () => {
   // Same graph both ways round: only the node array order differs, which is the
   // order the blocks were dropped on the canvas.
@@ -85,7 +81,6 @@ describe("every contract action reaches the deployed pipeline", () => {
       "PAYER",
     ]);
   });
-
   // A payroll pipeline has no swapper stage at all, so this is refused by the
   // template ladder before the guard is reached — and now refused the same way
   // whichever order the blocks were added, rather than only one of them.
@@ -98,7 +93,6 @@ describe("every contract action reaches the deployed pipeline", () => {
     if (v.ok) return;
     expect(v.errors.some((e) => /combination isn't supported/.test(e.friendlyMessage))).toBe(true);
   });
-
   it("refuses a schedule flow whose second chained pay the streamer would drop", () => {
     // The streamer carries one payout step, taken from contractActions[0]; the
     // second pay reaches no contract at all, so that recipient is never paid.
@@ -118,7 +112,6 @@ describe("every contract action reaches the deployed pipeline", () => {
     expect(v.errors.some((e) => /wouldn't reach the chain/.test(e.friendlyMessage))).toBe(true);
   });
 });
-
 describe("actions a conditional absorbs on purpose still validate", () => {
   // An oracle_gte condition sets `terminal` in flowToPipeline: the CONDITIONAL
   // node owns the recipients and pays them, so the pay/split node is never
@@ -132,7 +125,6 @@ describe("actions a conditional absorbs on purpose still validate", () => {
     { id: "e1", source: "t", target: "c" },
     { id: "e2", source: "c", target: "p" },
   ];
-
   it("accepts receive -> oracle_gte -> pay", () => {
     const v = validateFlow({
       nodes: [onReceive, oracle, { ...pay, config: { ...pay.config, asset: XLM } }],
@@ -140,7 +132,6 @@ describe("actions a conditional absorbs on purpose still validate", () => {
     } as never);
     expect(v.ok, v.ok ? "" : JSON.stringify(v.errors)).toBe(true);
   });
-
   it("accepts receive -> oracle_gte -> split", () => {
     const split = {
       id: "p",
@@ -156,7 +147,6 @@ describe("actions a conditional absorbs on purpose still validate", () => {
     const v = validateFlow({ nodes: [onReceive, oracle, split], edges: condEdges } as never);
     expect(v.ok, v.ok ? "" : JSON.stringify(v.errors)).toBe(true);
   });
-
   // The absorbed action and the one whose recipients the CONDITIONAL pays must
   // be the same node, or the not-deployed error below names the pay that is
   // actually paid instead of the one that is dropped. Both are contractActions[0]
@@ -177,14 +167,18 @@ describe("actions a conditional absorbs on purpose still validate", () => {
         { id: "e3", source: "p1", target: "p2" },
       ],
     } as never;
-
     // p1 is the pay the trigger reaches first, so its recipient is the one the
     // CONDITIONAL carries.
     const conditional = flowToPipeline(graph).find((n) => n.templateKind === "CONDITIONAL");
     expect(conditional).toBeDefined();
-    const paid = (conditional!.params as { recipients: { address: string }[] }).recipients;
+    const paid = (
+      conditional!.params as {
+        recipients: {
+          address: string;
+        }[];
+      }
+    ).recipients;
     expect(paid.map((r) => r.address)).toEqual([ACCOUNT]);
-
     // And p1 is what absorbedActionIds() reports, so p2 — the pay that reaches
     // no contract — is the one validateFlow refuses the flow over.
     expect([...absorbedActionIds(graph)]).toEqual(["p1"]);
@@ -193,7 +187,6 @@ describe("actions a conditional absorbs on purpose still validate", () => {
     if (v.ok) return;
     expect(v.errors.map((e) => e.path)).toContain("nodes.p2");
   });
-
   it("still refuses a swap under an oracle_gte condition, which has no recipients to absorb it", () => {
     const v = validateFlow({
       nodes: [onReceive, oracle, swap, { ...pay, id: "p2" }],

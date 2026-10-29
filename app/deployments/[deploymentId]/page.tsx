@@ -18,10 +18,15 @@ import { log } from "@/lib/log";
 import { env } from "@/lib/env";
 import { isFeatureEnabled } from "@/lib/features";
 import { deploymentCapabilities } from "@/lib/api/v1/capabilities";
-
 export const dynamic = "force-dynamic";
-
-const statusMeta: Record<string, { label: string; tone: string; dot?: string }> = {
+const statusMeta: Record<
+  string,
+  {
+    label: string;
+    tone: string;
+    dot?: string;
+  }
+> = {
   PENDING: {
     label: "PENDING",
     tone: "border-tertiary/30 bg-tertiary/10 text-tertiary",
@@ -47,17 +52,17 @@ const statusMeta: Record<string, { label: string; tone: string; dot?: string }> 
     tone: "border-error/40 bg-error-container/30 text-error",
   },
 };
-
 function truncateAddr(addr: string | null) {
   if (!addr) return "—";
   if (addr.length <= 14) return addr;
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
-
 export default async function DeploymentPage({
   params,
 }: {
-  params: Promise<{ deploymentId: string }>;
+  params: Promise<{
+    deploymentId: string;
+  }>;
 }) {
   const user = await requirePageSession();
   const { deploymentId } = await params;
@@ -88,7 +93,6 @@ export default async function DeploymentPage({
         </main>
       </>
     );
-
   const graphResult = FlowGraphSchema.safeParse(d.graphSnapshot);
   if (!graphResult.success) notFound();
   const graph = graphResult.data;
@@ -99,21 +103,16 @@ export default async function DeploymentPage({
       graph.nodes.filter((n) => n.type !== "email_notify").map((n) => NODE_TYPE_LABELS[n.type]),
     ),
   ].join(" · ");
-
   const pipeline = d.pipelineSnapshot as Array<{
     nodeId: string;
     contractAddress: string;
     templateKind: string;
   }> | null;
   const isPipeline = pipeline?.[0]?.templateKind === "DEPOSIT_TRIGGER";
-
   const triggerNode = graph.nodes.find(isTrigger);
   const isWebhookLike = triggerNode?.type === "webhook" || triggerNode?.type === "web2_webhook";
-
   const isStreamerLike = d.flow.templateKind === "STREAMER";
-
   const isSubscription = d.flow.templateKind === "SUBSCRIPTION";
-
   const qrUrl =
     d.contractAddress &&
     (isPipeline ||
@@ -123,12 +122,10 @@ export default async function DeploymentPage({
       isSubscription)
       ? `/api/deployments/${d.id}/qr?action=${isSubscription ? "allowance" : "trigger"}`
       : null;
-
   const badge = statusMeta[d.status] ?? {
     label: d.status?.toUpperCase() ?? "—",
     tone: "border-outline-variant/40 bg-surface-container-low/60 text-on-surface-variant",
   };
-
   const network: StellarNetwork | null = isStellarNetwork(d.network) ? d.network : null;
   if (!network && d.network) {
     log.warn(
@@ -138,7 +135,6 @@ export default async function DeploymentPage({
   }
   const explorerUrl =
     d.contractAddress && network ? stellarExpertContractUrl(d.contractAddress, network) : null;
-
   return (
     <>
       <Topbar username={user.username} />
@@ -211,8 +207,6 @@ export default async function DeploymentPage({
         </div>
 
         <DeploymentView
-          devModeEnabled={isFeatureEnabled("devMode")}
-          canEditDevValues={user.role !== Role.SANDBOX && isFeatureEnabled("devMode")}
           deploymentId={d.id}
           contractAddress={d.contractAddress}
           network={network}
