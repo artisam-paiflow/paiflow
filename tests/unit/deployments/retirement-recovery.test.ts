@@ -3,12 +3,15 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { Address, xdr } from "@stellar/stellar-sdk";
 import { db } from "@/lib/db";
-
 const mocks = vi.hoisted(() => ({
   session: vi.fn(),
   rpc: {
     getTransaction: vi.fn<
-      () => Promise<{ status: string; ledger?: number; returnValue?: xdr.ScVal }>
+      () => Promise<{
+        status: string;
+        ledger?: number;
+        returnValue?: xdr.ScVal;
+      }>
     >(async () => ({
       status: "NOT_FOUND",
     })),
@@ -34,7 +37,6 @@ import {
   withDeploymentWork,
 } from "@/lib/deployments/service-work";
 import { POST as verify } from "@/app/api/admin/deployments/[id]/settlement/route";
-
 let userId: string;
 let flowId: string;
 let deploymentId: string;
@@ -132,7 +134,7 @@ it("persists a detected gap even when retained-history retry fails", async () =>
     (await db.deployment.findUniqueOrThrow({ where: { id: deploymentId } })).retirementCoverageGap,
   ).not.toBeNull();
 });
-it("fences crashed OPEN plus PENDING before finality and leaves payout obligations blocked", async () => {
+it("fences crashed OPEN plus PENDING and verifies finality before completing work", async () => {
   await fixture();
   await db.eventCursor.create({ data: { deploymentId, lastLedger: 200 } });
   const hash = "b".repeat(64);
@@ -143,60 +145,46 @@ it("fences crashed OPEN plus PENDING before finality and leaves payout obligatio
       transactions: { create: { txHash: hash, transport: "rpc" } },
     },
   });
-  const payout = await db.offRampPayoutJob.create({
-    data: { deploymentId, amountStroops: "10000000", status: "FAILED", runAt: new Date() },
-  });
-  try {
-    await requestRetirement(deploymentId, userId);
-    expect(
-      (await request({ kind: "transaction", txHash: hash, outcome: "SUCCESS", ledger: 199 }))
-        .status,
-    ).toBe(409);
-    expect((await request({ kind: "work", id: work.id })).status).toBe(409);
-    expect(
-      (
-        await request({
-          kind: "fence-work",
-          id: randomUUID(),
-          confirmation: "Verified worker stopped",
-        })
-      ).status,
-    ).toBe(404);
-    expect(
-      (await request({ kind: "fence-work", id: work.id, confirmation: "Verified worker stopped" }))
-        .status,
-    ).toBe(200);
-    const fenced = await db.deploymentWork.findUniqueOrThrow({ where: { id: work.id } });
-    expect(fenced.state).toBe("BLOCKED");
-    expect(fenced.completedAt).toBeNull();
-    expect(
-      await db.serviceTransaction.count({ where: { workId: work.id, state: "PENDING" } }),
-    ).toBe(1);
-    expect((await request({ kind: "work", id: work.id })).status).toBe(409);
-    expect(
-      (await request({ kind: "transaction", txHash: hash, outcome: "SUCCESS", ledger: 199 }))
-        .status,
-    ).toBe(200);
-    await reconcileRetirement(deploymentId);
-    expect(
-      (await db.deployment.findUniqueOrThrow({ where: { id: deploymentId } })).serviceState,
-    ).toBe("RETIRING");
-    expect((await request({ kind: "work", id: work.id })).status).toBe(200);
-    await reconcileRetirement(deploymentId);
-    expect(
-      (await db.deployment.findUniqueOrThrow({ where: { id: deploymentId } })).retirementBlocker,
-    ).toContain(payout.id);
-    expect((await request({ kind: "offramp", id: payout.id })).status).toBe(200);
-    await reconcileRetirement(deploymentId);
-    expect(
-      (await db.deployment.findUniqueOrThrow({ where: { id: deploymentId } })).serviceState,
-    ).toBe("RETIRED");
-    expect(
-      await db.auditLog.count({ where: { userId, action: "DEPLOY_SETTLEMENT_VERIFIED" } }),
-    ).toBe(4);
-  } finally {
-    await db.offRampPayoutJob.delete({ where: { id: payout.id } });
-  }
+  await requestRetirement(deploymentId, userId);
+  expect(
+    (await request({ kind: "transaction", txHash: hash, outcome: "SUCCESS", ledger: 199 })).status,
+  ).toBe(409);
+  expect((await request({ kind: "work", id: work.id })).status).toBe(409);
+  expect(
+    (
+      await request({
+        kind: "fence-work",
+        id: randomUUID(),
+        confirmation: "Verified worker stopped",
+      })
+    ).status,
+  ).toBe(404);
+  expect(
+    (await request({ kind: "fence-work", id: work.id, confirmation: "Verified worker stopped" }))
+      .status,
+  ).toBe(200);
+  const fenced = await db.deploymentWork.findUniqueOrThrow({ where: { id: work.id } });
+  expect(fenced.state).toBe("BLOCKED");
+  expect(fenced.completedAt).toBeNull();
+  expect(await db.serviceTransaction.count({ where: { workId: work.id, state: "PENDING" } })).toBe(
+    1,
+  );
+  expect((await request({ kind: "work", id: work.id })).status).toBe(409);
+  expect(
+    (await request({ kind: "transaction", txHash: hash, outcome: "SUCCESS", ledger: 199 })).status,
+  ).toBe(200);
+  await reconcileRetirement(deploymentId);
+  expect(
+    (await db.deployment.findUniqueOrThrow({ where: { id: deploymentId } })).serviceState,
+  ).toBe("RETIRING");
+  expect((await request({ kind: "work", id: work.id })).status).toBe(200);
+  await reconcileRetirement(deploymentId);
+  expect(
+    (await db.deployment.findUniqueOrThrow({ where: { id: deploymentId } })).serviceState,
+  ).toBe("RETIRED");
+  expect(await db.auditLog.count({ where: { userId, action: "DEPLOY_SETTLEMENT_VERIFIED" } })).toBe(
+    3,
+  );
 });
 it.each(["single", "batch"])(
   "keeps a paused %s worker fenced after its callback exits and denies further submissions",
@@ -244,14 +232,13 @@ it.each(["single", "batch"])(
     expect(await db.serviceTransaction.count({ where: { workId: work.id } })).toBe(0);
   },
 );
-
 const childAddresses = [
   Address.contract(Buffer.alloc(32, 1)).toString(),
   Address.contract(Buffer.alloc(32, 2)).toString(),
 ];
 const plan = [
-  { nodeId: "schedule", templateKind: "SUBSCRIPTION_DEV" },
-  { nodeId: "splitter", templateKind: "SPLITTER_DEV" },
+  { nodeId: "schedule", templateKind: "SUBSCRIPTION" },
+  { nodeId: "splitter", templateKind: "SPLITTER" },
 ];
 async function orphan(
   state: "SUCCESS" | "PENDING" = "SUCCESS",
@@ -296,7 +283,14 @@ it("recovers a successful DONE orphan using factory Vec<Address> and scans every
   expect(d.retirementCutoffLedger).toBe(200);
   expect(d.serviceState).toBe("RETIRED");
   const filters = mocks.rpc.getEvents.mock.calls.flatMap(
-    (call) => (call[0] as { filters?: Array<{ contractIds?: string[] }> }).filters ?? [],
+    (call) =>
+      (
+        call[0] as {
+          filters?: Array<{
+            contractIds?: string[];
+          }>;
+        }
+      ).filters ?? [],
   );
   expect(filters.flatMap((f) => f.contractIds ?? [])).toEqual(
     expect.arrayContaining(childAddresses),
@@ -417,7 +411,6 @@ it("atomically checkpoints relayer submission identity and pipeline before send"
     (await db.deployment.findUniqueOrThrow({ where: { id: deploymentId } })).serviceState,
   ).toBe("RETIRED");
 });
-
 it("retirement between preparation and the sole send gate creates no unknown-finality debt", async () => {
   await fixture("BUILDING");
   await db.deployment.update({
@@ -440,7 +433,6 @@ it("retirement between preparation and the sole send gate creates no unknown-fin
     (await db.deployment.findUniqueOrThrow({ where: { id: deploymentId } })).serviceState,
   ).toBe("RETIRED");
 });
-
 it("rolls back pipeline checkpoints if durable submission tracking rejects malformed identity before send", async () => {
   await fixture("BUILDING");
   await db.deployment.update({

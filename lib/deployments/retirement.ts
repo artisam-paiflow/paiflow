@@ -7,7 +7,7 @@ import { log } from "@/lib/log";
 import { eventChannel, redis } from "@/lib/redis";
 import { sorobanRpc, horizon } from "@/lib/stellar/client";
 import { deploymentSubmissionHash, recoveredDeploymentReferences } from "./deployment-recovery";
-import { pollEventsForWithOutcome, reconcileStoredCashOutObligations } from "@/lib/stellar/events";
+import { pollEventsForWithOutcome } from "@/lib/stellar/events";
 import { lockDeployment, observeServiceTransaction, withDeploymentWork } from "./service-work";
 import { reconcileControlIntent, WalletControlActionSchema } from "@/lib/api/v1/control-intent";
 
@@ -50,7 +50,7 @@ export async function requestRetirement(id: string, ownerId: string) {
         });
     }
     // Future, unclaimed streaming automation has no submitted payment. RUNNING
-    // jobs and every fiat payout remain obligations until verified resolution.
+    // jobs remain obligations until verified resolution.
     await tx.streamerClaimJob.updateMany({
       where: { deploymentId: id, status: "PENDING" },
       data: { status: "CANCELLED", lastError: "Deployment permanently retiring" },
@@ -98,17 +98,6 @@ async function settlementBlocker(tx: Prisma.TransactionClient, id: string): Prom
     return "Deployment transaction finalization is still pending";
   if (d.status === "CONFIRMED" && d.deployTxHash && !d.contractAddress)
     return "Verified deployed contract reference must be recovered before event reconciliation";
-  const job = await tx.offRampPayoutJob.findFirst({
-    where: { deploymentId: id, status: { not: "COMPLETED" }, settlementResolvedAt: null },
-    orderBy: { createdAt: "asc" },
-  });
-  if (job)
-    return `Payout ${job.id}: ${job.status}; ${job.pdaxDepositTxHash ? "provider deposit needs verified payout or recovery" : "payout or refund must be verified"}`;
-  const dead = await tx.cashOutJobFailure.findFirst({
-    where: { deploymentId: id, retriedAt: null },
-  });
-  if (dead)
-    return `Cash-out event ${dead.contractEventId}: committed payout has not been recovered`;
   const stream = await tx.streamerClaimJob.findFirst({
     where: { deploymentId: id, status: "RUNNING" },
   });
@@ -348,23 +337,7 @@ export async function reconcileRetirement(id: string) {
         }
       }
     }
-    if (current.retirementCutoffLedger !== null) {
-      const covered = await withDeploymentWork(
-        id,
-        "retirement-cash-out-recovery",
-        () => reconcileStoredCashOutObligations(id, current.retirementCutoffLedger!),
-        true,
-      );
-      if (!covered) {
-        await db.deployment.updateMany({
-          where: { id, serviceState: "RETIRING" },
-          data: {
-            retirementBlocker: "Pre-cutoff cash-out obligations still require bounded recovery",
-          },
-        });
-        return;
-      }
-    }
+
     await db.$transaction(async (tx) => {
       const state = await lockDeployment(tx, id);
       if (state.serviceState !== "RETIRING") return;
@@ -394,20 +367,12 @@ export async function reconcileRetirement(id: string) {
         },
       });
     });
-  } catch (error) {
-    const obligation =
-      error instanceof AppError &&
-      (error.message.startsWith("Cash-out event ") ||
-        error.message.startsWith("Legacy cash-out obligation") ||
-        error.message.startsWith("Ambiguous payroll cash-out"))
-        ? error.message
-        : null;
-    // Fixed text: provider errors can contain credentials and raw envelopes.
+  } catch {
+    // RPC errors may contain private data; keep the persisted blocker fixed.
     await db.deployment.updateMany({
       where: { id, serviceState: "RETIRING" },
       data: {
         retirementBlocker:
-          obligation ??
           "Reconciliation unavailable; transaction/event finality requires verified recovery",
       },
     });

@@ -17,9 +17,8 @@ implemented, spanning API v1 and explicitly included unversioned user routes.
 Local source/fixture tests do not establish fresh hosted/on-chain availability.
 Some controls remain in the manual verification queue; see the linked
 [API docs](../api/README.md) and operator deployment capabilities before integration.
-This SDK does not create/deploy flows, manage dashboard sessions or expose legacy
-Dev setters. Hackathon Dev mode remains disabled as documented in the
-[hackathon feature policy](../hackathon/README.md#hackathon-feature-availability).
+This SDK does not create/deploy flows or manage dashboard sessions. Mutable dev-mode flows
+and their API surfaces have been removed; see [the removal notes](../dev-mode-removal.md).
 
 The [SDK README](../../packages/sdk/README.md) is the main detailed SDK entry point;
 this page provides supplementary quickstart and migration examples. The

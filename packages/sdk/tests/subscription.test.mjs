@@ -138,23 +138,17 @@ for (const action of ["cancel", "reactivate"]) {
     assert.equal(called, 0);
   });
 }
-test("token state and public state preserve distinct source shapes and unconfigured Dev", async () => {
+test("token state and public allowance state preserve distinct source shapes", async () => {
   const d = setup(async (url) =>
-    response(
-      String(url).includes("/v1/")
-        ? {
-            ...state,
-            subscriber: null,
-            setupRequired: true,
-            allowance: "0",
-            templateKind: "SUBSCRIPTION_DEV",
-          }
-        : state,
-    ),
+    response(String(url).includes("/v1/") ? { ...state, templateKind: "SUBSCRIPTION" } : state),
   );
-  assert.equal((await d.subscription.get()).data.templateKind, "SUBSCRIPTION_DEV");
+  assert.equal((await d.subscription.get()).data.templateKind, "SUBSCRIPTION");
   assert.deepEqual((await d.subscription.allowance.get()).data, state);
   assert.equal("templateKind" in (await d.subscription.allowance.get()).data, false);
+});
+test("retired mutable subscription kinds are refused", async () => {
+  const d = setup(async () => response({ ...state, templateKind: "SUBSCRIPTION_DEV" }));
+  await assert.rejects(d.subscription.get(), PaiflowMalformedResponseError);
 });
 test("public allowance get prepare sign submit status never send bearer credentials", async () => {
   const calls = [];

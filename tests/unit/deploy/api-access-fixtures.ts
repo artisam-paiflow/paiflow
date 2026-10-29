@@ -1,5 +1,4 @@
 import type { CapabilityOperation, DeploymentCapabilities } from "@/lib/api/v1/schema";
-
 export const DEPLOYMENT_ID = "00000000-0000-4000-8000-000000000000";
 export function capabilities(
   triggerType: DeploymentCapabilities["triggerType"],
@@ -28,7 +27,6 @@ export function capabilities(
       events: operation("supported"),
       transactions: operation("supported"),
       releaseEarly: operation("unsupported"),
-      payouts: operation("unsupported"),
       webhook: operation(triggerType === "webhook" ? "supported" : "unsupported", "webhook_secret"),
       subscriptionCancel: operation(
         triggerType === "subscription" ? "conditional" : "unsupported",

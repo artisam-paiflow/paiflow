@@ -127,7 +127,7 @@ export const parseCapabilities = (value: unknown) => {
       funding: parseOperation(operations.funding),
       transactions: parseOperation(operations.transactions),
       releaseEarly: parseOperation(operations.releaseEarly),
-      payouts: parseOperation(operations.payouts),
+
       webhook: parseOperation(operations.webhook),
       subscriptionAllowance: parseOperation(operations.subscriptionAllowance),
       subscriptionState: parseOperation(operations.subscriptionState),

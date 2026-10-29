@@ -39,8 +39,6 @@ export type OffScriptFeature =
   | "ask_ai_voice"
   | "api_token_created"
   | "passkey_add"
-  | "dev_mode_on"
-  | "fiat_payout"
   | `node:${string}`;
 
 type DeployStage = "wallet" | "prepare" | "sign" | "submit" | "finality_timeout";
@@ -68,7 +66,7 @@ export type EventMap = {
 
   // 2. Build
   flow_created: Record<string, never>;
-  builder_opened: { flow_id: string; node_count: number; node_types: string[]; dev_mode: boolean };
+  builder_opened: { flow_id: string; node_count: number; node_types: string[] };
   node_added: { node_type: string };
   node_removed: { node_type: string; via: "panel" | "keyboard" };
   edge_connected: { from_type: string; to_type: string };

@@ -29,7 +29,6 @@ export const WRITE_RATE_LIMITS = {
   // what a few open tabs reach.
   flowMutate: { limit: 300, windowSeconds: 60 },
   flowValidate: { limit: 120, windowSeconds: 60 },
-  fileDelete: { limit: 60, windowSeconds: 60 },
   // Each call spends a relayer transaction; subject is `user:deployment`.
   timelockRelease: { limit: 10, windowSeconds: 60 },
   payrollWrite: { limit: 60, windowSeconds: 60 },

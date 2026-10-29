@@ -6,7 +6,7 @@
 
 # Type Alias: SubscriptionState
 
-> **SubscriptionState** = \{ `allowance`: `string`; `asset`: \{ `code?`: `undefined`; `issuer?`: `undefined`; `kind`: `"native"`; `symbol?`: `undefined`; \} \| \{ `code?`: `undefined`; `issuer?`: `undefined`; `kind`: `"known"`; `symbol`: `"USDC"`; \} \| \{ `code`: `string`; `issuer`: `string`; `kind`: `"custom"`; `symbol?`: `undefined`; \} \| `null`; `assetLabel`: `string`; `contractAddress`: `string`; `deploymentId`: `string`; `flowName`: `string`; `isCancelled`: `boolean`; `network`: `"testnet"` \| `"mainnet"`; `setupRequired`: `boolean`; `subscriber`: `string` \| `null`; `templateKind`: `"SUBSCRIPTION"` \| `"SUBSCRIPTION_DEV"`; `tokenContractAddress`: `string`; \}
+> **SubscriptionState** = \{ `allowance`: `string`; `asset`: \{ `code?`: `undefined`; `issuer?`: `undefined`; `kind`: `"native"`; `symbol?`: `undefined`; \} \| \{ `code?`: `undefined`; `issuer?`: `undefined`; `kind`: `"known"`; `symbol`: `"USDC"`; \} \| \{ `code`: `string`; `issuer`: `string`; `kind`: `"custom"`; `symbol?`: `undefined`; \} \| `null`; `assetLabel`: `string`; `contractAddress`: `string`; `deploymentId`: `string`; `flowName`: `string`; `isCancelled`: `boolean`; `network`: `"testnet"` \| `"mainnet"`; `setupRequired`: `boolean`; `subscriber`: `string` \| `null`; `templateKind`: `"SUBSCRIPTION"`; `tokenContractAddress`: `string`; \}
 
 Token-authenticated subscriber configuration, cancellation and allowance state.
 
@@ -74,7 +74,7 @@ Token-authenticated subscriber configuration, cancellation and allowance state.
 
 ### templateKind
 
-> **templateKind**: `"SUBSCRIPTION"` \| `"SUBSCRIPTION_DEV"`
+> **templateKind**: `"SUBSCRIPTION"`
 
 ---
 

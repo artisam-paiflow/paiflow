@@ -10,8 +10,7 @@ export type PayoutRecipient = {
 
 /**
  * Every wallet a flow pays out to on-chain: Pay recipients and Split
- * recipients. Fiat payouts are left out, since their funds go to a generated
- * cash-out contract and the off-ramp treasury, never to the listed wallet.
+ * recipients. Only supported wallet recipients are returned.
  *
  * The asset is the node's own: validateFlow refuses a Pay or Split whose asset
  * differs from what flows into it, so on a valid graph this is also the asset
@@ -21,11 +20,9 @@ export function payoutRecipients(graph: FlowGraph): PayoutRecipient[] {
   const out: PayoutRecipient[] = [];
   for (const n of graph.nodes) {
     if (n.type === "pay") {
-      if (n.config.payoutMode === "fiat") continue;
       out.push({ nodeId: n.id, address: n.config.recipient, asset: n.config.asset });
     } else if (n.type === "split") {
       for (const r of n.config.recipients) {
-        if (r.payoutMode === "fiat") continue;
         out.push({
           nodeId: n.id,
           address: r.address,

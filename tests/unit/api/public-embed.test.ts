@@ -15,14 +15,12 @@ vi.mock("@/lib/deployments/service-work", () => ({
 import { EventEmitter } from "node:events";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-
 const PUBLIC_ORIGIN = vi.hoisted(() => {
   const origin = "https://customer.paiflow.test";
   vi.stubEnv("NEXT_PUBLIC_APP_URL", origin);
   return origin;
 });
 afterAll(() => vi.unstubAllEnvs());
-
 const mocks = vi.hoisted(() => ({
   deployment: vi.fn(),
   events: vi.fn(),
@@ -42,14 +40,13 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 vi.mock("@/lib/deployments/public-stream-slots", () => ({
   acquirePublicStreamSlot: mocks.slot,
-  PUBLIC_STREAM_LIFETIME_MS: 55_000,
+  PUBLIC_STREAM_LIFETIME_MS: 55000,
 }));
 vi.mock("@/lib/redis", () => ({ eventChannel: (id: string) => `events:${id}` }));
 vi.mock("qrcode", () => ({ default: { toString: mocks.qr } }));
 import { GET as activity } from "@/app/api/deployments/[id]/embed/activity/route";
 import { GET as qr } from "@/app/api/deployments/[id]/embed/qr/route";
 import { GET as stream } from "@/app/api/deployments/[id]/embed/events/route";
-
 const ID = "11111111-1111-4111-8111-111111111111";
 const SECRET = "private-synthetic-marker";
 const row = () => ({
@@ -102,7 +99,6 @@ beforeEach(() => {
   mocks.slot.mockResolvedValue({ client: { duplicate: () => sub }, release });
 });
 afterEach(() => vi.useRealTimers());
-
 describe("public embed reads", () => {
   it("serves a sanitized catch-up snapshot with no session or token", async () => {
     const res = await activity(req("activity"), ctx());
@@ -156,7 +152,7 @@ describe("public embed reads", () => {
       expect(mocks.qr).not.toHaveBeenCalled();
     },
   );
-  it.each(["SUBSCRIPTION", "SUBSCRIPTION_DEV", "PAYROLL", "SCHEDULER", "ORACLE"])(
+  it.each(["SUBSCRIPTION", "PAYROLL", "SCHEDULER", "ORACLE"])(
     "omits payment QR for %s",
     async (kind) => {
       mocks.deployment.mockResolvedValue({
@@ -169,7 +165,6 @@ describe("public embed reads", () => {
     },
   );
 });
-
 describe("public SSE lifecycle", () => {
   it("subscribes before safe catch-up, then catches later Redis notifications", async () => {
     const abort = new AbortController();
@@ -220,7 +215,7 @@ describe("public SSE lifecycle", () => {
     const reader = res.body!.getReader();
     await reader.read();
     await reader.read();
-    await vi.advanceTimersByTimeAsync(55_000);
+    await vi.advanceTimersByTimeAsync(55000);
     expect(release).toHaveBeenCalledOnce();
     await reader.cancel();
   });

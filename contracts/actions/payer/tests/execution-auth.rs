@@ -111,7 +111,6 @@ fn register_action(
                     bps,
                     Vec::<WorkflowTarget>::new(env),
                     parent,
-                    false,
                 ),
             );
         }
@@ -123,13 +122,11 @@ fn register_action(
                     address: a.clone(),
                     bps: if fixed { 0 } else { 6_000 },
                     amount: if fixed { 60 } else { 0 },
-                    is_cash_out: false,
                 },
                 Recipient {
                     address: b.clone(),
                     bps: if fixed { 0 } else { 4_000 },
                     amount: if fixed { 40 } else { 0 },
-                    is_cash_out: false,
                 },
             ];
             env.register_at(

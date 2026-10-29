@@ -150,11 +150,6 @@ describe("funding eligibility and preparation", () => {
     await expect(prepareFunding(deployment(), input)).rejects.toThrow("rpc");
     expect(mocks.create).not.toHaveBeenCalled();
   });
-  it("resolves selected nodes from the snapshot, never the mutable graph", () => {
-    const d = deployment();
-    d.graphSnapshot = { nodes: [{ id: "arbitrary" }] };
-    expect(fundingNode(d).contractAddress).toBe(TRIGGER);
-  });
   it("requires explicit selection when several supported nodes exist", () => {
     const d = deployment();
     d.pipelineSnapshot = [

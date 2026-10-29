@@ -50,7 +50,7 @@ describe("nodeIssues", () => {
         issue("nodes.2.config.asset", "x"),
         issue("edges.e1", "x"),
         issue("nodes", "x"),
-        issue("senderKyc", "x"),
+        issue("notify.sendTo", "x"),
       ],
       "s",
       0,

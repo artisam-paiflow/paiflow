@@ -2,43 +2,42 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
-import { requireDevAuth } from "@/lib/auth";
+import { requirePayrollSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
-import { createOffRampJobsForPayrollRun } from "@/lib/offramp/jobs";
 import {
   readPayrollRecipients,
   readPayerRecipients,
-  readSplitterDevRecipients,
   readSplitterRecipients,
   readSubscriptionAmountPerPeriod,
 } from "@/lib/stellar/relayer";
-import { EmployeePayoutMode, PayrollRunStatus } from "@prisma/client";
-
+import { PayrollRunStatus } from "@prisma/client";
 const PostSchema = z.object({
   txHash: z.string().min(1, "txHash is required"),
 });
-
 /**
- * Record a manually-triggered payroll run and create off-ramp jobs.
  *
  * The auto-charge payroll cron creates PayrollRun/PayrollPayout rows for
  * scheduled platform/user-relayer charges. When an operator clicks RUN PAYROLL
  * in the UI, the on-chain charge is signed by the admin and submitted through
  * the generic submit-invoke endpoint, which does not create those rows. This
  * endpoint is the bookkeeping follow-up: it reads the current on-chain
- * recipients, creates the run record, and spawns off-ramp jobs if enabled.
  */
-async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(
+  req: NextRequest,
+  ctx: {
+    params: Promise<{
+      id: string;
+    }>;
+  },
+) {
   return withErrorHandler(async () => {
-    const { user } = await requireDevAuth(req);
+    const { user } = await requirePayrollSession(req);
     const { id } = await ctx.params;
     const body = PostSchema.parse(await req.json());
-
     const rl = await rateLimit(`payroll-record:${user.id}`, 30, 60);
     if (!rl.ok) throw rateLimitedError(rl, "Too many payroll run recordings");
-
     const where = { id, ownerId: user.id };
     const d = await db.deployment.findFirst({
       where,
@@ -48,14 +47,10 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
     if (d.flow.templateKind !== "PAYROLL") {
       throw new AppError("VALIDATION", "Deployment is not a payroll");
     }
-
     // Idempotency: a retry with the same txHash returns the existing run.
     const existingRun = await db.payrollRun.findUnique({
       where: { txHash: body.txHash },
-      include: {
-        payouts: { include: { offRampJobs: { select: { id: true } } } },
-        offRampJobs: { select: { id: true } },
-      },
+      include: { payouts: { select: { id: true } } },
     });
     // txHash is unique across every deployment, not per deployment, so the
     // lookup above can land on someone else's run for any hash the caller
@@ -67,51 +62,34 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
       throw new AppError("CONFLICT", "That transaction is already recorded");
     }
     if (existingRun) {
-      const existingJobIds = existingRun.offRampJobs.map((j) => j.id);
       return NextResponse.json({
         data: {
           payrollRunId: existingRun.id,
           payoutCount: existingRun.payouts.length,
-          offRampJobIds: existingJobIds,
           idempotent: true,
         },
       });
     }
-
     const pipeline = d.pipelineSnapshot as Array<{
       nodeId: string;
       contractAddress: string;
       templateKind: string;
     }> | null;
-
     const payrollNode = pipeline?.find((n) => n.templateKind === "PAYROLL");
-    const splitterNode = pipeline?.find(
-      (n) => n.templateKind === "SPLITTER_DEV" || n.templateKind === "SPLITTER",
-    );
-    const payerNode = pipeline?.find(
-      (n) => n.templateKind === "PAYER_DEV" || n.templateKind === "PAYER",
-    );
-    const subscriptionNode = pipeline?.find(
-      (n) => n.templateKind === "SUBSCRIPTION_DEV" || n.templateKind === "SUBSCRIPTION",
-    );
-
-    const isDev = splitterNode?.templateKind === "SPLITTER_DEV";
-
-    const cashOutContractAddresses = new Set(
-      pipeline?.filter((n) => n.templateKind === "CASH_OUT").map((n) => n.contractAddress) ?? [],
-    );
-
-    let recipientRows: Array<{ address: string; amount: string }> = [];
-
+    const splitterNode = pipeline?.find((n) => n.templateKind === "SPLITTER");
+    const payerNode = pipeline?.find((n) => n.templateKind === "PAYER");
+    const subscriptionNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
+    let recipientRows: Array<{
+      address: string;
+      amount: string;
+    }> = [];
     if (payrollNode?.contractAddress) {
       recipientRows = await readPayrollRecipients(payrollNode.contractAddress);
     } else if (splitterNode?.contractAddress || payerNode?.contractAddress) {
       const recipientContractAddress = (splitterNode ?? payerNode)!.contractAddress;
       const raw = payerNode
         ? await readPayerRecipients(recipientContractAddress)
-        : isDev
-          ? await readSplitterDevRecipients(recipientContractAddress)
-          : await readSplitterRecipients(recipientContractAddress);
+        : await readSplitterRecipients(recipientContractAddress);
       let totalStroops = 0n;
       if (subscriptionNode?.contractAddress) {
         totalStroops = await readSubscriptionAmountPerPeriod(subscriptionNode.contractAddress);
@@ -132,10 +110,8 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
     } else {
       throw new AppError("VALIDATION", "Payroll recipient contract address not available");
     }
-
     const totalStroops = recipientRows.reduce((sum, r) => sum + BigInt(r.amount), 0n);
     const now = new Date();
-
     const run = await db.payrollRun.create({
       data: {
         deploymentId: d.id,
@@ -146,52 +122,26 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
         txHash: body.txHash,
       },
     });
-
     const existingEmployees = await db.employee.findMany({
       where: { deploymentId: d.id },
-      include: { bankDetail: true },
     });
-    const employeeByCashOut = new Map(
-      existingEmployees
-        .filter((e) => e.cashOutContractAddress)
-        .map((e) => [e.cashOutContractAddress!, e]),
-    );
     const employeeByWallet = new Map(existingEmployees.map((e) => [e.address, e]));
-
-    const hasFiatEmployeeWithBank = existingEmployees.some(
-      (e) => e.payoutMode === "FIAT" && e.bankDetail,
-    );
-    const shouldCreateOffRampJobs = isDev ? d.offRampEnabled : hasFiatEmployeeWithBank;
-
-    let offRampJobIds: string[] = [];
-
-    // Create payouts and off-ramp jobs in one transaction so the event feed
-    // never observes a fiat payout with a txHash but no linked off-ramp job.
-    // If off-ramp job creation fails, the whole transaction rolls back rather
-    // than leaving a partial set of fiat payouts without jobs.
     await db.$transaction(
       async (tx) => {
         for (const r of recipientRows) {
-          const existing = employeeByCashOut.get(r.address) ?? employeeByWallet.get(r.address);
+          const existing = employeeByWallet.get(r.address);
           const walletAddress = existing?.address ?? r.address;
-          const isFiatCashOut = cashOutContractAddresses.has(r.address);
-
           const employee = await tx.employee.upsert({
             where: { deploymentId_address: { deploymentId: d.id, address: walletAddress } },
             create: {
               deploymentId: d.id,
               address: walletAddress,
               amountStroops: r.amount,
-              payoutMode: isFiatCashOut ? EmployeePayoutMode.FIAT : EmployeePayoutMode.CRYPTO,
             },
             update: {
               amountStroops: r.amount,
-              // If this recipient is a known cash-out contract, ensure the
-              // employee is marked fiat so off-ramp jobs are created.
-              ...(isFiatCashOut ? { payoutMode: EmployeePayoutMode.FIAT } : {}),
             },
           });
-
           await tx.payrollPayout.create({
             data: {
               payrollRunId: run.id,
@@ -201,28 +151,20 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
             },
           });
         }
-
-        if (shouldCreateOffRampJobs) {
-          offRampJobIds = await createOffRampJobsForPayrollRun(tx, run.id);
-        }
       },
       { maxWait: 5000, timeout: 30000 },
     );
-
     await audit({
       action: "DEPLOY_INVOKE",
       userId: user.id,
       metadata: { deploymentId: d.id, payrollRunId: run.id, payoutCount: recipientRows.length },
     });
-
     return NextResponse.json({
       data: {
         payrollRunId: run.id,
         payoutCount: recipientRows.length,
-        offRampJobIds,
       },
     });
   });
 }
-
-export const POST = deploymentServiceRoute(POSTHandler, "dev");
+export const POST = deploymentServiceRoute(POSTHandler, "payroll");

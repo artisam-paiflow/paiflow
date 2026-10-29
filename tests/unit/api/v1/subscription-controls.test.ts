@@ -68,7 +68,10 @@ let token: ReturnType<typeof newToken>;
 let deployment: Parameters<typeof deploymentCapabilities>[0] & {
   ownerId: string;
   serviceState: string;
-  flow: { name: string; templateKind: string };
+  flow: {
+    name: string;
+    templateKind: string;
+  };
 };
 function authorize(kind = "SUBSCRIPTION") {
   deployment = {
@@ -114,7 +117,7 @@ function signed(method = "unsubscribe", signer = wallet) {
     networkPassphrase: Networks.TESTNET,
   })
     .addOperation(new Contract(TRIGGER).call(method))
-    .setTimebounds(0, 2_000_000_000)
+    .setTimebounds(0, 2000000000)
     .build();
   tx.sign(signer);
   return tx;
@@ -164,7 +167,7 @@ beforeEach(() => {
   });
 });
 describe("wallet-authorized subscription controls", () => {
-  it.each(["SUBSCRIPTION", "SUBSCRIPTION_DEV"])(
+  it.each(["SUBSCRIPTION"])(
     "prepares %s cancellation for live subscriber, ignoring stale editable/snapshot subscriber",
     async (kind) => {
       authorize(kind);
@@ -223,34 +226,6 @@ describe("wallet-authorized subscription controls", () => {
       expect(mocks.cancelBuilder).not.toHaveBeenCalled();
     },
   );
-  it("preserves existing Dev cancellation with Dev disabled while gating Dev reactivation", async () => {
-    vi.stubEnv("FEATURE_DEV_MODE_ENABLED", "false");
-    vi.resetModules();
-    try {
-      const { POST: prepare } =
-        await import("@/app/api/v1/deployments/[id]/subscription/cancel/prepare/route");
-      const { POST: submit } =
-        await import("@/app/api/v1/deployments/[id]/subscription/cancel/submit/route");
-      const { POST: reactivate } =
-        await import("@/app/api/v1/deployments/[id]/subscription/reactivate/prepare/route");
-      const { deploymentCapabilities: capabilities } = await import("@/lib/api/v1/capabilities");
-      authorize("SUBSCRIPTION_DEV");
-      expect(capabilities(deployment).operations.subscriptionCancel.status).toBe("conditional");
-      expect(capabilities(deployment).operations.subscriptionReactivate.status).toBe("unsupported");
-      expect((await call(prepare, { walletAddress: wallet.publicKey() })).status).toBe(200);
-      expect((await call(submit, { intent: intentId, signedXdr: signed().toXDR() })).status).toBe(
-        200,
-      );
-      expect((await call(prepare, { walletAddress: other.publicKey() })).status).toBe(403);
-      mocks.cancelled.mockResolvedValue(true);
-      expect((await call(reactivate, { walletAddress: wallet.publicKey() })).status).toBe(422);
-      authorize();
-      expect((await call(reactivate, { walletAddress: wallet.publicKey() })).status).toBe(200);
-    } finally {
-      vi.unstubAllEnvs();
-      vi.resetModules();
-    }
-  });
   it("keeps an unresolved intent conflict rather than silently preparing a replacement", async () => {
     mocks.create.mockRejectedValue(
       new AppError("CONFLICT", "A previous control requires finality reconciliation", {

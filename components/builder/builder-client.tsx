@@ -1,5 +1,4 @@
 "use client";
-
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
@@ -21,12 +20,12 @@ import "@xyflow/react/dist/style.css";
 import { toast } from "sonner";
 import { toastError } from "@/lib/friendly-toast";
 import { cn } from "@/lib/utils";
-import type { EdgeBranch, FlowEdge, FlowGraph, FlowNode, SenderKyc } from "@/lib/flows/schema";
+import type { EdgeBranch, FlowEdge, FlowGraph, FlowNode } from "@/lib/flows/schema";
 import { EdgeBranchSchema, isPendingAddress } from "@/lib/flows/schema";
 import { BRANCH_LABEL, edgeBranch, isBranchingCondition } from "@/lib/flows/branches";
 import { flowToEnglish } from "@/lib/flows/english";
 import { FlowGraphSchema } from "@/lib/flows/schema";
-import { validateFlow, flowHasFiatPayout } from "@/lib/flows/validate";
+import { validateFlow } from "@/lib/flows/validate";
 import type { AddressEntry } from "@/lib/address-book.types";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
 import { TriggerNode, ActionNode, LogicNode } from "@/components/nodes";
@@ -36,11 +35,9 @@ import { sendWithRateLimitRetry } from "./autosave-retry.utils";
 import { createSaveCoordinator, type SaveOutcome } from "./save-outcome.utils";
 import CanvasConfigPanel from "./canvas-config-panel";
 import Palette from "./palette";
-import DevModeToggle from "./dev-mode-toggle";
 import PaletteSidebar from "./palette-sidebar";
 import DeployButton from "./deploy-button";
 import EnglishPreview from "./english-preview";
-import SenderKycDialog from "./sender-kyc-dialog";
 import RaftLog, { type ChatMessage } from "./raft-log";
 import type { PatchOp } from "@/lib/ai/prompts";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
@@ -50,32 +47,18 @@ import { track } from "@/lib/analytics/client";
 import { IN_SCOPE_NODE_TYPES } from "@/lib/analytics/events";
 import { useValidationTracking } from "@/lib/analytics/validation-tracking";
 import type { FeatureFlags } from "@/lib/feature-flags";
-
 const nodeTypes = {
   trigger: TriggerNode,
   action: ActionNode,
   logic: LogicNode,
 };
-
 const edgeTypes = {
   straight: AnimatedStraightEdge,
 };
-
 const IN_SCOPE_TYPES: ReadonlySet<string> = new Set(IN_SCOPE_NODE_TYPES);
-
-function hasFiatPayoutConfig(node: FlowNode | undefined): boolean {
-  const config = (node as { config?: Record<string, unknown> } | undefined)?.config;
-  if (!config) return false;
-  const recipients = Array.isArray(config.recipients)
-    ? (config.recipients as Array<{ payoutMode?: unknown }>)
-    : [];
-  return config.payoutMode === "fiat" || recipients.some((r) => r.payoutMode === "fiat");
-}
-
 // Short, human-readable labels drawn on each node in the minimap.
 // Shared via NODE_TYPE_LABELS so they stay in sync with the palette and panel headers.
 const MINIMAP_NODE_LABELS = NODE_TYPE_LABELS;
-
 type BuilderProps = {
   sandbox?: boolean;
   accountEmail?: string | null;
@@ -93,7 +76,6 @@ type BuilderProps = {
    */
   features: FeatureFlags;
 };
-
 function nodeToReactFlow(n: FlowNode, index: number, positions?: FlowGraph["positions"]): Node {
   if (n.type === "email_notify") throw new Error("Legacy graph must be migrated before rendering");
   let type: "trigger" | "action" | "logic";
@@ -113,7 +95,6 @@ function nodeToReactFlow(n: FlowNode, index: number, positions?: FlowGraph["posi
     case "yield":
     case "hold":
     case "return_to_owner":
-    case "cash_out":
       type = "action";
       break;
     case "condition":
@@ -132,22 +113,6 @@ function nodeToReactFlow(n: FlowNode, index: number, positions?: FlowGraph["posi
     position: positions?.[n.id] ?? { x: 240 + index * 40, y: 80 + index * 120 },
     data: { node: n, label: n.type },
   };
-}
-
-/** Node types that deploy as a mutable `_DEV` contract variant when dev mode is on. */
-function hasDevCounterpart(n: FlowNode | undefined): boolean {
-  if (!n) return false;
-  return n.type === "pay" || n.type === "split" || n.type === "subscription";
-}
-
-/**
- * Node types that deploy as a mutable contract in dev mode — either a `_DEV`
- * counterpart of an immutable node, or a dev-only node (cash_out), or a
- * trigger that decomposes into dev nodes (payroll → SUBSCRIPTION_DEV →
- * SPLITTER_DEV). Drives the amber MUTABLE badge on the canvas.
- */
-function isMutableInDevMode(n: FlowNode | undefined): boolean {
-  return hasDevCounterpart(n) || n?.type === "payroll" || n?.type === "cash_out";
 }
 
 function nodeBorderColor(n: FlowNode | undefined): string {
@@ -174,7 +139,6 @@ function nodeBorderColor(n: FlowNode | undefined): string {
       return "#71717a";
   }
 }
-
 /**
  * An edge out of a condition always carries its branch as the React Flow
  * `sourceHandle`, including a legacy handle-less one, which `edgeBranch` reads
@@ -202,14 +166,12 @@ function edgeWithColors(e: FlowEdge, nodes: FlowNode[]): Edge {
     },
   };
 }
-
 /** The chip drawn on an edge: only on a condition that has two outputs. */
 function branchLabelFor(src: FlowNode | undefined, branch: EdgeBranch | null): string | undefined {
   if (!branch) return undefined;
   if (!isBranchingCondition(src) && branch === "true") return undefined;
   return BRANCH_LABEL[branch];
 }
-
 /** The persisted edge for a canvas edge: only a valid branch handle is kept. */
 function toFlowEdge(e: Edge): FlowEdge {
   const branch = EdgeBranchSchema.safeParse(e.sourceHandle);
@@ -220,7 +182,6 @@ function toFlowEdge(e: Edge): FlowEdge {
     ...(branch.success ? { sourceHandle: branch.data } : {}),
   };
 }
-
 export default function BuilderClient(props: BuilderProps) {
   return (
     <ReactFlowProvider>
@@ -228,7 +189,6 @@ export default function BuilderClient(props: BuilderProps) {
     </ReactFlowProvider>
   );
 }
-
 function Builder({
   sandbox = false,
   accountEmail,
@@ -268,33 +228,31 @@ function Builder({
     sendTo: initialGraph.notify?.sendTo ?? accountEmail ?? "",
   });
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [devMode, setDevMode] = useState<boolean>(initialGraph.devMode ?? false);
-  const [senderKyc, setSenderKyc] = useState<SenderKyc | undefined>(initialGraph.senderKyc);
-  const [kycDialogOpen, setKycDialogOpen] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   // React Flow reports a keyboard selection (Enter/Space on a focused node) and
   // a click the same way, as `select` changes, so the canvas remembers which
   // kind of input came last.
   const lastInputRef = useRef<"keyboard" | "pointer">("pointer");
-
   useEffect(() => {
     track("builder_opened", {
       flow_id: flowId,
       node_count: initialGraph.nodes.length,
       node_types: initialGraph.nodes.map((n) => n.type),
-      dev_mode: initialGraph.devMode ?? false,
     });
     // Once per builder mount; the initial graph is what the tester walked into.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flowId]);
-
   const refreshAddressBook = useCallback(async () => {
     setAddressBookLoading(true);
     setAddressBookError(null);
     try {
       const r = await fetch("/api/address-book");
       if (!r.ok) {
-        const body = (await r.json().catch(() => ({}))) as { error?: { message?: string } };
+        const body = (await r.json().catch(() => ({}))) as {
+          error?: {
+            message?: string;
+          };
+        };
         throw apiError(body, `Failed to load contacts (HTTP ${r.status})`);
       }
       const json = await r.json();
@@ -305,58 +263,39 @@ function Builder({
       setAddressBookLoading(false);
     }
   }, []);
-
   useEffect(() => {
     void refreshAddressBook();
   }, [refreshAddressBook]);
-
   useEffect(() => {
     setSidebarPinned(localStorage.getItem("sidebarPinned") === "true");
     setReady(true);
   }, []);
-
   const graph: FlowGraph = useMemo(
     () => ({
       nodes: flowNodes,
       edges: rfEdges.map(toFlowEdge),
-      devMode,
       notify: sandbox ? { mode: "off", sendTo: "" } : notify,
-      senderKyc,
       // Persist canvas positions with the flow (autosave is debounced, so a
       // drag saves once it settles rather than on every frame).
       positions: Object.fromEntries(rfNodes.map((n) => [n.id, n.position])),
     }),
-    [flowNodes, rfEdges, devMode, notify, sandbox, senderKyc, rfNodes],
+    [flowNodes, rfEdges, false, notify, sandbox, rfNodes],
   );
-
   // Snapshot of the live canvas positions — used as a fallback when a
   // server-returned graph (AI edit, address resolution) doesn't carry them.
   const currentPositions = useCallback(
     (): FlowGraph["positions"] => Object.fromEntries(rfNodes.map((n) => [n.id, n.position])),
     [rfNodes],
   );
-
-  // Same predicate as the validation rule: the sender KYC toolbar button only
-  // appears when the flow off-ramps to fiat somewhere.
-  // With the off-ramp switched off there is no KYC to collect: a fiat step is
-  // refused on its node instead.
-  const hasFiatPayout = useMemo(
-    () => features.offramp && flowHasFiatPayout(graph),
-    [graph, features.offramp],
-  );
-
   const validation = useMemo(
     () => validateFlow(graph, { features, ignoreOwnerEmail: true }),
     [graph, features],
   );
-
   const english = useMemo(() => {
     const v = FlowGraphSchema.safeParse(graph);
     return v.success ? flowToEnglish(v.data) : "(incomplete flow — fix the highlighted fields)";
   }, [graph]);
-
   const selectedNode = flowNodes.find((n) => n.id === selectedId) ?? null;
-
   // Custom minimap renderer: draw the node rectangle with its type name on top
   // (e.g. "Pay", "Split", "On Receive") so the minimap reads as labelled
   // content instead of solid blocks. The renderer only receives a node id, so
@@ -365,7 +304,6 @@ function Builder({
   const nodeLookup = useMemo(() => new Map(flowNodes.map((n) => [n.id, n])), [flowNodes]);
   const nodeLookupRef = useRef(nodeLookup);
   nodeLookupRef.current = nodeLookup;
-
   const MinimapNode = useMemo(
     () =>
       function MinimapNode({ id, x, y, width, height, selected }: MiniMapNodeProps) {
@@ -413,14 +351,16 @@ function Builder({
       },
     [],
   );
-
   // Autosave with 800ms debounce (from develop)
   const [saves] = useState(createSaveCoordinator);
   const [deployPending, setDeployPending] = useState(false);
   const deployPendingRef = useRef(false);
   // What the next attempt sends: a retry after a 429 must carry the newest graph, not the one that
   // was current when the first attempt went out.
-  const latestSave = useRef<{ graph: FlowGraph; name: string }>({ graph, name });
+  const latestSave = useRef<{
+    graph: FlowGraph;
+    name: string;
+  }>({ graph, name });
   // Bumped by every save scheduled; a save still waiting out a 429 yields to a newer one.
   const saveSeq = useRef(0);
   const unmounted = useRef(false);
@@ -438,7 +378,6 @@ function Builder({
   ): Promise<SaveOutcome> {
     latestSave.current = { graph: currentGraph, name: currentName };
     const seq = ++saveSeq.current;
-
     const doSave = async (): Promise<SaveOutcome> => {
       if (unmounted.current) return { ok: false };
       let res: Response | null;
@@ -473,18 +412,14 @@ function Builder({
       }
       return { ok: res.ok && !unmounted.current };
     };
-
     return saves.schedule(doSave, immediate ? 0 : 800);
   }
-
   useEffect(() => {
     saveGraph(graph, name);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flowId, name, graph]);
-
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
-
   // The one way a node's panel opens, whether by click or by Enter/Space.
   const selectNode = useCallback((id: string, via: "keyboard" | "pointer") => {
     if (id !== selectedIdRef.current) {
@@ -499,7 +434,6 @@ function Builder({
     // Settings and AI chat share the right side; opening either closes the other.
     setChatCollapsed(true);
   }, []);
-
   // Close and Escape hand focus back to the node the panel belongs to.
   const closePanel = useCallback(() => {
     const id = selectedIdRef.current;
@@ -512,18 +446,22 @@ function Builder({
         ?.focus();
     });
   }, []);
-
   // Sync React Flow node removals back to flowNodes (from develop)
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     setRfNodes((nds) => applyNodeChanges(changes, nds));
-
     // Keyboard selection only reaches us here: React Flow's Enter/Space on a
     // focused node selects it without calling onNodeClick, and Escape on it
     // deselects. Pointer selection goes through onNodeClick/onPaneClick; the
     // `select` changes a drag start emits are ignored so a drag opens nothing.
     const keyboard = lastInputRef.current === "keyboard";
     const selected = changes.find(
-      (c): c is { type: "select"; id: string; selected: true } => c.type === "select" && c.selected,
+      (
+        c,
+      ): c is {
+        type: "select";
+        id: string;
+        selected: true;
+      } => c.type === "select" && c.selected,
     );
     if (selected && keyboard) {
       selectNode(selected.id, "keyboard");
@@ -537,11 +475,16 @@ function Builder({
       selectedIdRef.current = null;
       setSelectedId(null);
     }
-
     const removedIds = changes
-      .filter((c): c is { type: "remove"; id: string } => c.type === "remove")
+      .filter(
+        (
+          c,
+        ): c is {
+          type: "remove";
+          id: string;
+        } => c.type === "remove",
+      )
       .map((c) => c.id);
-
     if (removedIds.length > 0) {
       for (const id of removedIds) {
         const removed = nodeLookupRef.current.get(id);
@@ -554,7 +497,6 @@ function Builder({
       );
     }
   }, []);
-
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => setRfEdges((eds) => applyEdgeChanges(changes, eds)),
     [],
@@ -583,7 +525,6 @@ function Builder({
     },
     [flowNodes],
   );
-
   // Re-sync edge gradient colors whenever node types change
   useEffect(() => {
     setRfEdges((eds) =>
@@ -602,7 +543,6 @@ function Builder({
       }),
     );
   }, [flowNodes]);
-
   function addNode(node: FlowNode) {
     track("node_added", { node_type: node.type });
     if (!IN_SCOPE_TYPES.has(node.type)) {
@@ -623,14 +563,7 @@ function Builder({
       return [...arr, rf];
     });
   }
-
   function updateNode(updated: FlowNode) {
-    if (
-      hasFiatPayoutConfig(updated) &&
-      !hasFiatPayoutConfig(nodeLookupRef.current.get(updated.id))
-    ) {
-      track("off_script_feature_used", { feature: "fiat_payout" });
-    }
     setFlowNodes((arr) => arr.map((n) => (n.id === updated.id ? updated : n)));
     setRfNodes((arr) =>
       arr.map((n) =>
@@ -640,7 +573,6 @@ function Builder({
       ),
     );
   }
-
   function deleteNode(id: string) {
     const removed = nodeLookupRef.current.get(id);
     if (removed) track("node_removed", { node_type: removed.type, via: "panel" });
@@ -649,7 +581,6 @@ function Builder({
     setRfEdges((arr) => arr.filter((e) => e.source !== id && e.target !== id));
     if (selectedId === id) setSelectedId(null);
   }
-
   async function sendChat(text: string) {
     track("off_script_feature_used", { feature: "ask_ai_chat" });
     setMessages((prev) => [...prev, { role: "user", content: text }]);
@@ -670,7 +601,10 @@ function Builder({
           templateKind?: string;
           clarifyingQuestion?: string;
         };
-        error?: { message: string; fields?: Record<string, string[]> };
+        error?: {
+          message: string;
+          fields?: Record<string, string[]>;
+        };
       };
       if (!res.ok) {
         let content = json.error?.message ?? "Something went wrong.";
@@ -686,7 +620,6 @@ function Builder({
       }
       const { patch, explanation, applied, missingAddresses, patchedGraph, clarifyingQuestion } =
         json.data!;
-
       if (clarifyingQuestion) {
         const content = explanation
           ? `${explanation}\n\n${clarifyingQuestion}`
@@ -694,13 +627,10 @@ function Builder({
         setMessages((prev) => [...prev, { role: "raft", content }]);
         return;
       }
-
       setMessages((prev) => [...prev, { role: "raft", content: explanation, patch }]);
-
       if (missingAddresses && missingAddresses.length > 0) {
         setPendingAddresses((prev) => [...new Set([...prev, ...missingAddresses])]);
       }
-
       if (applied && patchedGraph) {
         // Use server-normalized graph directly (Issue #6 fix)
         setFlowNodes(patchedGraph.nodes);
@@ -711,11 +641,9 @@ function Builder({
           ),
         );
         setRfEdges(patchedGraph.edges.map((e) => edgeWithColors(e, patchedGraph.nodes)));
-
         // Show address prompt if the resulting graph has pending addresses
         const pending = scanPendingLabels(patchedGraph.nodes);
         setPendingAddresses(pending);
-
         toast.success("Flow updated");
       }
     } catch {
@@ -727,7 +655,6 @@ function Builder({
       setChatLoading(false);
     }
   }
-
   function scanPendingLabels(nodes: FlowNode[]): string[] {
     const labels = new Set<string>();
     for (const n of nodes) {
@@ -745,7 +672,6 @@ function Builder({
     }
     return [...labels];
   }
-
   async function handleResolveAddress(addresses: Record<string, string>) {
     setChatLoading(true);
     try {
@@ -779,16 +705,13 @@ function Builder({
       setChatLoading(false);
     }
   }
-
   function handleSkipAddresses() {
     setPendingAddresses([]);
   }
-
   const isValid = validation.ok;
   const pipeline = validation.ok ? validation.pipeline : undefined;
   const errors = useMemo(() => (validation.ok ? [] : validation.errors), [validation]);
   useValidationTracking(errors, flowNodes);
-
   // Close the validation-issues modal on Escape, or once all issues are fixed
   // while it's open.
   useEffect(() => {
@@ -803,11 +726,10 @@ function Builder({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [errorsModalOpen, errors.length]);
-
   return (
     <>
       {/* The canvas sits behind the header, palette and toolbar in tab order;
-          this lands keyboard users on the first node instead. */}
+            this lands keyboard users on the first node instead. */}
       <button
         type="button"
         onClick={() => {
@@ -843,7 +765,6 @@ function Builder({
             flowNodes={flowNodes}
             collapsed={sidebarCollapsed}
             pinned={sidebarPinned}
-            devMode={devMode && features.devMode}
             features={features}
             onExpand={() => {
               setSidebarOpen(true);
@@ -907,23 +828,13 @@ function Builder({
                     </span>
                   </button>
                 )}
-                <DevModeToggle enabled={features.devMode} value={devMode} onChange={setDevMode} />
               </div>
             </div>
-            {!features.devMode && devMode && (
-              <p role="alert" className="text-error text-label-sm">
-                Dev mode is turned off on this server. This saved Dev flow cannot be deployed here.
-                Create a standard flow instead.
-              </p>
-            )}
+            {false}
             <EnglishPreview
               english={english}
               showValidBadge={isValid && !!pipeline && pipeline.length > 0}
-              hasFiatPayout={hasFiatPayout}
-              hasSenderKyc={!!senderKyc}
-              devMode={devMode && features.devMode}
               errorCount={isValid ? 0 : errors.length}
-              onOpenKyc={() => setKycDialogOpen(true)}
               onOpenErrors={() => {
                 track("errors_modal_opened", { error_count: errors.length });
                 setErrorsModalOpen(true);
@@ -963,7 +874,6 @@ function Builder({
                       ...n.data,
                       label: nodeLabel(fn),
                       node: fn ?? n.data.node,
-                      isMutable: features.devMode && devMode && isMutableInDevMode(fn),
                     },
                     selected: n.id === selectedId,
                   };
@@ -1045,19 +955,6 @@ function Builder({
         />
       )}
 
-      {/* Sender KYC dialog — design-time capture of the PDAX sender profile */}
-      {kycDialogOpen && features.offramp && (
-        <SenderKycDialog
-          initial={senderKyc}
-          onSave={(kyc) => {
-            setSenderKyc(kyc);
-            setKycDialogOpen(false);
-            toast.success("Sender KYC saved with the flow");
-          }}
-          onClose={() => setKycDialogOpen(false)}
-        />
-      )}
-
       {/* Validation issues modal — scrollable list of all errors */}
       {errorsModalOpen && (
         <div
@@ -1113,14 +1010,35 @@ function Builder({
     </>
   );
 }
-
 function nodeLabel(n: FlowNode | undefined): string {
   if (!n || n.type === "email_notify") return "?";
   switch (n.type) {
     case "on_receive":
       return `On Receive (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "on_schedule":
-      return `On Schedule (${(n.config as { intervalAmount?: number; intervalUnit?: string; interval?: string }).intervalAmount ?? 1} ${(n.config as { intervalAmount?: number; intervalUnit?: string; interval?: string }).intervalUnit ?? (n.config as { interval?: string }).interval ?? "hour"})`;
+      return `On Schedule (${
+        (
+          n.config as {
+            intervalAmount?: number;
+            intervalUnit?: string;
+            interval?: string;
+          }
+        ).intervalAmount ?? 1
+      } ${
+        (
+          n.config as {
+            intervalAmount?: number;
+            intervalUnit?: string;
+            interval?: string;
+          }
+        ).intervalUnit ??
+        (
+          n.config as {
+            interval?: string;
+          }
+        ).interval ??
+        "hour"
+      })`;
     case "webhook":
       return `Webhook (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "web2_webhook":
@@ -1143,8 +1061,6 @@ function nodeLabel(n: FlowNode | undefined): string {
       return `Swap`;
     case "yield":
       return `Yield`;
-    case "cash_out":
-      return `Cash Out${n.config.bankCode ? ` (${n.config.bankCode})` : ""}`;
     case "condition":
       return `Condition (${n.config.kind})`;
   }

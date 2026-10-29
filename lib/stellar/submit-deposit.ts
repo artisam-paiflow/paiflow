@@ -70,8 +70,6 @@ export async function submitPreparedDeposit({
   deployment,
   nodes,
   ip,
-  auditKind = "execute",
-  allowSubmit = true,
 }: {
   tx: Transaction;
   wait: boolean;
@@ -81,8 +79,6 @@ export async function submitPreparedDeposit({
   deployment: { network: string; ownerId: string };
   nodes: PipelineSnapshotNode[];
   ip: string;
-  auditKind?: "execute" | "payout";
-  allowSubmit?: boolean;
 }): Promise<ExecuteSubmitted> {
   const txHash = tx.hash().toString("hex");
   const signer = signerFromTransaction(tx);
@@ -114,11 +110,6 @@ export async function submitPreparedDeposit({
   });
 
   if (got.status === rpc.Api.GetTransactionStatus.NOT_FOUND) {
-    if (!allowSubmit)
-      throw new AppError(
-        "VALIDATION",
-        "This payout no longer owns recipient protection; only final-status retries are allowed",
-      );
     const submissionAttempt = await beginTransactionSubmission(txHash);
     const send = await viaRpc(
       () => server.sendTransaction(tx),
@@ -152,7 +143,7 @@ export async function submitPreparedDeposit({
     // DUPLICATE: an earlier submit already sent it and wrote the row.
     if (send.status === "PENDING") {
       await audit({
-        action: auditKind === "payout" ? "API_PAYOUT_SUBMITTED" : "API_EXECUTE_SUBMITTED",
+        action: "API_EXECUTE_SUBMITTED",
         userId: deployment.ownerId,
         ip,
         metadata: record,
@@ -191,7 +182,7 @@ export async function submitPreparedDeposit({
     if (!alreadyConfirmed) {
       await ingestEventsBounded(deploymentId, txHash);
       await audit({
-        action: auditKind === "payout" ? "API_PAYOUT_CONFIRMED" : "API_EXECUTE_CONFIRMED",
+        action: "API_EXECUTE_CONFIRMED",
         userId: deployment.ownerId,
         ip,
         metadata: { ...record, ledger: got.ledger },

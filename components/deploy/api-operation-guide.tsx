@@ -26,7 +26,6 @@ const OPERATION_LABELS = {
   funding: "Fund Schedule or Webhook pools",
   transactions: "Check transaction status",
   releaseEarly: "Release a timelock early",
-  payouts: "Prepare a payment with a recipient",
   webhook: "Trigger a webhook",
   subscriptionAllowance: "Approve a subscription allowance",
   swapQuote: "Estimate a deployed Swap output",

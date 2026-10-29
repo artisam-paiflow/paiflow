@@ -32,14 +32,11 @@ export type ContractReadCache = ReturnType<typeof createContractReadCache>;
  * ONLY wrap reads of values that have no on-chain setter for the contract
  * variant in question. Mutable values must be read fresh:
  * - `next_charge_at` / token allowances change after every successful charge.
- * - Recipients are mutable on payroll (update_recipients) and splitter_dev.
+ * - Recipients are mutable on legacy payroll (update_recipients).
  * - Relayer is mutable on every contract variant (set_relayer).
- * - Subscriber/amount are mutable on subscription_dev (update_subscriber,
- *   set_amount) — cache them only for the immutable prod SUBSCRIPTION variant.
+ * - Standard Subscription subscriber and amount are immutable and may be cached.
  *
- * A stale cached value here flows into PayrollPayout rows and the fiat
- * off-ramp jobs derived from them, so caching mutable state can make the DB
- * ledger (and real PHP payouts) diverge from what actually moved on-chain.
+ * Stale mutable reads can make the recorded ledger diverge from chain state.
  */
 export function createContractReadCache(options?: { enabled?: boolean; ttlSeconds?: number }) {
   const e = env();

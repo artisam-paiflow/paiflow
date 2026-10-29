@@ -65,7 +65,7 @@ describe("customer payment eligibility", () => {
       mode,
     });
   });
-  it.each(["SUBSCRIPTION", "SUBSCRIPTION_DEV", "PAYROLL", "ORACLE", "SCHEDULER"])(
+  it.each(["SUBSCRIPTION", "PAYROLL", "ORACLE", "SCHEDULER"])(
     "does not advertise %s",
     (templateKind) => {
       expect(

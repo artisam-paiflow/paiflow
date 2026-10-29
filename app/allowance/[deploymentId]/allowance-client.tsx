@@ -112,7 +112,7 @@ export default function AllowanceClient({
           {templateKind === "SUBSCRIPTION" && (
             <p className="text-label-sm text-on-surface-variant break-all">
               {subscriber === null
-                ? "The team must configure the Dev subscriber before allowance approval."
+                ? "The team must configure the subscriber before allowance approval."
                 : isCancelled
                   ? "Subscription is cancelled. Ask the team to reactivate it."
                   : `Approve with the configured subscriber wallet: ${subscriber}`}

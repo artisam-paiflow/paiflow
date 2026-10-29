@@ -5,11 +5,11 @@ import { z } from "zod";
 import { PatchOpSchema } from "@/lib/ai/prompts";
 import { FundingPrepareSchema, FundingReconcileSchema } from "@/lib/api/v1/funding-schema";
 import { ContractEventItemSchema, ExecuteSubmitQuerySchema } from "@/lib/api/v1/schema";
-import { DevPayerSchema, DevSplitterSchema } from "@/lib/dev/schema";
+import { AllowancePrepareSchema } from "@/lib/subscription/schema";
 import { CreateDeveloperTokenSchema } from "@/lib/developer-tokens/schema";
 import { SettlementVerificationSchema } from "@/lib/deployments/service-schema";
 import { AllowanceDeploymentIdSchema } from "@/lib/subscription/schema";
-import { OnScheduleTrigger } from "@/lib/flows/schema";
+import { OnScheduleTrigger, SplitAction } from "@/lib/flows/schema";
 import { coercedIntegerNumber, integerNumber } from "@/lib/validation/number";
 
 const wallet = "GCFIRY65OQE7DFP5KLNS2PF2LVZMUZYJX4OZIEQ36N2IQANUB5XVYOJR";
@@ -81,7 +81,8 @@ describe("Zod upgrade preserves existing request contracts", () => {
     expect(integerNumber().safeParse(Infinity).success).toBe(false);
     expect(integerNumber().safeParse(NaN).success).toBe(false);
     expect(
-      DevSplitterSchema.safeParse({
+      SplitAction.shape.config.safeParse({
+        asset: { kind: "native" },
         recipients: [{ address: wallet, mode: "percentage", bps: large }],
       }).success,
     ).toBe(false);
@@ -112,34 +113,33 @@ describe("Zod upgrade preserves existing request contracts", () => {
       amount: "123",
     });
   });
-  it("runs the actual Pay resolver and preserves field errors", async () => {
-    const resolve = zodResolver(DevPayerSchema);
+  it("runs the actual allowance resolver and preserves field errors", async () => {
+    const resolve = zodResolver(AllowancePrepareSchema);
     const options = { fields: {}, shouldUseNativeValidation: false };
-    const body = {
-      recipient: wallet,
-      mode: "fixed" as const,
-      amountStroops: "90071992547409931234567",
-    };
+    const body = { userAddress: wallet, amount: "90071992547409931234567" };
     expect(await resolve(body, undefined, options)).toEqual({ values: body, errors: {} });
-    const refused = await resolve({ ...body, recipient: "invalid" }, undefined, options);
+    const refused = await resolve({ ...body, userAddress: "invalid" }, undefined, options);
     expect(refused.values).toEqual({});
-    expect(refused.errors.recipient?.message).toBe("Invalid Stellar address");
+    expect(refused.errors.userAddress?.message).toBe("Invalid Stellar address");
   });
-  it("runs the actual Split resolver with an omitted input default and parsed output", async () => {
-    const resolve = zodResolver(DevSplitterSchema);
+  it("runs the actual Split resolver with exact parsed amounts", async () => {
+    const resolve = zodResolver(SplitAction.shape.config);
     const result = await resolve(
-      { recipients: [{ address: wallet, mode: "fixed", amountStroops: "1234567890123456789" }] },
+      {
+        asset: { kind: "native" },
+        recipients: [{ address: wallet, mode: "fixed", amountStroops: "1234567890123456789" }],
+      },
       undefined,
       { fields: {}, shouldUseNativeValidation: false },
     );
     expect(result).toEqual({
       values: {
+        asset: { kind: "native" },
         recipients: [
           {
             address: wallet,
             mode: "fixed",
             amountStroops: "1234567890123456789",
-            payoutMode: "crypto",
           },
         ],
       },
@@ -179,13 +179,14 @@ describe("patched collection parsing bounds work before visiting oversized input
       expect(visited).toBe(0);
     },
   );
-  it("bounds the real Dev Split roster before any Stellar recipient validation", () => {
+  it("bounds the real Split roster before any Stellar recipient validation", () => {
     const address = Object.defineProperty({}, "address", {
       get: () => {
         throw new Error("recipient visited");
       },
     });
-    const result = DevSplitterSchema.safeParse({
+    const result = SplitAction.shape.config.safeParse({
+      asset: { kind: "native" },
       recipients: Array.from({ length: 21 }, () => address),
     });
     expect(result.success).toBe(false);

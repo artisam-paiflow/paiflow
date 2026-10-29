@@ -163,14 +163,6 @@ async function main() {
         events: ["charge", "subscribe", "unsubscribe"],
       },
     },
-    {
-      kind: TemplateKind.CASH_OUT,
-      envKey: `STELLAR_WASM_HASH_CASH_OUT_${networkSuffix}`,
-      abi: {
-        functions: ["__constructor", "execute_step", "cash_out", "set_bank", "bank"],
-        events: ["cash_out"],
-      },
-    },
   ];
 
   for (const t of templates) {

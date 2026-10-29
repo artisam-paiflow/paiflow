@@ -63,32 +63,9 @@ describe("env helpers — fail-fast on network mismatch", () => {
   });
 });
 
-describe("env — PDAX deposit address validation", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    delete process.env.OFFRAMP_PDAX_DEPOSIT_ADDRESS_TESTNET;
-  });
-
-  it("accepts a valid Stellar ed25519 address", async () => {
-    process.env.OFFRAMP_PDAX_DEPOSIT_ADDRESS_TESTNET =
-      "GCK2MUVH6TABTXT4247CIEC5EO24CQQ4MZNW7EGBTP3TPGALLQI7P34G";
-    const mod = await loadEnv("testnet");
-    expect(mod.offRampPdaxDepositConfig().address).toBe(
-      "GCK2MUVH6TABTXT4247CIEC5EO24CQQ4MZNW7EGBTP3TPGALLQI7P34G",
-    );
-  });
-
-  it("throws at load on a malformed deposit address", async () => {
-    process.env.OFFRAMP_PDAX_DEPOSIT_ADDRESS_TESTNET = "not-a-stellar-address";
-    const mod = await loadEnv("testnet");
-    expect(() => mod.env()).toThrow(/valid Stellar ed25519 public key/i);
-  });
-});
-
 describe("env — analytics", () => {
   beforeEach(() => {
     vi.resetModules();
-    delete process.env.OFFRAMP_PDAX_DEPOSIT_ADDRESS_TESTNET;
     delete process.env.NEXT_PUBLIC_APP_ENV;
     delete process.env.POSTHOG_HOST;
   });
@@ -113,50 +90,6 @@ describe("env — analytics", () => {
     process.env.POSTHOG_HOST = "http://us.i.posthog.com";
     const mod = await loadEnv("testnet");
     expect(() => mod.env()).toThrow(/POSTHOG_HOST must use https/);
-  });
-});
-
-describe("env — splitter hard limits", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    delete process.env.OFFRAMP_PDAX_DEPOSIT_ADDRESS_TESTNET;
-    delete process.env.NEXT_PUBLIC_SPLITTER_XLM_MIN;
-    delete process.env.NEXT_PUBLIC_SPLITTER_XLM_MAX;
-    delete process.env.NEXT_PUBLIC_SPLITTER_USDC_MIN;
-    delete process.env.NEXT_PUBLIC_SPLITTER_USDC_MAX;
-  });
-
-  it("uses defaults when unset", async () => {
-    const mod = await loadEnv("testnet");
-    const e = mod.env();
-    expect(e.NEXT_PUBLIC_SPLITTER_XLM_MIN).toBe(150);
-    expect(e.NEXT_PUBLIC_SPLITTER_XLM_MAX).toBe(500);
-    expect(e.NEXT_PUBLIC_SPLITTER_USDC_MIN).toBe(30);
-    expect(e.NEXT_PUBLIC_SPLITTER_USDC_MAX).toBe(110);
-  });
-
-  it("parses custom values", async () => {
-    process.env.NEXT_PUBLIC_SPLITTER_XLM_MIN = "10";
-    process.env.NEXT_PUBLIC_SPLITTER_XLM_MAX = "1000";
-    process.env.NEXT_PUBLIC_SPLITTER_USDC_MIN = "5";
-    process.env.NEXT_PUBLIC_SPLITTER_USDC_MAX = "500";
-    const mod = await loadEnv("testnet");
-    const e = mod.env();
-    expect(e.NEXT_PUBLIC_SPLITTER_XLM_MIN).toBe(10);
-    expect(e.NEXT_PUBLIC_SPLITTER_XLM_MAX).toBe(1000);
-    expect(e.NEXT_PUBLIC_SPLITTER_USDC_MIN).toBe(5);
-    expect(e.NEXT_PUBLIC_SPLITTER_USDC_MAX).toBe(500);
-  });
-
-  it("falls back to defaults on malformed values instead of crashing env()", async () => {
-    // A typo in one of these temporary knobs must not take down every route
-    // that calls env() — the schema catches the failure and uses the default.
-    process.env.NEXT_PUBLIC_SPLITTER_XLM_MIN = "abc";
-    process.env.NEXT_PUBLIC_SPLITTER_USDC_MAX = "150.5";
-    const mod = await loadEnv("testnet");
-    const e = mod.env();
-    expect(e.NEXT_PUBLIC_SPLITTER_XLM_MIN).toBe(150);
-    expect(e.NEXT_PUBLIC_SPLITTER_USDC_MAX).toBe(110);
   });
 });
 

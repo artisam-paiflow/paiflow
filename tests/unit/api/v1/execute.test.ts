@@ -34,14 +34,12 @@ import {
   xdr,
   type Transaction,
 } from "@stellar/stellar-sdk";
-
 const { mockDb, mockRpc, mockPrepareTriggerTx, mockBuildHint } = vi.hoisted(() => ({
   mockDb: { deploymentApiToken: { findUnique: vi.fn(), update: vi.fn() } },
   mockRpc: { getTransaction: vi.fn(), sendTransaction: vi.fn() },
   mockPrepareTriggerTx: vi.fn(),
   mockBuildHint: vi.fn(),
 }));
-
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 // No Redis: enforceRateLimit runs on its real in-memory bucket.
 vi.mock("@/lib/redis", () => ({ redis: () => null }));
@@ -55,7 +53,6 @@ vi.mock("@/lib/audit", () => ({
   wasTxSubmittedFor: vi.fn(async () => true),
 }));
 vi.mock("@/lib/signed-tx", () => ({ recordSignedTransaction: vi.fn(async () => undefined) }));
-
 import { interactiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
 import { recordTransactionOutcome } from "@/lib/analytics/outcomes";
 import { POST as prepare } from "@/app/api/v1/deployments/[id]/execute/route";
@@ -92,39 +89,38 @@ import {
   tokenRow,
   txResult,
 } from "./execute-fixtures";
-
 const PREPARE_PATH = `/api/v1/deployments/${DEPLOYMENT_ID}/execute`;
 const SUBMIT_PATH = `${PREPARE_PATH}/submit`;
 const FROM = Keypair.random().publicKey();
 const GENERIC_401 = "A valid API token for this deployment is required";
-
 let token: ReturnType<typeof newToken>;
-
 function authorize(
   deployment: Record<string, unknown> = {},
-  owner?: { isActive: boolean; role: string },
+  owner?: {
+    isActive: boolean;
+    role: string;
+  },
 ) {
   mockDb.deploymentApiToken.findUnique.mockResolvedValue(tokenRow(token, deployment, owner));
 }
-
 const prepareBody = { amount: "10000000", from: FROM };
-
-function callPrepare(body: unknown = prepareBody, opts: { authorization?: string } = {}) {
+function callPrepare(
+  body: unknown = prepareBody,
+  opts: {
+    authorization?: string;
+  } = {},
+) {
   return prepare(request(PREPARE_PATH, { token: token.plaintext, body, ...opts }), ctx());
 }
-
 function callSubmit(signedXdr: string, query = "") {
   return submit(
     request(`${SUBMIT_PATH}${query}`, { token: token.plaintext, body: { signedXdr } }),
     ctx(),
   );
 }
-
 const hashOf = (signed: string) =>
   (TransactionBuilder.fromXDR(signed, Networks.TESTNET) as Transaction).hash().toString("hex");
-
 const auditActions = () => vi.mocked(audit).mock.calls.map(([a]) => a.action);
-
 beforeEach(() => {
   vi.clearAllMocks();
   token = newToken();
@@ -133,7 +129,6 @@ beforeEach(() => {
   mockBuildHint.mockResolvedValue({ addressMap: { [ROUTER]: "soroswap_router" } });
   vi.mocked(wasTxConfirmedFor).mockResolvedValue(false);
 });
-
 describe("auth refusals (both routes)", () => {
   const routes = [
     [
@@ -150,7 +145,6 @@ describe("auth refusals (both routes)", () => {
         ),
     ],
   ] as const;
-
   for (const [name, call] of routes) {
     describe(name, () => {
       it("401 with no bearer", async () => {
@@ -158,18 +152,15 @@ describe("auth refusals (both routes)", () => {
         expect(res.status).toBe(401);
         expect((await res.json()).error.message).toBe(GENERIC_401);
       });
-
       it("401 for a non-pfk token, before the database is asked", async () => {
         const res = await call("Bearer pkdev_abc");
         expect(res.status).toBe(401);
         expect(mockDb.deploymentApiToken.findUnique).not.toHaveBeenCalled();
       });
-
       it("401 for an unknown token", async () => {
         mockDb.deploymentApiToken.findUnique.mockResolvedValue(null);
         expect((await call(`Bearer ${token.plaintext}`)).status).toBe(401);
       });
-
       it("401 for a revoked token", async () => {
         mockDb.deploymentApiToken.findUnique.mockResolvedValue({
           ...tokenRow(token),
@@ -177,7 +168,6 @@ describe("auth refusals (both routes)", () => {
         });
         expect((await call(`Bearer ${token.plaintext}`)).status).toBe(401);
       });
-
       it("401 for an expired token", async () => {
         mockDb.deploymentApiToken.findUnique.mockResolvedValue({
           ...tokenRow(token),
@@ -185,7 +175,6 @@ describe("auth refusals (both routes)", () => {
         });
         expect((await call(`Bearer ${token.plaintext}`)).status).toBe(401);
       });
-
       it("401 for a token bound to another deployment", async () => {
         mockDb.deploymentApiToken.findUnique.mockResolvedValue({
           ...tokenRow(token),
@@ -193,19 +182,16 @@ describe("auth refusals (both routes)", () => {
         });
         expect((await call(`Bearer ${token.plaintext}`)).status).toBe(401);
       });
-
       it("401 when the owner is deactivated", async () => {
         authorize({}, { isActive: false, role: "USER" });
         expect((await call(`Bearer ${token.plaintext}`)).status).toBe(401);
       });
-
       it("403 for a sandbox-owned deployment", async () => {
         authorize({}, { isActive: true, role: "SANDBOX" });
         expect((await call(`Bearer ${token.plaintext}`)).status).toBe(403);
       });
     });
   }
-
   it("404 for a malformed deployment id", async () => {
     const res = await prepare(
       request("/api/v1/deployments/nope/execute", { token: token.plaintext, body: prepareBody }),
@@ -213,7 +199,6 @@ describe("auth refusals (both routes)", () => {
     );
     expect(res.status).toBe(404);
   });
-
   it("429 once the token has spent 30 prepares in the window", async () => {
     mockPrepareTriggerTx.mockResolvedValue({ xdr: signedEnvelope() });
     for (let i = 0; i < 30; i++) expect((await callPrepare()).status).toBe(200);
@@ -221,13 +206,11 @@ describe("auth refusals (both routes)", () => {
     expect(res.status).toBe(429);
   });
 });
-
 describe("pipeline scope", () => {
   it("404 for a deployment that is not CONFIRMED", async () => {
     authorize({ status: "PENDING" });
     expect((await callPrepare()).status).toBe(404);
   });
-
   it.each([
     ["no pipeline", null, NOT_EXECUTABLE_FLOW],
     ["an empty pipeline", [], NOT_EXECUTABLE_FLOW],
@@ -253,9 +236,9 @@ describe("pipeline scope", () => {
       "starts with a subscription step",
     ],
     [
-      "a dev subscription head",
+      "a retired subscription kind",
       [{ nodeId: "s", contractAddress: TRIGGER, templateKind: "SUBSCRIPTION_DEV" }],
-      "starts with a subscription step",
+      "starts with a SUBSCRIPTION_DEV step",
     ],
     [
       "a payroll head",
@@ -277,14 +260,12 @@ describe("pipeline scope", () => {
     const p = await callPrepare();
     expect(p.status).toBe(422);
     expect((await p.json()).error.message).toContain(expected);
-
     const s = await callSubmit(signedEnvelope());
     expect(s.status).toBe(422);
     expect((await s.json()).error.message).toContain(expected);
     expect(mockPrepareTriggerTx).not.toHaveBeenCalled();
     expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
   });
-
   // #756: every flow that starts with a deposit trigger is executable, not only swappers.
   it.each([
     [
@@ -315,13 +296,11 @@ describe("pipeline scope", () => {
     authorize({ pipelineSnapshot });
     const signed = signedEnvelope();
     mockPrepareTriggerTx.mockResolvedValue({ xdr: signed });
-
     const p = await callPrepare();
     expect(p.status).toBe(200);
     expect(mockPrepareTriggerTx).toHaveBeenCalledWith(
       expect.objectContaining({ contractAddress: TRIGGER, isPipeline: true }),
     );
-
     // The envelope check is the same for every head: only a deposit on this trigger.
     const wrong = await callSubmit(signedEnvelope({ contract: OTHER_CONTRACT }));
     expect(wrong.status).toBe(422);
@@ -329,63 +308,11 @@ describe("pipeline scope", () => {
   });
 });
 
-describe("a Pay or Split step with nothing configured (#756)", () => {
-  const DEV_PIPELINE = (kind: "PAYER_DEV" | "SPLITTER_DEV") => [
-    { nodeId: "t", contractAddress: TRIGGER, templateKind: "DEPOSIT_TRIGGER" },
-    { nodeId: "p", contractAddress: PAYER, templateKind: kind },
-  ];
-
-  it.each([
-    [
-      "PAYER_DEV",
-      "payer_dev",
-      "This flow's Pay step has no recipient yet. Set it in Dev values on the deployment page, or per payment through POST /api/v1/deployments/:id/payouts.",
-    ],
-    [
-      "SPLITTER_DEV",
-      "splitter_dev",
-      "This flow's Split step has no recipients yet. Set them in Dev values on the deployment page.",
-    ],
-  ] as const)("%s NotConfigured is a plain 422 on prepare", async (kind, key, text) => {
-    authorize({ pipelineSnapshot: DEV_PIPELINE(kind) });
-    mockBuildHint.mockResolvedValue({ addressMap: { [TRIGGER]: "deposit_trigger", [PAYER]: key } });
-    mockPrepareTriggerTx.mockImplementation(async (opts: { hint: () => Promise<unknown> }) => {
-      const hint = (await opts.hint()) as Parameters<typeof simulationFailure>[1];
-      // payer_dev NotConfigured is #4; splitter_dev's is #8.
-      const code = kind === "PAYER_DEV" ? 4 : 8;
-      throw simulationFailure(`contract:${PAYER}, topics:[error, Error(Contract, #${code})]`, hint);
-    });
-
-    const res = await callPrepare();
-
-    expect(res.status).toBe(422);
-    const { error } = await res.json();
-    expect(error.message).toContain(text);
-    if (kind === "SPLITTER_DEV") {
-      expect(error.message).not.toContain("/payouts");
-    }
-  });
-
-  it("is a plain message on a reverted submit too", async () => {
-    mockBuildHint.mockResolvedValue({ addressMap: { [PAYER]: "payer_dev" } });
-    const failure = await explainFailedTx(
-      { diagnosticEventsXdr: [contractErrorEvent(PAYER, 4)] },
-      DEV_PIPELINE("PAYER_DEV"),
-    );
-    expect(failure.code).toBe("NotConfigured");
-    expect(failure.message).toBe(
-      "This flow's Pay step has no recipient yet. Set it in Dev values on the deployment page, or per payment through POST /api/v1/deployments/:id/payouts.",
-    );
-  });
-});
-
 describe("POST …/execute (prepare)", () => {
   it("returns the unsigned deposit, its passphrase, network and expiry, and audits it", async () => {
     const xdrOut = signedEnvelope();
     mockPrepareTriggerTx.mockResolvedValue({ xdr: xdrOut });
-
     const res = await callPrepare();
-
     expect(res.status).toBe(200);
     const maxTime = Number(
       (TransactionBuilder.fromXDR(xdrOut, Networks.TESTNET) as Transaction).timeBounds!.maxTime,
@@ -421,7 +348,6 @@ describe("POST …/execute (prepare)", () => {
       }),
     );
   });
-
   it.each([
     ["a non-integer amount", { amount: "1.5", from: FROM }],
     ["a zero amount", { amount: "0", from: FROM }],
@@ -433,12 +359,10 @@ describe("POST …/execute (prepare)", () => {
     expect(res.status).toBe(422);
     expect(mockPrepareTriggerTx).not.toHaveBeenCalled();
   });
-
   it.each([(I128_MAX + 1n).toString(), "9".repeat(39)])(
     "rejects an overflowing amount with 422 before preparation or financial side effects: %s",
     async (amount) => {
       const res = await callPrepare({ ...prepareBody, amount });
-
       expect(res.status).toBe(422);
       expect(await res.json()).toMatchObject({
         error: {
@@ -454,19 +378,15 @@ describe("POST …/execute (prepare)", () => {
       expect(audit).not.toHaveBeenCalled();
     },
   );
-
   it.each([(I128_MAX - 1n).toString(), I128_MAX.toString()])(
     "passes a representable boundary amount unchanged to preparation: %s",
     async (amount) => {
       mockPrepareTriggerTx.mockResolvedValue({ xdr: signedEnvelope() });
-
       const res = await callPrepare({ ...prepareBody, amount });
-
       expect(res.status).toBe(200);
       expect(mockPrepareTriggerTx).toHaveBeenCalledWith(expect.objectContaining({ amount }));
     },
   );
-
   it("422 for a body that is not JSON", async () => {
     const res = await prepare(
       request(PREPARE_PATH, { token: token.plaintext, rawBody: "{nope" }),
@@ -474,15 +394,12 @@ describe("POST …/execute (prepare)", () => {
     );
     expect(res.status).toBe(422);
   });
-
   it("a simulation revert is a 422 with the friendly text and the prerequisites, hint built once", async () => {
     mockPrepareTriggerTx.mockImplementation(async (opts: { hint: () => Promise<unknown> }) => {
       const hint = (await opts.hint()) as Parameters<typeof simulationFailure>[1];
       throw simulationFailure(`contract:${ROUTER}, topics:[error, Error(Contract, #507)]`, hint);
     });
-
     const res = await callPrepare();
-
     expect(res.status).toBe(422);
     const { error } = await res.json();
     expect(error.message).toContain("Soroswap would return less than the minimum");
@@ -491,7 +408,6 @@ describe("POST …/execute (prepare)", () => {
     expect(mockBuildHint).toHaveBeenCalledTimes(1);
     expect(audit).not.toHaveBeenCalled();
   });
-
   // #553: QA could not exercise these (TC-012), and the branch used to be
   // chosen by the prefix of `details`.
   it.each([
@@ -513,7 +429,6 @@ describe("POST …/execute (prepare)", () => {
     expect(error.code).toBe("VALIDATION");
     expect(error.message).toContain("must be a funded account");
   });
-
   it("keeps a VALIDATION-coded simulation rejection at 422 with details and prerequisites", async () => {
     const details = "Soroban simulate failed: Error(Contract, #13)";
     const message = `The sender (${FROM}) has no trustline for USDC.`;
@@ -528,33 +443,28 @@ describe("POST …/execute (prepare)", () => {
     expect(error.message).toContain("must be a funded account");
     expect(error.details).toBe(details);
   });
-
   it("classifies by the error's class, not the wording of its details", async () => {
     mockPrepareTriggerTx.mockImplementation(async () => {
       throw new SimulationError("UPSTREAM_RPC", "reverted", undefined, "any wording at all");
     });
     expect((await callPrepare()).status).toBe(422);
-
     mockPrepareTriggerTx.mockImplementation(async () => {
       throw new AppError("UPSTREAM_RPC", "down", undefined, "Soroban simulate failed: look-alike");
     });
     expect((await callPrepare()).status).toBe(502);
   });
-
   it("402 when `from` does not exist on this network", async () => {
     mockPrepareTriggerTx.mockRejectedValue(new MissingPaymentAccountError());
     const res = await callPrepare();
     expect(res.status).toBe(402);
     expect((await res.json()).error.message).toContain("must be a funded account");
   });
-
   it("502 when the RPC itself fails", async () => {
     mockPrepareTriggerTx.mockRejectedValue(new Error("socket hang up"));
     const res = await callPrepare();
     expect(res.status).toBe(502);
     expect((await res.json()).error.code).toBe("UPSTREAM_RPC");
   });
-
   it("does not infer a missing account from the SDK's catch-all error message", async () => {
     mockPrepareTriggerTx.mockRejectedValue(new Error(`Account not found: ${FROM}`));
     const res = await callPrepare();
@@ -562,7 +472,6 @@ describe("POST …/execute (prepare)", () => {
     expect((await res.json()).error.code).toBe("UPSTREAM_RPC");
   });
 });
-
 describe("partner inbound amount admission (#876)", () => {
   const fixedPay = (id: string, amountStroops: string) => ({
     id,
@@ -593,14 +502,21 @@ describe("partner inbound amount admission (#876)", () => {
         nodes,
         edges: nodes.slice(1).map((node, i) => ({
           id: `e${i}`,
-          source: (nodes[i] as { id: string }).id,
-          target: (node as { id: string }).id,
+          source: (
+            nodes[i] as {
+              id: string;
+            }
+          ).id,
+          target: (
+            node as {
+              id: string;
+            }
+          ).id,
         })),
       },
     });
     mockPrepareTriggerTx.mockResolvedValue({ xdr: signedEnvelope() });
   }
-
   it.each(["2499999", "2500001"])(
     "rejects terminal fixed Pay %s before preparation",
     async (amount) => {
@@ -615,7 +531,6 @@ describe("partner inbound amount admission (#876)", () => {
       expect(audit).not.toHaveBeenCalled();
     },
   );
-
   it("prepares the exact terminal fixed Pay amount", async () => {
     setGraph([fixedPay("p", "2500000")]);
     expect((await callPrepare({ ...prepareBody, amount: "2500000" })).status).toBe(200);
@@ -623,7 +538,6 @@ describe("partner inbound amount admission (#876)", () => {
       expect.objectContaining({ amount: "2500000" }),
     );
   });
-
   it.each(["4999999", "5000000", "5000001"])(
     "bounds fixed Pay chains at their sum: %s",
     async (amount) => {
@@ -633,7 +547,6 @@ describe("partner inbound amount admission (#876)", () => {
       );
     },
   );
-
   it.each(["1000000", "2500000", "2500001"])(
     "preserves fixed Split batch/residual input %s",
     async (amount) => {
@@ -641,7 +554,6 @@ describe("partner inbound amount admission (#876)", () => {
       expect((await callPrepare({ ...prepareBody, amount })).status).toBe(200);
     },
   );
-
   it.each(["2499999", "2500000", "2500001"])(
     "retains a fixed Pay floor before Split: %s",
     async (amount) => {
@@ -651,7 +563,6 @@ describe("partner inbound amount admission (#876)", () => {
       );
     },
   );
-
   it.each(["1", "2500001"])("preserves percentage Split input %s", async (amount) => {
     setGraph([
       {
@@ -665,7 +576,6 @@ describe("partner inbound amount admission (#876)", () => {
     ]);
     expect((await callPrepare({ ...prepareBody, amount })).status).toBe(200);
   });
-
   it.each(["1", "2500001"])("preserves percentage Pay input %s", async (amount) => {
     setGraph([
       {
@@ -683,7 +593,6 @@ describe("partner inbound amount admission (#876)", () => {
     expect((await callPrepare({ ...prepareBody, amount })).status).toBe(200);
   });
 });
-
 describe("POST …/execute/submit", () => {
   describe("envelope assertion", () => {
     it.each([
@@ -700,7 +609,6 @@ describe("POST …/execute/submit", () => {
       expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
       expect(audit).not.toHaveBeenCalled();
     });
-
     it("refuses a fee-bump envelope", async () => {
       const inner = TransactionBuilder.fromXDR(signedEnvelope(), Networks.TESTNET) as Transaction;
       const bumper = Keypair.random();
@@ -715,7 +623,6 @@ describe("POST …/execute/submit", () => {
       expect(res.status).toBe(422);
       expect((await res.json()).error.message).toContain("Fee-bump");
     });
-
     it("refuses a non-invoke operation", async () => {
       const kp = Keypair.random();
       const { Account, Operation, Asset } = await import("@stellar/stellar-sdk");
@@ -732,7 +639,6 @@ describe("POST …/execute/submit", () => {
       expect((await res.json()).error.message).toContain("must invoke a contract");
     });
   });
-
   it("sends, confirms, ingests and writes both audit rows", async () => {
     const signer = Keypair.random();
     const signed = signedEnvelope({ signer });
@@ -741,9 +647,7 @@ describe("POST …/execute/submit", () => {
       .mockResolvedValueOnce({ status: rpc.Api.GetTransactionStatus.NOT_FOUND })
       .mockResolvedValueOnce({ status: rpc.Api.GetTransactionStatus.SUCCESS, ledger: 4242 });
     mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING", hash: txHash });
-
     const res = await callSubmit(signed);
-
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ data: { txHash, status: "SUCCESS", ledger: 4242 } });
     expect(mockRpc.sendTransaction).toHaveBeenCalledTimes(1);
@@ -774,7 +678,6 @@ describe("POST …/execute/submit", () => {
       }),
     );
   });
-
   it("by default keeps polling while the sent transaction reads NOT_FOUND, until it is final", async () => {
     // Soroban RPC's getTransaction has no PENDING status: a sent transaction
     // that is not in a ledger yet reads NOT_FOUND.
@@ -789,11 +692,9 @@ describe("POST …/execute/submit", () => {
         .mockResolvedValueOnce(notFound)
         .mockResolvedValueOnce({ status: rpc.Api.GetTransactionStatus.SUCCESS, ledger: 4243 });
       mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING", hash: txHash });
-
       const pending = callSubmit(signed);
       await vi.advanceTimersByTimeAsync(2 * CONFIRM_POLL_INTERVAL_MS);
       const res = await pending;
-
       expect(await res.json()).toEqual({ data: { txHash, status: "SUCCESS", ledger: 4243 } });
       expect(mockRpc.getTransaction).toHaveBeenCalledTimes(4);
       expect(auditActions()).toEqual(["API_EXECUTE_SUBMITTED", "API_EXECUTE_CONFIRMED"]);
@@ -801,25 +702,20 @@ describe("POST …/execute/submit", () => {
       vi.useRealTimers();
     }
   });
-
   it("wait=false returns PENDING right after sending, with only the submitted row", async () => {
     const signed = signedEnvelope();
     const txHash = hashOf(signed);
     mockRpc.getTransaction.mockResolvedValue({ status: rpc.Api.GetTransactionStatus.NOT_FOUND });
     mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING", hash: txHash });
-
     const res = await callSubmit(signed, "?wait=false");
-
     expect(await res.json()).toEqual({ data: { txHash, status: "PENDING" } });
     expect(mockRpc.getTransaction).toHaveBeenCalledTimes(1);
     expect(auditActions()).toEqual(["API_EXECUTE_SUBMITTED"]);
     expect(pollEventsFor).not.toHaveBeenCalled();
   });
-
   it("422 for a wait value that is not a boolean", async () => {
     expect((await callSubmit(signedEnvelope(), "?wait=maybe")).status).toBe(422);
   });
-
   it("is idempotent: a known, confirmed envelope is answered from the chain, not resent", async () => {
     const signed = signedEnvelope();
     const txHash = hashOf(signed);
@@ -828,40 +724,31 @@ describe("POST …/execute/submit", () => {
       ledger: 99,
     });
     vi.mocked(wasTxConfirmedFor).mockResolvedValue(true);
-
     const res = await callSubmit(signed);
-
     expect(await res.json()).toEqual({ data: { txHash, status: "SUCCESS", ledger: 99 } });
     expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
     expect(audit).not.toHaveBeenCalled();
     expect(pollEventsFor).not.toHaveBeenCalled();
   });
-
   it("records the confirmation once when a wait=false submission is resubmitted after it lands", async () => {
     const signed = signedEnvelope();
     mockRpc.getTransaction.mockResolvedValue({
       status: rpc.Api.GetTransactionStatus.SUCCESS,
       ledger: 100,
     });
-
     await callSubmit(signed);
-
     expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
     expect(auditActions()).toEqual(["API_EXECUTE_CONFIRMED"]);
     expect(pollEventsFor).toHaveBeenCalledTimes(1);
   });
-
   it("a DUPLICATE send (already in the queue) writes no second submitted row", async () => {
     const signed = signedEnvelope();
     mockRpc.getTransaction.mockResolvedValue({ status: rpc.Api.GetTransactionStatus.NOT_FOUND });
     mockRpc.sendTransaction.mockResolvedValue({ status: "DUPLICATE", hash: hashOf(signed) });
-
     const res = await callSubmit(signed, "?wait=false");
-
     expect((await res.json()).data.status).toBe("PENDING");
     expect(audit).not.toHaveBeenCalled();
   });
-
   it("a reverted swap reads as the Soroswap slippage message, never a bare code", async () => {
     const signed = signedEnvelope();
     mockRpc.getTransaction.mockResolvedValue({
@@ -875,9 +762,7 @@ describe("POST …/execute/submit", () => {
         contractErrorEvent(TRIGGER, 507),
       ],
     });
-
     const res = await callSubmit(signed);
-
     expect(res.status).toBe(200);
     const { data } = await res.json();
     expect(data.status).toBe("FAILED");
@@ -887,7 +772,6 @@ describe("POST …/execute/submit", () => {
     expect(data.error.message).not.toMatch(/#507/);
     expect(mockBuildHint).toHaveBeenCalledTimes(1);
   });
-
   it("an expired envelope rejected at send reads as expired", async () => {
     const signed = signedEnvelope();
     mockRpc.getTransaction.mockResolvedValue({ status: rpc.Api.GetTransactionStatus.NOT_FOUND });
@@ -896,9 +780,7 @@ describe("POST …/execute/submit", () => {
       hash: hashOf(signed),
       errorResult: txResult(xdr.TransactionResultResult.txTooLate()),
     });
-
     const { data } = await (await callSubmit(signed)).json();
-
     expect(data.status).toBe("FAILED");
     expect(data.error).toEqual({
       code: "txTooLate",
@@ -906,14 +788,12 @@ describe("POST …/execute/submit", () => {
     });
     expect(audit).not.toHaveBeenCalled();
   });
-
   it("502 when the RPC throws", async () => {
     mockRpc.getTransaction.mockRejectedValue(new Error("ECONNRESET"));
     const res = await callSubmit(signedEnvelope());
     expect(res.status).toBe(502);
     expect((await res.json()).error.code).toBe("UPSTREAM_RPC");
   });
-
   describe("concurrent wait=true cap (#524)", () => {
     async function holdAllSlots() {
       const held = [];
@@ -924,12 +804,10 @@ describe("POST …/execute/submit", () => {
       }
       return held;
     }
-
     async function expectNoSlotLeaked() {
       const held = await holdAllSlots();
       await Promise.all(held.map((s) => s.release()));
     }
-
     it("over the cap, still sends and answers PENDING at once instead of waiting", async () => {
       const held = await holdAllSlots();
       try {
@@ -939,9 +817,7 @@ describe("POST …/execute/submit", () => {
           status: rpc.Api.GetTransactionStatus.NOT_FOUND,
         });
         mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING", hash: txHash });
-
         const res = await callSubmit(signed);
-
         expect(res.status).toBe(200);
         expect(await res.json()).toEqual({ data: { txHash, status: "PENDING" } });
         expect(mockRpc.sendTransaction).toHaveBeenCalledTimes(1);
@@ -952,7 +828,6 @@ describe("POST …/execute/submit", () => {
         await Promise.all(held.map((s) => s.release()));
       }
     });
-
     it("the cap is per token: another token still waits", async () => {
       const held = await holdAllSlots();
       try {
@@ -964,7 +839,6 @@ describe("POST …/execute/submit", () => {
           .mockResolvedValueOnce({ status: rpc.Api.GetTransactionStatus.NOT_FOUND })
           .mockResolvedValueOnce({ status: rpc.Api.GetTransactionStatus.SUCCESS, ledger: 7 });
         mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING", hash: txHash });
-
         expect(await (await callSubmit(signed)).json()).toEqual({
           data: { txHash, status: "SUCCESS", ledger: 7 },
         });
@@ -972,30 +846,25 @@ describe("POST …/execute/submit", () => {
         await Promise.all(held.map((s) => s.release()));
       }
     });
-
     it("releases the slot when the wait completes", async () => {
       const signed = signedEnvelope();
       mockRpc.getTransaction
         .mockResolvedValueOnce({ status: rpc.Api.GetTransactionStatus.NOT_FOUND })
         .mockResolvedValueOnce({ status: rpc.Api.GetTransactionStatus.SUCCESS, ledger: 8 });
       mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING", hash: hashOf(signed) });
-
       expect((await callSubmit(signed)).status).toBe(200);
       await expectNoSlotLeaked();
     });
-
     it("releases the slot when the wait fails", async () => {
       const signed = signedEnvelope();
       mockRpc.getTransaction
         .mockResolvedValueOnce({ status: rpc.Api.GetTransactionStatus.NOT_FOUND })
         .mockRejectedValueOnce(new Error("ECONNRESET"));
       mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING", hash: hashOf(signed) });
-
       expect((await callSubmit(signed)).status).toBe(502);
       await expectNoSlotLeaked();
     });
   });
-
   it("502 when the network asks to try again later", async () => {
     mockRpc.getTransaction.mockResolvedValue({ status: rpc.Api.GetTransactionStatus.NOT_FOUND });
     mockRpc.sendTransaction.mockResolvedValue({ status: "TRY_AGAIN_LATER", hash: "x" });
@@ -1003,7 +872,6 @@ describe("POST …/execute/submit", () => {
     expect(audit).not.toHaveBeenCalled();
   });
 });
-
 describe("waitForFinal", () => {
   it("stops at the deadline and hands back NOT_FOUND", async () => {
     mockRpc.getTransaction.mockResolvedValue({ status: rpc.Api.GetTransactionStatus.NOT_FOUND });
@@ -1011,7 +879,6 @@ describe("waitForFinal", () => {
     expect(got.status).toBe(rpc.Api.GetTransactionStatus.NOT_FOUND);
     expect(mockRpc.getTransaction.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
-
   it.each([rpc.Api.GetTransactionStatus.SUCCESS, rpc.Api.GetTransactionStatus.FAILED])(
     "polls through NOT_FOUND and returns %s once the transaction is final",
     async (status) => {
@@ -1020,13 +887,12 @@ describe("waitForFinal", () => {
         .mockResolvedValueOnce(notFound)
         .mockResolvedValueOnce(notFound)
         .mockResolvedValueOnce({ status, ledger: 5 });
-      const got = await waitForFinal("h", { deadlineMs: 1_000, intervalMs: 5 });
+      const got = await waitForFinal("h", { deadlineMs: 1000, intervalMs: 5 });
       expect(got.status).toBe(status);
       expect(mockRpc.getTransaction).toHaveBeenCalledTimes(3);
     },
   );
 });
-
 describe("shared interactive submit budget", () => {
   function rpcAfter<T>(value: T, ms: number): Promise<T> {
     return new Promise((resolve, reject) => {
@@ -1049,21 +915,20 @@ describe("shared interactive submit budget", () => {
     mockRpc.sendTransaction.mockReset();
     vi.mocked(pollEventsFor).mockReset().mockResolvedValue(1);
   });
-
   it("shares25 seconds across preflight, send and optional confirmation, returning accepted PENDING", async () => {
     const signed = signedEnvelope(),
       txHash = hashOf(signed);
     mockRpc.getTransaction
-      .mockImplementationOnce(() => rpcAfter({ status: "NOT_FOUND" }, 8_000))
-      .mockImplementation(() => rpcAfter({ status: "NOT_FOUND" }, 50_000));
+      .mockImplementationOnce(() => rpcAfter({ status: "NOT_FOUND" }, 8000))
+      .mockImplementation(() => rpcAfter({ status: "NOT_FOUND" }, 50000));
     mockRpc.sendTransaction.mockImplementation(() =>
-      rpcAfter({ status: "PENDING", hash: txHash }, 8_000),
+      rpcAfter({ status: "PENDING", hash: txHash }, 8000),
     );
     const start = Date.now(),
       pending = callSubmit(signed);
-    await vi.advanceTimersByTimeAsync(25_000);
+    await vi.advanceTimersByTimeAsync(25000);
     const response = await pending;
-    expect(Date.now() - start).toBe(25_000);
+    expect(Date.now() - start).toBe(25000);
     expect(await response.json()).toEqual({ data: { txHash, status: "PENDING" } });
     expect(mockRpc.sendTransaction).toHaveBeenCalledTimes(1);
     expect(mockRpc.getTransaction).toHaveBeenCalledTimes(2);
@@ -1074,16 +939,15 @@ describe("shared interactive submit budget", () => {
         .mock.calls.some(([, outcome]) => outcome === "UNRESOLVED"),
     ).toBe(false);
   });
-
   it("retains the original hash as UNRESOLVED when send exhausts the remaining budget and never resends", async () => {
     const signed = signedEnvelope(),
       txHash = hashOf(signed);
-    mockRpc.getTransaction.mockImplementation(() => rpcAfter({ status: "NOT_FOUND" }, 8_000));
+    mockRpc.getTransaction.mockImplementation(() => rpcAfter({ status: "NOT_FOUND" }, 8000));
     mockRpc.sendTransaction.mockImplementation(() =>
-      rpcAfter({ status: "PENDING", hash: txHash }, 50_000),
+      rpcAfter({ status: "PENDING", hash: txHash }, 50000),
     );
     const pending = callSubmit(signed);
-    await vi.advanceTimersByTimeAsync(25_000);
+    await vi.advanceTimersByTimeAsync(25000);
     const response = await pending,
       body = await response.json();
     expect(response.status).toBe(502);
@@ -1096,16 +960,15 @@ describe("shared interactive submit budget", () => {
     expect(mockRpc.getTransaction).toHaveBeenCalledTimes(1);
     expect(pollEventsFor).not.toHaveBeenCalled();
   });
-
   it("persists known SUCCESS even when the last second is exhausted catching up events", async () => {
     const signed = signedEnvelope(),
       txHash = hashOf(signed);
     mockRpc.getTransaction.mockImplementation(() =>
-      rpcAfter({ status: "SUCCESS", ledger: 4242 }, 24_000),
+      rpcAfter({ status: "SUCCESS", ledger: 4242 }, 24000),
     );
-    vi.mocked(pollEventsFor).mockImplementation(() => rpcAfter(1, 50_000));
+    vi.mocked(pollEventsFor).mockImplementation(() => rpcAfter(1, 50000));
     const pending = callSubmit(signed);
-    await vi.advanceTimersByTimeAsync(25_000);
+    await vi.advanceTimersByTimeAsync(25000);
     const response = await pending;
     expect(await response.json()).toEqual({ data: { txHash, status: "SUCCESS", ledger: 4242 } });
     expect(recordTransactionOutcome).toHaveBeenCalledWith(

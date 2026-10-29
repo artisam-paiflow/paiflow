@@ -34,13 +34,6 @@ type Employee = {
   address: string;
   amount: string;
   label?: string;
-  payoutMode?: "crypto" | "fiat";
-};
-
-type BankDetail = {
-  accountName: string;
-  accountNumber: string;
-  bankCode: string;
 };
 
 export default function EmployeeManager({
@@ -53,7 +46,6 @@ export default function EmployeeManager({
   network: "testnet" | "mainnet";
 }) {
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [bankDetails, setBankDetails] = useState<Record<string, BankDetail | null>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const attemptRef = useRef<AbortController | null>(null);
@@ -63,7 +55,6 @@ export default function EmployeeManager({
       attemptRef.current?.abort();
     };
   }, [deploymentId, network]);
-  const [savingBanks, setSavingBanks] = useState(false);
   const pollTxStatus = usePollTxStatus();
   const pendingKey = payrollPendingKey(deploymentId, network);
   const admissionKey = contractCallPendingKey(deploymentId, network);
@@ -185,46 +176,20 @@ export default function EmployeeManager({
   useEffect(() => {
     let live = true;
     setLoading(true);
-    Promise.all([
-      fetch(`/api/deployments/${deploymentId}/payroll-recipients`).then(async (res) => {
+    fetch(`/api/deployments/${deploymentId}/payroll-recipients`)
+      .then(async (res) => {
         if (!res.ok) throw new Error("Failed to load employees");
         const json = (await res.json()) as {
-          data: {
-            recipients: Array<{
-              address: string;
-              amount: string;
-              label?: string;
-              payoutMode?: "crypto" | "fiat";
-            }>;
-          };
+          data: { recipients: Employee[] };
         };
         return json.data.recipients.map((r) => ({
-          ...r,
+          address: r.address,
+          amount: r.amount,
           label: r.label ?? "",
-          payoutMode: r.payoutMode ?? "crypto",
         }));
-      }),
-      fetch(`/api/deployments/${deploymentId}/employees/bank`).then(async (res) => {
-        if (!res.ok) throw new Error("Failed to load bank details");
-        const json = (await res.json()) as {
-          data: Array<{
-            address: string;
-            bankDetail: BankDetail | null;
-            payoutMode?: "crypto" | "fiat";
-            cashOutContractAddress?: string | null;
-          }>;
-        };
-        const map: Record<string, BankDetail | null> = {};
-        for (const item of json.data) {
-          map[item.address] = item.bankDetail;
-        }
-        return map;
-      }),
-    ])
-      .then(([emps, banks]) => {
-        if (!live) return;
-        setEmployees(emps);
-        setBankDetails(banks);
+      })
+      .then((emps) => {
+        if (live) setEmployees(emps);
       })
       .catch((err) => {
         if (live) toastError(err);
@@ -244,19 +209,6 @@ export default function EmployeeManager({
     setEmployees((prev) => prev.map((e, i) => (i === index ? { ...e, ...patch } : e)));
   };
 
-  const updatePayoutMode = (index: number, mode: "crypto" | "fiat") => {
-    cancelEditedAttempt();
-    setEmployees((prev) => prev.map((e, i) => (i === index ? { ...e, payoutMode: mode } : e)));
-  };
-
-  const updateBankDetail = (address: string, patch: Partial<BankDetail>) => {
-    cancelEditedAttempt();
-    setBankDetails((prev) => {
-      const current = prev[address] ?? { accountName: "", accountNumber: "", bankCode: "" };
-      return { ...prev, [address]: { ...current, ...patch } };
-    });
-  };
-
   const addEmployee = () => {
     cancelEditedAttempt();
     setEmployees((prev) => [...prev, { address: "", amount: "", label: "" }]);
@@ -264,15 +216,7 @@ export default function EmployeeManager({
 
   const removeEmployee = (index: number) => {
     cancelEditedAttempt();
-    const address = employees[index]?.address;
     setEmployees((prev) => prev.filter((_, i) => i !== index));
-    if (address) {
-      setBankDetails((prev) => {
-        const next = { ...prev };
-        delete next[address];
-        return next;
-      });
-    }
   };
 
   const validate = (): boolean => {
@@ -312,8 +256,6 @@ export default function EmployeeManager({
       address: e.address,
       amount: e.amount,
       label: e.label || undefined,
-      payoutMode: e.payoutMode ?? "crypto",
-      bankDetail: bankDetails[e.address] ? { ...bankDetails[e.address]! } : undefined,
     }));
     setSaving(true);
     try {
@@ -470,44 +412,6 @@ export default function EmployeeManager({
     }
   };
 
-  const saveBankDetails = async () => {
-    setSavingBanks(true);
-    try {
-      for (const e of employees) {
-        const bank = bankDetails[e.address];
-        if (!bank) continue;
-        const hasValue =
-          bank.accountName.trim() || bank.accountNumber.trim() || bank.bankCode.trim();
-        if (!hasValue) continue;
-
-        if (!bank.accountName.trim() || !bank.accountNumber.trim() || !bank.bankCode.trim()) {
-          toast.error(`Complete all bank fields for ${e.address || "employee"}`);
-          return;
-        }
-
-        const res = await fetch(`/api/deployments/${deploymentId}/employees/bank`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            address: e.address,
-            accountName: bank.accountName.trim(),
-            accountNumber: bank.accountNumber.trim(),
-            bankCode: bank.bankCode.trim(),
-          }),
-        });
-        if (!res.ok) {
-          const json = (await res.json()) as { error?: { message?: string } };
-          throw apiError(json, `Failed to save bank details for ${e.address}`);
-        }
-      }
-      toast.success("Bank details saved");
-    } catch (err) {
-      toastError(err, "Bank details save failed");
-    } finally {
-      setSavingBanks(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="text-on-surface-variant py-8 text-center font-mono text-sm">Loading…</div>
@@ -523,17 +427,6 @@ export default function EmployeeManager({
 
       <div className="space-y-3">
         {employees.map((e, i) => {
-          const bank = bankDetails[e.address] ?? {
-            accountName: "",
-            accountNumber: "",
-            bankCode: "",
-          };
-          const fiatEnabled = Boolean(
-            bank.accountName.trim() || bank.accountNumber.trim() || bank.bankCode.trim(),
-          );
-
-          const isFiat = e.payoutMode === "fiat";
-
           return (
             <div key={i} className="space-y-2 rounded border border-zinc-800 bg-zinc-950 p-3">
               <div className="grid grid-cols-[1fr_1fr_120px_40px] gap-2">
@@ -548,17 +441,7 @@ export default function EmployeeManager({
                   placeholder="G… address"
                   value={e.address}
                   onChange={(ev) => {
-                    const oldAddress = e.address;
-                    const newAddress = ev.target.value;
-                    updateEmployee(i, { address: newAddress });
-                    setBankDetails((prev) => {
-                      const next = { ...prev };
-                      if (next[oldAddress]) {
-                        next[newAddress] = next[oldAddress];
-                        delete next[oldAddress];
-                      }
-                      return next;
-                    });
+                    updateEmployee(i, { address: ev.target.value });
                   }}
                 />
                 <input
@@ -582,52 +465,6 @@ export default function EmployeeManager({
                   ×
                 </button>
               </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-on-surface-variant text-[16px]">
-                    account_balance
-                  </span>
-                  <select
-                    className="input bg-surface-container text-xs"
-                    value={e.payoutMode ?? "crypto"}
-                    onChange={(ev) => updatePayoutMode(i, ev.target.value as "crypto" | "fiat")}
-                  >
-                    <option value="crypto">Crypto wallet</option>
-                    <option value="fiat">Fiat bank</option>
-                  </select>
-                </div>
-                {isFiat && (
-                  <span className="text-label-sm text-on-surface-variant font-mono uppercase">
-                    {fiatEnabled ? "Fiat payout enabled" : "Enter bank details"}
-                  </span>
-                )}
-              </div>
-
-              {isFiat && (
-                <div className="grid grid-cols-3 gap-2">
-                  <input
-                    className="input"
-                    placeholder="Account name"
-                    value={bank.accountName}
-                    onChange={(ev) => updateBankDetail(e.address, { accountName: ev.target.value })}
-                  />
-                  <input
-                    className="input font-mono"
-                    placeholder="Account number"
-                    value={bank.accountNumber}
-                    onChange={(ev) =>
-                      updateBankDetail(e.address, { accountNumber: ev.target.value })
-                    }
-                  />
-                  <input
-                    className="input font-mono"
-                    placeholder="Bank code"
-                    value={bank.bankCode}
-                    onChange={(ev) => updateBankDetail(e.address, { bankCode: ev.target.value })}
-                  />
-                </div>
-              )}
             </div>
           );
         })}
@@ -684,14 +521,6 @@ export default function EmployeeManager({
           )}
         </div>
       )}
-      <button
-        type="button"
-        onClick={saveBankDetails}
-        disabled={savingBanks}
-        className="border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 w-full rounded-lg border py-2.5 font-mono font-bold transition-colors disabled:opacity-50"
-      >
-        {savingBanks ? "SAVING BANK DETAILS…" : "SAVE BANK DETAILS"}
-      </button>
     </div>
   );
 }

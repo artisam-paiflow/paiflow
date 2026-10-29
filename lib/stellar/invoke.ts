@@ -627,7 +627,7 @@ export async function prepareSubscriptionSubscribeInvocation(opts: {
 export async function prepareSubscriptionChargeInvocation(opts: {
   contractAddress: string;
   adminAddress: string;
-  /** Standard Subscription API only; Payroll and Dev callers retain their errors. */
+
   classifyInsufficientAllowance?: boolean;
 }): Promise<PreparedInvokeTx> {
   const server = sorobanRpc();

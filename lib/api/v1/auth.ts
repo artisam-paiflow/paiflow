@@ -12,9 +12,6 @@ import { audienceFor, type Audience } from "@/lib/analytics/policy";
 import { DEVELOPER_API_TOKEN_PATTERN } from "@/lib/developer-tokens/schema";
 import { AppError } from "@/lib/errors";
 
-/** `pfk_` + 32 random bytes as hex. Anything else is refused before the DB is
- * asked, which also keeps a `DevApiToken` (`pkdev_…`) from ever being looked up
- * here. */
 export const DEPLOYMENT_API_TOKEN_PATTERN = /^pfk_[0-9a-f]{64}$/;
 
 type LegacyTokenAuth = {
@@ -73,14 +70,6 @@ export function bearerDeploymentToken(req: NextRequest): string | null {
     : null;
 }
 
-/**
- * Authenticate an `/api/v1` request against one deployment.
- *
- * `Authorization: Bearer <token>` only: no `x-dev-api-secret`, no user-scoped
- * `DevApiToken`, no session fallback. Where `requireDevAuth` resolves a user who
- * then owns whatever they touch, a credential here must match its deployment binding
- * or explicit grant. Omitting deploymentId authenticates only for scoped discovery.
- */
 export function requireDeploymentToken(
   req: NextRequest,
   deploymentId: string,

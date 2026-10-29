@@ -9,7 +9,6 @@ import Google from "next-auth/providers/google";
 import { z } from "zod";
 import { captureServer } from "@/lib/analytics/server";
 import { audit } from "@/lib/audit";
-import { hashApiToken, tokenUsageStamp } from "@/lib/auth/api-token";
 import {
   googleAdapter,
   resolveGoogleUser,
@@ -325,85 +324,11 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   };
 }
 
-export async function requireDevAuth(req: NextRequest): Promise<{ user: SessionUser }> {
-  // Per-developer machine tokens are the machine path into the dev endpoints;
-  // they carry an owner, so every caller that gets through here can be
-  // ownership-filtered. requireDevApiToken() rejects a SANDBOX owner itself,
-  // so both paths below are covered.
-  try {
-    return { user: await requireDevApiToken(req) };
-  } catch (err) {
-    if (err instanceof AppError && err.code === "UNAUTHENTICATED") {
-      const user = await requireSession();
-      // These endpoints mutate deployed contracts and several sign with the
-      // relayer key. A SANDBOX session is a throwaway identity anyone can mint
-      // without an account, so it never reaches them — middleware blocks these
-      // paths too, but this must not be the only thing standing in the way.
-      if (user.role === Role.SANDBOX) {
-        throw new AppError("FORBIDDEN", "Not available in the sandbox");
-      }
-      return { user };
-    }
-    throw err;
-  }
-}
-
-/**
- * Resolve a per-developer API token to the Paiflow user that owns it. Every
- * machine caller must carry an owner, so that endpoints which CREATE owned rows
- * (e.g. the dev-payroll deploy) have someone to attribute them to, and every
- * other dev endpoint can filter on `ownerId`. The caller presents the token in
- * the `x-dev-api-secret` header (or `Authorization: Bearer <token>`); we match
- * its SHA-256 hash against an active `DevApiToken` row and return the mapped
- * user.
- *
- * This is token-only auth: there is no interactive-session fallback. The route
- * it guards signs and submits a relayer-funded on-chain deploy, so it must not
- * be reachable by an arbitrary logged-in user — only by a caller holding a
- * minted `DevApiToken` (see scripts/create-dev-api-token.ts).
- */
-export async function requireDevApiToken(req: NextRequest): Promise<SessionUser> {
-  const raw =
-    req.headers.get("x-dev-api-secret") ??
-    req.headers
-      .get("authorization")
-      ?.replace(/^Bearer\s+/i, "")
-      .trim() ??
-    null;
-
-  if (raw) {
-    const tokenHash = hashApiToken(raw);
-    const token = await db.devApiToken.findUnique({
-      where: { tokenHash },
-      include: { user: true },
-    });
-    if (token && !token.revokedAt && token.user.isActive) {
-      // scripts/create-dev-api-token.ts will mint a token for any existing user,
-      // SANDBOX included. The endpoints behind this helper mutate deployed
-      // contracts and sign with the relayer key, so the role is refused here
-      // rather than only on the session fallback in requireDevAuth().
-      if (token.user.role === Role.SANDBOX) {
-        throw new AppError("FORBIDDEN", "Not available in the sandbox");
-      }
-      // Best-effort activity stamp, at most once per five minutes. The database
-      // predicate also prevents overlapping requests from writing the same interval.
-      const stamp = tokenUsageStamp(token.lastUsedAt);
-      if (stamp) {
-        db.devApiToken
-          .update({
-            where: {
-              id: token.id,
-              OR: [{ lastUsedAt: null }, { lastUsedAt: { lte: stamp.cutoff } }],
-            },
-            data: { lastUsedAt: stamp.now },
-          })
-          .catch(() => {});
-      }
-      return { id: token.user.id, username: token.user.username, role: token.user.role };
-    }
-  }
-
-  throw new AppError("UNAUTHENTICATED", "A valid developer API token is required");
+/** Owner payroll UI; legacy machine credentials are no longer supported. */
+export async function requirePayrollSession(_req: NextRequest): Promise<{ user: SessionUser }> {
+  const user = await requireSession();
+  if (user.role === Role.SANDBOX) throw new AppError("FORBIDDEN", "Not available in the sandbox");
+  return { user };
 }
 
 export async function requireSession(opts?: { role?: Role }): Promise<SessionUser> {

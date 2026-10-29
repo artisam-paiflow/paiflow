@@ -28,6 +28,7 @@ export async function deploymentSubmissionHash(tx: Prisma.TransactionClient, d: 
         deploymentId: d.id,
         kind: {
           in: [
+            // Historical admission name only; no new work uses this kind (#1138).
             "dev-payroll-deploy",
             "legacy-deployment-finality",
             `/api/deployments/${d.id}/submit`,

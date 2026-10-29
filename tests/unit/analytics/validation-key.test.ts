@@ -29,7 +29,7 @@ describe("validationErrorKey", () => {
     });
     expect(validationErrorKey("edges.e-123", types).key).toBe("edges");
     expect(validationErrorKey("nodes", types).key).toBe("nodes");
-    expect(validationErrorKey("senderKyc", types).key).toBe("senderKyc");
+    expect(validationErrorKey("notify.sendTo", types).key).toBe("notify.sendTo");
   });
 
   it("keeps the swap rule keys stable, and groups the catalogue rule by its field", () => {

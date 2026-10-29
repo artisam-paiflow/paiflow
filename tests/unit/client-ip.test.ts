@@ -15,7 +15,7 @@ async function load(hops?: string) {
 }
 
 function req(headers: Record<string, string>): Request {
-  return new Request("https://paiflow.xyz/api/webhooks/offramp", { headers });
+  return new Request("https://paiflow.xyz/api/webhooks/example", { headers });
 }
 
 afterEach(() => {

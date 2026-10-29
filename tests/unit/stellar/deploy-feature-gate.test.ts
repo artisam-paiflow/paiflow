@@ -19,7 +19,6 @@ const NODES = [
 ] as never;
 
 afterEach(() => {
-  delete process.env.FEATURE_OFFRAMP_ENABLED;
   vi.resetModules();
 });
 
@@ -29,8 +28,7 @@ async function load() {
 }
 
 describe("deploy chokepoint", () => {
-  it("preparePipelineDeployTx refuses a CASH_OUT node with the off-ramp off", async () => {
-    process.env.FEATURE_OFFRAMP_ENABLED = "false";
+  it("preparePipelineDeployTx refuses a retired CASH_OUT node before RPC", async () => {
     const { preparePipelineDeployTx } = await load();
     await expect(
       preparePipelineDeployTx({
@@ -38,22 +36,21 @@ describe("deploy chokepoint", () => {
         graph: GRAPH as never,
         nodes: NODES,
       }),
-    ).rejects.toThrow(/CASH_OUT contract, which is turned off/);
+    ).rejects.toThrow(/retired|off-ramp|CASH_OUT/i);
     expect(rpc.getAccount).not.toHaveBeenCalled();
   });
 
   it("deployPipelineByRelayer refuses it too, before touching the relayer key", async () => {
-    process.env.FEATURE_OFFRAMP_ENABLED = "false";
     const { deployPipelineByRelayer } = await load();
     await expect(deployPipelineByRelayer({ graph: GRAPH as never, nodes: NODES })).rejects.toThrow(
-      /turned off/,
+      /retired|off-ramp|CASH_OUT/i,
     );
   });
 
-  it("lets the same nodes through to the relayer-config check when the switch is on", async () => {
+  it("refuses retired nodes even without a feature flag", async () => {
     const { deployPipelineByRelayer } = await load();
     await expect(deployPipelineByRelayer({ graph: GRAPH as never, nodes: NODES })).rejects.toThrow(
-      /STELLAR_RELAYER_ADDRESS/,
+      /retired|off-ramp|CASH_OUT/i,
     );
   });
 });

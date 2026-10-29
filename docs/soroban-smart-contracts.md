@@ -149,7 +149,7 @@ transaction lands a fully-connected pipeline.
 
 ### 4.1 The contract workspace
 
-Twenty crates, grouped by block category — `contracts/triggers/`, `contracts/conditions/`,
+Seventeen crates, grouped by block category — `contracts/triggers/`, `contracts/conditions/`,
 `contracts/actions/`, plus `contracts/factory/`.
 [`contracts/Cargo.toml`](../contracts/Cargo.toml) is the authoritative member list; the crates
 themselves are the authority on storage, constructor arguments, and functions. Neither is restated
@@ -163,9 +163,8 @@ Two things are not obvious from reading one crate:
   `Vec<WorkflowTarget>` (`{ address, data }`), exposed by `next_steps()` on the 7 crates that
   forward, of which 4 also expose `set_next_steps()` for post-deploy rewiring. A crate with neither
   can only sit at the end of a pipeline.
-- **`_dev` variants.** `splitter_dev`, `payer_dev`, `subscription_dev` and `cash_out_dev` are
-  on-chain-mutable counterparts of their siblings, swapped in when a flow has `devMode` set so that
-  values left blank at design time can be filled after deploy. See `CLAUDE.md` §2.
+- The mutable dev-mode variants were removed in [#1138](dev-mode-removal.md). All required
+  deployment configuration uses standard validation.
 
 #### 4.1.1 Execution authorization and compatibility
 
@@ -279,9 +278,8 @@ point weights with their existing rounding behavior; #795 does not redesign that
 Shared deployment validation checks standard payment amounts and fixed totals before encoding.
 Compiled Streamer parameters supply the lifetime bound, including default windows, occurrences,
 partial final intervals, and legacy rate conversion. Draft schemas still accept incomplete
-amounts for autosave. Mutable/dev contract improvements and payroll are deferred; deferred mutable
-values remain compatible. Schedule flows still use the standard Streamer even in dev mode, so
-the Streamer lifetime check applies there too.
+amounts for autosave; deployment requires complete valid inputs. Payroll remains a separate
+contract implementation. Schedule flows use the standard Streamer and its lifetime bound.
 
 The shared Rust percentage helper is compiled into the three existing crates without a new crate
 or dependency. The test-only token exercises the full i128 range; it does not claim that classic
@@ -480,8 +478,7 @@ contracts/target/wasm32v1-none/release/
 ```
 
 Artifact names are the crate name with `-` replaced by `_`, e.g.
-`paiflow_splitter.wasm`, `paiflow_factory.wasm`, `payer.wasm`,
-`cash_out.wasm`.
+`paiflow_splitter.wasm`, `paiflow_factory.wasm`, `payer.wasm`.
 
 The size/safety `[profile.release]` — size-optimized, `overflow-checks = true` so integer overflow
 traps rather than wraps, `panic = "abort"`, stripped, LTO — is declared **once** on the workspace in
@@ -618,10 +615,10 @@ user, for flows the backend deploys on a user's behalf.
 Translates Paiflow's typed params into Soroban `xdr.ScVal[]`, using `nativeToScVal()` for `i128`,
 `u32`, `u64`, `Address`, and vectors. Two entry points, one per deploy path:
 
-| Function                                                               | Used by                                                               |
-| ---------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `pipelineNodeConstructorArgs(params, admin, parentAddress, addresses)` | The factory path (§4.4). The trailing two arguments carry the wiring. |
-| `constructorArgs(params, admin)`                                       | Single-contract deploys in `lib/stellar/dev-mutate.ts`.               |
+| Function                                                               | Used by                                                                        |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `pipelineNodeConstructorArgs(params, admin, parentAddress, addresses)` | The factory path (§4.4). The trailing two arguments carry the wiring.          |
+| `constructorArgs(params, admin)`                                       | Constructor encoding helpers; mutable dev deployment routes have been removed. |
 
 `nodeBlueprint(wasmHash, salt, args)` wraps the result in the `NodeBlueprint` map the factory
 expects. Each contract kind gets its own `case`; the switches are the reference for what a given
@@ -658,16 +655,12 @@ Receive → Pay and Subscription → Split retain separate trigger/action bindin
 Pay/Split binds both the schedule and distribution to the same Streamer entry. A Hold binding
 records a `strict_lock` rule on its time condition, while Return to owner retains its visual type
 on its immutable Payer implementation. An oracle condition's absorbed Pay/Split is bound as
-distribution on the Conditional. Generated fiat payout contracts record `payout_sink` and the
-zero-based recipient index within the originating Pay/Split block. These describe existing
-compilation behavior; they do not make unsupported compositions executable.
+distribution on the Conditional. These associations describe compilation behavior; they do not
+make unsupported compositions executable. Fiat payout sink generation is removed by #1141.
 
 `lib/flows/implementation.ts` parses versioned metadata and checks every visual block's coverage,
-binding roles, contract kinds, originating references, duplicates, and generated-recipient
-references. Where compilation synthesizes fiat payouts, every fiat recipient requires one generated child,
-matched to the parent constructor reference, originating block/index, and cash-out parent ID.
-Existing external cash-out recipients preserved by Dev non-payroll compilation remain dependencies
-and do not require generated children. Validation and preparation use these checks before deployment. Preparation persists
+binding roles, contract kinds, originating references and duplicates. Validation and preparation
+use these checks before deployment. Preparation persists
 the metadata beside the resolved address in the existing `pipelineSnapshot` JSON array;
 confirmation preserves that snapshot. No database migration or Rust ABI change is required.
 
@@ -675,13 +668,10 @@ Deployment review, the “Where blocks run” view, and live balances display th
 Balance reads and totals deduplicate contract addresses; event polling continues to poll each
 address once regardless of bindings. Older snapshots and unrecognized metadata versions retain
 existing contract behavior and show block associations as unavailable; monitoring never recompiles
-them to invent a mapping. Dev mutation paths preserve existing metadata; additional contracts
-created later by mutation retain the unavailable-association fallback unless their writer records
-bindings. Recipient indexes refer to the roster at compilation, not subsequent mutable rosters.
+them to invent a mapping. Historical metadata is never rewritten to match the current compiler.
 
 Product authority: [SPEC.md §3.3](../SPEC.md#33-logic) states, “Hold is absorbed into that condition
-and has no contract of its own.” [§3.2](../SPEC.md#32-actions) also defines the generated cash-out
-contracts behind fiat Pay/Split recipients. Explicit associations account for these relationships
+and has no contract of its own.” Explicit associations account for this relationship
 without requiring a contract per block or claiming a fee or throughput improvement.
 
 ---
@@ -880,3 +870,11 @@ Soroban RPC does not provide a push/webhook mechanism for events (events are eph
 | Stellar Asset Contract (SEP-41)  | https://stellar.org/protocol/sep-41                                                       |
 | Contract Spec (SEP-48)           | https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0048.md             |
 | Stellar Lab Contract Explorer    | https://lab.stellar.org/smart-contracts/contract-explorer                                 |
+
+## Off-ramp retirement (#1141)
+
+Cash Out source, deployment registration and fiat forwarding are removed. Payer constructor
+arguments and Splitter recipient encoding change with this retirement; rebuild and test their
+WASM together with the server encoders before network-specific activation. Old on-chain contracts
+retain their old ABI. See [the cutover requirements](offramp-retirement.md); source removal does
+not upgrade existing instances or establish that hosted obligations have settled.

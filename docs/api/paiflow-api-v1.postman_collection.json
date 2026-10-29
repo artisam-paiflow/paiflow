@@ -239,7 +239,7 @@
               "value": "application/json"
             }
           ],
-          "body": "{\n  \"data\": {\n    \"deploymentId\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"network\": \"testnet\",\n    \"configurationSource\": \"deployment_snapshot\",\n    \"triggerType\": \"deposit\",\n    \"inputAsset\": {\n      \"kind\": \"native\"\n    },\n    \"operations\": {\n      \"execute\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"The paying wallet signs the prepared deposit; simulation checks current configuration.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"funding\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"No supported funding nodes.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"balances\": {\n        \"status\": \"conditional\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Live contract assets and balances must be readable; cached for up to 10 seconds.\"\n        ],\n        \"nodeIds\": [\n          \"pay\"\n        ]\n      },\n      \"events\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Recorded events can lag the chain.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"transactions\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Only attributable transactions can be read; missing evidence does not prove failure.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"releaseEarly\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"No deployed timelock branch supports early release.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"payouts\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Standard flows use configured recipients; per-payment recipients require an eligible Dev flow.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"webhook\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"webhook_secret\",\n        \"requirements\": [\n          \"Requires a deployed webhook trigger with HTTP callbacks enabled.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"swapQuote\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Requires a deployed Swap node.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"scheduleState\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [],\n        \"nodeIds\": []\n      },\n      \"scheduleControls\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [],\n        \"nodeIds\": []\n      },\n      \"subscriptionState\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Requires a subscription deployment.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"subscriptionCancel\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"subscriber_wallet\",\n        \"requirements\": [\n          \"Requires a supported subscription and current subscriber wallet consent.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"subscriptionReactivate\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"subscriber_wallet\",\n        \"requirements\": [\n          \"Requires a supported cancelled subscription and current subscriber wallet consent.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"subscriptionAllowance\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"subscriber_wallet\",\n        \"requirements\": [\n          \"Requires a subscription deployment.\"\n        ],\n        \"nodeIds\": []\n      }\n    }\n  }\n}"
+          "body": "{\n  \"data\": {\n    \"deploymentId\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"network\": \"testnet\",\n    \"configurationSource\": \"deployment_snapshot\",\n    \"triggerType\": \"deposit\",\n    \"inputAsset\": {\n      \"kind\": \"native\"\n    },\n    \"operations\": {\n      \"execute\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"The paying wallet signs the prepared deposit; simulation checks current configuration.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"funding\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"No supported funding nodes.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"balances\": {\n        \"status\": \"conditional\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Live contract assets and balances must be readable; cached for up to 10 seconds.\"\n        ],\n        \"nodeIds\": [\n          \"pay\"\n        ]\n      },\n      \"events\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Recorded events can lag the chain.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"transactions\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Only attributable transactions can be read; missing evidence does not prove failure.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"releaseEarly\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"No deployed timelock branch supports early release.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"webhook\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"webhook_secret\",\n        \"requirements\": [\n          \"Requires a deployed webhook trigger with HTTP callbacks enabled.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"swapQuote\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Requires a deployed Swap node.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"scheduleState\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [],\n        \"nodeIds\": []\n      },\n      \"scheduleControls\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [],\n        \"nodeIds\": []\n      },\n      \"subscriptionState\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Requires a subscription deployment.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"subscriptionCancel\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"subscriber_wallet\",\n        \"requirements\": [\n          \"Requires a supported subscription and current subscriber wallet consent.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"subscriptionReactivate\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"subscriber_wallet\",\n        \"requirements\": [\n          \"Requires a supported cancelled subscription and current subscriber wallet consent.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"subscriptionAllowance\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"subscriber_wallet\",\n        \"requirements\": [\n          \"Requires a subscription deployment.\"\n        ],\n        \"nodeIds\": []\n      }\n    }\n  }\n}"
         }
       ]
     },
@@ -333,7 +333,7 @@
               "value": "application/json"
             }
           ],
-          "body": "{\n  \"openapi\": \"3.1.0\",\n  \"info\": {\n    \"title\": \"Paiflow API v1\"\n  },\n  \"\u2026\": \"\u2026\"\n}"
+          "body": "{\n  \"openapi\": \"3.1.0\",\n  \"info\": {\n    \"title\": \"Paiflow API v1\"\n  },\n  \"…\": \"…\"\n}"
         }
       ]
     },
@@ -418,7 +418,7 @@
               "value": "application/json"
             }
           ],
-          "body": "{\n  \"data\": {\n    \"xdr\": \"AAAAAgAAAADYXPYQYOTpvJD2BAs8oB9ej3hbUuLzjbut2WPA6+L0OQAB6IQADc4pAAAAAQAAAAEAAAAAAAAAAAAAAABmxy2kAAAAAAAAAAEAAAAAAAAAGAAAAAAAAAAB\u2026(truncated)\",\n    \"networkPassphrase\": \"Test SDF Network ; September 2015\",\n    \"network\": \"testnet\",\n    \"expiresAt\": \"2026-09-15T09:03:00.000Z\"\n  }\n}"
+          "body": "{\n  \"data\": {\n    \"xdr\": \"AAAAAgAAAADYXPYQYOTpvJD2BAs8oB9ej3hbUuLzjbut2WPA6+L0OQAB6IQADc4pAAAAAQAAAAEAAAAAAAAAAAAAAABmxy2kAAAAAAAAAAEAAAAAAAAAGAAAAAAAAAAB…(truncated)\",\n    \"networkPassphrase\": \"Test SDF Network ; September 2015\",\n    \"network\": \"testnet\",\n    \"expiresAt\": \"2026-09-15T09:03:00.000Z\"\n  }\n}"
         },
         {
           "name": "401 Unauthorized",
@@ -921,7 +921,7 @@
       ]
     },
     {
-      "name": "Subscription cancel \u2014 prepare",
+      "name": "Subscription cancel — prepare",
       "request": {
         "method": "POST",
         "header": [
@@ -952,7 +952,7 @@
             "prepare"
           ]
         },
-        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Only standard subscriptions are supported; mutable dev-mode subscriptions have been removed (#1138). Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": [],
       "event": [
@@ -968,7 +968,7 @@
       ]
     },
     {
-      "name": "Subscription cancel \u2014 submit",
+      "name": "Subscription cancel — submit",
       "request": {
         "method": "POST",
         "header": [
@@ -999,12 +999,12 @@
             "submit"
           ]
         },
-        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Only standard subscriptions are supported; mutable dev-mode subscriptions have been removed (#1138). Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": []
     },
     {
-      "name": "Subscription cancel \u2014 reconcile",
+      "name": "Subscription cancel — reconcile",
       "request": {
         "method": "POST",
         "header": [
@@ -1035,12 +1035,12 @@
             "reconcile"
           ]
         },
-        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Only standard subscriptions are supported; mutable dev-mode subscriptions have been removed (#1138). Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": []
     },
     {
-      "name": "Subscription reactivate \u2014 prepare",
+      "name": "Subscription reactivate — prepare",
       "request": {
         "method": "POST",
         "header": [
@@ -1071,7 +1071,7 @@
             "prepare"
           ]
         },
-        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Only standard subscriptions are supported; mutable dev-mode subscriptions have been removed (#1138). Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": [],
       "event": [
@@ -1087,7 +1087,7 @@
       ]
     },
     {
-      "name": "Subscription reactivate \u2014 submit",
+      "name": "Subscription reactivate — submit",
       "request": {
         "method": "POST",
         "header": [
@@ -1118,12 +1118,12 @@
             "submit"
           ]
         },
-        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Only standard subscriptions are supported; mutable dev-mode subscriptions have been removed (#1138). Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": []
     },
     {
-      "name": "Subscription reactivate \u2014 reconcile",
+      "name": "Subscription reactivate — reconcile",
       "request": {
         "method": "POST",
         "header": [
@@ -1154,7 +1154,7 @@
             "reconcile"
           ]
         },
-        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Only standard subscriptions are supported; mutable dev-mode subscriptions have been removed (#1138). Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. Developer token minimum permission: READ_OPERATE. Per-token endpoint allowance is shared across selected deployments. No pkdev_ or session fallback. Wallet/webhook authorization remains separate."
       },
       "response": []
     },

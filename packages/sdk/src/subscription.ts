@@ -16,7 +16,6 @@ import {
 import { signPreparedEnvelope } from "./payment.js";
 import type { PreparedSigner, SignOptions, SignedSubmission } from "./payment.js";
 import type { ApiResponse, PaiflowTransport, RequestOptions } from "./transport.js";
-
 export type SubscriptionAction = "subscription.cancel" | "subscription.reactivate";
 export interface SubscriptionPrepareInput {
   walletAddress: string;
@@ -69,7 +68,7 @@ const parsePublicState = (value: unknown) => {
 };
 const parseState = (value: unknown) => ({
   ...parsePublicState(value),
-  templateKind: choice(object(value).templateKind, ["SUBSCRIPTION", "SUBSCRIPTION_DEV"]),
+  templateKind: choice(object(value).templateKind, ["SUBSCRIPTION"]),
 });
 const parsePrepared = <A extends SubscriptionAction>(value: unknown, expected: A) => {
   const d = object(value),

@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => ({
   admissionRate: vi.fn(),
   publicRate: vi.fn(),
 }));
-vi.mock("@/lib/auth", () => ({ requireSession: mocks.session, requireDevAuth: vi.fn() }));
+vi.mock("@/lib/auth", () => ({ requireSession: mocks.session, requirePayrollSession: vi.fn() }));
 vi.mock("@/lib/db", () => {
   const tx = { $queryRaw: mocks.lock, deploymentWork: { create: mocks.create } };
   return {

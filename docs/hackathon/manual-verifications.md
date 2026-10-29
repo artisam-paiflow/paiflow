@@ -110,7 +110,7 @@ Run after a build containing #577 is promoted. See
 
 ### Wallet-only subscription approval — #790
 
-Dev mode will stay disabled for the duration of the hackathon. Run the ordinary subscription checks for event readiness; the `SUBSCRIPTION_DEV` checks below are product verification for a separate environment where Dev mode is enabled. Do not enable it on the hackathon server to run them.
+Run standard subscription checks. Mutable dev-mode subscriptions have been removed in #1138.
 
 Run after a build containing #790 is promoted. See
 [wallet-only subscription approval](../subscription-allowance.md) for the route
@@ -123,11 +123,6 @@ boundary and recovery behavior. Local tests do not complete this rehearsal.
       `/allowance/:id` page without a deployment token. Confirm network, token,
       subscription spender and configured subscriber; sign with that wallet,
       observe confirmation and verify the cumulative allowance on chain.
-- [ ] Repeat with `SUBSCRIPTION_DEV`: first leave the subscriber unconfigured and
-      check the setup message, then fill it through the authenticated team's
-      **Dev values**. Change it to another test wallet and verify the old wallet
-      is refused and the new one can approve. Recheck a configuration change
-      between preparation and submission.
 - [ ] Refuse a different wallet, wrong network, tampered/extra operations and a
       cross-deployment intent. Confirm no unintended transaction was sent. Use
       controlled test fixtures and retain only public hashes as evidence.
@@ -135,12 +130,12 @@ boundary and recovery behavior. Local tests do not complete this rehearsal.
       the same approval hash. Verify no second approval while finality is unknown,
       successful catch-up, and safe retry after ledger-proven expiry. An RPC or
       ledger-decoding failure must preserve the unknown outcome.
-- [ ] With ordinary and Dev subscriptions, wait for the actual scheduled charge
+- [ ] With standard subscriptions, wait for the actual scheduled charge
       and verify the recipient payout, allowance reduction and visible activity
       against public transaction hashes and balances. Approval alone is not a payout.
 - [ ] Verify deliberate public limits and signer attribution without attributing
       anonymous customer consent to the deployment owner. Confirm general
-      invocation, charging, cancellation, Dev mutations and payroll approval
+      invocation, charging, cancellation and payroll approval
       retain their existing guards and sandbox exclusions.
 - [ ] Reconcile the participant PDF and external Mechanics/AI/starter/sample
       copies with the verified promoted journey. Keep Event Plan reconciliation

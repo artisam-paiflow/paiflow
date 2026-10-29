@@ -8,11 +8,15 @@ import { FlowGraphSchema, isTrigger } from "@/lib/flows/schema";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { confirmDeployment } from "./confirm";
 import { recoveredDeploymentReferences } from "./deployment-recovery";
-
 type Deployment = Prisma.DeploymentGetPayload<{
-  include: { flow: { select: { templateKind: true } } };
+  include: {
+    flow: {
+      select: {
+        templateKind: true;
+      };
+    };
+  };
 }>;
-
 /** Reconcile one owned, already submitted deployment. Never submit or infer failure from age. */
 export async function reconcileOwnerDeployment(deployment: Deployment): Promise<void> {
   const d = deployment;
@@ -25,7 +29,6 @@ export async function reconcileOwnerDeployment(deployment: Deployment): Promise<
     !d.sourceAccount
   )
     return;
-
   let source: string;
   try {
     const prepared = TransactionBuilder.fromXDR(d.unsignedXdr, stellarPassphrase());
@@ -40,7 +43,6 @@ export async function reconcileOwnerDeployment(deployment: Deployment): Promise<
   } catch {
     return;
   }
-
   // The submit route persists this binding before sending. A missing or unrelated
   // signer row cannot authorize repair, even if a public hash has succeeded.
   const signed = await db.signedTransaction.findFirst({
@@ -76,30 +78,20 @@ export async function reconcileOwnerDeployment(deployment: Deployment): Promise<
         : (first.templateKind as TemplateKind);
   if (
     !["payroll", "subscription"].includes(triggers[0]!.type) &&
-    [TemplateKind.PAYROLL, TemplateKind.SUBSCRIPTION, TemplateKind.SUBSCRIPTION_DEV].some(
-      (kind) => kind === historicalKind,
-    )
+    [TemplateKind.PAYROLL, TemplateKind.SUBSCRIPTION].some((kind) => kind === historicalKind)
   )
     return;
-
-  if (
-    triggers[0]!.type === "subscription" &&
-    !["SUBSCRIPTION", "SUBSCRIPTION_DEV"].includes(first.templateKind)
-  )
+  if (triggers[0]!.type === "subscription" && !["SUBSCRIPTION"].includes(first.templateKind))
     return;
-  if (
-    triggers[0]!.type === "payroll" &&
-    !["PAYROLL", "SUBSCRIPTION", "SUBSCRIPTION_DEV"].includes(first.templateKind)
-  )
+  if (triggers[0]!.type === "payroll" && !["PAYROLL", "SUBSCRIPTION"].includes(first.templateKind))
     return;
-
   let timer: ReturnType<typeof setTimeout> | undefined;
   let got;
   try {
     got = await Promise.race([
       sorobanRpc().getTransaction(d.deployTxHash),
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error("Deployment status RPC deadline")), 3_000);
+        timer = setTimeout(() => reject(new Error("Deployment status RPC deadline")), 3000);
       }),
     ]);
   } catch {
@@ -107,7 +99,6 @@ export async function reconcileOwnerDeployment(deployment: Deployment): Promise<
   } finally {
     clearTimeout(timer);
   }
-
   if (got.status === "SUCCESS") {
     // Factory results must prove every durable pipeline address, in order.
     if (got.returnValue?.switch().name !== "scvVec") return;

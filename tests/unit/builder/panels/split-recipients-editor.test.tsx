@@ -6,8 +6,12 @@ import { describe, expect, it, vi } from "vitest";
 import type { FlowNode } from "@/lib/flows/schema";
 import { FlowPatchSchema } from "@/lib/flows/schema";
 import { SplitRecipientsEditor } from "@/components/builder/panels/split-recipients-editor";
-
-type SplitNode = Extract<FlowNode, { type: "split" }>;
+type SplitNode = Extract<
+  FlowNode,
+  {
+    type: "split";
+  }
+>;
 const TRIGGER: FlowNode = { id: "t", type: "on_receive", config: { asset: { kind: "native" } } };
 const SPLIT: SplitNode = {
   id: "s",
@@ -35,9 +39,7 @@ function Owned({
       node={node}
       trigger={TRIGGER}
       sourceAmount={undefined}
-      devMode={false}
       addressBook={[]}
-      offrampEnabled={false}
       sandbox
       fieldErrors={errors}
       onChange={(next) => {
@@ -57,7 +59,6 @@ function Owned({
 function latest(spy: ReturnType<typeof vi.fn<(node: SplitNode) => void>>) {
   return spy.mock.lastCall![0];
 }
-
 describe("Split on shared inputs", () => {
   it("clears a share without committing zero and keeps fractional basis points exact", async () => {
     const user = userEvent.setup();
@@ -74,7 +75,6 @@ describe("Split on shared inputs", () => {
     expect(latest(spy).config.recipients[0]).toMatchObject({ mode: "percentage", bps: 1250 });
     expect(latest(spy).config.recipients[1]).toEqual(SPLIT.config.recipients[1]);
   });
-
   it("keeps fixed amount clearing and decimal entry, and restores shares when changing modes", async () => {
     const user = userEvent.setup();
     const spy = vi.fn<(node: SplitNode) => void>();
@@ -95,7 +95,6 @@ describe("Split on shared inputs", () => {
     );
     expect(latest(spy).config.recipients).toEqual(SPLIT.config.recipients);
   });
-
   it("keeps recipient values attached to the remaining row after removing a recipient", async () => {
     const user = userEvent.setup();
     const spy = vi.fn<(node: SplitNode) => void>();
@@ -109,7 +108,6 @@ describe("Split on shared inputs", () => {
       "50",
     );
   });
-
   it("connects share errors to the input and has no axe violations", async () => {
     const { container } = render(
       <Owned

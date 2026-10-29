@@ -57,31 +57,25 @@ only allowed submissions during RETIRING. Completed transaction-bearing work is
 retained; completed work with no transaction or opaque external intent is
 removed. A crashed OPEN record is never automatically treated as settled.
 
-Off-ramp settlement admissions are bound to a payout job. Retries cannot overlap
-an unresolved admission, pending transaction, or successful transfer whose job
-checkpoint was not persisted. Other jobs can still drain independently. Legacy
-RUNNING jobs without job-bound admission history also require verified recovery;
-the absence of a transaction record does not prove no transfer was submitted.
+Fiat off-ramping and its archival runtime are removed by
+[#1141](offramp-retirement.md). The targeted cleanup migration refuses any actual
+provider/fiat records and removes only verified blank metadata and empty feature
+storage. Generic financial history and unknown finality are preserved.
 
 Requesting retirement immediately closes new service work, revokes deployment
 API tokens, disables future charges, and cancels unclaimed streaming milestones.
-Claimed operations, submitted hashes, and obligated fiat payouts/refunds must
-finish or be reconciled. The normal event/charge/release/claim/TTL selectors
-exclude retiring/retired deployments before taking a batch. Obligated off-ramp
-jobs can drain during RETIRING. Shared factory/template TTL maintenance continues.
+Claimed operations and submitted hashes must finish or be reconciled.
+Generic unresolved work and transaction finality remain blockers. The normal
+event/charge/release/claim/TTL selectors
+exclude retiring/retired deployments before taking a batch. Shared factory/template
+TTL maintenance continues.
 Existing SSE subscriptions close on the retirement signal and also check the
 stored lifecycle before delivery and at heartbeat, so lost Redis signals cannot
 preserve access indefinitely.
 
 The ledger cutoff is fixed once pre-admitted work finishes and its known hashes
 reach finality. Retirement then reconciles all pipeline events through that fixed
-ledger. Cash-out job creation is awaited and deduplicated by originating event;
-coverage cannot advance past an obligation that failed to persist. Replayed
-legacy events with an ambiguous, unlinked payout block for verified linkage
-instead of creating a second payout. A bounded stored-event pass also recovers
-pre-cutoff payroll cash-outs, linking exact payroll transaction matches to
-existing jobs before creating missing obligations. Missing recovery data or
-ambiguous linkage blocks completion. Post-cutoff
+ledger. Missing event coverage blocks completion. Post-cutoff
 external activity does not extend the drain. Future schedules and nonzero
 contract balances alone do not block retirement.
 
@@ -112,12 +106,10 @@ and observed timing. This pass adds at most four seconds of provider work to the
 existing multi-stage cron; it does not establish a whole-route latency bound.
 
 `cron/reconcile-transactions` also runs bounded, oldest-checked-first retirement
-reconciliation. Unknown finality, running claims, failed refunds, unresolved
-provider deposits, cash-out dead letters and archival event gaps stay visible as
-specific blockers. Neither an elapsed timeout nor FAILED/CANCELLED business
-status proves a payment settled. A confirmed full refund stamps a separate
-`settlementResolvedAt` field. RETIRED is written under the admission lock only
-when coverage and all settlement obligations are verified.
+reconciliation. Unknown finality, running claims, crashed/opaque work and archival
+event gaps stay visible as specific blockers. Neither an elapsed timeout nor a
+FAILED/CANCELLED business status proves money movement settled. RETIRED is written
+under the admission lock only when coverage and all settlement obligations are verified.
 
 ## Verified operator reconciliation
 
@@ -164,18 +156,9 @@ the running claim UUID, `outcome: "CLAIMED"` or `"SKIPPED"`, and the same
 confirmation/evidence. OPEN workers and pending transactions prevent this action.
 It never schedules another milestone.
 
-Before verifying **offramp**, reconcile the provider deposit/trade/withdrawal and
-verify that the full obligated payout or refund completed. FAILED or CANCELLED
-alone is insufficient. Supply `kind: "offramp"`, the job UUID and the same
-confirmation/evidence fields. A crashed RUNNING job may be resolved only after
-its worker/process is fenced,
-all OPEN/BLOCKED admissions are verified, and transaction finality is known.
-The attestation records the fully completed payout/refund and changes RUNNING
-to CANCELLED so the cron cannot restart it. An expired lease alone is not proof.
-
 Before verifying an **events** retention gap, read archived events through the
-exact stored cutoff and persist every missing committed payout/job/dead-letter
-obligation. Supply `kind: "events"`, `cutoffLedger` matching the stored boundary,
+exact stored cutoff and preserve every missing committed financial event,
+reconciling its outstanding work. Supply `kind: "events"`, `cutoffLedger` matching the stored boundary,
 and the same confirmation/evidence fields. This is an operator attestation of
 completed archival reconciliation, not permission to abandon missed payments.
 

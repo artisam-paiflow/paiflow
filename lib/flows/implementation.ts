@@ -1,10 +1,8 @@
 import { z } from "zod";
-import { integerNumber } from "@/lib/validation/number";
 import type { FlowGraph, FlowNode } from "./schema";
 import type { ValidationIssue } from "./issue";
 import type { PipelineNodeParams } from "./to-params";
 import { edgeBranch, isTimeCondition, timelockSideBranch } from "./branches";
-
 const BlockTypeSchema = z.enum([
   "on_receive",
   "on_schedule",
@@ -17,22 +15,15 @@ const BlockTypeSchema = z.enum([
   "split",
   "swap",
   "yield",
-  "cash_out",
   "condition",
   "hold",
   "return_to_owner",
   "email_notify",
 ]);
 const BindingBaseSchema = z.object({ blockId: z.string().min(1), blockType: BlockTypeSchema });
-export const BlockBindingSchema = z.discriminatedUnion("role", [
-  BindingBaseSchema.extend({
-    role: z.enum(["trigger", "action", "condition", "schedule", "distribution", "strict_lock"]),
-  }).strict(),
-  BindingBaseSchema.extend({
-    role: z.literal("payout_sink"),
-    recipientIndex: integerNumber().nonnegative(),
-  }).strict(),
-]);
+export const BlockBindingSchema = BindingBaseSchema.extend({
+  role: z.enum(["trigger", "action", "condition", "schedule", "distribution", "strict_lock"]),
+}).strict();
 export const PipelineImplementationSchema = z
   .object({
     version: z.literal(1),
@@ -41,7 +32,6 @@ export const PipelineImplementationSchema = z
   .strict();
 export type BlockBinding = z.infer<typeof BlockBindingSchema>;
 export type PipelineImplementation = z.infer<typeof PipelineImplementationSchema>;
-
 export function directBinding(node: FlowNode): BlockBinding {
   return {
     blockId: node.id,
@@ -56,7 +46,6 @@ export function directBinding(node: FlowNode): BlockBinding {
           : "action",
   };
 }
-
 function directTemplateMatches(block: FlowNode, templateKind: string): boolean {
   switch (block.type) {
     case "on_receive":
@@ -65,23 +54,21 @@ function directTemplateMatches(block: FlowNode, templateKind: string): boolean {
     case "web2_webhook":
       return templateKind === "WEBHOOK";
     case "subscription":
-      return ["SUBSCRIPTION", "SUBSCRIPTION_DEV"].includes(templateKind);
+      return ["SUBSCRIPTION"].includes(templateKind);
     case "payroll":
-      return ["PAYROLL", "SUBSCRIPTION", "SUBSCRIPTION_DEV"].includes(templateKind);
+      return ["PAYROLL", "SUBSCRIPTION"].includes(templateKind);
     case "oracle":
       return templateKind === "ORACLE";
     case "pay":
-      return ["PAYER", "PAYER_DEV"].includes(templateKind);
+      return ["PAYER"].includes(templateKind);
     case "return_to_owner":
       return templateKind === "PAYER";
     case "split":
-      return ["SPLITTER", "SPLITTER_DEV"].includes(templateKind);
+      return ["SPLITTER"].includes(templateKind);
     case "swap":
       return templateKind === "SWAPPER";
     case "yield":
       return templateKind === "YIELD";
-    case "cash_out":
-      return ["CASH_OUT", "CASH_OUT_DEV"].includes(templateKind);
     case "condition":
       switch (block.config.kind) {
         case "time_after":
@@ -109,7 +96,6 @@ function directTemplateMatches(block: FlowNode, templateKind: string): boolean {
     }
   }
 }
-
 function reachesBlock(graph: FlowGraph, sourceId: string, targetId: string): boolean {
   const seen = new Set([sourceId]);
   const queue = [sourceId];
@@ -125,12 +111,14 @@ function reachesBlock(graph: FlowGraph, sourceId: string, targetId: string): boo
   }
   return false;
 }
-
 function roleMatches(
   graph: FlowGraph,
   block: FlowNode,
-  binding: Exclude<BlockBinding, { role: "payout_sink" }>,
-  node: { nodeId: string; templateKind: string },
+  binding: BlockBinding,
+  node: {
+    nodeId: string;
+    templateKind: string;
+  },
   blocks: Map<string, FlowNode>,
 ): boolean {
   switch (binding.role) {
@@ -188,7 +176,6 @@ function roleMatches(
     }
   }
 }
-
 /** Checks the compiler's recorded coverage; never invent bindings for a deployed graph. */
 export function implementationIssues(
   graph: FlowGraph,
@@ -203,13 +190,6 @@ export function implementationIssues(
   const blocks = new Map(graph.nodes.map((n) => [n.id, n]));
   const covered = new Set<string>();
   const contractIds = new Set<string>();
-  const payoutReferences = new Map<string, { blockId: string; recipientIndex: number }>();
-  const payoutBindings = new Map<string, number>();
-  // Dev non-payroll compilation preserves existing cash-out contract recipients.
-  // Their addresses are validated by the graph validator; they are dependencies,
-  // not contracts generated/deployed by this pipeline.
-  const generatesPayouts =
-    graph.devMode !== true || graph.nodes.some((node) => node.type === "payroll");
   const report = (id: string, message: string) =>
     issues.push({
       path: `nodes.${id}`,
@@ -218,26 +198,6 @@ export function implementationIssues(
       message,
       friendlyMessage: message,
     });
-  for (const node of pipeline) {
-    const params = node.params;
-    const recipients =
-      params?.kind === "payer" || params?.kind === "payer_dev"
-        ? [{ address: params.recipient, isCashOut: params.isCashOut }]
-        : params?.kind === "splitter" || params?.kind === "splitter_dev"
-          ? params.recipients
-          : [];
-    for (const [recipientIndex, recipient] of recipients.entries()) {
-      if (!generatesPayouts || !recipient.isCashOut) continue;
-      if (!recipient.address || payoutReferences.has(recipient.address)) {
-        report(
-          node.nodeId,
-          "A generated payout contract has a missing or duplicate recipient reference.",
-        );
-        continue;
-      }
-      payoutReferences.set(recipient.address, { blockId: node.nodeId, recipientIndex });
-    }
-  }
   for (const node of pipeline) {
     if (contractIds.has(node.nodeId))
       report(node.nodeId, "Two deployed contracts have the same pipeline ID.");
@@ -248,7 +208,6 @@ export function implementationIssues(
       continue;
     }
     const bindings = parsed.data.bindings;
-    const generated = bindings.some((binding) => binding.role === "payout_sink");
     const hasOwner =
       node.templateKind === "STREAMER"
         ? bindings.some((binding) => binding.role === "schedule") &&
@@ -260,13 +219,13 @@ export function implementationIssues(
               ["trigger", "action", "condition"].includes(binding.role) &&
               binding.blockId === node.nodeId,
           );
-    if (generated ? bindings.length !== 1 : !hasOwner) {
+    if (!hasOwner) {
       report(node.nodeId, "This contract is missing a valid originating block binding.");
     }
     const seen = new Set<string>();
     for (const binding of parsed.data.bindings) {
       const block = blocks.get(binding.blockId);
-      const key = `${binding.blockId}:${binding.role}:${binding.role === "payout_sink" ? binding.recipientIndex : ""}`;
+      const key = `${binding.blockId}:${binding.role}`;
       if (seen.has(key))
         report(binding.blockId, "This contract repeats an implementation binding.");
       seen.add(key);
@@ -277,66 +236,12 @@ export function implementationIssues(
         );
         continue;
       }
-      if (binding.role === "payout_sink") {
-        const originKey = JSON.stringify([binding.blockId, binding.recipientIndex]);
-        payoutBindings.set(originKey, (payoutBindings.get(originKey) ?? 0) + 1);
-        const reference = payoutReferences.get(node.nodeId);
-        const params = node.params;
-        const recipient =
-          block.type === "pay" && binding.recipientIndex === 0
-            ? block.config
-            : block.type === "split"
-              ? block.config.recipients[binding.recipientIndex]
-              : undefined;
-        if (
-          !recipient ||
-          recipient.payoutMode !== "fiat" ||
-          !["CASH_OUT", "CASH_OUT_DEV"].includes(node.templateKind) ||
-          reference?.blockId !== block.id ||
-          reference.recipientIndex !== binding.recipientIndex ||
-          (params?.kind !== "cash_out" && params?.kind !== "cash_out_dev") ||
-          params.parentNodeId !== block.id
-        ) {
-          report(block.id, "A generated payout contract has an invalid recipient binding.");
-        }
-        continue;
-      }
       const valid = roleMatches(graph, block, binding, node, blocks);
       if (!valid) report(block.id, "This block has an invalid implementation role.");
       else covered.add(block.id);
     }
   }
-  for (const [contractId, reference] of payoutReferences) {
-    const child = pipeline.find((node) => node.nodeId === contractId);
-    const parsed = PipelineImplementationSchema.safeParse(child?.implementation);
-    if (
-      !child ||
-      !parsed.success ||
-      !parsed.data.bindings.some(
-        (binding) =>
-          binding.role === "payout_sink" &&
-          binding.blockId === reference.blockId &&
-          binding.recipientIndex === reference.recipientIndex,
-      )
-    ) {
-      report(
-        reference.blockId,
-        "A generated payout recipient is missing its contract implementation binding.",
-      );
-    }
-  }
   for (const block of graph.nodes) {
-    const recipients =
-      block.type === "pay" ? [block.config] : block.type === "split" ? block.config.recipients : [];
-    for (const [recipientIndex, recipient] of recipients.entries()) {
-      if (!generatesPayouts || recipient.payoutMode !== "fiat") continue;
-      if (payoutBindings.get(JSON.stringify([block.id, recipientIndex])) !== 1) {
-        report(
-          block.id,
-          "Each fiat recipient must have exactly one generated payout contract binding.",
-        );
-      }
-    }
     if (covered.has(block.id)) continue;
     report(
       block.id,
@@ -345,7 +250,6 @@ export function implementationIssues(
   }
   return issues;
 }
-
 /** Display recorded block associations without looking up the current editable flow. */
 export function implementationLabel(value: unknown): string | null {
   const parsed = PipelineImplementationSchema.safeParse(value);
@@ -362,19 +266,12 @@ export function implementationLabel(value: unknown): string | null {
     split: "Split",
     swap: "Swap",
     yield: "Yield",
-    cash_out: "Cash out",
     condition: "Condition",
     hold: "Hold",
     return_to_owner: "Return to owner",
     email_notify: "Email",
   };
   return parsed.data.bindings
-    .map((b) =>
-      b.role === "payout_sink"
-        ? `${names[b.blockType]} recipient ${b.recipientIndex + 1} payout`
-        : b.role === "strict_lock"
-          ? "Hold until deadline"
-          : names[b.blockType],
-    )
+    .map((b) => (b.role === "strict_lock" ? "Hold until deadline" : names[b.blockType]))
     .join(" + ");
 }

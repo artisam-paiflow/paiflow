@@ -2,9 +2,7 @@ import type { Asset, FlowGraph } from "./schema";
 import { isTrigger } from "./schema";
 import { edgeBranch, isTimeCondition, timelockSideBranch } from "./branches";
 import type { ValidationIssue } from "./issue";
-
 export const DEPLOYING_WALLET = "PENDING:deploying-wallet";
-
 export function terminalOutcomeIssues(graph: FlowGraph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   for (const node of graph.nodes) {
@@ -39,7 +37,6 @@ export function terminalOutcomeIssues(graph: FlowGraph): ValidationIssue[] {
   }
   return issues;
 }
-
 /** Internal lowering only; never save this graph or its symbolic owner address. */
 export function resolveOwnerReturns(graph: FlowGraph, owner: string): FlowGraph {
   const byId = new Map(graph.nodes.map((n) => [n.id, n]));
@@ -66,7 +63,6 @@ export function resolveOwnerReturns(graph: FlowGraph, owner: string): FlowGraph 
               mode: "percentage" as const,
               percentage: 100,
               fullAmount: true,
-              fillValueViaApi: false,
               payoutMode: "crypto" as const,
             },
           }

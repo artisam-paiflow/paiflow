@@ -18,7 +18,6 @@ import { signerFromTransaction } from "@/lib/stellar/signer";
 import { allowanceHasExpired } from "@/lib/stellar/allowance-status";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
-
 export const WalletControlActionSchema = z.enum([
   "subscription.cancel",
   "subscription.reactivate",
@@ -32,12 +31,12 @@ export type WalletControlAction = z.infer<typeof WalletControlActionSchema>;
 export const WalletControlSubmitSchema = z
   .object({
     intent: z.string().guid({ error: "Invalid uuid" }),
-    signedXdr: z.string().min(1).max(100_000),
+    signedXdr: z.string().min(1).max(100000),
   })
   .strict();
 const actions = {
-  "subscription.cancel": { method: "unsubscribe", kinds: ["SUBSCRIPTION", "SUBSCRIPTION_DEV"] },
-  "subscription.reactivate": { method: "subscribe", kinds: ["SUBSCRIPTION", "SUBSCRIPTION_DEV"] },
+  "subscription.cancel": { method: "unsubscribe", kinds: ["SUBSCRIPTION"] },
+  "subscription.reactivate": { method: "subscribe", kinds: ["SUBSCRIPTION"] },
   "schedule.pause": { method: "pause", kinds: ["STREAMER"] },
   "schedule.resume": { method: "unpause", kinds: ["STREAMER"] },
   "schedule.retrieve": { method: "retrieve_unvested", kinds: ["STREAMER"] },
@@ -55,7 +54,6 @@ export type ControlBinding = Pick<
   | "txHash"
   | "maxTime"
 >;
-
 export function parseControlTransaction(value: string): Transaction {
   try {
     const tx = TransactionBuilder.fromXDR(value, stellarPassphrase());
@@ -68,7 +66,6 @@ export function parseControlTransaction(value: string): Transaction {
     );
   }
 }
-
 /** Restrict the foundation to the named action shapes; never a generic invocation relay. */
 export function assertControlTransaction(tx: Transaction, binding: ControlBinding) {
   const action = WalletControlActionSchema.parse(binding.action);
@@ -116,7 +113,6 @@ export function assertControlTransaction(tx: Transaction, binding: ControlBindin
     throw new AppError("VALIDATION", "Transaction does not match the prepared wallet control");
   }
 }
-
 export function verifyControlTransaction(binding: ControlBinding, signedXdr: string) {
   const tx = parseControlTransaction(signedXdr);
   assertControlTransaction(tx, binding);
@@ -128,7 +124,6 @@ export function verifyControlTransaction(binding: ControlBinding, signedXdr: str
     );
   return { tx, signer };
 }
-
 /** Builders must simulate with the required wallet as source before calling this. */
 export async function createControlIntent(input: {
   deployment: Pick<Deployment, "id" | "network" | "status" | "pipelineSnapshot">;
@@ -143,7 +138,7 @@ export async function createControlIntent(input: {
   const { deployment } = input;
   if (deployment.network !== env().STELLAR_NETWORK || deployment.status !== "CONFIRMED")
     throw new AppError("NOT_FOUND", "Deployment not available on this network");
-  z.number().int().positive().max(0xffff_ffff).parse(input.preparationLedger);
+  z.number().int().positive().max(4294967295).parse(input.preparationLedger);
   const candidates = actions[action].kinds.flatMap((kind) =>
     pipelineNodesOfKind(deployment.pipelineSnapshot, kind),
   );
@@ -192,7 +187,6 @@ export async function createControlIntent(input: {
     expiresAt: new Date(Number(intent.maxTime) * 1000).toISOString(),
   };
 }
-
 export async function readControlIntent(
   id: string,
   deploymentId: string,
@@ -210,7 +204,6 @@ export async function readControlIntent(
   if (!intent) throw new AppError("NOT_FOUND", "Wallet-control preparation not found");
   return intent;
 }
-
 /** Explicit reconciliation, never wall-clock cleanup. Limited history retains the reservation. */
 export async function reconcileControlIntent(
   id: string,
@@ -250,7 +243,6 @@ export async function reconcileControlIntent(
   await repairControlAdmission(reconciled);
   return readControlIntent(id, deploymentId, action);
 }
-
 /** Final status evidence closes the reservation, including when recovered after a crash. */
 export async function recordControlFinality(
   deploymentId: string,
@@ -268,7 +260,6 @@ export async function recordControlFinality(
   if (intent) await repairControlAdmission(intent);
   if (state === "SUCCESS") invalidateDashboardBalances(deploymentId, txHash);
 }
-
 /** Repair a crash between durable finality and admission bookkeeping, without RPC history. */
 export async function repairControlAdmission(
   intent: Pick<

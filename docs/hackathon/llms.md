@@ -30,7 +30,7 @@ The Paiflow Guide is the event-neutral end-to-end walkthrough. Distribute only i
 
 This guide explains how to build with Paiflow. Follow your event's primer for onboarding, credentials, submission requirements and judging. If event information is missing, ask the organisers.
 
-**Hackathon availability:** Dev mode will stay disabled for the duration of the hackathon. Configure all recipients and required values before deployment. Per-payment recipients, **Fill value via API**, **Dev values** and deferred subscriber/recipient setup are unavailable during the event. Use standard flows and `execute` with configured recipients. `pnpm dev` starts the local app server; it does not enable flow Dev mode.
+**Configuration:** Configure all recipients and required values before deployment. Mutable dev-mode flows, deferred subscriber/recipient setup and per-payment-recipient APIs have been removed (#1138). Use standard flows and `execute` with configured recipients. `pnpm dev` starts the local app server.
 
 ## Set up the SDK payment example
 
@@ -82,7 +82,7 @@ Asset fields take one of these shapes:
 {"kind":"custom","code":"TOKEN","issuer":"<real G-address>"}
 ```
 
-Native means XLM. Custom codes are normalised to 1–12 alphanumeric characters and require a valid issuer account. Swap only supports XLM and USDC. Use real testnet `G…` public account addresses for recipients and signers. `PENDING:<label>` is a design-time placeholder, not a payable address; resolve it before deploying unless that value is deliberately deferred in Dev mode. Never paste an `S…` secret seed into a flow field.
+Native means XLM. Custom codes are normalised to 1–12 alphanumeric characters and require a valid issuer account. Swap only supports XLM and USDC. Use real testnet `G…` public account addresses for recipients and signers. `PENDING:<label>` is a design-time placeholder, not a payable address; resolve it before deploying. Never paste an `S…` secret seed into a flow field.
 
 **Money is a decimal integer string in stroops**, never a JavaScript floating-point number: 1 token = 10,000,000 stroops; 10 USDC = `"100000000"`; 0.5 USDC = `"5000000"`. Use `bigint` for arithmetic and `.toString()` for API bodies. Basis points (`bps`) are integers: 1% = 100 bps; 100% = 10,000 bps. ISO date-time fields include a timezone, for example `2026-10-09T06:00:00Z` (choose a future time for your actual demo).
 
@@ -125,7 +125,7 @@ Fields: `asset`, `subscriber` (account address), `amountPerPeriodStroops` (integ
 
 Pull payments from the configured subscriber after they approve an allowance. The relayer charges when due, without the subscriber signing every charge, until the window ends or allowance/balance is exhausted. Starts at deployment time; end/count/default window follow the rules above. The non-deferred amount must be greater than zero. If the next Split has all fixed recipients, its total determines the pull amount instead of a stale manual period amount. Use the allowance page; `execute` cannot start a subscription. Use Pay or Split downstream; amount and time branching conditions are refused under this trigger.
 
-Outside this hackathon, where Dev mode is enabled, Dev mode can defer/change the subscriber and payment values through **Dev values** on the deployment page. On builds containing #790, the configured customer can open `/allowance/[deploymentId]` while logged out and approve with their wallet, without a Paiflow account or deployment token. The page supports ordinary and Dev subscriptions and reads the current deployed subscriber and token. An unconfigured Dev subscriber must be filled by the team first; a different wallet is refused. An allowance still needs the customer's wallet signature. Do not claim that connecting any new wallet automatically creates a new subscriber in this one deployment.
+The subscriber and payment values must be configured before deployment. On builds containing #790, the configured customer can open `/allowance/[deploymentId]` while logged out and approve with their wallet, without a Paiflow account or deployment token. The page supports standard subscriptions and reads the current deployed subscriber and token; a different wallet is refused. An allowance still needs the customer's wallet signature. Do not claim that connecting any new wallet automatically creates a new subscriber in this one deployment.
 
 ## Pay — `pay`
 
@@ -133,9 +133,7 @@ Fields: `recipient`, `asset`; optional `email` (up to 254 characters), `mode` (`
 
 Pay one recipient. Unless full amount or deferred value is selected, choose a mode: a fixed amount must be positive; a percentage must be greater than zero and at most 100. `fullAmount: true` pays 100% of what arrives. Fixed Pay sends the smaller of incoming amount and its configured cap; any surplus goes to its next step. With no next step, surplus stays in the Pay contract: avoid overfunding a terminal fixed Pay. For variable checkout prices, full amount is simpler.
 
-**Unavailable during this hackathon:** Dev mode stays disabled. The following deferred-value behavior applies only where Dev mode is enabled.
-
-`fillValueViaApi` is only allowed with graph `devMode: true`. That mutable Pay can deploy before its recipient/value is filled. This configuration requires Dev mode and is unavailable for the event. Configure the recipient and amount before deployment.
+Configure the recipient and required amount before deployment. Deferred API-filled configuration has been removed.
 
 ## Split — `split`
 
@@ -144,7 +142,7 @@ Fields: `asset`, `recipients` (up to 20), optional `amountPerIntervalStroops`. E
 - All recipients use the same mode. Never mix percentage and fixed rows.
 - Percentage shares must each be greater than zero and sum to exactly 10,000 bps. For three equal shares use 3333, 3333, 3334. Rounding remainder goes to the last recipient.
 - Fixed amounts must each be positive, with a positive total. Short deposits accumulate; the roster is paid when enough funds are held. Surplus is forwarded to a next step if one exists.
-- No duplicate recipient addresses. A non-Dev flow needs at least one recipient. Outside this hackathon, Dev mode may deploy an empty roster, but fill it in **Dev values** before payments.
+- No duplicate recipient addresses. At least one recipient is required before deployment.
 - A scheduled percentage Split needs a positive `amountPerIntervalStroops`; a fixed scheduled Split derives the amount from its roster.
 
 Use Split for fan-out rather than drawing several outgoing money paths and expecting automatic division. A percentage Split consumes the deposit; it does not leave money for a subsequent per-payment Pay.
@@ -179,7 +177,7 @@ Fields: none (`config: {}`). A terminal marker directly on the **before side of 
 
 ## Return to owner — `return_to_owner`
 
-Fields: none (`config: {}`). A terminal destination directly after an amount, time or multisig condition, with exactly one incoming edge and no outgoing edges. Pays the full incoming amount to the **wallet that signed deployment**, resolved when deploying and immutable even in Dev mode. It does **not** return each customer's contribution to its original wallet. For a customer refund, configure a Pay recipient explicitly instead.
+Fields: none (`config: {}`). A terminal destination directly after an amount, time or multisig condition, with exactly one incoming edge and no outgoing edges. Pays the full incoming amount to the **wallet that signed deployment**, resolved when deploying and fixed for that deployment. It does **not** return each customer's contribution to its original wallet. For a customer refund, configure a Pay recipient explicitly instead.
 
 ## Notification settings
 
@@ -408,7 +406,7 @@ App calls: `deployment.execute.prepare({ from: customerPublicKey, amount: "10000
 
 Source: [artisam-paiflow/paiflow-campus-snacks](https://github.com/artisam-paiflow/paiflow-campus-snacks), a separate sample application. It represents one branch of a snack shop. See its [README setup instructions](https://github.com/artisam-paiflow/paiflow-campus-snacks/blob/main/README.md) for sample configuration, and follow your own event instructions for when integration is allowed.
 
-Graph: **On Receive USDC → percentage Split**, with Dev mode off. Vendor first: **9000 bps (90%)**; student organisation second: **1000 bps (10%)**. Use distinct funded testnet recipients with the exact USDC trustline. One deployment serves all customers.
+Graph: **On Receive USDC → percentage Split**. Vendor first: **9000 bps (90%)**; student organisation second: **1000 bps (10%)**. Use distinct funded testnet recipients with the exact USDC trustline. One deployment serves all customers.
 
 Follow the sample's own README and configuration; its USDC shop is distinct from the minimal starter's fixed 1-XLM payment. The server calculates snack prices; Freighter signs in the browser.
 

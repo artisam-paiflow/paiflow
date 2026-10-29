@@ -494,13 +494,11 @@ fn profile_terminal_execution() {
                                 address: a.clone(),
                                 bps: if fixed { 0 } else { 6_000 },
                                 amount: if fixed { 60 } else { 0 },
-                                is_cash_out: false,
                             },
                             Recipient {
                                 address: b.clone(),
                                 bps: if fixed { 0 } else { 4_000 },
                                 amount: if fixed { 40 } else { 0 },
-                                is_cash_out: false,
                             },
                         ],
                         0i128,
@@ -521,7 +519,6 @@ fn profile_terminal_execution() {
                         if fixed { 0u32 } else { 5_000 },
                         Vec::<WorkflowTarget>::new(&env),
                         &parent,
-                        false,
                     ),
                 );
             }

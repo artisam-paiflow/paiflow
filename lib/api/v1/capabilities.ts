@@ -15,7 +15,6 @@ import {
   type CapabilityOperation,
   type DeploymentCapabilities,
 } from "./schema";
-
 // Never infer deployed contracts by recompiling a graph, or promote a later
 // node to the head when a snapshot is malformed. Unknown kinds stay unknown.
 const PipelineSchema = z
@@ -27,56 +26,12 @@ const PipelineSchema = z
     }),
   )
   .min(1);
-
 const operation = (
   status: CapabilityOperation["status"],
   requirements: string[],
   nodeIds: string[] = [],
   authentication: CapabilityOperation["authentication"] = "deployment_token",
 ): CapabilityOperation => ({ status, authentication, requirements, nodeIds });
-
-/** Only paths that could pass a deposit immediately; values remain live checks. */
-function payoutCandidates(nodes: z.infer<typeof PipelineSchema>, graph: FlowGraph | null) {
-  const head = nodes[0];
-  if (!graph?.devMode || !head || head.templateKind !== "DEPOSIT_TRIGGER") return [];
-  const deployed = new Map(nodes.map((node) => [node.nodeId, node]));
-  const blocks = new Map(graph.nodes.map((node) => [node.id, node]));
-  if (blocks.get(head.nodeId)?.type !== "on_receive") return [];
-  const visited = new Set<string>();
-  const queue = [head.nodeId];
-  const candidates: string[] = [];
-  while (queue.length) {
-    const id = queue.shift()!;
-    if (visited.has(id)) continue;
-    visited.add(id);
-    const contract = deployed.get(id);
-    const block = blocks.get(id);
-    if (!contract || !block) continue;
-    if (contract.templateKind === "PAYER_DEV" && block.type === "pay") {
-      if (block.config.payoutMode !== "fiat") candidates.push(id);
-      continue;
-    }
-    const immediate =
-      (id === head.nodeId && block.type === "on_receive") ||
-      (["SPLITTER", "SPLITTER_DEV"].includes(contract.templateKind) && block.type === "split") ||
-      (contract.templateKind === "ROUTER" &&
-        block.type === "condition" &&
-        ["amount_gt", "amount_lt"].includes(block.config.kind));
-    if (!immediate) continue;
-    if (contract.templateKind === "ROUTER") {
-      const targets = conditionBranchTargets(graph, id);
-      for (const branch of [targets.true, targets.false])
-        if (branch.length === 1) queue.push(branch[0]!);
-    } else {
-      const targets = graph.edges.filter(
-        (edge) => edge.source === id && blocks.get(edge.target)?.type !== "email_notify",
-      );
-      if (targets.length === 1) queue.push(targets[0]!.target);
-    }
-  }
-  return candidates;
-}
-
 /** Metadata-only projection: no RPC, simulation, secret serialization or mutation. */
 export function deploymentCapabilities(
   deployment: Pick<
@@ -89,16 +44,13 @@ export function deploymentCapabilities(
   const network = env().STELLAR_NETWORK;
   if (deployment.network !== network)
     throw new AppError("VALIDATION", "Deployment network does not match this environment");
-
   const pipeline = PipelineSchema.safeParse(deployment.pipelineSnapshot);
   const nodes = pipeline.success ? pipeline.data : [];
   const head = nodes[0];
   const graph = FlowGraphSchema.safeParse(deployment.graphSnapshot);
   const recordedGraph = graph.success ? graph.data : null;
   const headBlock = recordedGraph?.nodes.find((node) => node.id === head?.nodeId);
-  const subscriptionNodes = nodes.filter((node) =>
-    ["SUBSCRIPTION", "SUBSCRIPTION_DEV"].includes(node.templateKind),
-  );
+  const subscriptionNodes = nodes.filter((node) => ["SUBSCRIPTION"].includes(node.templateKind));
   let triggerType: DeploymentCapabilities["triggerType"] = "unknown";
   switch (head?.templateKind) {
     case "DEPOSIT_TRIGGER":
@@ -108,7 +60,6 @@ export function deploymentCapabilities(
       triggerType = "webhook";
       break;
     case "SUBSCRIPTION":
-    case "SUBSCRIPTION_DEV":
       triggerType = headBlock?.type === "payroll" ? "payroll" : "subscription";
       break;
     case "PAYROLL":
@@ -121,16 +72,12 @@ export function deploymentCapabilities(
       triggerType = "oracle";
       break;
   }
-
-  // This is deliberately labelled initial snapshot metadata. In particular,
-  // a Dev setter can change the asset without rewriting graphSnapshot.
   const asset =
     headBlock && "asset" in headBlock.config
       ? CapabilitiesAssetSchema.safeParse(headBlock.config.asset)
       : null;
   const releaseNodes = nodes.filter((node) => node.templateKind === "TIMELOCK_BRANCH");
-  const devModeEnabled = isFeatureEnabled("devMode");
-  const payNodeIds = devModeEnabled ? payoutCandidates(nodes, recordedGraph) : [];
+
   const subscriptionTrigger = recordedGraph?.nodes.find(isTrigger);
   const allowanceCandidate =
     triggerType === "subscription" &&
@@ -154,7 +101,6 @@ export function deploymentCapabilities(
     new Set(nodes.map((node) => node.nodeId)).size === nodes.length &&
     new Set(nodes.map((node) => node.contractAddress)).size === nodes.length;
   const webhookEnabled = triggerType === "webhook" && !!deployment.webhookSecret;
-
   return {
     deploymentId: deployment.id,
     network,
@@ -184,14 +130,14 @@ export function deploymentCapabilities(
           : operation("unsupported", [
               "No unambiguous supported Schedule or Webhook funding nodes.",
             ]),
-      balances: balanceCandidates(deployment.pipelineSnapshot, devModeEnabled).length
+      balances: balanceCandidates(deployment.pipelineSnapshot).length
         ? operation(
             "conditional",
             [
               "Reads current token contract balances, not Schedule payout availability or proof of payment. Live asset and balance reads must succeed; stale, partial and unsupported targets make totals incomplete.",
               "Display reads may be cached for 10 seconds. Multisig is excluded. Hosted testnet verification remains required before participant availability is claimed.",
             ],
-            balanceCandidates(deployment.pipelineSnapshot, devModeEnabled).map((n) => n.nodeId),
+            balanceCandidates(deployment.pipelineSnapshot).map((n) => n.nodeId),
           )
         : operation("unsupported", [
             "No supported balance targets were established from the deployment snapshot. Multisig is excluded.",
@@ -212,20 +158,6 @@ export function deploymentCapabilities(
           )
         : operation("unsupported", [
             "No deployed timelock branch supports early release. Strict Hold contracts cannot release early.",
-          ]),
-      payouts: payNodeIds.length
-        ? operation(
-            "conditional",
-            [
-              "Requires an eligible immediate path to the selected mutable crypto Pay. Preparation checks current on-chain connectivity, balances and payment configuration; delayed or unsupported paths are refused.",
-              "Recipient accounts and trustlines must exist. Pay must consume all incoming funds and have zero balance; upstream fixed Split must satisfy its balance and surplus rules.",
-              "Requires functioning Redis and sequential payouts. Direct deposits, execute and other mutation paths bypass payout coordination. Sign within the 60-second envelope window; retry the same submitted envelope.",
-            ],
-            payNodeIds,
-          )
-        : operation("unsupported", [
-            ...(!devModeEnabled ? ["Dev mode is turned off on this server."] : []),
-            "Per-payment recipients require a deposit-triggered Dev flow with a deployed mutable crypto Pay on an immediate Split or amount-condition path. Standard flows use configured recipients.",
           ]),
       webhook: webhookEnabled
         ? operation(
@@ -284,7 +216,7 @@ export function deploymentCapabilities(
             "supported",
             [
               "Read /api/v1/deployments/{id}/subscription/state for live subscriber, token, allowance and cancellation state. This deployment token permits reading, not wallet approval or cancellation.",
-              "Ordinary and Dev subscriptions are supported. Unconfigured Dev subscribers return setupRequired:true and zero allowance without a token allowance read. Mutable asset metadata can be unavailable; tokenContractAddress is authoritative.",
+              "Token contract addresses are authoritative; RPC failures are reported as errors.",
             ],
             [head!.nodeId],
           )
@@ -295,18 +227,16 @@ export function deploymentCapabilities(
         stateCandidate ? "conditional" : "unsupported",
         [
           "Use subscription/cancel/prepare, sign with the currently configured subscriber, then submit the identical envelope. Requires an active subscription; cancellation revokes its allowance without charging. Recover an existing intent through subscription/cancel/reconcile before replacement.",
-          "Deployment bearer token is also required for every route. Existing Dev cancellation remains available when Dev mode is disabled; live state, consent and simulation determine eligibility.",
+          "Deployment bearer token is also required for every route. live state, consent and simulation determine eligibility.",
         ],
         stateCandidate ? [head!.nodeId] : [],
         "subscriber_wallet",
       ),
       subscriptionReactivate: operation(
-        stateCandidate && (head?.templateKind !== "SUBSCRIPTION_DEV" || devModeEnabled)
-          ? "conditional"
-          : "unsupported",
+        stateCandidate ? "conditional" : "unsupported",
         [
           "Use subscription/reactivate/prepare, sign with the currently configured subscriber, then submit the identical envelope. Requires a cancelled subscription; reactivation does not grant allowance, change billing, create a subscriber or immediately charge. Approve allowance separately. Recover through subscription/reactivate/reconcile before replacement.",
-          "Deployment bearer token is also required for every route. Dev reactivation requires Dev mode enabled; live state, consent and simulation determine eligibility.",
+          "Deployment bearer token is also required for every route. live state, consent and simulation determine eligibility.",
         ],
         stateCandidate ? [head!.nodeId] : [],
         "subscriber_wallet",

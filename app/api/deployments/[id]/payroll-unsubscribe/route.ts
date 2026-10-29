@@ -10,29 +10,30 @@ import {
 } from "@/lib/stellar/invoke";
 import { readSubscriptionSubscriberNullable } from "@/lib/stellar/relayer";
 import { stellarPassphrase } from "@/lib/env";
-
 type PipelineNode = {
   nodeId: string;
   contractAddress: string;
   templateKind: string;
 };
-
-const PAYROLL_KINDS = new Set(["PAYROLL", "SUBSCRIPTION_DEV", "SUBSCRIPTION"]);
-
+const PAYROLL_KINDS = new Set(["PAYROLL", "SUBSCRIPTION"]);
 function findPayrollNode(pipeline: PipelineNode[] | null): PipelineNode | null {
   return pipeline?.find((n) => PAYROLL_KINDS.has(n.templateKind)) ?? null;
 }
-
 function isSubscriptionLike(templateKind: string): boolean {
-  return templateKind === "SUBSCRIPTION" || templateKind === "SUBSCRIPTION_DEV";
+  return templateKind === "SUBSCRIPTION";
 }
-
-async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(
+  req: NextRequest,
+  ctx: {
+    params: Promise<{
+      id: string;
+    }>;
+  },
+) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     await enforceWriteRateLimit("payrollWrite", user.id);
     const { id } = await ctx.params;
-
     const d = await db.deployment.findFirst({
       where: { id, ownerId: user.id },
       include: { flow: { select: { templateKind: true } } },
@@ -41,16 +42,13 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
     if (d.flow.templateKind !== "PAYROLL") {
       throw new AppError("VALIDATION", "Deployment is not a payroll");
     }
-
     const pipeline = d.pipelineSnapshot as PipelineNode[] | null;
     const payrollNode = findPayrollNode(pipeline);
     if (!payrollNode?.contractAddress) {
       throw new AppError("VALIDATION", "Payroll contract address not available");
     }
-
     const isSubscription = isSubscriptionLike(payrollNode.templateKind);
     let employerAddress: string;
-
     if (isSubscription) {
       employerAddress =
         (await readSubscriptionSubscriberNullable(payrollNode.contractAddress)) ?? "";
@@ -58,18 +56,19 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
       const paramsSnapshot = d.paramsSnapshot as Array<{
         nodeId: string;
         templateKind: string;
-        params: { kind: string; employer?: string };
+        params: {
+          kind: string;
+          employer?: string;
+        };
       }> | null;
       const payrollParams = paramsSnapshot?.find(
         (n) => n.templateKind === "PAYROLL" && n.params.kind === "payroll_trigger",
       );
       employerAddress = payrollParams?.params?.employer ?? "";
     }
-
     if (!employerAddress) {
       throw new AppError("VALIDATION", "Employer address not available");
     }
-
     const { xdr } = isSubscription
       ? await prepareSubscriptionUnsubscribeInvocation({
           contractAddress: payrollNode.contractAddress,
@@ -79,7 +78,6 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
           contractAddress: payrollNode.contractAddress,
           employerAddress,
         });
-
     return NextResponse.json({
       data: {
         unsignedXdr: xdr,
@@ -89,5 +87,4 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
     });
   });
 }
-
 export const POST = deploymentServiceRoute(POSTHandler, "owner");

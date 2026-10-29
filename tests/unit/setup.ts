@@ -1,7 +1,7 @@
 // Vitest setup — give every unit test the same environment.
 //
 // env() parses process.env through EnvSchema, so without this the suite reads
-// whatever STELLAR_* / OFFRAMP_* variables happen to be in the developer's
+// whatever STELLAR_* variables happen to be in the developer's
 // shell: a stray or malformed one fails test files that never mention it, and
 // results differ between machines and CI. Clear everything the schema knows
 // about, then put back the few a developer is meant to control.

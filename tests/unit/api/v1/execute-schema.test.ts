@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { ExecutePrepareSchema, PayoutPrepareSchema } from "@/lib/api/v1/schema";
+import { ExecutePrepareSchema } from "@/lib/api/v1/schema";
 import { I128_MAX } from "@/lib/flows/primitives";
 
 const from = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 
 // Payout preparation inherits the execute amount constraint before any relayer mutation.
-for (const [name, schema, extra] of [
-  ["execute", ExecutePrepareSchema, {}],
-  ["payout", PayoutPrepareSchema, { recipient: from }],
-] as const) {
+const name = "execute";
+const schema = ExecutePrepareSchema;
+const extra = {};
+{
   describe(`${name} preparation amount`, () => {
     it.each([
       "1",

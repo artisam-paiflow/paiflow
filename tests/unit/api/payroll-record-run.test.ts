@@ -14,8 +14,7 @@ vi.mock("@/lib/deployments/service-work", () => ({
 }));
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PayrollRunStatus } from "@prisma/client";
-
-const { mockDb, mockEnv, mockRelayer, mockJobs } = vi.hoisted(() => {
+const { mockDb, mockEnv, mockRelayer } = vi.hoisted(() => {
   const mockDb = {
     $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mockDb)),
     deployment: {
@@ -33,29 +32,22 @@ const { mockDb, mockEnv, mockRelayer, mockJobs } = vi.hoisted(() => {
       create: vi.fn(),
     },
   };
-
   const mockEnv = {
     LOG_LEVEL: "silent",
   };
-
   const mockRelayer = {
-    readSplitterDevRecipients: vi.fn(),
     readSplitterRecipients: vi.fn(),
     readSubscriptionAmountPerPeriod: vi.fn(),
     readPayrollRecipients: vi.fn(),
   };
-
-  const mockJobs = {
-    createOffRampJobsForPayrollRun: vi.fn(),
-  };
-
-  return { mockDb, mockEnv, mockRelayer, mockJobs };
+  return { mockDb, mockEnv, mockRelayer };
 });
-
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/env", () => ({ env: () => mockEnv }));
 vi.mock("@/lib/auth", () => ({
-  requireDevAuth: vi.fn(async () => ({ user: { id: "owner-1", username: "owner", role: "USER" } })),
+  requirePayrollSession: vi.fn(async () => ({
+    user: { id: "owner-1", username: "owner", role: "USER" },
+  })),
 }));
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: vi.fn(async () => ({ ok: true })),
@@ -63,10 +55,7 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn() }));
 vi.mock("@/lib/stellar/relayer", () => mockRelayer);
-vi.mock("@/lib/offramp/jobs", () => mockJobs);
-
 import { POST } from "@/app/api/deployments/[id]/payroll-record-run/route";
-
 function makeRequest({
   deploymentId,
   txHash,
@@ -84,133 +73,29 @@ function makeRequest({
     json: async () => ({ txHash }),
   } as unknown as import("next/server").NextRequest;
 }
-
 function makeContext(deploymentId: string) {
   return { params: Promise.resolve({ id: deploymentId }) };
 }
-
 function makeDeployment(overrides: Record<string, unknown> = {}) {
   return {
     id: "dep-1",
     status: "CONFIRMED",
     serviceState: "ACTIVE",
-    offRampEnabled: true,
     flow: { templateKind: "PAYROLL" },
     pipelineSnapshot: [
-      { nodeId: "sub", contractAddress: "CSub", templateKind: "SUBSCRIPTION_DEV" },
-      { nodeId: "split", contractAddress: "CSplit", templateKind: "SPLITTER_DEV" },
+      { nodeId: "sub", contractAddress: "CSub", templateKind: "SUBSCRIPTION" },
+      { nodeId: "split", contractAddress: "CSplit", templateKind: "SPLITTER" },
     ],
     ...overrides,
   };
 }
-
 describe("payroll-record-run", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
-
-  it("records a dev-mode payroll run and routes fiat payouts to CASH_OUT jobs", async () => {
-    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
-    mockDb.payrollRun.findUnique.mockResolvedValue(null);
-    mockRelayer.readSplitterDevRecipients.mockResolvedValue([
-      { address: "GCRYPTO", bps: 0, amount: "5000000" },
-      { address: "CCashOutFiat", bps: 0, amount: "5000000" },
-    ]);
-    mockRelayer.readSubscriptionAmountPerPeriod.mockResolvedValue(10000000n);
-    mockDb.employee.findMany.mockResolvedValue([
-      {
-        id: "emp-crypto",
-        address: "GCRYPTO",
-        payoutMode: "CRYPTO",
-        cashOutContractAddress: null,
-      },
-      {
-        id: "emp-fiat",
-        address: "GCRYPTO_BACKING",
-        payoutMode: "FIAT",
-        cashOutContractAddress: "CCashOutFiat",
-      },
-    ]);
-    mockDb.payrollRun.create.mockResolvedValue({ id: "run-1" });
-    mockDb.employee.upsert.mockResolvedValue({ id: "emp-upserted" });
-    mockDb.payrollPayout.create.mockResolvedValue({ id: "payout-1" });
-    mockJobs.createOffRampJobsForPayrollRun.mockResolvedValue(["job-1", "job-2"]);
-
-    const req = makeRequest({ deploymentId: "dep-1", txHash: "tx-abc" });
-    const res = await POST(req, makeContext("dep-1"));
-    const json = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(json.data.payrollRunId).toBe("run-1");
-    expect(json.data.payoutCount).toBe(2);
-    expect(json.data.offRampJobIds).toEqual(["job-1", "job-2"]);
-    expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
-    expect(mockRelayer.readSplitterDevRecipients).toHaveBeenCalledWith("CSplit");
-    expect(mockDb.payrollRun.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          status: PayrollRunStatus.CHARGED,
-          totalStroops: "10000000",
-          txHash: "tx-abc",
-        }),
-      }),
-    );
-    expect(mockJobs.createOffRampJobsForPayrollRun).toHaveBeenCalledWith(mockDb, "run-1");
-  });
-
-  it("records a non-dev payroll run and creates off-ramp jobs for fiat employees", async () => {
+  it("records a crypto payroll run with its payout records", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(
       makeDeployment({
-        offRampEnabled: false,
-        pipelineSnapshot: [
-          { nodeId: "sub", contractAddress: "CSub", templateKind: "SUBSCRIPTION" },
-          { nodeId: "split", contractAddress: "CSplit", templateKind: "SPLITTER" },
-          { nodeId: "cash", contractAddress: "CCash", templateKind: "CASH_OUT" },
-        ],
-      }),
-    );
-    mockDb.payrollRun.findUnique.mockResolvedValue(null);
-    mockRelayer.readSplitterRecipients.mockResolvedValue([
-      { address: "GCRYPTO", bps: 0, amount: "5000000" },
-      { address: "CCashOutFiat", bps: 0, amount: "5000000" },
-    ]);
-    mockRelayer.readSubscriptionAmountPerPeriod.mockResolvedValue(10000000n);
-    mockDb.employee.findMany.mockResolvedValue([
-      {
-        id: "emp-crypto",
-        address: "GCRYPTO",
-        payoutMode: "CRYPTO",
-        cashOutContractAddress: null,
-        bankDetail: null,
-      },
-      {
-        id: "emp-fiat",
-        address: "GCRYPTO_BACKING",
-        payoutMode: "FIAT",
-        cashOutContractAddress: "CCashOutFiat",
-        bankDetail: { accountName: "A", accountNumber: "123", bankCode: "B" },
-      },
-    ]);
-    mockDb.payrollRun.create.mockResolvedValue({ id: "run-1" });
-    mockDb.employee.upsert.mockResolvedValue({ id: "emp-upserted" });
-    mockDb.payrollPayout.create.mockResolvedValue({ id: "payout-1" });
-    mockJobs.createOffRampJobsForPayrollRun.mockResolvedValue(["job-1"]);
-
-    const req = makeRequest({ deploymentId: "dep-1", txHash: "tx-nondev" });
-    const res = await POST(req, makeContext("dep-1"));
-    const json = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(json.data.payrollRunId).toBe("run-1");
-    expect(json.data.payoutCount).toBe(2);
-    expect(json.data.offRampJobIds).toEqual(["job-1"]);
-    expect(mockJobs.createOffRampJobsForPayrollRun).toHaveBeenCalledWith(mockDb, "run-1");
-  });
-
-  it("records a non-dev payroll run without off-ramp jobs when no fiat employee has bank details", async () => {
-    mockDb.deployment.findFirst.mockResolvedValue(
-      makeDeployment({
-        offRampEnabled: false,
         pipelineSnapshot: [
           { nodeId: "sub", contractAddress: "CSub", templateKind: "SUBSCRIPTION" },
           { nodeId: "split", contractAddress: "CSplit", templateKind: "SPLITTER" },
@@ -226,42 +111,39 @@ describe("payroll-record-run", () => {
       {
         id: "emp-crypto",
         address: "GCRYPTO",
-        payoutMode: "CRYPTO",
-        cashOutContractAddress: null,
-        bankDetail: null,
       },
     ]);
     mockDb.payrollRun.create.mockResolvedValue({ id: "run-2" });
     mockDb.employee.upsert.mockResolvedValue({ id: "emp-1" });
     mockDb.payrollPayout.create.mockResolvedValue({ id: "payout-1" });
-    mockJobs.createOffRampJobsForPayrollRun.mockResolvedValue(["job-1"]);
-
-    const req = makeRequest({ deploymentId: "dep-1", txHash: "tx-noofframp" });
+    const req = makeRequest({ deploymentId: "dep-1", txHash: "tx-crypto" });
     const res = await POST(req, makeContext("dep-1"));
     const json = await res.json();
-
     expect(res.status).toBe(200);
-    expect(json.data.offRampJobIds).toEqual([]);
-    expect(mockJobs.createOffRampJobsForPayrollRun).not.toHaveBeenCalled();
+    expect(json.data).toEqual({ payrollRunId: "run-2", payoutCount: 1 });
+    expect(mockDb.payrollPayout.create).toHaveBeenCalledWith({
+      data: {
+        payrollRunId: "run-2",
+        employeeId: "emp-1",
+        amountStroops: "5000000",
+        txHash: "tx-crypto",
+      },
+    });
   });
-
   it("computes percentage-mode amounts from the subscription amount", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
     mockDb.payrollRun.findUnique.mockResolvedValue(null);
-    mockRelayer.readSplitterDevRecipients.mockResolvedValue([
+    mockRelayer.readSplitterRecipients.mockResolvedValue([
       { address: "GCRYPTO", bps: 5000, amount: "0" },
-      { address: "CCashOutFiat", bps: 5000, amount: "0" },
+      { address: "GCRYPTO2", bps: 5000, amount: "0" },
     ]);
     mockRelayer.readSubscriptionAmountPerPeriod.mockResolvedValue(10000000n);
     mockDb.employee.findMany.mockResolvedValue([]);
     mockDb.payrollRun.create.mockResolvedValue({ id: "run-2" });
     mockDb.employee.upsert.mockResolvedValue({ id: "emp-1" });
     mockDb.payrollPayout.create.mockResolvedValue({ id: "payout-1" });
-    mockJobs.createOffRampJobsForPayrollRun.mockResolvedValue([]);
-
     const req = makeRequest({ deploymentId: "dep-1", txHash: "tx-pct" });
     await POST(req, makeContext("dep-1"));
-
     expect(mockDb.payrollPayout.create).toHaveBeenCalledTimes(2);
     expect(mockDb.payrollPayout.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -269,67 +151,38 @@ describe("payroll-record-run", () => {
       }),
     );
   });
-
   it("returns idempotent results when the txHash already exists", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
     mockDb.payrollRun.findUnique.mockResolvedValue({
       id: "run-existing",
       deploymentId: "dep-1",
-      payouts: [{ offRampJobs: [{ id: "job-existing" }] }],
-      offRampJobs: [{ id: "job-existing" }],
+      payouts: [{ id: "payout-existing" }],
     });
-
     const req = makeRequest({ deploymentId: "dep-1", txHash: "tx-dup" });
     const res = await POST(req, makeContext("dep-1"));
     const json = await res.json();
-
     expect(res.status).toBe(200);
     expect(json.data.idempotent).toBe(true);
     expect(json.data.payrollRunId).toBe("run-existing");
+    expect(json.data.payoutCount).toBe(1);
     expect(mockDb.payrollRun.create).not.toHaveBeenCalled();
   });
-
   // txHash is unique globally, so the idempotency lookup is not scoped by the
   // owner check above it: a caller who observed another tenant's charge on-chain
-  // could otherwise read back its run id, payout count and off-ramp job ids.
+  // could otherwise read back its run id and payout count.
   it("409s rather than returning a run recorded under another deployment", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
     mockDb.payrollRun.findUnique.mockResolvedValue({
       id: "run-somebody-else",
       deploymentId: "dep-2",
-      payouts: [{ offRampJobs: [{ id: "job-somebody-else" }] }],
-      offRampJobs: [{ id: "job-somebody-else" }],
+      payouts: [{ id: "payout-somebody-else" }],
     });
-
     const req = makeRequest({ deploymentId: "dep-1", txHash: "tx-theirs" });
     const res = await POST(req, makeContext("dep-1"));
     const json = await res.json();
-
     expect(res.status).toBe(409);
     expect(JSON.stringify(json)).not.toContain("somebody-else");
-    expect(mockRelayer.readSplitterDevRecipients).not.toHaveBeenCalled();
+    expect(mockRelayer.readSplitterRecipients).not.toHaveBeenCalled();
     expect(mockDb.payrollRun.create).not.toHaveBeenCalled();
-  });
-
-  it("rolls back the run when off-ramp job creation fails", async () => {
-    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
-    mockDb.payrollRun.findUnique.mockResolvedValue(null);
-    mockRelayer.readSplitterDevRecipients.mockResolvedValue([
-      { address: "GCRYPTO", bps: 0, amount: "5000000" },
-    ]);
-    mockRelayer.readSubscriptionAmountPerPeriod.mockResolvedValue(10000000n);
-    mockDb.employee.findMany.mockResolvedValue([]);
-    mockDb.payrollRun.create.mockResolvedValue({ id: "run-3" });
-    mockDb.employee.upsert.mockResolvedValue({ id: "emp-1" });
-    mockDb.payrollPayout.create.mockResolvedValue({ id: "payout-1" });
-    mockJobs.createOffRampJobsForPayrollRun.mockRejectedValue(new Error("PDAX not configured"));
-
-    const req = makeRequest({ deploymentId: "dep-1", txHash: "tx-err" });
-    const res = await POST(req, makeContext("dep-1"));
-    const json = await res.json();
-
-    expect(res.status).toBe(500);
-    expect(json.error).toBeDefined();
-    expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
   });
 });

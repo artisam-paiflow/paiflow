@@ -39,9 +39,8 @@
  */
 // Route ids are uuids everywhere in this app (Flow.id, Deployment.id), so the
 // id segment is matched as one instead of `[^/]+`. That is what keeps a literal
-// sibling route such as `/api/deployments/dev-payroll` — a relayer-funded
-// deploy — from slipping through the `/api/deployments/:id` rule, now and as
-// new sibling routes get added.
+// sibling administrative route from slipping through the
+// `/api/deployments/:id` rule when new routes are added.
 const ID = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
 
 const SANDBOX_PATHS = [

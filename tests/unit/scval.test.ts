@@ -239,47 +239,14 @@ describe("pipelineNodeConstructorArgs", () => {
     expect(args[9]!.switch()).toBe(xdr.ScValType.scvBool());
   });
 
-  it("encodes splitter_dev recipients with is_cash_out", () => {
-    const args = pipelineNodeConstructorArgs(
-      {
-        kind: "splitter_dev",
-        asset: { kind: "known", symbol: "USDC" },
-        recipients: [
-          { address: ADDR, bps: 0, amount: "100", isCashOut: false },
-          { address: ADDR2, bps: 0, amount: "200", isCashOut: true },
-        ],
-        minAmountStroops: "0",
-        nextStepNodeIds: [],
-      },
-      ADDR,
-      ADDR2,
-      {},
-    );
-
-    expect(args).toHaveLength(7);
-    const recipientsScVal = args[3]!;
-    expect(recipientsScVal.switch()).toBe(xdr.ScValType.scvVec());
-
-    const vec = recipientsScVal.value() as xdr.ScVal[];
-    expect(vec).toHaveLength(2);
-
-    const entries = vec.map((entry) => {
-      const map = entry.value() as xdr.ScMapEntry[];
-      return Object.fromEntries(map.map((e) => [scValToNative(e.key()), scValToNative(e.val())]));
-    });
-
-    expect(entries[0]).toMatchObject({ address: ADDR, amount: 100n, bps: 0, is_cash_out: false });
-    expect(entries[1]).toMatchObject({ address: ADDR2, amount: 200n, bps: 0, is_cash_out: true });
-  });
-
-  it("encodes splitter recipients with is_cash_out", () => {
+  it("encodes crypto splitter recipients with only address, amount and bps", () => {
     const args = pipelineNodeConstructorArgs(
       {
         kind: "splitter",
         asset: { kind: "native" },
         recipients: [
-          { address: ADDR, bps: 7000, amount: "0", isCashOut: false },
-          { address: ADDR2, bps: 3000, amount: "0", isCashOut: true },
+          { address: ADDR, bps: 7000, amount: "0" },
+          { address: ADDR2, bps: 3000, amount: "0" },
         ],
         minAmountStroops: "0",
         nextStepNodeIds: [],
@@ -299,8 +266,8 @@ describe("pipelineNodeConstructorArgs", () => {
       return Object.fromEntries(map.map((e) => [scValToNative(e.key()), scValToNative(e.val())]));
     });
 
-    expect(entries[0]).toMatchObject({ address: ADDR, bps: 7000, amount: 0n, is_cash_out: false });
-    expect(entries[1]).toMatchObject({ address: ADDR2, bps: 3000, amount: 0n, is_cash_out: true });
+    expect(entries[0]).toEqual({ address: ADDR, bps: 7000, amount: 0n });
+    expect(entries[1]).toEqual({ address: ADDR2, bps: 3000, amount: 0n });
   });
 
   it("does not emit is_cash_out for streamer recipients", () => {
@@ -308,7 +275,7 @@ describe("pipelineNodeConstructorArgs", () => {
       {
         kind: "streamer",
         asset: { kind: "native" },
-        recipients: [{ address: ADDR, bps: 10_000, amount: "0", isCashOut: true }],
+        recipients: [{ address: ADDR, bps: 10_000, amount: "0" }],
         amountPerIntervalStroops: "1000",
         intervalSeconds: 60,
         startTs: 1000,
@@ -333,13 +300,13 @@ describe("pipelineNodeConstructorArgs", () => {
       {
         kind: "splitter",
         asset: { kind: "native" },
-        recipients: [{ address: "split-e2iudl-cashout-0", bps: 10_000, amount: "0" }],
+        recipients: [{ address: "recipient-node", bps: 10_000, amount: "0" }],
         minAmountStroops: "100",
         nextStepNodeIds: [],
       },
       ADDR,
       ADDR2,
-      { "split-e2iudl-cashout-0": ADDR },
+      { "recipient-node": ADDR },
     );
 
     expect(args).toHaveLength(6);

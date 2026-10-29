@@ -36,7 +36,6 @@ vi.mock("@/lib/stellar/client", () => ({
 vi.mock("@/lib/stellar/relayer-channels", () => ({
   withRelayerChannel: (fn: (channel: unknown) => unknown) => fn({}),
 }));
-vi.mock("@/lib/offramp/jobs", () => ({ createOffRampJobsForPayrollRun: vi.fn() }));
 vi.mock("@/lib/cron/config", () => ({ CRON_LIMITS: limits }));
 vi.mock("@/lib/cron/lease", async () => {
   const actual = await vi.importActual<typeof import("@/lib/cron/lease")>("@/lib/cron/lease");

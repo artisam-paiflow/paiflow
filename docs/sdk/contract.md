@@ -294,10 +294,9 @@ SDK checks cannot replace or weaken server validation.
 ## Exclusions, OpenAPI gaps and hosted verification
 
 Exclude owner-session account/token management even though token routes appear in
-OpenAPI; flow creation/deployment; admin/cron; legacy dev mutation; payroll
-management/allowance; and v1 payouts/payouts-submit, which mutate dev-mode values
-outside supported hackathon integrations. Include allowance for supported existing
-Dev subscriptions without adding dev mutations. Owner-only `/events` SSE and
+OpenAPI; flow creation/deployment; admin/cron; and payroll management/allowance. Mutable
+dev APIs and v1 per-payment-recipient payouts have been removed in #1138; subscription
+allowance supports standard subscriptions. Owner-only `/events` SSE and
 `/poll-events` are excluded; public embed SSE is included.
 
 Hosted helpers generate `/trigger/{id}`, `/allowance/{id}` and

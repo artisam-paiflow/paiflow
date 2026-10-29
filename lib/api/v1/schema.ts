@@ -193,30 +193,6 @@ export const DemoTokenSchema = z
   .describe("A short-lived token for the shared demo deployment on testnet.");
 export type DemoToken = z.infer<typeof DemoTokenSchema>;
 
-export const PayoutPrepareSchema = ExecutePrepareSchema.extend({
-  recipient: z
-    .string()
-    .refine(StrKey.isValidEd25519PublicKey, "Invalid Stellar recipient account")
-    .describe("Account paid by the selected Pay; checked before any relayer mutation."),
-  nodeId: z
-    .string()
-    .min(1)
-    .max(128)
-    .optional()
-    .describe("Select one PAYER_DEV when the pipeline contains several."),
-})
-  .strict()
-  .describe("Configure one immediate dev Pay for this recipient, then prepare its deposit.");
-export type PayoutPrepare = z.infer<typeof PayoutPrepareSchema>;
-export const PayoutPreparedSchema = ExecutePreparedSchema.extend({ nodeId: z.string() });
-export type PayoutPrepared = z.infer<typeof PayoutPreparedSchema>;
-export const PayoutSubmitSchema = ExecuteSubmitSchema.describe(
-  "Submit exactly the transaction prepared by payouts for this token and deployment, with envelope signatures added.",
-);
-export type PayoutSubmit = z.infer<typeof PayoutSubmitSchema>;
-export const PayoutSubmittedSchema = ExecuteSubmittedSchema;
-export type PayoutSubmitted = z.infer<typeof PayoutSubmittedSchema>;
-
 /** Absence from RPC is uncertainty, never proof of failure. */
 export const TransactionStatusSchema = z.object({
   txHash: z.string().regex(/^[0-9a-f]{64}$/),
@@ -282,7 +258,7 @@ export const DeploymentCapabilitiesSchema = z
         funding: CapabilityOperationSchema,
         transactions: CapabilityOperationSchema,
         releaseEarly: CapabilityOperationSchema,
-        payouts: CapabilityOperationSchema,
+
         webhook: CapabilityOperationSchema,
         subscriptionAllowance: CapabilityOperationSchema,
         subscriptionState: CapabilityOperationSchema,
@@ -306,7 +282,7 @@ export const SubscriptionStateSchema = z
     deploymentId: z.string().guid({ error: "Invalid uuid" }),
     flowName: z.string(),
     network: z.enum(["testnet", "mainnet"]),
-    templateKind: z.enum(["SUBSCRIPTION", "SUBSCRIPTION_DEV"]),
+    templateKind: z.enum(["SUBSCRIPTION"]),
     contractAddress: z.string().refine(StrKey.isValidContract),
     tokenContractAddress: z.string().refine(StrKey.isValidContract),
     subscriber: z.string().refine(StrKey.isValidEd25519PublicKey).nullable(),

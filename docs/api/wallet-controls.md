@@ -102,8 +102,8 @@ Cancellation and reactivation adopt this protocol through the deployment-token
 submission check current deployed subscriber, token and cancellation state. Only the
 configured subscriber signs; an integration token never supplies that consent. Exact
 claimed retries and explicit reconciliation use durable intent evidence even after successful
-cancellation changed eligibility. Existing Dev cancellation continues when Dev mode is disabled; Dev reactivation
-requires the feature enabled. New Dev creation and configuration gates are unchanged.
+cancellation changed eligibility. These routes support standard subscriptions. Mutable dev-mode
+contracts and their configuration routes have been removed in #1138.
 Bounded ordinary Subscription cancellation/reactivation passed in the October 14–15,
 2026 SDK rehearsal on hosted testing/testnet, with original-intent reconciliation,
 confirmed finality and zero allowance after cancellation and reactivation. See the

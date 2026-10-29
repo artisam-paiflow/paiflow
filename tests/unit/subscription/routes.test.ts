@@ -24,7 +24,6 @@ import {
   TransactionBuilder,
   nativeToScVal,
 } from "@stellar/stellar-sdk";
-
 const mocks = vi.hoisted(() => ({
   db: { deployment: { findFirst: vi.fn() } },
   rpc: {
@@ -73,7 +72,6 @@ import { assetContractId } from "@/lib/stellar/assets";
 import { AppError } from "@/lib/errors";
 import { paymentAccountResponse } from "../stellar/payment-account-fixture";
 import { MAX_ALLOWANCE } from "@/lib/subscription/schema";
-
 const id = "11111111-1111-4111-8111-111111111111";
 const customer = Keypair.random();
 const originalSubscriber = Keypair.random().publicKey();
@@ -132,7 +130,6 @@ function sign(xdr: string) {
   tx.sign(customer);
   return tx.toXDR();
 }
-
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.db.deployment.findFirst.mockResolvedValue(deployment());
@@ -159,9 +156,8 @@ beforeEach(() => {
     hash: tx.hash().toString("hex"),
   }));
 });
-
 describe("anonymous subscription allowance journey", () => {
-  it.each(["SUBSCRIPTION", "SUBSCRIPTION_DEV"])(
+  it.each(["SUBSCRIPTION"])(
     "reads, prepares and submits %s with the current subscriber",
     async (kind) => {
       mocks.db.deployment.findFirst.mockResolvedValue(deployment(kind));
@@ -209,20 +205,6 @@ describe("anonymous subscription allowance journey", () => {
       expect(mocks.rpc.sendTransaction).toHaveBeenCalledOnce();
     },
   );
-  it("shows setup state and refuses an unconfigured Dev subscriber", async () => {
-    mocks.db.deployment.findFirst.mockResolvedValue(deployment("SUBSCRIPTION_DEV"));
-    mocks.subscriber.mockResolvedValue(null);
-    expect((await (await GET(request(), ctx)).json()).data).toMatchObject({
-      setupRequired: true,
-      subscriber: null,
-      allowance: "0",
-    });
-    const response = await POST(request({ amount: "1", userAddress: customer.publicKey() }), ctx);
-    expect(response.status).toBe(422);
-    expect((await response.json()).error.message).toMatch(/configure/);
-    expect(mocks.rpc.simulateTransaction).not.toHaveBeenCalled();
-    expect(mocks.allowance).not.toHaveBeenCalled();
-  });
   it("refuses a different wallet before preparation", async () => {
     expect(
       (await POST(request({ amount: "1", userAddress: originalSubscriber }), ctx)).status,

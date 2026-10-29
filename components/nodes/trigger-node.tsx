@@ -1,23 +1,17 @@
 "use client";
-
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { FlowNode } from "@/lib/flows/schema";
 import { assetLabel, isTrigger } from "@/lib/flows/schema";
 import { formatStroops } from "@/lib/utils";
-
 type TriggerNodeData = {
   node: FlowNode;
   label: string;
-  isMutable?: boolean;
 };
-
 function TriggerNodeComponent({ data, selected }: NodeProps) {
   const d = data as TriggerNodeData;
   const n = d.node;
   if (!isTrigger(n)) return null;
-  const isMutable = d.isMutable === true;
-
   let icon: string;
   let title: string;
   let detail: string;
@@ -42,9 +36,7 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
   } else if (n.type === "payroll") {
     icon = "group";
     title = "Payroll";
-    detail = n.config.fillScheduleViaApi
-      ? `${assetLabel(n.config.asset)} · schedule via API`
-      : `${assetLabel(n.config.asset)} / ${n.config.intervalAmount ?? 1} ${n.config.intervalUnit ?? "week"}`;
+    detail = `${assetLabel(n.config.asset)} / ${n.config.intervalAmount ?? 1} ${n.config.intervalUnit ?? "week"}`;
   } else if (n.type === "oracle") {
     icon = "online_prediction";
     title = "Oracle";
@@ -52,19 +44,18 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
   } else {
     icon = "schedule";
     title = "On Schedule";
-    const cfg = n.config as { intervalAmount?: number; intervalUnit?: string; interval?: string };
+    const cfg = n.config as {
+      intervalAmount?: number;
+      intervalUnit?: string;
+      interval?: string;
+    };
     detail = `${cfg.intervalAmount ?? 1} ${cfg.intervalUnit ?? cfg.interval ?? "hour"}`;
   }
-
   return (
     <div
       className={`glass-panel relative min-w-[200px] rounded-xl ${selected ? "neon-glow-secondary" : ""}`}
       style={{
-        borderColor: selected
-          ? undefined
-          : isMutable
-            ? "rgba(255, 186, 32, 0.55)"
-            : "rgba(152, 203, 255, 0.3)",
+        borderColor: selected ? undefined : "rgba(152, 203, 255, 0.3)",
       }}
     >
       <Handle
@@ -78,22 +69,7 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
           <span className="material-symbols-outlined text-[14px]">{icon}</span>
           TRIGGER
         </span>
-        {isMutable ? (
-          <span
-            className="inline-flex items-center gap-0.5 rounded border px-1 py-px font-mono text-[7px] leading-none font-medium tracking-wider"
-            style={{
-              borderColor: "rgba(255, 186, 32, 0.35)",
-              backgroundColor: "rgba(255, 186, 32, 0.10)",
-              color: "#ffba20",
-            }}
-            title="Deploys as a mutable _DEV contract — fill subscriber/amount/schedule via the API after deploy"
-          >
-            <span className="material-symbols-outlined text-[9px]">tune</span>
-            DEV
-          </span>
-        ) : (
-          <span className="status-dot-deploy h-1.5 w-1.5" />
-        )}
+        {<span className="status-dot-deploy h-1.5 w-1.5" />}
       </div>
 
       <div className="px-3 py-2.5">
@@ -105,5 +81,4 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
     </div>
   );
 }
-
 export default memo(TriggerNodeComponent);

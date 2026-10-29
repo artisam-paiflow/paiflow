@@ -136,7 +136,7 @@ abandonment, and windows ending less than 24 hours ago are immature. Same-hash
 failed HTTP submit → successful retry → confirmed outcome uses a 24-hour retry
 window. It counts failed request records, not distinct payment intents. Cross-hash retries lack intent correlation;
 shared token/deployment alone cannot prove the same failed payment was recovered.
-Scheduled reporting includes off-ramp, streamer and payroll jobs due in the window on
+Scheduled reporting includes streamer and payroll jobs due in the window on
 deployments observed by requests in the selected environment/audience. Status,
 attempt counts and completion lag are reported from job rows. This is a request-scoped
 subset, not coverage of all subscription/timelock schedules. Complete cost

@@ -5,7 +5,31 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+### Removed
+
+- Retire fiat off-ramping, bank/KYC editors, provider processing and callbacks, Cash Out
+  contracts and deployment support (#1141). New Pay/Split/payroll flows use crypto recipients.
+  Remove verified blank bank fields from saved graphs/deployment graph snapshots and drop
+  empty feature storage under strict migration guards. Preserve crypto deployments, events
+  and unknown transaction outcomes; coordinate changed Payer/Splitter ABIs with new WASM activation.
+  Hosted settlement, credential revocation and scheduler shutdown require the separate
+  [cutover procedure](docs/offramp-retirement.md).
+
+- Remove mutable dev-mode flows, deferred API-filled configuration, builder/deployment controls,
+  legacy dev tokens, dedicated dev endpoints and per-payment-recipient payout APIs (#1138).
+  Existing-client compatibility is intentionally discontinued for these removed surfaces.
+  Standard payments, subscriptions and payroll remain supported;
+  retained payroll management now requires an owner session. Off-ramp-only treasury/refund
+  operations and fiat payroll configuration are subsequently retired in #1141. The migration deletes undeployed
+  dev drafts and strips dev settings from deployment-linked current drafts without restoring
+  old graphs or changing deployment snapshots/history. See [the removal notes](docs/dev-mode-removal.md)
+  for migration guards and rollout limits.
+
 ### Changed
+
+- Retire stored-file uploads, downloads and deletion with authenticated HTTP 410 responses; remove exclusive storage drivers, MinIO dependencies and configuration. The new migration removes stored-file metadata; underlying object cleanup remains separate. See the [retirement procedure](docs/file-storage-retirement.md) (#989, #881).
+
+- Add confirmed JRU team names to winning-project cards and first-through-fourth placements to the team photo gallery (#1090).
 
 - Run Node CI checks, the full unit suite, and build/SSE verification in parallel while retaining the required `node` gate and all existing checks; cache Next.js build data between compatible host builds (#1129).
 

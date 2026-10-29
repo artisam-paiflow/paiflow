@@ -16,7 +16,10 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("next-auth", () => ({ default: () => ({ auth: (fn: unknown) => fn }) }));
 vi.mock("@/auth.config", () => ({ authConfig: {} }));
-vi.mock("@/lib/auth", () => ({ requireSession: mocks.session, requireDevAuth: mocks.devAuth }));
+vi.mock("@/lib/auth", () => ({
+  requireSession: mocks.session,
+  requirePayrollSession: mocks.devAuth,
+}));
 vi.mock("@/lib/rate-limit", () => ({
   clientIp: () => "127.0.0.1",
   enforceRateLimit: mocks.rateLimit,

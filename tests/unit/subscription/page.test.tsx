@@ -44,7 +44,7 @@ describe("hosted subscription allowance page", () => {
       if (subscriber)
         expect(screen.getByRole("button", { name: "CONNECT WALLET & APPROVE" })).toBeTruthy();
       else {
-        expect(screen.getByText(/configure the Dev subscriber/)).toBeTruthy();
+        expect(screen.getByText(/configure the subscriber/)).toBeTruthy();
         expect(
           (screen.getByRole("button", { name: "CONNECT WALLET & APPROVE" }) as HTMLButtonElement)
             .disabled,

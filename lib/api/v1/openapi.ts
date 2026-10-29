@@ -255,9 +255,6 @@ export const examples = {
         releaseEarly: capabilityExample("unsupported", "deployment_token", [
           "No deployed timelock branch supports early release.",
         ]),
-        payouts: capabilityExample("unsupported", "deployment_token", [
-          "Standard flows use configured recipients; per-payment recipients require an eligible Dev flow.",
-        ]),
         webhook: capabilityExample("unsupported", "webhook_secret", [
           "Requires a deployed webhook trigger with HTTP callbacks enabled.",
         ]),
@@ -291,12 +288,6 @@ export const examples = {
   },
   transactionStatus: {
     data: { txHash: EXAMPLE_TX_HASH, network: "testnet", status: "SUCCESS", ledger: 1842917 },
-  },
-  payoutRequest: {
-    amount: "1000000000",
-    from: EXAMPLE_FROM,
-    recipient: EXAMPLE_FROM,
-    nodeId: "pay",
   },
   executeRequest: { amount: "1000000000", from: EXAMPLE_FROM },
   executeResponse: {
@@ -757,7 +748,7 @@ export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: "Paiflow API v1",
-    version: "1.2.0",
+    version: "1.3.0",
     description: [
       "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.",
       "",
@@ -1106,7 +1097,7 @@ export const openApiDocument = {
                 operationId: `${step}Subscription${action === "cancel" ? "Cancel" : "Reactivate"}`,
                 summary: `${step} wallet-authorized subscription ${action}`,
                 description: [
-                  "Requires the deployment bearer token and ACTIVE service. Ordinary subscriptions are eligible. Existing Dev cancellation continues when Dev mode is disabled; Dev reactivation requires the feature enabled. Payroll and malformed or ambiguous snapshots are refused.",
+                  "Requires the deployment bearer token and ACTIVE service. Ordinary subscriptions are eligible. Payroll and malformed or ambiguous snapshots are refused.",
                   "Preparation reads the deployed current subscriber, asset and cancellation state. Only that configured wallet can cancel an active subscription or reactivate a cancelled subscription. The builder simulates on the server network with finite transaction bounds. Cancellation revokes allowance; reactivation grants no allowance, creates no subscriber and never immediately charges or changes billing.",
                   "Sign exactly the returned xdr in the subscriber wallet on networkPassphrase; submit intent and signedXdr. Changed envelopes, wrong signers and fee-bumps are refused. Submission rechecks live eligibility on the first send and durably admits the exact hash before broadcasting. Retrying an already claimed intent returns status, even when successful cancellation changed state.",
                   "UNKNOWN, REJECTED, timeouts and expired clocks never authorize replacement. Poll the deployment transaction endpoint and explicitly POST the action's reconcile endpoint with intent. Recovery adopts externally submitted ledger results and proves expiry only with complete RPC history. PREPARED or SUBMITTING retains the reservation; SUCCESS, FAILED or proven EXPIRED sets replacementAllowed:true, subject to current eligibility for a new preparation. RPC/history gaps retain reservations. No generic or token-only wallet consent.",
@@ -1182,7 +1173,7 @@ export const openApiDocument = {
         operationId: "getDeploymentBalances",
         summary: "Read deployment contract balances with freshness",
         description:
-          "Deployment-scoped display reads of current token contracts from supported on-chain instance storage. Schedule, Webhook, time/oracle conditions, Pay, Split and Swap balances are supported candidates; mutable Pay/Split require Dev mode enabled. Swap reports both input and output tokens. No owner account balances or private configuration. Multisig and unsupported kinds are excluded and, when present beside supported nodes, reported as errors making totals incomplete. Token contract addresses are asset identity; graph asset labels are not authoritative. Balances are not Schedule payout availability or evidence of payment success. The 10-second process-local single-flight cache preserves original readAt/attemptedAt; a Redis per-deployment refresh lease spans replicas (another replica without cached data answers 429), configured unavailable Redis fails closed for refreshes, and no Redis means process-local coordination; poll no faster than every 10 seconds. Each refresh admits at most four workers and 64 contracts, stops scheduling at 25 seconds, with existing finite HTTP timeouts. Errors use null balances and stale:true; partial totals sum only successful reads, never stand for complete balances. Fresh means all supported/holding targets read successfully within the display window, not a ledger-consistent atomic snapshot. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. " +
+          "Deployment-scoped display reads of current token contracts from supported on-chain instance storage. Schedule, Webhook, time/oracle conditions, Pay, Split and Swap balances are supported candidates; Swap reports both input and output tokens. No owner account balances or private configuration. Multisig and unsupported kinds are excluded and, when present beside supported nodes, reported as errors making totals incomplete. Token contract addresses are asset identity; graph asset labels are not authoritative. Balances are not Schedule payout availability or evidence of payment success. The 10-second process-local single-flight cache preserves original readAt/attemptedAt; a Redis per-deployment refresh lease spans replicas (another replica without cached data answers 429), configured unavailable Redis fails closed for refreshes, and no Redis means process-local coordination; poll no faster than every 10 seconds. Each refresh admits at most four workers and 64 contracts, stops scheduling at 25 seconds, with existing finite HTTP timeouts. Errors use null balances and stale:true; partial totals sum only successful reads, never stand for complete balances. Fresh means all supported/holding targets read successfully within the display window, not a ledger-consistent atomic snapshot. Bounded October 14–15, 2026 testnet evidence: https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification. Check operation-specific receipts, remaining fee limits and target-environment availability; unattended scheduling is not established. " +
           rate(V1_RATE_LIMITS.balances, "per token"),
         security: [{ bearerAuth: [] }],
         parameters: [deploymentIdParam],
@@ -1259,7 +1250,7 @@ export const openApiDocument = {
         operationId: "getSubscriptionState",
         summary: "Read live Subscription state and allowance",
         description: [
-          "Requires this deployment's bearer token, a confirmed ordinary or Dev Subscription on the environment network and active deployment service. Payroll and malformed snapshots are refused. Reads the deployed contract's current subscriber, token and cancellation state, then that subscriber's token allowance. An unconfigured Dev subscription returns subscriber:null, setupRequired:true and allowance:\"0\" without querying allowance. RPC failures return errors rather than a zero allowance or active state.",
+          "Requires this deployment's bearer token, a confirmed Subscription on the environment network and active deployment service. Payroll and malformed snapshots are refused. Reads the deployed contract's current subscriber, token and cancellation state, then that subscriber's token allowance. RPC failures return errors rather than a zero allowance or active state.",
           "tokenContractAddress is authoritative; asset is initial metadata only when it matches that token, otherwise null. Allowance is an integer stroop string. Reading does not authorize approval, charge, cancellation or reactivation. No-store response.",
           rate(V1_RATE_LIMITS.subscriptionState, "per token"),
         ].join("\n\n"),
@@ -1293,8 +1284,8 @@ export const openApiDocument = {
         summary: "Discover a deployment's supported integration paths",
         description: [
           DeploymentCapabilitiesSchema.description,
-          "Requires an authorized pfk_ or pfd_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.",
-          "Operations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are swapQuote (/api/v1/deployments/{id}/swap-quote), execute (execute and execute/submit), events, transactions, releaseEarly (release-early), webhook (/api/webhooks/{id}), scheduleState (/api/v1/deployments/{id}/schedule/state), scheduleControls (Schedule pause, resume and retrieve preparation, submit and reconcile), subscriptionState (/api/v1/deployments/{id}/subscription/state), subscriptionCancel and subscriptionReactivate (subscription/cancel or subscription/reactivate prepare, submit and reconcile), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). The payouts capability key remains in discovery responses but reports unsupported while Dev mode is disabled; no payout route is published. Each operation includes status, authentication, requirements and candidate nodeIds. Subscription approval must be checked by its own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.",
+          "Requires an authorized pfk_ or pfd_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.",
+          "Operations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are swapQuote (/api/v1/deployments/{id}/swap-quote), execute (execute and execute/submit), events, transactions, releaseEarly (release-early), webhook (/api/webhooks/{id}), scheduleState (/api/v1/deployments/{id}/schedule/state), scheduleControls (Schedule pause, resume and retrieve preparation, submit and reconcile), subscriptionState (/api/v1/deployments/{id}/subscription/state), subscriptionCancel and subscriptionReactivate (subscription/cancel or subscription/reactivate prepare, submit and reconcile), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each operation includes status, authentication, requirements and candidate nodeIds. Subscription approval must be checked by its own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.",
           "Returns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.",
           rate(V1_RATE_LIMITS.capabilities, "per token"),
         ].join("\n\n"),
@@ -1318,7 +1309,7 @@ export const openApiDocument = {
         operationId: "executeWebhook",
         summary: "Release a webhook flow, with optional durable event idempotency",
         description:
-          "Authenticate with x-webhook-secret, not pfk_. Deposit funding separately. For pre-funded release use escrow:true and a stroop amount; omitted amount or zero releases the whole available pool. Idempotency-Key is optional: matching requests return the original attempt without another send; different effective arguments return 409. Keys are deployment-scoped, never automatically expire, and store only key/request digests. One hash is persisted before sending; keyed sends never rebuild/resubmit automatically. Interrupted preparation without a hash remains UNKNOWN and requires operator review. Unknown/missing RPC evidence never authorizes another payment. Use the same key to poll and a pfk_ token for the transaction lookup endpoint. Unkeyed requests retain legacy behavior and can each release another payout. Fixed recipients with Dev mode off. Rate limit: 20/minute per deployment/client IP; keyed replays additionally share transaction lookup RPC limits.",
+          "Authenticate with x-webhook-secret, not pfk_. Deposit funding separately. For pre-funded release use escrow:true and a stroop amount; omitted amount or zero releases the whole available pool. Idempotency-Key is optional: matching requests return the original attempt without another send; different effective arguments return 409. Keys are deployment-scoped, never automatically expire, and store only key/request digests. One hash is persisted before sending; keyed sends never rebuild/resubmit automatically. Interrupted preparation without a hash remains UNKNOWN and requires operator review. Unknown/missing RPC evidence never authorizes another payment. Use the same key to poll and a pfk_ token for the transaction lookup endpoint. Unkeyed requests retain legacy behavior and can each release another payout. Fixed recipients. Rate limit: 20/minute per deployment/client IP; keyed replays additionally share transaction lookup RPC limits.",
         security: [{ webhookSecret: [] }],
         parameters: [
           deploymentIdParam,
@@ -2131,7 +2122,7 @@ export const openApiDocument = {
           deploymentId: { type: "string", format: "uuid" },
           flowName: { type: "string" },
           network: { type: "string", enum: ["testnet", "mainnet"] },
-          templateKind: { type: "string", enum: ["SUBSCRIPTION", "SUBSCRIPTION_DEV"] },
+          templateKind: { type: "string", enum: ["SUBSCRIPTION"] },
           contractAddress: { type: "string", pattern: "^C[A-Z2-7]{55}$" },
           tokenContractAddress: { type: "string", pattern: "^C[A-Z2-7]{55}$" },
           subscriber: { type: ["string", "null"], pattern: "^G[A-Z2-7]{55}$" },
@@ -2299,7 +2290,6 @@ export const openApiDocument = {
               "funding",
               "transactions",
               "releaseEarly",
-              "payouts",
               "webhook",
               "subscriptionAllowance",
               "subscriptionState",
@@ -2316,7 +2306,6 @@ export const openApiDocument = {
               events: { $ref: "#/components/schemas/CapabilityOperation" },
               transactions: { $ref: "#/components/schemas/CapabilityOperation" },
               releaseEarly: { $ref: "#/components/schemas/CapabilityOperation" },
-              payouts: { $ref: "#/components/schemas/CapabilityOperation" },
               webhook: { $ref: "#/components/schemas/CapabilityOperation" },
               subscriptionCancel: { $ref: "#/components/schemas/CapabilityOperation" },
               subscriptionReactivate: { $ref: "#/components/schemas/CapabilityOperation" },

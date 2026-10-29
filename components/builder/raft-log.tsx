@@ -44,7 +44,7 @@ const SUGGESTIONS_ROWS = [
     "Remove last node",
   ],
   [
-    "Pay to a bank account",
+    "Pay Alice in XLM",
     "Add a condition",
     "Change schedule to daily",
     "Add a split",

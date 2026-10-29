@@ -47,7 +47,7 @@ You are building a **financial application that signs blockchain transactions**.
 
 ```bash
 pnpm install                 # Node >=22.23.4 <23, pnpm 10.4.1 (corepack)
-pnpm docker:up               # Postgres + Redis + MinIO (profile "full"; "core" omits MinIO)
+pnpm docker:up               # Postgres + Redis (profiles "full" and "core")
 pnpm db:migrate              # create + apply a migration (dev)
 pnpm db:seed                 # requires ADMIN_SEED_PASSWORD (>=12 chars); refuses to use a default
 pnpm dev
@@ -59,7 +59,7 @@ pnpm dev
 | Lint                                      | `pnpm lint` (close to a no-op — see [§19](#19-known-gaps))     |
 | Format                                    | `pnpm format`                                                  |
 | Unit tests                                | `pnpm test`                                                    |
-| **One unit test file**                    | `pnpm test tests/unit/offramp/pdax.test.ts`                    |
+| **One unit test file**                    | `pnpm test tests/unit/scval.test.ts`                           |
 | **One unit test by name**                 | `pnpm test -- -t "<test name substring>"`                      |
 | Component tests only                      | `pnpm test --project dom`                                      |
 | As CI runs it (junit to `reports/`)       | `pnpm test:ci`                                                 |
@@ -124,7 +124,7 @@ Never clear unknown finality, crashed work, failed refunds or retention gaps by
 timeout. See [`docs/deployment-retirement.md`](docs/deployment-retirement.md).
 
 `pipelineSnapshot` (`nodeId → contractAddress → templateKind`) is the durable map. Anything that
-talks to a deployed contract (event polling, balances, dev-mode mutation, relayer charges) resolves
+talks to a deployed contract (event polling, balances, relayer charges) resolves
 through `lib/pipeline-snapshot.ts`, **not** by re-deriving from the graph.
 `lib/flows/english.ts` renders the graph as prose for the builder's preview pane.
 
@@ -138,8 +138,7 @@ node type means a new contract crate plus `to-params.ts`, `scval.ts`, the `Templ
 
 ### The one server-held key is the relayer (plus its derived channels)
 
-`STELLAR_RELAYER_SECRET_KEY` is Paiflow's own key, used in `lib/stellar/relayer.ts` and
-`lib/stellar/dev-mutate.ts` to sign `*_by_relayer` calls so scheduled charges and claims run without
+`STELLAR_RELAYER_SECRET_KEY` is Paiflow's own key, used in `lib/stellar/relayer.ts` to sign `*_by_relayer` calls so scheduled charges and claims run without
 the user signing each time. Contracts enforce dual auth (admin **or** relayer).
 
 With `STELLAR_RELAYER_CHANNELS=N` (default `0`) the relayer also has N **channel accounts**, derived
@@ -170,7 +169,7 @@ your local app, never a deployed service. `update-hashes` has no `--network` fla
 
 `/api/cron/poll-events` writes `ContractEvent` rows and publishes to Redis;
 `/api/deployments/[id]/events` is the only SSE handler. The other `app/api/cron/*` routes drive
-automation (charges, releases, finalization, off-ramp and streamer jobs). `poll-events` and the
+automation (charges, releases, finalization and streamer jobs). `poll-events` and the
 relayer crons (`auto-charge-*`, `auto-release`) run under `withCronLease()` (`lib/cron/lease.ts`,
 Redis `SET NX PX`; a held lease returns the normal zeroed shape with `leaseHeld: true`; unguarded
 without Redis), take a bounded oldest-first batch, and stop at the time
@@ -184,14 +183,12 @@ the cursor directly**.
 
 ### Other subsystems
 
-- **Fiat off-ramp** — `OffRampPayoutJob` state machine driven by `cron/process-offramp-jobs`
-  against `lib/offramp/provider.ts`; mock by default, `OFFRAMP_PROVIDER=pdax` for real, with credentials stored in the DB via `/admin/offramp` (env is
-  the fallback). See `docs/pdax-institution-api.md`.
-- **Dev mode** — per-flow `devMode` swaps nodes for `_DEV` on-chain-mutable variants, filled after
-  deploy via `/api/deployments/[id]/dev-*` (auth: `DevApiToken`). See
-  `docs/design/2026-06-24-dev-mode-mutable-flows.md`.
+- **Retired off-ramp** — no fiat/provider runtime or archival subsystem. Targeted cleanup removes
+  only verified blank legacy metadata and empty feature storage; preserve ordinary financial evidence. See [`docs/offramp-retirement.md`](docs/offramp-retirement.md).
 - **Partner API** — `/api/v1`, machine callers with a deployment-bound `DeploymentApiToken` or explicitly selected-deployment `DeveloperApiToken`
-  ([§5](#5-authentication)). The older payroll and `dev-*` routes keep `requireDevAuth`.
+  ([§5](#5-authentication)). Retained payroll management routes require an owner session and
+  reject sandbox callers. Dev-mode APIs and legacy dev tokens were removed in #1138; see
+  [`docs/dev-mode-removal.md`](docs/dev-mode-removal.md).
 
 ### Sandbox sessions
 
@@ -365,8 +362,6 @@ manages only a few a minute. Channels lift that: N sources, one lock each.
   reuse a simulation taken with the relayer as source.
 - Keep load-account → sign → send (→ finality) inside the callback. A caller that returns before
   finality calls `channel.trackPending(hash)` so the next holder waits for it.
-- `depositNativeToProvider` and `refundFromTreasury` stay on the relayer-source lane
-  (`withRelayerLock()`), which is also the fallback when no channel is funded.
 - Unfunded channels are skipped and retried after a minute; fund them with `pnpm relayer:channels`.
   `/api/health` reports `relayerChannels: "funded/configured"`. Roll back with
   `STELLAR_RELAYER_CHANNELS=0`.

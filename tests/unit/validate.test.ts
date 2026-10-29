@@ -1,36 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { validateFlow, computeAssetFlow } from "@/lib/flows/validate";
 import { AssetSchema, FlowGraphSchema, FlowPatchSchema } from "@/lib/flows/schema";
 import { TemplateKind } from "@prisma/client";
-
 const ADDR_A = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const ADDR_B = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
 
-const SENDER_KYC = {
-  firstName: "Juan",
-  lastName: "Dela Cruz",
-  countryOrigin: "Philippines",
-  sourceOfFunds: "Compensation",
-};
-
-function disableHardLimits() {
-  process.env.NEXT_PUBLIC_SPLITTER_XLM_MIN = "0";
-  process.env.NEXT_PUBLIC_SPLITTER_XLM_MAX = "0";
-  process.env.NEXT_PUBLIC_SPLITTER_USDC_MIN = "0";
-  process.env.NEXT_PUBLIC_SPLITTER_USDC_MAX = "0";
-}
-
-function enableDefaultHardLimits() {
-  delete process.env.NEXT_PUBLIC_SPLITTER_XLM_MIN;
-  delete process.env.NEXT_PUBLIC_SPLITTER_XLM_MAX;
-  delete process.env.NEXT_PUBLIC_SPLITTER_USDC_MIN;
-  delete process.env.NEXT_PUBLIC_SPLITTER_USDC_MAX;
-}
-
 describe("validateFlow", () => {
-  beforeEach(() => {
-    disableHardLimits();
-  });
   it("accepts an on_receive → split flow as SPLITTER", () => {
     const r = validateFlow({
       nodes: [
@@ -59,7 +34,6 @@ describe("validateFlow", () => {
       expect(r.pipeline).toEqual([TemplateKind.DEPOSIT_TRIGGER, TemplateKind.SPLITTER]);
     }
   });
-
   it("accepts a payroll → split (fixed) flow as PAYROLL", () => {
     const r = validateFlow({
       nodes: [
@@ -94,732 +68,6 @@ describe("validateFlow", () => {
       expect(r.pipeline).toEqual([TemplateKind.SUBSCRIPTION, TemplateKind.SPLITTER]);
     }
   });
-
-  it("decomposes a dev-mode payroll pipeline to SUBSCRIPTION_DEV → SPLITTER_DEV", () => {
-    const r = validateFlow({
-      devMode: true,
-      nodes: [
-        {
-          id: "t",
-          type: "payroll",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            employer: ADDR_A,
-            intervalAmount: 1,
-            intervalUnit: "week",
-          },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [
-              { address: ADDR_A, mode: "fixed", amountStroops: "60000000" },
-              { address: ADDR_B, mode: "fixed", amountStroops: "40000000" },
-            ],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      // Flow-level label stays PAYROLL; the deploy pipeline is the dev preset.
-      expect(r.templateKind).toBe(TemplateKind.PAYROLL);
-      expect(r.pipeline).toEqual([TemplateKind.SUBSCRIPTION_DEV, TemplateKind.SPLITTER_DEV]);
-    }
-  });
-
-  it("rejects non-dev fiat split recipients missing bank details", () => {
-    const r = validateFlow({
-      nodes: [
-        {
-          id: "t",
-          type: "on_receive",
-          config: { asset: { kind: "known", symbol: "USDC" } },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [
-              { address: ADDR_A, mode: "fixed", amountStroops: "100", payoutMode: "fiat" },
-            ],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.errors.some((e) => e.message.includes("Fiat recipient is missing"))).toBe(true);
-    }
-  });
-
-  it("accepts non-dev fiat split recipients without a wallet address (PENDING:fiat)", () => {
-    const r = validateFlow({
-      senderKyc: SENDER_KYC,
-      nodes: [
-        {
-          id: "t",
-          type: "on_receive",
-          config: { asset: { kind: "known", symbol: "USDC" } },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [
-              {
-                address: "PENDING:fiat",
-                mode: "fixed",
-                amountStroops: "10000000",
-                payoutMode: "fiat",
-                accountName: "Alice",
-                accountNumber: "1234567890",
-                bankCode: "BASECPH",
-              },
-            ],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      // The fiat sentinel must not surface as a pending label blocking deploy.
-      expect(r.pendingLabels).toEqual([]);
-      expect(r.pipeline).toEqual([
-        TemplateKind.DEPOSIT_TRIGGER,
-        TemplateKind.SPLITTER,
-        TemplateKind.CASH_OUT,
-      ]);
-    }
-  });
-
-  it("rejects non-dev PENDING:fiat split recipients missing bank details", () => {
-    const r = validateFlow({
-      nodes: [
-        {
-          id: "t",
-          type: "webhook",
-          config: { asset: { kind: "known", symbol: "USDC" }, relayer: ADDR_A },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [
-              {
-                address: "PENDING:fiat",
-                mode: "percentage",
-                bps: 10000,
-                payoutMode: "fiat",
-              },
-            ],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.errors.some((e) => e.message.includes("Fiat recipient is missing"))).toBe(true);
-    }
-  });
-
-  it("accepts non-dev payroll with PENDING:fiat recipients and no bank details in config", () => {
-    const r = validateFlow({
-      senderKyc: SENDER_KYC,
-      nodes: [
-        {
-          id: "t",
-          type: "payroll",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            employer: ADDR_A,
-            intervalAmount: 1,
-            intervalUnit: "week",
-          },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [
-              {
-                address: "PENDING:fiat",
-                mode: "fixed",
-                amountStroops: "10000000",
-                payoutMode: "fiat",
-              },
-            ],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.pendingLabels).toEqual([]);
-    }
-  });
-
-  it("accepts non-dev on_receive with fiat split recipients and bank details", () => {
-    const r = validateFlow({
-      nodes: [
-        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [
-              {
-                address: ADDR_A,
-                mode: "fixed",
-                amountStroops: "10000000",
-                payoutMode: "fiat",
-                accountName: "Alice",
-                accountNumber: "1234567890",
-                bankCode: "BASECPH",
-              },
-            ],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-      senderKyc: SENDER_KYC,
-    });
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.pipeline).toEqual([
-        TemplateKind.DEPOSIT_TRIGGER,
-        TemplateKind.SPLITTER,
-        TemplateKind.CASH_OUT,
-      ]);
-    }
-  });
-
-  it("accepts non-dev webhook with a fiat pay node and bank details", () => {
-    const r = validateFlow({
-      nodes: [
-        {
-          id: "t",
-          type: "webhook",
-          config: { asset: { kind: "known", symbol: "USDC" }, relayer: ADDR_A },
-        },
-        {
-          id: "a",
-          type: "pay",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipient: ADDR_B,
-            mode: "fixed",
-            amountStroops: "10000000",
-            fullAmount: false,
-            payoutMode: "fiat",
-            accountName: "Bob",
-            accountNumber: "1234567890",
-            bankCode: "BASECPH",
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-      senderKyc: SENDER_KYC,
-    });
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.pipeline).toEqual([TemplateKind.WEBHOOK, TemplateKind.PAYER, TemplateKind.CASH_OUT]);
-    }
-  });
-
-  it("accepts non-dev subscription with fiat split recipients and bank details", () => {
-    const r = validateFlow({
-      nodes: [
-        {
-          id: "t",
-          type: "subscription",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            subscriber: ADDR_A,
-            amountPerPeriodStroops: "10000000",
-            intervalAmount: 1,
-            intervalUnit: "day",
-          },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [
-              {
-                address: ADDR_B,
-                mode: "fixed",
-                amountStroops: "10000000",
-                payoutMode: "fiat",
-                accountName: "Bob",
-                accountNumber: "1234567890",
-                bankCode: "BASECPH",
-              },
-            ],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-      senderKyc: SENDER_KYC,
-    });
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.pipeline).toEqual([
-        TemplateKind.SUBSCRIPTION,
-        TemplateKind.SPLITTER,
-        TemplateKind.CASH_OUT,
-      ]);
-    }
-  });
-
-  it("rejects fiat payout in on_schedule flows (streamer has no cash-out)", () => {
-    const r = validateFlow({
-      nodes: [
-        {
-          id: "t",
-          type: "on_schedule",
-          config: {
-            intervalAmount: 1,
-            intervalUnit: "hour",
-            startsAt: "2030-01-01T00:00:00.000Z",
-          },
-        },
-        {
-          id: "a",
-          type: "pay",
-          config: {
-            asset: { kind: "native" },
-            recipient: ADDR_B,
-            mode: "fixed",
-            amountStroops: "10000000",
-            fullAmount: false,
-            payoutMode: "fiat",
-            accountName: "Bob",
-            accountNumber: "1234567890",
-            bankCode: "BASECPH",
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(false);
-  });
-
-  it("rejects dev-mode non-payroll fiat payout (deferred)", () => {
-    const r = validateFlow({
-      devMode: true,
-      nodes: [
-        {
-          id: "t",
-          type: "on_receive",
-          config: { asset: { kind: "known", symbol: "USDC" } },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [
-              { address: ADDR_A, mode: "fixed", amountStroops: "100", payoutMode: "fiat" },
-            ],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.errors.some((e) => e.message.includes("dev mode"))).toBe(true);
-    }
-  });
-
-  it("rejects fiat payout combined with an oracle-gte condition", () => {
-    const r = validateFlow({
-      nodes: [
-        {
-          id: "t",
-          type: "on_receive",
-          config: { asset: { kind: "known", symbol: "USDC" } },
-        },
-        {
-          id: "c",
-          type: "condition",
-          config: {
-            kind: "oracle_gte",
-            oracle: ADDR_A,
-            key: "USDC",
-            threshold: "1000000",
-          },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [
-              {
-                address: ADDR_B,
-                mode: "fixed",
-                amountStroops: "10000000",
-                payoutMode: "fiat",
-                accountName: "Bob",
-                accountNumber: "1234567890",
-                bankCode: "BASECPH",
-              },
-            ],
-          },
-        },
-      ],
-      edges: [
-        { id: "e1", source: "t", target: "c" },
-        { id: "e2", source: "c", target: "a" },
-      ],
-    });
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.errors.some((e) => e.message.includes("oracle-gte"))).toBe(true);
-    }
-  });
-
-  it("accepts non-dev payroll with fiat recipients when bank details are provided", () => {
-    const r = validateFlow({
-      senderKyc: SENDER_KYC,
-      nodes: [
-        {
-          id: "t",
-          type: "payroll",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            employer: ADDR_A,
-            intervalAmount: 1,
-            intervalUnit: "week",
-          },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [
-              {
-                address: ADDR_B,
-                mode: "fixed",
-                amountStroops: "10000000",
-                payoutMode: "fiat",
-                accountName: "Bob",
-                accountNumber: "1234567890",
-                bankCode: "BASECPH",
-              },
-            ],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.templateKind).toBe(TemplateKind.PAYROLL);
-      expect(r.pipeline).toEqual([
-        TemplateKind.SUBSCRIPTION,
-        TemplateKind.SPLITTER,
-        TemplateKind.CASH_OUT,
-      ]);
-    }
-  });
-
-  it("rejects non-dev payroll fiat recipients missing bank details", () => {
-    const r = validateFlow({
-      nodes: [
-        {
-          id: "t",
-          type: "payroll",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            employer: ADDR_A,
-            intervalAmount: 1,
-            intervalUnit: "week",
-          },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [
-              {
-                address: ADDR_B,
-                mode: "fixed",
-                amountStroops: "10000000",
-                payoutMode: "fiat",
-              },
-            ],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(false);
-  });
-
-  it("requires sender KYC for non-dev payroll with fiat recipients", () => {
-    const r = validateFlow({
-      nodes: [
-        {
-          id: "t",
-          type: "payroll",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            employer: ADDR_A,
-            intervalAmount: 1,
-            intervalUnit: "week",
-          },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [
-              {
-                address: ADDR_B,
-                mode: "fixed",
-                amountStroops: "10000000",
-                payoutMode: "fiat",
-                accountName: "Bob",
-                accountNumber: "1234567890",
-                bankCode: "BASECPH",
-              },
-            ],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      const kycError = r.errors.find((e) => e.path === "senderKyc");
-      expect(kycError).toBeDefined();
-      expect(kycError!.message).toBe(
-        "Sender KYC is required before deploying a flow with fiat payouts.",
-      );
-    }
-  });
-
-  it("requires sender KYC for non-dev payroll with a fiat pay node", () => {
-    const r = validateFlow({
-      nodes: [
-        {
-          id: "t",
-          type: "payroll",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            employer: ADDR_A,
-            intervalAmount: 1,
-            intervalUnit: "week",
-          },
-        },
-        {
-          id: "a",
-          type: "pay",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipient: "PENDING:fiat",
-            mode: "fixed",
-            amountStroops: "10000000",
-            payoutMode: "fiat",
-            accountName: "Bob",
-            accountNumber: "1234567890",
-            bankCode: "BASECPH",
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      const kycError = r.errors.find((e) => e.path === "senderKyc");
-      expect(kycError).toBeDefined();
-      expect(kycError!.message).toBe(
-        "Sender KYC is required before deploying a flow with fiat payouts.",
-      );
-    }
-  });
-
-  it("accepts non-dev payroll with a fiat pay node when sender KYC is provided", () => {
-    const r = validateFlow({
-      senderKyc: SENDER_KYC,
-      nodes: [
-        {
-          id: "t",
-          type: "payroll",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            employer: ADDR_A,
-            intervalAmount: 1,
-            intervalUnit: "week",
-          },
-        },
-        {
-          id: "a",
-          type: "pay",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipient: "PENDING:fiat",
-            mode: "fixed",
-            amountStroops: "10000000",
-            payoutMode: "fiat",
-            accountName: "Bob",
-            accountNumber: "1234567890",
-            bankCode: "BASECPH",
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(true);
-  });
-
-  it("exempts dev-mode payroll with fiat recipients from sender KYC", () => {
-    const r = validateFlow({
-      devMode: true,
-      nodes: [
-        {
-          id: "t",
-          type: "payroll",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            employer: ADDR_A,
-            intervalAmount: 1,
-            intervalUnit: "week",
-          },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [
-              {
-                address: ADDR_B,
-                mode: "fixed",
-                amountStroops: "10000000",
-                payoutMode: "fiat",
-              },
-            ],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(true);
-  });
-
-  it("accepts non-dev cash_out flow when sender KYC is provided", () => {
-    const r = validateFlow({
-      senderKyc: SENDER_KYC,
-      nodes: [
-        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "10000000" }],
-          },
-        },
-        {
-          id: "c",
-          type: "cash_out",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            accountName: "Juan",
-            accountNumber: "123",
-            bankCode: "BASECPH",
-          },
-        },
-      ],
-      edges: [
-        { id: "e1", source: "t", target: "a" },
-        { id: "e2", source: "a", target: "c" },
-      ],
-    });
-    expect(r.ok).toBe(true);
-  });
-
-  it("rejects non-dev cash_out flow without sender KYC", () => {
-    const r = validateFlow({
-      nodes: [
-        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "10000000" }],
-          },
-        },
-        {
-          id: "c",
-          type: "cash_out",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            accountName: "Juan",
-            accountNumber: "123",
-            bankCode: "BASECPH",
-          },
-        },
-      ],
-      edges: [
-        { id: "e1", source: "t", target: "a" },
-        { id: "e2", source: "a", target: "c" },
-      ],
-    });
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.errors.some((e) => e.path === "senderKyc")).toBe(true);
-    }
-  });
-
-  it("allows dev-mode split with empty recipients to fill via API after deploy", () => {
-    const r = validateFlow({
-      devMode: true,
-      nodes: [
-        {
-          id: "t",
-          type: "on_receive",
-          config: { asset: { kind: "known", symbol: "USDC" } },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.templateKind).toBe(TemplateKind.SPLITTER);
-      expect(r.pipeline).toEqual([TemplateKind.DEPOSIT_TRIGGER, TemplateKind.SPLITTER_DEV]);
-    }
-  });
-
   it("rejects non-dev split with empty recipients", () => {
     const r = validateFlow({
       nodes: [
@@ -841,7 +89,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(false);
   });
-
   it("rejects payroll → split with percentage recipients", () => {
     const r = validateFlow({
       nodes: [
@@ -871,7 +118,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(false);
   });
-
   it("rejects bps that don't sum to 10000", () => {
     const r = validateFlow({
       nodes: [
@@ -896,7 +142,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(false);
   });
-
   it("rejects flows with no trigger", () => {
     const r = validateFlow({
       nodes: [
@@ -927,7 +172,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(false);
   });
-
   it("rejects flows with cycles", () => {
     const r = validateFlow({
       nodes: [
@@ -955,7 +199,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(false);
   });
-
   it("rejects unreachable actions", () => {
     const r = validateFlow({
       nodes: [
@@ -974,7 +217,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(false);
   });
-
   it("infers STREAMER from on_schedule → pay", () => {
     const r = validateFlow({
       nodes: [
@@ -1005,7 +247,6 @@ describe("validateFlow", () => {
       expect(r.pipeline).toEqual([TemplateKind.STREAMER]);
     }
   });
-
   it("infers STREAMER from on_schedule → split", () => {
     const r = validateFlow({
       nodes: [
@@ -1039,7 +280,6 @@ describe("validateFlow", () => {
       expect(r.pipeline).toEqual([TemplateKind.STREAMER]);
     }
   });
-
   it("rejects on_schedule → split without an amount per interval", () => {
     const r = validateFlow({
       nodes: [
@@ -1071,7 +311,6 @@ describe("validateFlow", () => {
       expect(r.errors.some((e) => e.path === "nodes.a.config.amountPerIntervalStroops")).toBe(true);
     }
   });
-
   it("rejects on_schedule → split with a zero amount per interval", () => {
     const r = validateFlow({
       nodes: [
@@ -1104,7 +343,6 @@ describe("validateFlow", () => {
       expect(r.errors.some((e) => e.path === "nodes.a.config.amountPerIntervalStroops")).toBe(true);
     }
   });
-
   it("allows on_receive → split without an amount per interval", () => {
     const r = validateFlow({
       nodes: [
@@ -1129,7 +367,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(true);
   });
-
   it("allows on_schedule → fixed-amount split without an amount per interval", () => {
     // The per-interval base is derived as the sum of the fixed amounts.
     const r = validateFlow({
@@ -1162,7 +399,6 @@ describe("validateFlow", () => {
       expect(r.templateKind).toBe(TemplateKind.STREAMER);
     }
   });
-
   it("rejects on_schedule → fixed-amount split with a zero total", () => {
     const r = validateFlow({
       nodes: [
@@ -1191,39 +427,6 @@ describe("validateFlow", () => {
       expect(r.errors.some((e) => e.path === "nodes.a.config.recipients")).toBe(true);
     }
   });
-
-  it("requires an amount per interval for dev-mode scheduled splits with empty recipients", () => {
-    // API-filled recipients can't supply the constructor-baked base, so the
-    // field stays required even though empty recipients are allowed in dev mode.
-    const r = validateFlow({
-      devMode: true,
-      nodes: [
-        {
-          id: "t",
-          type: "on_schedule",
-          config: {
-            intervalAmount: 1,
-            intervalUnit: "day",
-            startsAt: "2030-01-01T00:00:00.000Z",
-          },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "native" },
-            recipients: [],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.errors.some((e) => e.path === "nodes.a.config.amountPerIntervalStroops")).toBe(true);
-    }
-  });
-
   it("accepts on_schedule with pauseAllowed: false", () => {
     const r = validateFlow({
       nodes: [
@@ -1254,7 +457,6 @@ describe("validateFlow", () => {
       expect(r.templateKind).toBe(TemplateKind.STREAMER);
     }
   });
-
   it("infers CONDITIONAL from on_receive + split + condition", () => {
     const r = validateFlow({
       nodes: [
@@ -1309,7 +511,6 @@ describe("validateFlow", () => {
       ]);
     }
   });
-
   it("infers CONDITIONAL from on_schedule + split + condition", () => {
     const r = validateFlow({
       nodes: [
@@ -1352,7 +553,6 @@ describe("validateFlow", () => {
       expect(r.errors.map((e) => e.code)).toContain("BRANCH_TRIGGER");
     }
   });
-
   // ── web2_webhook compatibility ──
   it("accepts web2_webhook → swap → pay", () => {
     const r = validateFlow({
@@ -1392,7 +592,6 @@ describe("validateFlow", () => {
       expect(r.pipeline).toEqual([TemplateKind.WEBHOOK, TemplateKind.SWAPPER, TemplateKind.PAYER]);
     }
   });
-
   it("accepts web2_webhook → yield", () => {
     const r = validateFlow({
       nodes: [
@@ -1417,7 +616,6 @@ describe("validateFlow", () => {
       expect(r.pipeline).toEqual([TemplateKind.WEBHOOK, TemplateKind.YIELD]);
     }
   });
-
   it("rejects web2_webhook → pay", () => {
     const r = validateFlow({
       nodes: [
@@ -1442,7 +640,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(true);
   });
-
   it("accepts web2_webhook → split", () => {
     const r = validateFlow({
       nodes: [
@@ -1467,7 +664,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(true);
   });
-
   it("accepts email_notify as a decorator attached to a condition", () => {
     const r = validateFlow({
       nodes: [
@@ -1515,7 +711,6 @@ describe("validateFlow", () => {
       ]);
     }
   });
-
   it("accepts an all-fixed split", () => {
     const r = validateFlow({
       nodes: [
@@ -1536,7 +731,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(true);
   });
-
   it("rejects a mixed-mode split", () => {
     const r = validateFlow({
       nodes: [
@@ -1557,7 +751,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(false);
   });
-
   it("infers SUBSCRIPTION from subscription → pay", () => {
     const r = validateFlow({
       nodes: [
@@ -1592,7 +785,6 @@ describe("validateFlow", () => {
       expect(r.pipeline).toEqual([TemplateKind.SUBSCRIPTION, TemplateKind.PAYER]);
     }
   });
-
   it("rejects a subscription with zero amount per period", () => {
     const r = validateFlow({
       nodes: [
@@ -1626,7 +818,6 @@ describe("validateFlow", () => {
       expect(r.errors.some((e) => e.path.includes("amountPerPeriodStroops"))).toBe(true);
     }
   });
-
   it("allows a zero subscription amount when it feeds an all-fixed split (derived)", () => {
     const r = validateFlow({
       nodes: [
@@ -1659,39 +850,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(true);
   });
-
-  it("allows a zero subscription amount in dev mode (filled via API)", () => {
-    const r = validateFlow({
-      devMode: true,
-      nodes: [
-        {
-          id: "t",
-          type: "subscription",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            subscriber: ADDR_A,
-            amountPerPeriodStroops: "0",
-            intervalAmount: 1,
-            intervalUnit: "day",
-          },
-        },
-        {
-          id: "a",
-          type: "pay",
-          config: {
-            recipient: ADDR_B,
-            amountStroops: "10000000",
-            asset: { kind: "known", symbol: "USDC" },
-            mode: "fixed",
-            fullAmount: false,
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(true);
-  });
-
   it("rejects a fixed split with zero amount", () => {
     const r = validateFlow({
       nodes: [
@@ -1709,7 +867,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(false);
   });
-
   it("consolidates zero fixed-amount recipient errors into a single named message", () => {
     const r = validateFlow({
       nodes: [
@@ -1740,136 +897,6 @@ describe("validateFlow", () => {
       expect(error.path).toBe("nodes.a.config.recipients");
     }
   });
-
-  it("accepts dev-mode on_receive → split → cash_out", () => {
-    const r = validateFlow({
-      nodes: [
-        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "10000000" }],
-          },
-        },
-        {
-          id: "c",
-          type: "cash_out",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            accountName: "Juan",
-            accountNumber: "123",
-            bankCode: "BASECPH",
-          },
-        },
-      ],
-      edges: [
-        { id: "e1", source: "t", target: "a" },
-        { id: "e2", source: "a", target: "c" },
-      ],
-      devMode: true,
-    });
-    expect(r.ok).toBe(true);
-  });
-
-  it("accepts cash_out without dev mode when bank details are provided", () => {
-    const r = validateFlow({
-      senderKyc: SENDER_KYC,
-      nodes: [
-        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "10000000" }],
-          },
-        },
-        {
-          id: "c",
-          type: "cash_out",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            accountName: "Juan",
-            accountNumber: "123",
-            bankCode: "BASECPH",
-          },
-        },
-      ],
-      edges: [
-        { id: "e1", source: "t", target: "a" },
-        { id: "e2", source: "a", target: "c" },
-      ],
-    });
-    expect(r.ok).toBe(true);
-  });
-
-  it("rejects cash_out without dev mode when bank details are blank", () => {
-    const r = validateFlow({
-      nodes: [
-        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "10000000" }],
-          },
-        },
-        {
-          id: "c",
-          type: "cash_out",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            accountName: "",
-            accountNumber: "",
-            bankCode: "",
-          },
-        },
-      ],
-      edges: [
-        { id: "e1", source: "t", target: "a" },
-        { id: "e2", source: "a", target: "c" },
-      ],
-    });
-    expect(r.ok).toBe(false);
-  });
-
-  it("rejects cash_out with outgoing edges", () => {
-    const r = validateFlow({
-      nodes: [
-        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
-        {
-          id: "c",
-          type: "cash_out",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            accountName: "",
-            accountNumber: "",
-            bankCode: "",
-          },
-        },
-        {
-          id: "x",
-          type: "pay",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipient: ADDR_A,
-            mode: "fixed",
-            amountStroops: "100",
-          },
-        },
-      ],
-      edges: [
-        { id: "e1", source: "t", target: "c" },
-        { id: "e2", source: "c", target: "x" },
-      ],
-      devMode: true,
-    });
-    expect(r.ok).toBe(false);
-  });
-
   // ── asset enforcement hardening (#225) ──
   it("rejects on_receive XLM → pay USDC", () => {
     const r = validateFlow({
@@ -1889,7 +916,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(false);
   });
-
   it("accepts on_receive XLM → swap (XLM→USDC) → pay USDC", () => {
     const r = validateFlow({
       nodes: [
@@ -1921,7 +947,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(true);
   });
-
   it("rejects on_receive XLM → swap (XLM→USDC) → pay XLM", () => {
     const r = validateFlow({
       nodes: [
@@ -1949,7 +974,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(false);
   });
-
   it("rejects a swap whose assetIn does not match the incoming asset", () => {
     const r = validateFlow({
       nodes: [
@@ -1969,7 +993,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(false);
   });
-
   it("accepts on_schedule → pay with any asset (no trigger asset to constrain)", () => {
     const r = validateFlow({
       nodes: [
@@ -1996,7 +1019,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(true);
   });
-
   it("rejects a node reached by two paths that disagree on asset (merge conflict)", () => {
     // t (USDC) -> s (swap USDC->XLM) -> a (pay), plus a second edge t -> a
     // directly. "a" receives XLM via the swap path and USDC via the direct
@@ -2035,7 +1057,6 @@ describe("validateFlow", () => {
       expect(r.errors.some((e) => e.message.toLowerCase().includes("conflict"))).toBe(true);
     }
   });
-
   it("accepts a node reached by two paths that agree on asset (no false-positive conflict)", () => {
     const r = validateFlow({
       nodes: [
@@ -2057,7 +1078,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(true);
   });
-
   it("rejects the second swap in a chain when its assetIn doesn't match the first swap's assetOut", () => {
     const r = validateFlow({
       nodes: [
@@ -2097,7 +1117,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(false);
   });
-
   it("accepts a custom asset trigger flowing into a matching custom asset pay", () => {
     const r = validateFlow({
       nodes: [
@@ -2120,7 +1139,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(true);
   });
-
   it("rejects a custom asset trigger flowing into a pay configured for a different asset", () => {
     const r = validateFlow({
       nodes: [
@@ -2139,7 +1157,6 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(false);
   });
-
   // ── schema-error friendly messages (#307) ──
   it("names the recipient and explains the required address when a split address is invalid", () => {
     const r = validateFlow({
@@ -2171,7 +1188,6 @@ describe("validateFlow", () => {
       expect(issue!.friendlyMessage).not.toContain("flow structure is invalid");
     }
   });
-
   it("falls back to a positional label when the split recipient has no label", () => {
     const r = validateFlow({
       nodes: [
@@ -2196,7 +1212,6 @@ describe("validateFlow", () => {
       expect(issue!.friendlyMessage).toContain("recipient #2");
     }
   });
-
   it("identifies an invalid pay node recipient address", () => {
     const r = validateFlow({
       nodes: [
@@ -2223,7 +1238,6 @@ describe("validateFlow", () => {
     }
   });
 });
-
 describe("computeAssetFlow", () => {
   it("propagates the trigger asset to a directly connected node", () => {
     const graph = FlowGraphSchema.parse({
@@ -2245,7 +1259,6 @@ describe("computeAssetFlow", () => {
     const flow = computeAssetFlow(graph);
     expect(flow.get("a")).toEqual({ kind: "known", symbol: "USDC" });
   });
-
   it("returns null for every node when the trigger has no asset", () => {
     const graph = FlowGraphSchema.parse({
       nodes: [
@@ -2274,7 +1287,6 @@ describe("computeAssetFlow", () => {
     const flow = computeAssetFlow(graph);
     expect(flow.get("a")).toBeNull();
   });
-
   it("transforms propagation through a swap to the swap's assetOut", () => {
     const graph = FlowGraphSchema.parse({
       nodes: [
@@ -2308,7 +1320,6 @@ describe("computeAssetFlow", () => {
     const flow = computeAssetFlow(graph);
     expect(flow.get("a")).toEqual({ kind: "known", symbol: "USDC" });
   });
-
   it("returns null for a node unreachable from the trigger", () => {
     const graph = FlowGraphSchema.parse({
       nodes: [
@@ -2329,7 +1340,6 @@ describe("computeAssetFlow", () => {
     const flow = computeAssetFlow(graph);
     expect(flow.get("a")).toBeNull();
   });
-
   it("uses the nearest upstream swap when swaps are chained", () => {
     const graph = FlowGraphSchema.parse({
       nodes: [
@@ -2374,7 +1384,6 @@ describe("computeAssetFlow", () => {
     const flow = computeAssetFlow(graph);
     expect(flow.get("a")).toEqual({ kind: "native" });
   });
-
   it("returns null (not an arbitrary pick) for a node whose incoming paths disagree", () => {
     const graph = FlowGraphSchema.parse({
       nodes: [
@@ -2410,7 +1419,6 @@ describe("computeAssetFlow", () => {
     expect(flow.get("a")).toBeNull();
   });
 });
-
 describe("AssetSchema", () => {
   it("normalizes a custom asset code by stripping non-alphanumeric chars and capping at 12", () => {
     const asset = AssetSchema.parse({
@@ -2420,301 +1428,15 @@ describe("AssetSchema", () => {
     });
     expect(asset).toEqual({ kind: "custom", code: "MYASSETCODE", issuer: ADDR_A });
   });
-
   it("rejects a custom asset code that normalizes to empty", () => {
     expect(() => AssetSchema.parse({ kind: "custom", code: "---", issuer: ADDR_A })).toThrow();
   });
 });
-
-describe("validateFlow — hard limits", () => {
-  beforeEach(() => {
-    enableDefaultHardLimits();
-  });
-
-  afterEach(() => {
-    disableHardLimits();
-  });
-
-  // Min/max caps only apply to fiat payouts (PDAX off-ramp limits). Every
-  // fixture below therefore opts into fiat (PENDING:fiat address + bank
-  // details + sender KYC) so the limit is the only thing that can fail.
-  const FIAT_BANK = {
-    accountName: "Alice",
-    accountNumber: "1234567890",
-    bankCode: "BASECPH",
-  };
-
-  it("rejects a fixed USDC split recipient below the minimum", () => {
-    const r = validateFlow({
-      senderKyc: SENDER_KYC,
-      nodes: [
-        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [
-              {
-                address: "PENDING:fiat",
-                mode: "fixed",
-                amountStroops: "10000000",
-                payoutMode: "fiat",
-                ...FIAT_BANK,
-              },
-            ],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.errors.some((e) => e.path === "nodes.a.config.recipients.0.amountStroops")).toBe(
-        true,
-      );
-      expect(r.errors.some((e) => e.message.includes("below temporary minimum"))).toBe(true);
-    }
-  });
-
-  it("rejects a fixed USDC split recipient above the maximum", () => {
-    const r = validateFlow({
-      senderKyc: SENDER_KYC,
-      nodes: [
-        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [
-              {
-                address: "PENDING:fiat",
-                mode: "fixed",
-                amountStroops: "2000000000",
-                payoutMode: "fiat",
-                ...FIAT_BANK,
-              },
-            ],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.errors.some((e) => e.message.includes("exceeds temporary maximum"))).toBe(true);
-    }
-  });
-
-  it("accepts a fixed USDC split recipient within limits", () => {
-    const r = validateFlow({
-      senderKyc: SENDER_KYC,
-      nodes: [
-        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [
-              {
-                address: "PENDING:fiat",
-                mode: "fixed",
-                amountStroops: "500000000",
-                payoutMode: "fiat",
-                ...FIAT_BANK,
-              },
-            ],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(true);
-  });
-
-  it("rejects a fixed XLM pay amount below the minimum", () => {
-    const r = validateFlow({
-      senderKyc: SENDER_KYC,
-      nodes: [
-        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
-        {
-          id: "a",
-          type: "pay",
-          config: {
-            recipient: "PENDING:fiat",
-            mode: "fixed",
-            amountStroops: "100000000",
-            asset: { kind: "native" },
-            payoutMode: "fiat",
-            ...FIAT_BANK,
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.errors.some((e) => e.path === "nodes.a.config.amountStroops")).toBe(true);
-      expect(r.errors.some((e) => e.message.includes("below temporary minimum"))).toBe(true);
-    }
-  });
-
-  it("accepts a fixed XLM pay amount within limits", () => {
-    const r = validateFlow({
-      senderKyc: SENDER_KYC,
-      nodes: [
-        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
-        {
-          id: "a",
-          type: "pay",
-          config: {
-            recipient: "PENDING:fiat",
-            mode: "fixed",
-            amountStroops: "3000000000",
-            asset: { kind: "native" },
-            payoutMode: "fiat",
-            ...FIAT_BANK,
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(true);
-  });
-
-  it("does not limit custom assets", () => {
-    const r = validateFlow({
-      nodes: [
-        {
-          id: "t",
-          type: "on_receive",
-          config: { asset: { kind: "custom", code: "FOO", issuer: ADDR_A } },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "custom", code: "FOO", issuer: ADDR_A },
-            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "1" }],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(true);
-  });
-
-  it("does not limit crypto split recipients (caps are fiat-only)", () => {
-    const r = validateFlow({
-      nodes: [
-        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "10000000" }],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(true);
-  });
-
-  it("does not limit crypto pay amounts (caps are fiat-only)", () => {
-    const r = validateFlow({
-      nodes: [
-        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
-        {
-          id: "a",
-          type: "pay",
-          config: {
-            recipient: ADDR_A,
-            mode: "fixed",
-            amountStroops: "100000000",
-            asset: { kind: "native" },
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-    expect(r.ok).toBe(true);
-  });
-
-  function usdcSplit(amountStroops: string) {
-    return validateFlow({
-      senderKyc: SENDER_KYC,
-      nodes: [
-        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            recipients: [
-              {
-                address: "PENDING:fiat",
-                mode: "fixed",
-                amountStroops,
-                payoutMode: "fiat",
-                ...FIAT_BANK,
-              },
-            ],
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
-  }
-
-  it("accepts an amount exactly equal to the minimum (bounds are inclusive)", () => {
-    // 30 USDC == default min
-    expect(usdcSplit("300000000").ok).toBe(true);
-  });
-
-  it("accepts an amount exactly equal to the maximum (bounds are inclusive)", () => {
-    // 110 USDC == default max
-    expect(usdcSplit("1100000000").ok).toBe(true);
-  });
-
-  it("honors a configured (non-default) env value at runtime", () => {
-    process.env.NEXT_PUBLIC_SPLITTER_USDC_MAX = "500";
-    // 200 USDC exceeds the default 110 max but is under the configured 500.
-    expect(usdcSplit("2000000000").ok).toBe(true);
-  });
-
-  it("disables only the max bound when max is 0", () => {
-    process.env.NEXT_PUBLIC_SPLITTER_USDC_MAX = "0";
-    expect(usdcSplit("2000000000").ok).toBe(true);
-    // min is still enforced
-    expect(usdcSplit("10000000").ok).toBe(false);
-  });
-
-  it("disables only the min bound when min is 0", () => {
-    process.env.NEXT_PUBLIC_SPLITTER_USDC_MIN = "0";
-    expect(usdcSplit("10000000").ok).toBe(true);
-    // max is still enforced
-    expect(usdcSplit("2000000000").ok).toBe(false);
-  });
-
-  it("rejects every amount when max < min (both nonzero) — a misconfiguration, not a disable", () => {
-    process.env.NEXT_PUBLIC_SPLITTER_USDC_MIN = "500";
-    process.env.NEXT_PUBLIC_SPLITTER_USDC_MAX = "100";
-    expect(usdcSplit("500000000").ok).toBe(false); // 50 USDC: below min
-    expect(usdcSplit("2000000000").ok).toBe(false); // 200 USDC: above max
-    expect(usdcSplit("3000000000").ok).toBe(false); // 300 USDC: above max
-  });
-});
-
 describe("validateFlow — schedule window (endsAt vs start)", () => {
   const PAST = "2020-01-01T00:00:00.000Z";
   const PAST_LATER = "2020-06-01T00:00:00.000Z";
   const FUTURE = "2030-01-01T00:00:00.000Z";
   const FUTURE_LATER = "2030-06-01T00:00:00.000Z";
-
   function scheduleFlow(triggerConfig: Record<string, unknown>) {
     return {
       nodes: [
@@ -2732,7 +1454,6 @@ describe("validateFlow — schedule window (endsAt vs start)", () => {
       edges: [{ id: "e1", source: "t", target: "a" }],
     };
   }
-
   function subscriptionFlow(triggerConfig: Record<string, unknown>) {
     return {
       nodes: [
@@ -2763,7 +1484,6 @@ describe("validateFlow — schedule window (endsAt vs start)", () => {
       edges: [{ id: "e1", source: "t", target: "a" }],
     };
   }
-
   it("rejects an on_schedule whose endsAt is in the past (start clamped to now)", () => {
     const r = validateFlow(
       scheduleFlow({
@@ -2781,7 +1501,6 @@ describe("validateFlow — schedule window (endsAt vs start)", () => {
       );
     }
   });
-
   it("rejects an on_schedule whose endsAt is before a future startsAt", () => {
     const r = validateFlow(
       scheduleFlow({
@@ -2798,7 +1517,6 @@ describe("validateFlow — schedule window (endsAt vs start)", () => {
       );
     }
   });
-
   it("rejects an on_schedule whose endsAt equals its startsAt", () => {
     const r = validateFlow(
       scheduleFlow({
@@ -2810,7 +1528,6 @@ describe("validateFlow — schedule window (endsAt vs start)", () => {
     );
     expect(r.ok).toBe(false);
   });
-
   it("accepts an on_schedule with a valid future window", () => {
     const r = validateFlow(
       scheduleFlow({
@@ -2822,7 +1539,6 @@ describe("validateFlow — schedule window (endsAt vs start)", () => {
     );
     expect(r.ok).toBe(true);
   });
-
   it("accepts an on_schedule with a past startsAt and a future endsAt (clamped start)", () => {
     const r = validateFlow(
       scheduleFlow({
@@ -2834,7 +1550,6 @@ describe("validateFlow — schedule window (endsAt vs start)", () => {
     );
     expect(r.ok).toBe(true);
   });
-
   it("rejects a subscription whose endsAt is in the past", () => {
     const r = validateFlow(subscriptionFlow({ endsAt: PAST }));
     expect(r.ok).toBe(false);
@@ -2842,41 +1557,8 @@ describe("validateFlow — schedule window (endsAt vs start)", () => {
       expect(r.errors.some((e) => e.path.endsWith("config.endsAt"))).toBe(true);
     }
   });
-
   it("accepts a subscription with a future endsAt", () => {
     const r = validateFlow(subscriptionFlow({ endsAt: FUTURE }));
-    expect(r.ok).toBe(true);
-  });
-
-  it("accepts a payroll with fillScheduleViaApi even with a past endsAt (placeholder schedule)", () => {
-    const r = validateFlow({
-      nodes: [
-        {
-          id: "t",
-          type: "payroll",
-          config: {
-            asset: { kind: "known", symbol: "USDC" },
-            employer: ADDR_A,
-            intervalAmount: 1,
-            intervalUnit: "week",
-            endsAt: PAST,
-            fillScheduleViaApi: true,
-          },
-        },
-        {
-          id: "a",
-          type: "pay",
-          config: {
-            recipient: ADDR_B,
-            amountStroops: "10000000",
-            asset: { kind: "known", symbol: "USDC" },
-            mode: "fixed",
-            fullAmount: false,
-          },
-        },
-      ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
-    });
     expect(r.ok).toBe(true);
   });
 });

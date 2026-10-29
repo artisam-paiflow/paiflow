@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
 import { Address, xdr } from "@stellar/stellar-sdk";
-
 const mocks = vi.hoisted(() => ({
   db: { deploymentApiToken: { findUnique: vi.fn(), update: vi.fn() } },
   entries: vi.fn(),
   balance: vi.fn(),
   service: vi.fn(async () => undefined),
-  redis: null as null | { set: ReturnType<typeof vi.fn>; eval: ReturnType<typeof vi.fn> },
+  redis: null as null | {
+    set: ReturnType<typeof vi.fn>;
+    eval: ReturnType<typeof vi.fn>;
+  },
 }));
 vi.mock("@/lib/db", () => ({ db: mocks.db }));
 vi.mock("@/lib/redis", () => ({ redis: () => mocks.redis }));
@@ -36,7 +38,6 @@ import {
   PAYER,
   OTHER_CONTRACT,
 } from "./execute-fixtures";
-
 let token: ReturnType<typeof newToken>;
 let sequence = 0;
 const pipeline = [{ nodeId: "schedule", templateKind: "STREAMER", contractAddress: TRIGGER }];
@@ -101,7 +102,6 @@ beforeEach(() => {
   mocks.balance.mockResolvedValue(900719925474099312345n);
   authorize({ pipelineSnapshot: [{ ...pipeline[0], nodeId: `schedule-${sequence}` }] });
 });
-
 describe("deployment-token balances", () => {
   it("reads contract balances without a session, preserves integer strings and excludes private data", async () => {
     authorize({
@@ -170,7 +170,6 @@ describe("deployment-token balances", () => {
     expect(mocks.entries).toHaveBeenCalledTimes(1);
   });
 });
-
 describe("live targets and display freshness", () => {
   it("reads each node's current asset and both Swap assets, never graph metadata", async () => {
     mocks.entries.mockImplementation(async (key) =>
@@ -293,7 +292,7 @@ describe("live targets and display freshness", () => {
       ...n,
       contractAddress: StrKey.encodeContract(Buffer.alloc(32, i)),
     }));
-    expect(balanceCandidates(nodes, true)).toEqual([]);
+    expect(balanceCandidates(nodes)).toEqual([]);
     await expect(getPartnerBalances(deployment({ pipelineSnapshot: nodes }))).rejects.toMatchObject(
       { code: "VALIDATION" },
     );
@@ -376,19 +375,7 @@ describe("live targets and display freshness", () => {
     await cache(deployment({ pipelineSnapshot: [{ ...pipeline[0], contractAddress: PAYER }] }));
     expect(load).toHaveBeenCalledTimes(2);
   });
-  it("discovers candidates without RPC and disables mutable reads when Dev is off", () => {
-    const cap = deploymentCapabilities({
-      ...deployment(),
-      graphSnapshot: null,
-      webhookSecret: null,
-    } as Parameters<typeof deploymentCapabilities>[0]);
-    expect(cap.operations.balances.status).toBe("conditional");
-    expect(cap.operations.balances.nodeIds).toEqual(["schedule"]);
-    expect(mocks.entries).not.toHaveBeenCalled();
-    expect(balanceCandidates([{ ...pipeline[0], templateKind: "PAYER_DEV" }], false)).toEqual([]);
-  });
 });
-
 it("validates realistic and adversarial balance responses", async () => {
   const result = await readPartnerBalances(deployment());
   expect(DeploymentBalancesSchema.safeParse(result).success).toBe(true);

@@ -8,7 +8,6 @@ import {
   Operation,
   TransactionBuilder,
 } from "@stellar/stellar-sdk";
-
 const { reserve, rpcServer, build, withChannel, measure, trackPending, clearPending } = vi.hoisted(
   () => ({
     reserve: vi.fn(),
@@ -32,7 +31,6 @@ vi.mock("@/lib/stellar/relayer-channels", () => ({
 vi.mock("@/lib/stellar/ttl-fee-measurements", () => ({
   measureSorobanTransactionFee: measure,
 }));
-
 const signer = Keypair.random();
 const recipient = Keypair.random().publicKey();
 beforeEach(() => {
@@ -75,7 +73,6 @@ const transaction = (fee = "100", networkPassphrase = Networks.TESTNET) =>
     .setTimeout(180)
     .build();
 // Classic operation exercises the submission guard without depending on RPC simulation.
-
 it("reads the fixture payer's exact string balance and sequence", async () => {
   const { readTtlFixtureAccount } = await import("@/lib/stellar/ttl-rehearsal");
   rpcServer.getLedgerEntries.mockImplementation(async (key) => ({
@@ -107,19 +104,6 @@ it("refuses a missing fixture payer or invalid address", async () => {
   await expect(readTtlFixtureAccount("bad")).rejects.toThrow();
   expect(rpcServer.getLedgerEntries).not.toHaveBeenCalled();
 });
-
-it("prepares an immutable, exact 100% native Webhook-to-Pay graph", async () => {
-  const { ttlRehearsalGraph } = await import("@/lib/stellar/ttl-rehearsal");
-  const { flowToPipeline } = await import("@/lib/flows/to-params");
-  const graph = ttlRehearsalGraph(recipient, signer.publicKey());
-  expect(graph.devMode).not.toBe(true);
-  const nodes = flowToPipeline(graph, signer.publicKey());
-  expect(nodes.map((n) => n.templateKind)).toEqual(["WEBHOOK", "PAYER"]);
-  expect(nodes[1]?.params).toMatchObject({ recipient, percentageBps: 10000 });
-  expect(() => ttlRehearsalGraph("bad", signer.publicKey())).toThrow();
-  expect(() => ttlRehearsalGraph(recipient, signer.secret())).toThrow();
-});
-
 it("validates a public recovery manifest and rejects duplicate/wrong contract bindings", async () => {
   const { TtlRecoveryFixtureSchema, TTL_REHEARSAL } = await import("@/lib/stellar/ttl-rehearsal");
   const { Address } = await import("@stellar/stellar-sdk");
@@ -217,7 +201,6 @@ it("retains commitment and never retries an uncertain submission", async () => {
   expect(reserve).toHaveBeenCalledOnce();
   expect(rpcServer.sendTransaction).toHaveBeenCalledOnce();
 });
-
 it("journals escrow finality before fee measurement can fail", async () => {
   measure.mockRejectedValueOnce(new Error("fee metadata unavailable"));
   const { submitTtlFixtureEscrow } = await import("@/lib/stellar/ttl-rehearsal");

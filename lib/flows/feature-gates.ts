@@ -7,22 +7,14 @@ import {
 } from "@/lib/feature-flags";
 import type { FlowGraph, FlowNode } from "./schema";
 import type { ValidationIssue } from "./issue";
-
 function nodeSurfaces(n: FlowNode, off: readonly FeatureSurface[]): FeatureSurface[] {
   return off.filter((s) => {
     const gate = FEATURE_GATED_BLOCKS[s];
     if (gate.nodeTypes.includes(n.type)) return true;
     if (n.type === "condition" && gate.conditionKinds.includes(n.config.kind)) return true;
-    if (gate.fiatPayout) {
-      if (n.type === "pay" && n.config.payoutMode === "fiat") return true;
-      if (n.type === "split" && n.config.recipients.some((r) => r.payoutMode === "fiat")) {
-        return true;
-      }
-    }
     return false;
   });
 }
-
 /**
  * One issue per node that uses a surface switched off on this server (#722).
  * Kept apart from the structural rules in `validate.ts`: it only reads node
@@ -33,14 +25,6 @@ export function hiddenSurfaceIssues(graph: FlowGraph, features: FeatureFlags): V
   const off = disabledSurfaces(features);
   if (off.length === 0) return [];
   const issues: ValidationIssue[] = [];
-  if (graph.devMode && !features.devMode) {
-    issues.push({
-      path: "devMode",
-      code: "FEATURE_DISABLED",
-      message: "Dev mode is disabled (FEATURE_DEV_MODE_ENABLED=false)",
-      friendlyMessage: `${featureOffMessage("devMode")} ${FEATURE_GATED_BLOCKS.devMode.remedy}`,
-    });
-  }
   for (const n of graph.nodes) {
     for (const s of nodeSurfaces(n, off)) {
       issues.push({

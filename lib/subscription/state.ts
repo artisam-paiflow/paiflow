@@ -13,10 +13,12 @@ import {
   readSubscriptionIsCancelled,
   readTokenAllowance,
 } from "@/lib/stellar/relayer";
-
 export async function readSubscriptionState(
   id: string,
-  opts: { snapshotOnly?: boolean; classifyRpcFailures?: boolean } = {},
+  opts: {
+    snapshotOnly?: boolean;
+    classifyRpcFailures?: boolean;
+  } = {},
 ) {
   const d = await db.deployment.findFirst({
     where: { id, status: "CONFIRMED" },
@@ -44,18 +46,35 @@ export async function readSubscriptionState(
     (!graph.success ||
       graph.data.nodes.filter(isTrigger).length !== 1 ||
       !Array.isArray(d.pipelineSnapshot) ||
-      (d.pipelineSnapshot[0] as { nodeId?: string } | undefined)?.nodeId !== trigger.id)
+      (
+        d.pipelineSnapshot[0] as
+          | {
+              nodeId?: string;
+            }
+          | undefined
+      )?.nodeId !== trigger.id)
   )
     throw new AppError("VALIDATION", "Malformed subscription deployment snapshot");
-  const nodes = [
-    ...pipelineNodesOfKind(d.pipelineSnapshot, "SUBSCRIPTION"),
-    ...pipelineNodesOfKind(d.pipelineSnapshot, "SUBSCRIPTION_DEV"),
-  ];
+  // Every recorded identity must be unique, including unsupported kinds. An
+  // unknown extra node must not conceal ambiguity around the selected contract.
+  const snapshot = Array.isArray(d.pipelineSnapshot) ? d.pipelineSnapshot : [];
+  const identities = snapshot.map((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+    if (typeof entry.nodeId !== "string" || typeof entry.contractAddress !== "string") return null;
+    return { nodeId: entry.nodeId, contractAddress: entry.contractAddress };
+  });
+  if (
+    identities.some((entry) => entry === null) ||
+    new Set(identities.map((entry) => entry?.nodeId)).size !== identities.length ||
+    new Set(identities.map((entry) => entry?.contractAddress)).size !== identities.length
+  )
+    throw new AppError("VALIDATION", "Subscription contract address not available or ambiguous");
+  const nodes = [...pipelineNodesOfKind(d.pipelineSnapshot, "SUBSCRIPTION")];
   if (nodes.length !== 1 || nodes[0]!.nodeId !== trigger.id)
     throw new AppError("VALIDATION", "Subscription contract address not available or ambiguous");
   const node = findPipelineNode(
     d.pipelineSnapshot,
-    nodes[0]!.templateKind as "SUBSCRIPTION" | "SUBSCRIPTION_DEV",
+    nodes[0]!.templateKind as "SUBSCRIPTION",
     trigger.id,
   );
   if (!StrKey.isValidContract(node.contractAddress))
@@ -86,16 +105,19 @@ export async function readSubscriptionState(
     isCancelled,
     asset,
     assetLabel: asset ? assetLabel(asset) : tokenContractAddress,
-    templateKind: node.templateKind as "SUBSCRIPTION" | "SUBSCRIPTION_DEV",
+    templateKind: node.templateKind as "SUBSCRIPTION",
   };
 }
-
 /** Preserve public response shape and eligibility; interactive routes opt into safe reads. */
-export async function subscriptionState(id: string, opts: { classifyRpcFailures?: boolean } = {}) {
+export async function subscriptionState(
+  id: string,
+  opts: {
+    classifyRpcFailures?: boolean;
+  } = {},
+) {
   const { templateKind: _templateKind, ...state } = await readSubscriptionState(id, opts);
   return state;
 }
-
 export function requireSubscriber(
   state: Awaited<ReturnType<typeof subscriptionState>>,
   address?: string,
@@ -103,7 +125,7 @@ export function requireSubscriber(
   if (!state.subscriber)
     throw new AppError(
       "VALIDATION",
-      "The team must configure the Dev subscriber before allowance approval",
+      "The team must configure the subscriber before allowance approval",
     );
   if (address && state.subscriber !== address)
     throw new AppError("FORBIDDEN", "Connected wallet does not match the configured subscriber");
@@ -114,7 +136,6 @@ export function requireSubscriber(
     );
   return state.subscriber;
 }
-
 /** Interactive deployment-token read; public/background helpers keep their defaults. */
 export async function subscriptionAllowanceState(id: string) {
   return withInteractiveRpcBudget(async () => {
@@ -122,7 +143,7 @@ export async function subscriptionAllowanceState(id: string) {
       snapshotOnly: true,
       classifyRpcFailures: true,
     });
-    if (!state.subscriber && state.templateKind !== "SUBSCRIPTION_DEV")
+    if (!state.subscriber)
       throw new AppError("UPSTREAM_RPC", "Ordinary subscription has no configured subscriber");
     const allowance = state.subscriber
       ? await readTokenAllowance({

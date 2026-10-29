@@ -2,8 +2,8 @@
 
 A confirmed subscription's `/allowance/:deploymentId` page lets its configured
 customer approve through their own wallet without a Paiflow account or deployment
-API token. It supports `SUBSCRIPTION` and `SUBSCRIPTION_DEV`. The team still owns
-configuration and Dev mutations. One deployment has one configured subscriber;
+API token. It supports standard `SUBSCRIPTION` deployments. The team configures the
+subscription before deployment. One deployment has one configured subscriber;
 connecting another wallet does not create a subscription.
 
 The public state and preparation route is
@@ -12,7 +12,7 @@ contains customer consent fields only: deployment/flow label, network, actual
 subscription contract and token, current subscriber, cancellation/setup state,
 asset label when known and allowance. The shared snapshot helper resolves the
 actual subscription root. Subscriber, asset and cancellation are read from the
-deployed contract, including after Dev updates. An unconfigured subscriber gets
+deployed contract. An unconfigured subscriber gets
 setup guidance; a mismatched wallet or cancelled subscription cannot prepare.
 Unknown asset labels show the actual token address rather than stale graph data.
 

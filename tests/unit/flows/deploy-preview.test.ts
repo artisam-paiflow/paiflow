@@ -3,9 +3,7 @@ import { deployPreviewFromGraph } from "@/lib/flows/deploy-preview";
 import { FlowGraphSchema, type FlowGraph } from "@/lib/flows/schema";
 import { flowToPipeline, getStreamerPreviewFromPipeline } from "@/lib/flows/to-params";
 import { validateFlow } from "@/lib/flows/validate";
-
 const OWNER = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
-
 function locked(): FlowGraph {
   return FlowGraphSchema.parse({
     nodes: [
@@ -25,7 +23,6 @@ function locked(): FlowGraph {
     ],
   });
 }
-
 describe("deployPreviewFromGraph", () => {
   it("previews a valid Hold / Return to owner flow before a wallet is connected", () => {
     const graph = locked();
@@ -33,17 +30,15 @@ describe("deployPreviewFromGraph", () => {
     expect(() => deployPreviewFromGraph(graph)).not.toThrow();
     expect(deployPreviewFromGraph(graph)).toBeNull();
   });
-
   it("returns a payroll preview when the graph includes Return to owner", () => {
     const graph = locked();
-    graph.devMode = true;
+
     graph.nodes[0] = {
       id: "t",
       type: "payroll",
       config: {
         asset: { kind: "native" },
         employer: OWNER,
-        fillScheduleViaApi: false,
         intervalAmount: 1,
         intervalUnit: "month",
         occurrences: 2,
@@ -59,7 +54,6 @@ describe("deployPreviewFromGraph", () => {
     });
     graph.edges[0] = { id: "ts", source: "t", target: "s" };
     graph.edges.push({ id: "sc", source: "s", target: "c" });
-
     expect(deployPreviewFromGraph(graph)).toMatchObject({
       amountPerPeriodStroops: "10000000",
       recipients: [{ address: OWNER, amount: "10000000" }],
@@ -68,7 +62,6 @@ describe("deployPreviewFromGraph", () => {
       totalStroops: "20000000",
     });
   });
-
   it("preserves the existing streamer preview", () => {
     const graph = FlowGraphSchema.parse({
       nodes: [
@@ -95,7 +88,6 @@ describe("deployPreviewFromGraph", () => {
       ],
       edges: [{ id: "tp", source: "t", target: "p" }],
     });
-
     const previous = getStreamerPreviewFromPipeline(flowToPipeline(graph));
     expect(previous).toMatchObject({
       amountPerIntervalStroops: "3600000",

@@ -24,7 +24,6 @@ vi.mock("@/lib/stellar/client", async (importOriginal) => ({
 }));
 import { paymentAccountResponse } from "./payment-account-fixture";
 import { prepareTokenApproveInvocation } from "@/lib/stellar/invoke";
-import { payoutTransactionFinished } from "@/lib/stellar/payout-state";
 
 function response(result: unknown) {
   return {
@@ -173,48 +172,6 @@ describe("CAP-71 ledger compatibility (#792)", () => {
     await expect(prepareTokenApproveInvocation(approval)).rejects.toThrow();
     expect(simulate).not.toHaveBeenCalled();
   });
-
-  it("proves payout expiry through both SDK ledger parsers with delegated credentials", async () => {
-    const server = holder.server!;
-    const fixture = ledgerFixture();
-    const post = vi
-      .spyOn(server.httpClient, "post")
-      .mockResolvedValueOnce(response(notFound))
-      .mockResolvedValueOnce(response(fixture.latest))
-      .mockResolvedValueOnce(response(fixture.ledgers));
-    expect(await payoutTransactionFinished(payout)).toBe(true);
-    expect(post.mock.calls.map(([, body]) => (body as { method: string }).method)).toEqual([
-      "getTransaction",
-      "getLatestLedger",
-      "getLedgers",
-    ]);
-  });
-
-  it.each(["latest", "ledgers"] as const)(
-    "retains payout protection when %s metadata cannot decode",
-    async (step) => {
-      const server = holder.server!;
-      const fixture = ledgerFixture();
-      vi.spyOn(server.httpClient, "post")
-        .mockResolvedValueOnce(response(notFound))
-        .mockResolvedValueOnce(
-          response({
-            ...fixture.latest,
-            ...(step === "latest" ? { metadataXdr: "AAAAfw==" } : {}),
-          }),
-        )
-        .mockResolvedValueOnce(
-          response({
-            ...fixture.ledgers,
-            ledgers: [{ ...fixture.ledgers.ledgers[0], metadataXdr: "AAAAfw==" }],
-          }),
-        );
-      await expect(payoutTransactionFinished(payout)).rejects.toMatchObject({
-        code: "UPSTREAM_RPC",
-        message: expect.stringContaining("protection is retained"),
-      });
-    },
-  );
 
   it("refuses approval preparation when RPC is unavailable", async () => {
     const server = holder.server!;

@@ -30,7 +30,7 @@ type AddressField = {
   accepts: AddressAccepts;
   /** How the message names the field, e.g. "the Pay step's recipient". */
   what: string;
-  /** A split recipient paid in crypto: a C… contract is only a fiat destination. */
+  /** Payment recipients require wallet addresses; contract destinations are refused. */
   cryptoRecipient?: boolean;
 };
 
@@ -52,7 +52,7 @@ export function addressFields(node: FlowNode): AddressField[] {
         value: r.address,
         accepts: "account_or_contract" as const,
         what: `split recipient ${r.label?.trim() ? `"${r.label.trim()}"` : `#${i + 1}`}`,
-        cryptoRecipient: r.payoutMode !== "fiat",
+        cryptoRecipient: true,
       }));
     case "webhook":
       return [
@@ -118,7 +118,6 @@ export function addressFields(node: FlowNode): AddressField[] {
     case "hold":
     case "return_to_owner":
     case "email_notify":
-    case "cash_out":
       return [];
     default: {
       const never: never = node;
@@ -164,8 +163,8 @@ export function addressIssues(graph: FlowGraph): ValidationIssue[] {
         if (f.cryptoRecipient && StrKey.isValidContract(f.value)) {
           issues.push({
             path: `nodes.${node.id}.config.${f.field}`,
-            message: "Contract addresses (C...) must use fiat payout.",
-            friendlyMessage: `A contract address (C…) can only receive a fiat payout. Set the payout mode for ${f.what} to fiat, or enter a wallet address (G…).`,
+            message: "Recipients require a wallet address (G...).",
+            friendlyMessage: `Enter a wallet address (G…) for ${f.what}.`,
             nodeId: node.id,
             field: f.field,
           });

@@ -1,5 +1,4 @@
 import { Role, TemplateKind, type Prisma } from "@prisma/client";
-
 /**
  * Constants shared by the sandbox mint, the deploy guard, the crons and their tests.
  *
@@ -8,7 +7,6 @@ import { Role, TemplateKind, type Prisma } from "@prisma/client";
  * `lib/sandbox-paths.ts` because that file is imported by `middleware.ts` and
  * must not pull `@prisma/client` into the edge runtime.
  */
-
 /**
  * Stored in `User.passwordHash` for a sandbox account. Not a hash of anything:
  * no password can open the account, only the one-shot ticket the mint returns.
@@ -19,29 +17,12 @@ import { Role, TemplateKind, type Prisma } from "@prisma/client";
  */
 export const SANDBOX_PASSWORD_SENTINEL = "sandbox:no-password-login";
 
-/**
- * The only contract kinds a SANDBOX session may deploy: every on-chain move in
- * these is signed by the visitor's own wallet, so none of them can draw on the
- * server-held relayer key.
- *
- * A sandbox identity is disposable and needs no account, so it must not be able
- * to create a deployment the platform later signs for. SUBSCRIPTION, PAYROLL,
- * CASH_OUT and STREAMER pipelines are picked up by the `cron/auto-charge-*`,
- * `auto-release` and `process-*-jobs` jobs, which select on status and template
- * kind alone and then sign with STELLAR_RELAYER_SECRET_KEY. WEBHOOK is worse
- * still: `/api/webhooks/:id` is public and signs every call with that key.
- *
- * This is matched against every node of the generated pipeline, not the flow's
- * top-level kind — a `web2_webhook -> swap` graph classifies as SWAPPER but
- * emits a WEBHOOK node, and `devMode` swaps in relayer-admin `*_DEV` variants.
- */
 export const SANDBOX_TEMPLATE_KINDS: TemplateKind[] = [
   TemplateKind.SWAPPER,
   TemplateKind.SPLITTER,
   TemplateKind.PAYER,
   TemplateKind.DEPOSIT_TRIGGER,
 ];
-
 /**
  * How long `cron/poll-events` keeps polling a sandbox-owned deployment. A
  * sandbox account cannot be re-entered once its cookie is gone, and nothing
@@ -55,7 +36,6 @@ export const SANDBOX_TEMPLATE_KINDS: TemplateKind[] = [
  * page, its SSE stream and `tx-status` still ingest on demand.
  */
 export const SANDBOX_POLL_WINDOW_MS = 24 * 60 * 60 * 1000;
-
 /** The deployments `cron/poll-events` works through on a tick. */
 export function cronPollableDeploymentWhere(now: Date): Prisma.DeploymentWhereInput {
   return {

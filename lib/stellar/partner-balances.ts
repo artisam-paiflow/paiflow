@@ -15,14 +15,12 @@ import type { DeploymentBalances } from "@/lib/api/v1/schema";
 import { sorobanRpc } from "./client";
 import { createTokenBalanceReader } from "./balance";
 import { dashboardBalanceAdmission } from "./dashboard-balance-admission";
-
 type BalanceDeployment = Pick<
   Deployment,
   "id" | "status" | "network" | "pipelineSnapshot" | "sourceAccount"
 >;
 type Node = DeploymentBalances["nodes"][number];
-const DEADLINE_MS = 25_000;
-
+const DEADLINE_MS = 25000;
 /** Read only the asset fields; never serialize instance storage or private configuration. */
 async function tokenContracts(address: string, swap: boolean): Promise<string[]> {
   const key = xdr.LedgerKey.contractData(
@@ -54,13 +52,12 @@ async function tokenContracts(address: string, swap: boolean): Promise<string[]>
   }
   return tokens;
 }
-
 export async function readPartnerBalances(
   deployment: BalanceDeployment,
   signal?: AbortSignal,
 ): Promise<DeploymentBalances> {
   const pipeline = BalancePipelineSchema.parse(deployment.pipelineSnapshot);
-  const candidates = balanceCandidates(pipeline, isFeatureEnabled("devMode"));
+  const candidates = balanceCandidates(pipeline);
   const supported = new Set(candidates.map((n) => n.nodeId));
   const attemptedAt = new Date().toISOString();
   const nodes: Node[] = pipeline
@@ -152,27 +149,23 @@ export async function readPartnerBalances(
     },
   };
 }
-
 /** Separate display cache: no effect on owner dashboard or transaction-sensitive reads. */
 export function createPartnerBalanceCache(
   load = readPartnerBalances,
-  ttlMs = 10_000,
+  ttlMs = 10000,
   maxEntries = 256,
 ) {
   const entries = new Map<
     string,
-    { expiresAt: number; result?: DeploymentBalances; pending?: Promise<DeploymentBalances> }
+    {
+      expiresAt: number;
+      result?: DeploymentBalances;
+      pending?: Promise<DeploymentBalances>;
+    }
   >();
   return async (deployment: BalanceDeployment): Promise<DeploymentBalances> => {
     const key = createHash("sha256")
-      .update(
-        JSON.stringify([
-          env().STELLAR_NETWORK,
-          stellarRpcUrl(),
-          isFeatureEnabled("devMode"),
-          deployment,
-        ]),
-      )
+      .update(JSON.stringify([env().STELLAR_NETWORK, stellarRpcUrl(), false, deployment]))
       .digest("hex");
     let entry = entries.get(key);
     if (entry?.result && entry.expiresAt > Date.now())
@@ -211,7 +204,7 @@ export function createPartnerBalanceCache(
         if (client) {
           let claimed: string | null;
           try {
-            claimed = await client.set(claimKey, claimToken, "PX", 60_000, "NX");
+            claimed = await client.set(claimKey, claimToken, "PX", 60000, "NX");
           } catch {
             throw new AppError(
               "RATE_LIMITED",
@@ -266,7 +259,6 @@ export function createPartnerBalanceCache(
     return structuredClone(await current.pending);
   };
 }
-
 const readCached = createPartnerBalanceCache();
 export async function getPartnerBalances(deployment: BalanceDeployment) {
   if (deployment.status !== "CONFIRMED")
@@ -275,7 +267,7 @@ export async function getPartnerBalances(deployment: BalanceDeployment) {
     throw new AppError("VALIDATION", "Deployment network does not match this environment");
   if (
     !BalancePipelineSchema.safeParse(deployment.pipelineSnapshot).success ||
-    !balanceCandidates(deployment.pipelineSnapshot, isFeatureEnabled("devMode")).length
+    !balanceCandidates(deployment.pipelineSnapshot).length
   )
     throw new AppError("VALIDATION", "No supported balance targets in this deployment");
   return readCached({

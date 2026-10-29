@@ -148,38 +148,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           where: { id: work.id },
           data: { state: "DONE", completedAt: new Date(), reconciliationEvidence: body.evidence },
         });
-      } else {
-        const job = await tx.offRampPayoutJob.findFirst({
-          where: {
-            id: body.id,
-            deploymentId: id,
-            status: { in: ["FAILED", "CANCELLED", "RUNNING"] },
-            settlementResolvedAt: null,
-          },
-        });
-        if (!job) throw new AppError("NOT_FOUND", "Unresolved payout not found");
-        if (
-          (await tx.deploymentWork.count({
-            where: { deploymentId: id, state: { in: ["OPEN", "BLOCKED"] } },
-          })) ||
-          (await tx.serviceTransaction.count({
-            where: { work: { deploymentId: id }, state: "PENDING" },
-          }))
-        )
-          throw new AppError(
-            "CONFLICT",
-            "Fence workers and reconcile transaction finality before verifying payout recovery",
-          );
-        await tx.offRampPayoutJob.update({
-          where: { id: job.id },
-          data: {
-            ...(job.status === "RUNNING"
-              ? { status: "CANCELLED" as const, cancelledAt: new Date() }
-              : {}),
-            settlementResolvedAt: new Date(),
-            settlementEvidence: body.evidence,
-          },
-        });
       }
       await tx.auditLog.create({
         data: {

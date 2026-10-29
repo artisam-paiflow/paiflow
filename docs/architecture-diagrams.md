@@ -46,26 +46,24 @@ flowchart TB
         API["API routes — /api/deployments/*<br/>/api/flows/* /api/transcribe<br/>/api/webhooks/* /api/cron/*"]
         Auth["Auth.js v5 — argon2 +<br/>WebAuthn + middleware"]
         StellarLib["lib/stellar — XDR build /<br/>simulate / submit / relayer"]
-        Cron["Cron jobs — poll-events, auto-release,<br/>auto-charge-*, finalize-deployments,<br/>process-streamer/offramp-jobs"]
+        Cron["Cron jobs — poll-events, auto-release,<br/>auto-charge-*, finalize-deployments,<br/>process-streamer-jobs"]
     end
 
     subgraph Data["Data plane"]
         PG[("PostgreSQL 16<br/>Prisma — Flow, Deployment,<br/>ContractEvent, AuditLog, …")]
         Redis[("Redis 7 — rate limits,<br/>job claims, event pub/sub")]
-        Files[("File storage —<br/>MinIO (dev) / Volume (prod)")]
     end
 
     subgraph Chain["Stellar network (testnet / mainnet)"]
         RPC["Soroban RPC —<br/>simulate / send / getEvents"]
         Horizon["Horizon —<br/>account funding checks"]
         Factory["Factory contract<br/>(deploy_pipeline)"]
-        Contracts["Deployed pipelines —<br/>triggers: deposit / webhook / subscription / oracle<br/>actions: splitter / streamer / payer / payroll /<br/>cash_out / swapper / yield<br/>conditions: conditional / timelock / router / multisig"]
+        Contracts["Deployed pipelines —<br/>triggers: deposit / webhook / subscription / oracle<br/>actions: splitter / streamer / payer / payroll /<br/>swapper / yield<br/>conditions: conditional / timelock / router / multisig"]
     end
 
     subgraph External["External services"]
         Groq["Groq — Whisper (STT)<br/>+ Llama (flow edits)"]
         Resend["Resend —<br/>transactional email"]
-        PDAX["PDAX —<br/>fiat off-ramp"]
     end
 
     Builder --> Pages
@@ -75,12 +73,10 @@ flowchart TB
     API --> StellarLib
     API --> PG
     API --> Redis
-    API --> Files
     API --> Groq
     API --> Resend
     Cron --> StellarLib
     Cron --> PG
-    Cron --> PDAX
     StellarLib --> RPC
     StellarLib --> Horizon
     RPC --> Factory
@@ -144,7 +140,7 @@ sequenceDiagram
     API-->>Page: txHash (PENDING)
     Page->>API: poll /tx-status until finality
     Cron->>RPC: getEvents (per EventCursor)
-    Cron->>DB: ContractEvent rows → Redis pub/sub<br/>(+ off-ramp job on CASH_OUT, emails)
+    Cron->>DB: ContractEvent rows → Redis pub/sub<br/>(emails)
 ```
 
 ## Sequence — Raft Log voice edit
@@ -182,7 +178,6 @@ sequenceDiagram
     participant DB as Postgres
     participant RPC as Soroban RPC
     participant C as Deployed contract
-    participant PDAX as PDAX off-ramp
 
     Sched->>Cron: POST /poll-events (x-cron-secret)
     Cron->>RPC: getEvents per CONFIRMED deployment
@@ -202,8 +197,4 @@ sequenceDiagram
     Sched->>Cron: POST /auto-release
     Cron->>RPC: relayer releases matured timelocks
 
-    Sched->>Cron: POST /process-offramp-jobs
-    Cron->>DB: claim OffRampPayoutJob batch
-    Cron->>PDAX: execute fiat payout
-    PDAX-->>Cron: result callback (/api/webhooks/offramp)
 ```

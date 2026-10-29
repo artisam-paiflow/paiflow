@@ -53,7 +53,6 @@ const capabilities = {
       "funding",
       "transactions",
       "releaseEarly",
-      "payouts",
       "webhook",
       "subscriptionAllowance",
       "subscriptionState",
