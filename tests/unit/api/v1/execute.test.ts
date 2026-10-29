@@ -241,11 +241,6 @@ describe("pipeline scope", () => {
       "starts with a SUBSCRIPTION_DEV step",
     ],
     [
-      "a payroll head",
-      [{ nodeId: "s", contractAddress: TRIGGER, templateKind: "PAYROLL" }],
-      "starts with a payroll step",
-    ],
-    [
       "a head kind this release has never heard of",
       [{ nodeId: "s", contractAddress: TRIGGER, templateKind: "FUTURE_KIND" }],
       "starts with a FUTURE_KIND step",

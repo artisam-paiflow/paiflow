@@ -33,8 +33,7 @@ Pay stores a percentage as a number and uses `PercentageInput` to preserve preci
 clear-to-unset; Split stores integer basis points and uses `ShareInput`. Non-swap assets adopt
 upstream custom assets read-only; Swap retains its stricter catalogue policy.
 
-Payroll keeps its crypto recipient controls. Fiat/off-ramp and Dev-specific controls are removed
-(#1141, #1138). `SplitRecipientsEditor` is extracted for component testing.
+Payroll, fiat/off-ramp and Dev-specific controls are removed (#1144, #1141, #1138). `SplitRecipientsEditor` is extracted for component testing.
 
 AddressPicker keeps focus in the wallet field when opening contacts. Valid unsaved wallet addresses
 show a Save contact button below the input and an inline name form; saved addresses show their

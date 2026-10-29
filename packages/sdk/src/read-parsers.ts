@@ -114,7 +114,6 @@ export const parseCapabilities = (value: unknown) => {
       "deposit",
       "webhook",
       "subscription",
-      "payroll",
       "schedule",
       "oracle",
       "unknown",

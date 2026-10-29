@@ -19,6 +19,7 @@ vi.mock("@/components/deploy/trigger-button", () => ({
     <button disabled={disabled}>CONNECT WALLET & APPROVE</button>
   ),
 }));
+import { AppError } from "@/lib/errors";
 import AllowancePage from "@/app/allowance/[deploymentId]/page";
 const params = Promise.resolve({ deploymentId: "11111111-1111-4111-8111-111111111111" });
 afterEach(() => {
@@ -53,10 +54,10 @@ describe("hosted subscription allowance page", () => {
       cleanup();
     },
   );
-  it.each([null, { flow: { templateKind: "SPLITTER" } }])(
-    "refuses missing, unconfirmed and unsupported deployments without requiring login",
-    async (deployment) => {
-      mocks.deployment.mockResolvedValue(deployment);
+  it.each(["NOT_FOUND", "VALIDATION"] as const)(
+    "refuses ineligible subscription state: %s",
+    async (code) => {
+      mocks.state.mockRejectedValue(new AppError(code, "Subscription unavailable"));
       await expect(AllowancePage({ params })).rejects.toThrow("not-found");
       expect(mocks.session).not.toHaveBeenCalled();
     },
@@ -65,11 +66,6 @@ describe("hosted subscription allowance page", () => {
     await expect(
       AllowancePage({ params: Promise.resolve({ deploymentId: "invalid-id" }) }),
     ).rejects.toThrow("not-found");
-    expect(mocks.deployment).not.toHaveBeenCalled();
-  });
-  it("keeps payroll behind its existing page-session guard", async () => {
-    mocks.deployment.mockResolvedValue({ flow: { templateKind: "PAYROLL" } });
-    mocks.session.mockRejectedValue(new Error("redirect-to-login"));
-    await expect(AllowancePage({ params })).rejects.toThrow("redirect-to-login");
+    expect(mocks.state).not.toHaveBeenCalled();
   });
 });

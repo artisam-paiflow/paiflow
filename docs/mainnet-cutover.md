@@ -33,8 +33,7 @@ production service's environment.
   every contract upload plus the factory deployment. For the actual cost rather
   than a guess, run `pnpm contracts:estimate` (below).
 - **`STELLAR_RELAYER_SECRET_KEY`** — Paiflow's own mainnet key, funded. Without
-  it every `cron/*` automation silently no-ops in production: payroll charges,
-  subscription charges, streamer claims, timelock releases. Nothing errors; the
+  it every `cron/*` automation silently no-ops in production: subscription charges, streamer claims, timelock releases. Nothing errors; the
   work just never happens.
 - A Railway service for production with `STELLAR_NETWORK=mainnet` in its
   Variables page.

@@ -147,6 +147,5 @@ describe("contract key mappings", () => {
     expect(contractKeyForParamsKind("streamer")).toBe("streamer");
     expect(contractKeyForParamsKind("webhook_trigger")).toBe("webhook");
     expect(contractKeyForParamsKind("subscription_dev_trigger")).toBeUndefined();
-    expect(contractKeyForParamsKind("payroll_trigger")).toBe("payroll");
   });
 });

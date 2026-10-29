@@ -86,7 +86,6 @@ export default defineRailway((ctx) => {
       FEATURE_AI_ASSISTANT_ENABLED: preserve(),
       FEATURE_OFFRAMP_ENABLED: preserve(),
       FEATURE_ORACLE_CONDITION_ENABLED: preserve(),
-      FEATURE_PAYROLL_ENABLED: preserve(),
       GOOGLE_AUTH_ENABLED: preserve(),
       GOOGLE_CLIENT_ID: preserve(),
       GOOGLE_CLIENT_SECRET: preserve(),

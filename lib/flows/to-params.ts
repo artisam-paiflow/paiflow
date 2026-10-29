@@ -1,5 +1,6 @@
 import { StrKey } from "@stellar/stellar-sdk";
 import { TemplateKind } from "@prisma/client";
+import { hasRetiredPayrollInput, PAYROLL_RETIRED_MESSAGE } from "./retired-payroll";
 import { DEPLOYING_WALLET, resolveOwnerReturns, terminalOutcomeIssues } from "./terminal-outcomes";
 import type {
   ActionNode,
@@ -133,18 +134,6 @@ export type SubscriptionTriggerNodeParams = {
   intervalSeconds: number;
   nextStepNodeIds: string[];
 };
-export type PayrollTriggerNodeParams = {
-  kind: "payroll_trigger";
-  asset: Asset;
-  employer: string;
-  amountPerPeriodStroops: string;
-  recipients: PipelineRecipient[];
-  relayer?: string;
-  startTs: number;
-  endTs: number;
-  intervalSeconds: number;
-  nextStepNodeIds: string[];
-};
 export type OracleTriggerNodeParams = {
   kind: "oracle_trigger";
   asset: Asset;
@@ -196,7 +185,6 @@ export type PipelineNodeParams =
   | TimelockBranchNodeParams
   | WebhookTriggerNodeParams
   | SubscriptionTriggerNodeParams
-  | PayrollTriggerNodeParams
   | OracleTriggerNodeParams
   | MultisigNodeParams
   | SwapperNodeParams
@@ -266,29 +254,6 @@ function toStreamerRecipients(action: ContractActionNode): PipelineRecipient[] {
       amount,
     };
   });
-}
-/**
- * Payroll stores the fixed salary amount per recipient in the contract, so the
- * amount field must be populated for both split and pay actions.
- */
-function toPayrollRecipients(action: ContractActionNode): PipelineRecipient[] {
-  if (action.type === "split") {
-    return action.config.recipients.map((r) => ({
-      address: r.address,
-      bps: 0,
-      amount: r.mode === "fixed" ? r.amountStroops : "0",
-    }));
-  }
-  if (action.type === "pay") {
-    return [
-      {
-        address: action.config.recipient,
-        bps: 0,
-        amount: action.config.amountStroops ?? "0",
-      },
-    ];
-  }
-  return [];
 }
 /**
  * The router contract takes path A when `amount >= threshold` and path B
@@ -534,12 +499,8 @@ export function flowToPipeline(
       });
     }
   };
-  // ── schedule-like flows (on_schedule, subscription, payroll) ─────────
-  if (
-    trigger.type === "on_schedule" ||
-    trigger.type === "subscription" ||
-    trigger.type === "payroll"
-  ) {
+  // ── schedule-like flows (on_schedule, subscription) ─────────
+  if (trigger.type === "on_schedule" || trigger.type === "subscription") {
     const action = contractActions[0]!;
     const asset = getAsset(action);
     const nowSeconds = Math.floor(Date.now() / 1000);
@@ -552,7 +513,7 @@ export function flowToPipeline(
         : nowSeconds;
     let end: number;
     let intervalSeconds: number;
-    if (trigger.type === "subscription" || trigger.type === "payroll") {
+    if (trigger.type === "subscription") {
       const cfg = trigger.config as {
         intervalAmount: number;
         intervalUnit: "minute" | "hour" | "day" | "week" | "month";
@@ -598,43 +559,6 @@ export function flowToPipeline(
       }
       // Subscription pulls are forwarded to standard action contracts that
       // implement receive_and_forward (payer, splitter, swapper, yield).
-      const seenActions = new Set<string>();
-      const actionQueue: ContractActionNode[] = [action];
-      while (actionQueue.length > 0) {
-        const current = actionQueue.shift()!;
-        if (seenActions.has(current.id)) continue;
-        seenActions.add(current.id);
-        emit(contractActionToPipelineNode(current, trigger, children, relayerAddress));
-        for (const childId of children.get(current.id) ?? []) {
-          const childNode = graph.nodes.find((n) => n.id === childId);
-          if (childNode && isContractAction(childNode) && !seenActions.has(childNode.id)) {
-            actionQueue.push(childNode);
-          }
-        }
-      }
-      return pipeline;
-    }
-    if (trigger.type === "payroll") {
-      const recipients = toPayrollRecipients(action);
-      const amountPerPeriod = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n).toString();
-
-      // Immutable payroll: SUBSCRIPTION pulls from the employer and SPLITTER
-      // distributes fixed salaries.
-      emit({
-        nodeId: trigger.id,
-        templateKind: TemplateKind.SUBSCRIPTION,
-        params: {
-          kind: "subscription_trigger",
-          asset: trigger.config.asset,
-          subscriber: trigger.config.employer,
-          amountPerPeriodStroops: amountPerPeriod,
-          relayer: relayerAddress,
-          startTs: start,
-          endTs: end,
-          intervalSeconds,
-          nextStepNodeIds: children.get(trigger.id) ?? [],
-        },
-      });
       const seenActions = new Set<string>();
       const actionQueue: ContractActionNode[] = [action];
       while (actionQueue.length > 0) {
@@ -988,58 +912,13 @@ export function getSubscriptionPreviewFromPipeline(pipeline: PipelineNode[]) {
   const totalStroops = (BigInt(amountPerPeriodStroops) * BigInt(intervals)).toString();
   return { amountPerPeriodStroops, intervalSeconds, startTs, endTs, durationSecs, totalStroops };
 }
-export function getPayrollPreviewFromPipeline(pipeline: PipelineNode[]) {
-  const payroll = pipeline.find((n) => n.templateKind === TemplateKind.PAYROLL);
-  if (payroll && payroll.params.kind === "payroll_trigger") {
-    const { amountPerPeriodStroops, recipients, intervalSeconds, startTs, endTs } = payroll.params;
-    const durationSecs = endTs - startTs;
-    const intervals = Math.floor(durationSecs / intervalSeconds);
-    const totalStroops = (BigInt(amountPerPeriodStroops) * BigInt(intervals)).toString();
-    return {
-      amountPerPeriodStroops,
-      recipients,
-      intervalSeconds,
-      startTs,
-      endTs,
-      durationSecs,
-      totalStroops,
-    };
-  }
-  const sub = pipeline.find((n) => n.templateKind === TemplateKind.SUBSCRIPTION);
-  const split = pipeline.find((n) => n.templateKind === TemplateKind.SPLITTER);
-  if (
-    sub &&
-    sub.params.kind === "subscription_trigger" &&
-    split &&
-    split.params.kind === "splitter"
-  ) {
-    const { amountPerPeriodStroops, intervalSeconds, startTs, endTs } = sub.params;
-    const durationSecs = endTs - startTs;
-    const intervals = Math.floor(durationSecs / intervalSeconds);
-    const totalStroops = (BigInt(amountPerPeriodStroops) * BigInt(intervals)).toString();
-    const recipients = split.params.recipients.map((r) => ({
-      address: r.address,
-      bps: r.bps,
-      amount: r.amount,
-    }));
-    return {
-      amountPerPeriodStroops,
-      recipients,
-      intervalSeconds,
-      startTs,
-      endTs,
-      durationSecs,
-      totalStroops,
-    };
-  }
-  return null;
-}
 /**
  * @deprecated Use {@link flowToPipeline} for new code.  This helper is kept
  * for the streamer preview page and existing tests that assert on monolithic
  * contract params.
  */
 export function flowToParams(graph: FlowGraph, templateKind: TemplateKind): ContractParams {
+  if (hasRetiredPayrollInput(graph)) throw new Error(PAYROLL_RETIRED_MESSAGE);
   const trigger = graph.nodes.find(isTrigger)!;
   const action = inFlowOrder(graph, graph.nodes.filter(isContractAction))[0]!;
   const condition = graph.nodes.find(isLogic);

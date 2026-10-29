@@ -21,8 +21,6 @@ function nodeLabel(n: FlowNode): string {
       return `HTTP Webhook (${assetLabel(n.config.asset)})`;
     case "subscription":
       return `Subscription (${assetLabel(n.config.asset)})`;
-    case "payroll":
-      return `Payroll (${assetLabel(n.config.asset)})`;
     case "oracle":
       return `Oracle (${assetLabel(n.config.asset)})`;
     case "pay":

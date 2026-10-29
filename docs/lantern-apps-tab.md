@@ -16,8 +16,8 @@ is used. The framing policy remains the exact two-parent policy from #1049.
 The public flow selects the bridge before mobile prewarming, WalletConnect session
 restoration, wallet selection or browser deep links. It uses `lantern:getPublicKey`
 and sign-only `lantern:signXdr`; Paiflow retains preparation, validation, submission
-and finality reconciliation. Mainnet and Payroll allowance are refused in this
-public embedded path. Authenticated signing and embedded login remain #932.
+and finality reconciliation. Mainnet is refused in this public embedded path.
+Payroll is retired from the application (#1144). Authenticated signing and embedded login remain #932.
 
 All adapters in a frame share one request queue. Connection replies have no IDs:
 an interrupted sent connection quarantines the bridge until the frame reloads, so

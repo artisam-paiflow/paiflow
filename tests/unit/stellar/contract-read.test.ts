@@ -113,26 +113,6 @@ describe("read-only contract RPC classification", () => {
     expect(stub.rpc.getAccount).not.toHaveBeenCalled();
   });
 
-  it("keeps readPayerRecipients using the existing relayer source for every getter", async () => {
-    const { readPayerRecipients } =
-      await vi.importActual<typeof import("@/lib/stellar/relayer")>("@/lib/stellar/relayer");
-    stub.rpc.simulateTransaction.mockImplementation(async (tx: Transaction) => {
-      const op = tx.operations[0] as { func: xdr.HostFunction };
-      const fn = op.func.invokeContract().functionName().toString();
-      if (fn === "recipient") return success(new Address(stub.source).toScVal());
-      if (fn === "configured_amount") return success(nativeToScVal(500n, { type: "i128" }));
-      if (fn === "percentage_bps") return success(nativeToScVal(10000, { type: "u32" }));
-      throw new Error(`Unexpected ${fn}`);
-    });
-    await expect(readPayerRecipients(PAIR)).resolves.toEqual([
-      { address: stub.source, amount: "500", bps: 10000 },
-    ]);
-    expect(stub.rpc.simulateTransaction).toHaveBeenCalledTimes(3);
-    for (const [tx] of stub.rpc.simulateTransaction.mock.calls) expect(tx.source).toBe(stub.source);
-    expect(stub.rpc.getAccount).not.toHaveBeenCalled();
-    expect(stub.rpc.sendTransaction).not.toHaveBeenCalled();
-  });
-
   it.each([null, [{ key: {}, xdr: {} }]])(
     "maps malformed ledger entries to 502, never account absence (%#)",
     async (entries) => {

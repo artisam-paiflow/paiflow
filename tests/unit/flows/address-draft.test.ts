@@ -98,14 +98,6 @@ const OTHER_FIELDS: {
     }),
   },
   {
-    name: "payroll employer",
-    path: "nodes.t.config.employer",
-    graph: (v) => ({
-      nodes: [{ id: "t", type: "payroll", config: { asset: USDC, employer: v } }, payTo("p")],
-      edges: [{ id: "e1", source: "t", target: "p" }],
-    }),
-  },
-  {
     name: "yield vault",
     path: "nodes.y.config.vault",
     graph: (v) => ({

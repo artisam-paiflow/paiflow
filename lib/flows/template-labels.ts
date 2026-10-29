@@ -15,7 +15,6 @@ export const TEMPLATE_LABELS: Record<TemplateKind, string> = {
   SWAPPER: "Swapper",
   YIELD: "Yield",
   PAYER: "Payer",
-  PAYROLL: "Payroll",
 };
 export const TEMPLATE_DESCRIPTIONS: Record<TemplateKind, string> = {
   SPLITTER: "Distributes inbound funds by basis points across recipients.",
@@ -35,5 +34,4 @@ export const TEMPLATE_DESCRIPTIONS: Record<TemplateKind, string> = {
     "Swaps asset_in for asset_out through the Soroswap router with a slippage bound, then forwards the output.",
   YIELD: "Deposits incoming funds into a vault or lending pool.",
   PAYER: "Sends a fixed amount to a single recipient.",
-  PAYROLL: "Pulls fixed salaries from an employer and distributes to employees on a schedule.",
 };

@@ -2,7 +2,6 @@ import "server-only";
 import { Role } from "@prisma/client";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import type { NextRequest } from "next/server";
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
@@ -322,13 +321,6 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     // a demoted admin through.
     role: row.role,
   };
-}
-
-/** Owner payroll UI; legacy machine credentials are no longer supported. */
-export async function requirePayrollSession(_req: NextRequest): Promise<{ user: SessionUser }> {
-  const user = await requireSession();
-  if (user.role === Role.SANDBOX) throw new AppError("FORBIDDEN", "Not available in the sandbox");
-  return { user };
 }
 
 export async function requireSession(opts?: { role?: Role }): Promise<SessionUser> {

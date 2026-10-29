@@ -1,7 +1,7 @@
 # Subscription billing metadata
 
 `Deployment.lastChargedAt` is a projection of committed `charge` events emitted by
-the Subscription or Dev Subscription in the durable `pipelineSnapshot`. It uses
+the Subscription in the durable `pipelineSnapshot`. It uses
 the event's ledger-close time, not the cron completion time or the scheduled due
 time. Catch-up charges may pay an older due period in a later ledger. An advanced
 schedule, a tenant's success response, a timeout, or a missing hash alone does not
@@ -9,9 +9,8 @@ establish confirmed charge history.
 
 The projection is independent of PLATFORM/USER/MANUAL mode and current
 cancellation state. It advances only to a newer confirmed time; duplicate or
-out-of-order delivery cannot regress it. Payroll is excluded even where its
-pipeline contains a Subscription trigger: Payroll runs and settlement recovery
-remain separate (#592).
+out-of-order delivery cannot regress it. Retired payroll instructions are refused
+even where a stored pipeline contains a Subscription trigger (#1144).
 
 Event ingestion retries the history checkpoint on both inserted and duplicate
 rows before advancing the event cursor. A failed checkpoint therefore remains

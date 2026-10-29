@@ -25,7 +25,7 @@ const STRKEY_ADDRESS = /\b[GCM][A-Z2-7]{55}(?:[A-Z2-7]{13})?\b/g;
 // Base64 runs this long are XDR envelopes or results, never a human message.
 const BASE64_BLOB = /[A-Za-z0-9+/]{80,}={0,2}/g;
 // A separate class rather than widening the one above: `/` and `-` together
-// would swallow `/deployments/<uuid>/payroll-runs/<uuid>` in $pathname, which
+// would swallow `/deployments/<uuid>/operations/<uuid>` in $pathname, which
 // stays readable by decision (#517, 17 Sep 2026).
 const BASE64URL_BLOB = /[A-Za-z0-9_-]{80,}/g;
 // Credentials this app mints and shows once: `pfk_` deployment tokens, `pfd_`

@@ -143,8 +143,6 @@ function nodeDescriptor(n: FlowNode): string {
       return "HTTP Webhook trigger";
     case "subscription":
       return "Subscription trigger";
-    case "payroll":
-      return "Payroll";
     case "oracle":
       return "Oracle trigger";
     case "pay":
@@ -198,7 +196,6 @@ function getTriggerAsset(t: FlowNode): Asset | null {
     t.type === "webhook" ||
     t.type === "web2_webhook" ||
     t.type === "subscription" ||
-    t.type === "payroll" ||
     t.type === "oracle"
   ) {
     return t.config.asset;
@@ -325,10 +322,7 @@ function branchIssues(
     onChainChildren.set(s.id, [...(onChainChildren.get(s.id) ?? []), t.id]);
   }
   const trigger = graph.nodes.find(isTrigger);
-  const scheduleLike =
-    trigger?.type === "on_schedule" ||
-    trigger?.type === "subscription" ||
-    trigger?.type === "payroll";
+  const scheduleLike = trigger?.type === "on_schedule" || trigger?.type === "subscription";
   for (const cond of graph.nodes) {
     if (!isBranchingCondition(cond)) continue;
     const noun = branchingNoun(cond.config.kind);
@@ -765,12 +759,7 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       });
     }
   }
-  if (
-    trigger &&
-    (trigger.type === "on_schedule" ||
-      trigger.type === "subscription" ||
-      trigger.type === "payroll")
-  ) {
+  if (trigger && (trigger.type === "on_schedule" || trigger.type === "subscription")) {
     const cfg = trigger.config as {
       startsAt?: string;
       endsAt?: string;
@@ -790,31 +779,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
             endSeconds <= nowSeconds
               ? "This schedule's end time has already passed. Pick an end date in the future."
               : "This schedule's end time is before its start time. Move the end date later.",
-        });
-      }
-    }
-  }
-  // Payroll flows must use fixed amounts so the contract can compute the
-  // exact pull amount per period.
-  if (trigger?.type === "payroll") {
-    for (const a of contractActions) {
-      if (a.type === "split") {
-        const modes = new Set(a.config.recipients.map((r) => r.mode));
-        if (modes.has("percentage")) {
-          errors.push({
-            path: `nodes.${a.id}.config.recipients`,
-            message: "Payroll split must use fixed amounts, not percentages",
-            friendlyMessage:
-              "Payroll distributions must be fixed salary amounts. Switch all recipients to fixed amounts.",
-          });
-        }
-      }
-      if (a.type === "pay" && a.config.mode === "percentage") {
-        errors.push({
-          path: `nodes.${a.id}.config.mode`,
-          message: "Payroll pay node must use fixed amount, not percentage",
-          friendlyMessage:
-            "Payroll distributions must be fixed salary amounts. Switch the pay node to a fixed amount.",
         });
       }
     }
@@ -915,8 +879,6 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
     templateKind = TemplateKind.CONDITIONAL;
   } else if (trigger!.type === "subscription" && isPayOrSplit) {
     templateKind = TemplateKind.SUBSCRIPTION;
-  } else if (trigger!.type === "payroll" && isPayOrSplit) {
-    templateKind = TemplateKind.PAYROLL;
   } else if (trigger!.type === "on_schedule" && isPayOrSplit) {
     templateKind = TemplateKind.STREAMER;
   } else if (isOnReceive && isPayOrSplit) {
@@ -936,7 +898,7 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
         {
           path: "nodes",
           message:
-            "Unsupported trigger/action combination. Supported: on_receive with pay/split/swap/yield, webhook/web2_webhook/oracle with pay/split/swap/yield/multisig, schedule-like triggers (on_schedule, subscription) with pay/split, payroll with pay/split, or any with a compatible condition.",
+            "Unsupported trigger/action combination. Supported: on_receive with pay/split/swap/yield, webhook/web2_webhook/oracle with pay/split/swap/yield/multisig, schedule-like triggers (on_schedule, subscription) with pay/split, or any with a compatible condition.",
           friendlyMessage: FRIENDLY.UNSUPPORTED_COMBO,
         },
       ],

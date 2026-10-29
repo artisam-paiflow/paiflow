@@ -394,7 +394,9 @@ describe("AddressPicker editable styling", () => {
   });
 
   it("the pending badge is announced, not only amber", async () => {
-    render(<AddressPicker label="Recipient" value="PENDING:payroll" onChange={() => {}} pending />);
+    render(
+      <AddressPicker label="Recipient" value="PENDING:recipient" onChange={() => {}} pending />,
+    );
     const input = screen.getByRole("combobox", { name: "Recipient" });
     expect(describedText(input)).toContain("needs address");
     const badge = screen.getByText("needs address");
@@ -405,7 +407,7 @@ describe("AddressPicker editable styling", () => {
   });
 
   it("an unlabelled picker still describes its pending badge", () => {
-    render(<AddressInput value="PENDING:payroll" onChange={() => {}} pending />);
+    render(<AddressInput value="PENDING:recipient" onChange={() => {}} pending />);
     expect(describedText(screen.getByRole("combobox"))).toContain("needs address");
   });
 });
@@ -609,7 +611,7 @@ describe("AddressPicker inline contact saving", () => {
 
   it("does not offer contact saving for pending addresses or contracts", () => {
     const { rerender } = render(
-      <AddressPicker label="Recipient" value="PENDING:payroll" onChange={vi.fn()} pending />,
+      <AddressPicker label="Recipient" value="PENDING:recipient" onChange={vi.fn()} pending />,
     );
     expect(screen.queryByRole("button", { name: "Save contact" })).toBeNull();
     rerender(

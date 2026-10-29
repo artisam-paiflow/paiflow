@@ -1,4 +1,4 @@
-// Shared regression suite included by Subscription, Subscription Dev and Payroll.
+// Shared regression suite for Subscription cancellation.
 use super::{cancellation_fixture, Key, START_TIME};
 use soroban_sdk::testutils::{
     Address as _, AuthorizedFunction, Events as _, Ledger as _, MockAuth, MockAuthInvoke,

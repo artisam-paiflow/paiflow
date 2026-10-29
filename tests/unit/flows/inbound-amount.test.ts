@@ -224,7 +224,7 @@ describe("inboundRequirement", () => {
     );
     expect(inboundRequirement(g)).toEqual({ kind: "minimum", stroops: FIVE, asset: XLM });
   });
-  it.each(["subscription", "payroll", "on_schedule", "oracle", "webhook"])(
+  it.each(["subscription", "on_schedule", "oracle", "webhook"])(
     "is variable for a %s trigger, which the relayer drives rather than a sender",
     (type) => {
       const g = chain([{ id: "t", type, config: { asset: XLM } }, payFixed("p", FIVE)]);

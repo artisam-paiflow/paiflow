@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { hasRetiredPayrollInput } from "@/lib/flows/retired-payroll";
 import {
   runDeploymentWork,
   beforeExternalRelayer,
@@ -146,7 +147,6 @@ async function runSubscriptionCharges() {
     where: {
       status: "CONFIRMED",
       serviceState: "ACTIVE",
-      flow: { templateKind: { not: "PAYROLL" } },
       chargeRelayerMode: { in: [ChargeRelayerMode.PLATFORM, ChargeRelayerMode.USER] },
       OR: [{ nextChargeAt: { lte: now } }, { nextChargeAt: null }],
     },
@@ -160,6 +160,8 @@ async function runSubscriptionCharges() {
       nextChargeAt: true,
       chargeScheduleRevision: true,
       pipelineSnapshot: true,
+      graphSnapshot: true,
+      paramsSnapshot: true,
     },
     // Most overdue first, so a backlog drains
     // oldest-first. Rows with no date (stopped or never automated, written as
@@ -200,6 +202,15 @@ async function runSubscriptionCharges() {
           { budgetMs: deadline.budgetMs, attempted, deploymentCount: deployments.length },
           "auto-charge-subscriptions cron out of time; the rest waits for the next run",
         );
+        return;
+      }
+      if (hasRetiredPayrollInput(d)) {
+        results.push({
+          deploymentId: d.id,
+          contractAddress: "",
+          status: "skipped",
+          error: "Retired payroll instructions",
+        });
         return;
       }
       attempted += 1;
@@ -416,7 +427,7 @@ async function runSubscriptionCharges() {
               );
             }
             // Nothing upstream-controlled may reach an Error message: it is
-            // reported and logged, and on the payroll side persisted for the
+            // reported and logged for the
             // owner to read back, which is what made this a read-capable SSRF
             // (#581). A status code is a number; a body is not.
             if (response.status >= 300 && response.status < 400) {

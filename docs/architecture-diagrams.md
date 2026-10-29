@@ -58,7 +58,7 @@ flowchart TB
         RPC["Soroban RPC —<br/>simulate / send / getEvents"]
         Horizon["Horizon —<br/>account funding checks"]
         Factory["Factory contract<br/>(deploy_pipeline)"]
-        Contracts["Deployed pipelines —<br/>triggers: deposit / webhook / subscription / oracle<br/>actions: splitter / streamer / payer / payroll /<br/>swapper / yield<br/>conditions: conditional / timelock / router / multisig"]
+        Contracts["Deployed pipelines —<br/>triggers: deposit / webhook / subscription / oracle<br/>actions: splitter / streamer / payer /<br/>swapper / yield<br/>conditions: conditional / timelock / router / multisig"]
     end
 
     subgraph External["External services"]
@@ -189,10 +189,10 @@ sequenceDiagram
     RPC->>C: claim() pays recipient
     Cron->>DB: reschedule next milestone
 
-    Sched->>Cron: POST /auto-charge-subscriptions / auto-charge-payroll
+    Sched->>Cron: POST /auto-charge-subscriptions
     Cron->>RPC: check on-chain state + allowance
     Cron->>RPC: relayer-signed charge (under relayer lock)
-    Cron->>DB: PayrollRun / nextChargeAt
+    Cron->>DB: lastChargedAt / nextChargeAt
 
     Sched->>Cron: POST /auto-release
     Cron->>RPC: relayer releases matured timelocks

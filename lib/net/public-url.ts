@@ -6,8 +6,7 @@
  * tick. Before #581 the only validation was `z.string().url()`, which accepts
  * any scheme and any host — so `http://169.254.169.254/latest/meta-data/`,
  * `http://redis.railway.internal:6379/` or `http://localhost:3000/api/...` all
- * passed, and the payroll cron interpolated the whole response body into the
- * error it stores on `PayrollRun.lastError`, which the owner can read back.
+ * passed. Returning upstream response bodies could expose private services.
  * That is a read-capable SSRF into our own private network, which CLAUDE.md §18
  * forbids outright.
  *

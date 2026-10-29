@@ -10,11 +10,11 @@ starter repository. The [release policy](../releasing.md) and
 
 ## Choose and create a credential
 
-| Credential                           | Scope and setup                                                                                                      |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| `pfd_` + 64 lowercase hex characters | One developer credential across explicitly selected existing deployments. Owner signs in at `/account/developer`.    |
-| `pfk_` + 64 lowercase hex characters | Existing single-deployment token from that deployment's **API access** panel; existing behavior remains supported.   |
-| `pkdev_`                             | Removed in #1138. Retained payroll management uses owner sessions; there is no legacy-token authentication fallback. |
+| Credential                           | Scope and setup                                                                                                    |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `pfd_` + 64 lowercase hex characters | One developer credential across explicitly selected existing deployments. Owner signs in at `/account/developer`.  |
+| `pfk_` + 64 lowercase hex characters | Existing single-deployment token from that deployment's **API access** panel; existing behavior remains supported. |
+| `pkdev_`                             | Removed in #1138. There is no legacy-token authentication fallback; payroll was retired in #1144.                  |
 
 The page opens on **Tokens**, with a compact list and expandable credential details.
 Choose **Create token** to open the name/expiry, permission and deployment sections;

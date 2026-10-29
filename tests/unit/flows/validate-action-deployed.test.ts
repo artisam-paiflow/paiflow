@@ -54,16 +54,6 @@ const onSchedule = {
     amountPerIntervalStroops: "10000000",
   },
 };
-const payroll = {
-  id: "t",
-  type: "payroll",
-  config: {
-    asset: XLM,
-    employer: ACCOUNT,
-    intervalAmount: 1,
-    intervalUnit: "week",
-  },
-};
 describe("every contract action reaches the deployed pipeline", () => {
   // Same graph both ways round: only the node array order differs, which is the
   // order the blocks were dropped on the canvas.
@@ -80,18 +70,6 @@ describe("every contract action reaches the deployed pipeline", () => {
       "SWAPPER",
       "PAYER",
     ]);
-  });
-  // A payroll pipeline has no swapper stage at all, so this is refused by the
-  // template ladder before the guard is reached — and now refused the same way
-  // whichever order the blocks were added, rather than only one of them.
-  it.each([
-    ["in flow order", [payroll, swap, pay]],
-    ["with the pay block added first", [payroll, pay, swap]],
-  ])("refuses a payroll flow carrying a swap, drawn %s", (_name, nodes) => {
-    const v = validateFlow({ nodes, edges } as never);
-    expect(v.ok).toBe(false);
-    if (v.ok) return;
-    expect(v.errors.some((e) => /combination isn't supported/.test(e.friendlyMessage))).toBe(true);
   });
   it("refuses a schedule flow whose second chained pay the streamer would drop", () => {
     // The streamer carries one payout step, taken from contractActions[0]; the

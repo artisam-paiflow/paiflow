@@ -205,7 +205,7 @@ packed root export; signing and URL helpers add no extra HTTP surface.
 
 The [contract exclusions](contract.md#exclusions-openapi-gaps-and-hosted-verification)
 remain unchanged: owner session/token management, new deployments/flows, admin,
-cron, dev mutation/payroll/payout helpers, owner SSE/polling and owner QR routes
+cron, retired dev mutation/payout helpers, owner SSE/polling and owner QR routes
 are absent from deployment SDK namespaces. Hosted URL helpers only construct
 payment, allowance and embed URLs; eligibility remains the server's responsibility.
 

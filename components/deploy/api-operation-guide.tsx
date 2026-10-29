@@ -10,8 +10,6 @@ const TRIGGER_GUIDANCE = {
     "Call the webhook when your application event happens. Use the webhook secret for callbacks and a deployment API token to track the resulting payment.",
   subscription:
     "The configured subscriber approves an allowance with their wallet. Scheduled charges use that allowance; approval does not immediately make a payment.",
-  payroll:
-    "Payroll uses the employer’s allowance and its payroll workflow. Manage approval and runs with the payroll controls in the deployment overview.",
   schedule:
     "Fund the stream using the deployment overview. Scheduled payments follow its configured timing and relayer workflow.",
   oracle: "This flow runs when its configured relayer reports a value that meets the condition.",

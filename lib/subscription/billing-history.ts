@@ -2,15 +2,16 @@ import "server-only";
 import { StrKey } from "@stellar/stellar-sdk";
 import { EventKind, type Prisma, type TemplateKind } from "@prisma/client";
 import { db } from "@/lib/db";
+import { hasRetiredPayrollInput } from "@/lib/flows/retired-payroll";
 import { pipelineNodesOfKind } from "@/lib/pipeline-snapshot";
 const MAX_I128 = (1n << 127n) - 1n;
 export const BILLING_HISTORY_EVENT_BATCH = 100;
-/** Payroll has its own financial records, even when its trigger is a Subscription. */
+/** Attribute billing only to a recorded ordinary subscription. */
 export function subscriptionBillingEmitter(
   snapshot: unknown,
   flowKind: TemplateKind,
 ): string | null {
-  if (flowKind === "PAYROLL") return null;
+  if (hasRetiredPayrollInput({ templateKind: flowKind, pipeline: snapshot })) return null;
   const nodes = [...pipelineNodesOfKind(snapshot, "SUBSCRIPTION")];
   if (nodes.length !== 1 || !StrKey.isValidContract(nodes[0]!.contractAddress)) return null;
   const address = nodes[0]!.contractAddress;

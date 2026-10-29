@@ -27,14 +27,10 @@ import type { NextRequest } from "next/server";
 const { mockDb, mockAuth, mockGroq, mockDeploy, mockRelayer } = vi.hoisted(() => ({
   mockDb: {
     flow: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
-    employee: { findMany: vi.fn() },
     deployment: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   },
   mockAuth: {
     requireSession: vi.fn(async () => ({ id: "user-1", username: "u", role: "USER" })),
-    requirePayrollSession: vi.fn(async () => ({
-      user: { id: "user-1", username: "u", role: "USER" },
-    })),
     requireDevApiToken: vi.fn(async () => ({ id: "user-1", username: "u", role: "USER" })),
   },
   mockGroq: { callGroq: vi.fn(), transcribeAudio: vi.fn(async () => "hello") },
@@ -44,7 +40,6 @@ const { mockDb, mockAuth, mockGroq, mockDeploy, mockRelayer } = vi.hoisted(() =>
     deployPipelineByRelayer: vi.fn(),
   },
   mockRelayer: {
-    readPayrollIsCancelled: vi.fn(async () => false),
     readSubscriptionIsCancelled: vi.fn(async () => false),
   },
 }));
@@ -63,11 +58,7 @@ vi.mock("@/lib/stellar/relayer", () => mockRelayer);
 vi.mock("@/lib/stellar/config", () => ({
   getWasmHashes: vi.fn(async () => ({ get: () => "a".repeat(64) })),
 }));
-const SWITCHES = [
-  "FEATURE_PAYROLL_ENABLED",
-  "FEATURE_AI_ASSISTANT_ENABLED",
-  "FEATURE_ORACLE_CONDITION_ENABLED",
-] as const;
+const SWITCHES = ["FEATURE_AI_ASSISTANT_ENABLED", "FEATURE_ORACLE_CONDITION_ENABLED"] as const;
 const ID = "11111111-1111-1111-1111-111111111111";
 const SOURCE = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const ADDR_B = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
@@ -88,12 +79,18 @@ function jsonRequest(body: unknown): NextRequest {
 function ctx(id = ID) {
   return { params: Promise.resolve({ id }) };
 }
-const PAYROLL_GRAPH = {
+const SUBSCRIPTION_GRAPH = {
   nodes: [
     {
       id: "t",
-      type: "payroll",
-      config: { asset: USDC, employer: SOURCE, intervalAmount: 1, intervalUnit: "week" },
+      type: "subscription",
+      config: {
+        asset: USDC,
+        subscriber: SOURCE,
+        amountPerPeriodStroops: "100000000",
+        intervalAmount: 1,
+        intervalUnit: "week",
+      },
     },
     {
       id: "a",
@@ -179,7 +176,6 @@ const CASH_OUT_GRAPH = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
-  mockDb.employee.findMany.mockResolvedValue([]);
   for (const s of SWITCHES) delete process.env[s];
   mockDb.deployment.create.mockResolvedValue({ id: ID });
   mockDb.deployment.update.mockResolvedValue({});
@@ -199,7 +195,6 @@ describe("env: the surface switches", () => {
   }
   it("default every surface on when unset or blank", async () => {
     expect(await features()).toEqual({
-      payroll: true,
       aiAssistant: true,
       oracleCondition: true,
     });
@@ -207,18 +202,18 @@ describe("env: the surface switches", () => {
     expect(Object.values(await features()).every(Boolean)).toBe(true);
   });
   it.each(["false", "0", "off", "no", "FALSE", " False "])("reads %j as off", async (v) => {
-    process.env.FEATURE_PAYROLL_ENABLED = v;
-    expect((await features()).payroll).toBe(false);
+    process.env.FEATURE_ORACLE_CONDITION_ENABLED = v;
+    expect((await features()).oracleCondition).toBe(false);
   });
   it.each(["true", "1", "on", "yes", "TRUE"])("reads %j as on", async (v) => {
-    process.env.FEATURE_PAYROLL_ENABLED = v;
-    expect((await features()).payroll).toBe(true);
+    process.env.FEATURE_ORACLE_CONDITION_ENABLED = v;
+    expect((await features()).oracleCondition).toBe(true);
   });
   it("reads a value it cannot parse as OFF instead of crashing every route", async () => {
     process.env.FEATURE_AI_ASSISTANT_ENABLED = "flase";
     const f = await features();
     expect(f.aiAssistant).toBe(false);
-    expect(f.payroll).toBe(true);
+    expect(f.oracleCondition).toBe(true);
     // env() still parses, so crons and live deployments are unaffected.
     const { env } = await import("@/lib/env");
     expect(() => env()).not.toThrow();
@@ -230,10 +225,10 @@ describe("POST /api/deployments/prepare", () => {
     const { POST } = await import("@/app/api/deployments/prepare/route");
     return POST(jsonRequest({ flowId: ID, sourceAccount: SOURCE }) as never);
   }
-  it("keeps a standard subscription/splitter deploy available with payroll off", async () => {
-    setSwitch("FEATURE_PAYROLL_ENABLED", "false");
+  it("keeps a standard subscription/splitter deploy available with oracle conditions off", async () => {
+    setSwitch("FEATURE_ORACLE_CONDITION_ENABLED", "false");
     const graph = {
-      ...PAYROLL_GRAPH,
+      ...SUBSCRIPTION_GRAPH,
       nodes: [
         {
           id: "t",
@@ -246,7 +241,7 @@ describe("POST /api/deployments/prepare", () => {
             intervalUnit: "week",
           },
         },
-        PAYROLL_GRAPH.nodes[1],
+        SUBSCRIPTION_GRAPH.nodes[1],
       ],
     };
     const res = await prepare(graph);
@@ -255,7 +250,6 @@ describe("POST /api/deployments/prepare", () => {
     expect(mockDb.deployment.create).toHaveBeenCalledOnce();
   });
   it.each([
-    ["payroll", "FEATURE_PAYROLL_ENABLED", PAYROLL_GRAPH, "nodes.t", /Payroll is turned off/],
     ["oracle", "FEATURE_ORACLE_CONDITION_ENABLED", ORACLE_GRAPH, "nodes.c", /oracle condition/],
   ] as const)(
     "refuses a %s flow on its node when the switch is off",
@@ -270,15 +264,15 @@ describe("POST /api/deployments/prepare", () => {
       expect(mockDeploy.preparePipelineDeployTx).not.toHaveBeenCalled();
     },
   );
-  it.each([
-    ["payroll", PAYROLL_GRAPH],
-    ["oracle", ORACLE_GRAPH],
-  ] as const)("prepares a %s flow when every switch is left unset", async (_n, graph) => {
-    setSwitch("FEATURE_PAYROLL_ENABLED", undefined);
-    const res = await prepare(graph);
-    expect(res.status).toBe(200);
-    expect(mockDeploy.preparePipelineDeployTx).toHaveBeenCalledOnce();
-  });
+  it.each([["oracle", ORACLE_GRAPH]] as const)(
+    "prepares a %s flow when every switch is left unset",
+    async (_n, graph) => {
+      setSwitch("FEATURE_ORACLE_CONDITION_ENABLED", undefined);
+      const res = await prepare(graph);
+      expect(res.status).toBe(200);
+      expect(mockDeploy.preparePipelineDeployTx).toHaveBeenCalledOnce();
+    },
+  );
   it.each([FIAT_PAY_GRAPH, CASH_OUT_GRAPH])(
     "refuses retired off-ramp graphs with all features on",
     async (graph) => {
@@ -294,25 +288,25 @@ describe("pipeline kinds, the second line behind the graph check", () => {
     const { assertNoHiddenSurfaces } = await import("@/lib/features");
     const { ALL_FEATURES_ON } = await import("@/lib/feature-flags");
     const empty = { nodes: [], edges: [] };
-    const off = { ...ALL_FEATURES_ON, payroll: false };
-    expect(() => assertNoHiddenSurfaces(empty, ["SPLITTER", "PAYROLL"], off)).toThrow(
-      /PAYROLL contract, which is turned off/,
+    const off = { ...ALL_FEATURES_ON, oracleCondition: false };
+    expect(() => assertNoHiddenSurfaces(empty, ["SPLITTER", "CONDITIONAL"], off)).toThrow(
+      /CONDITIONAL contract, which is turned off/,
     );
     expect(() =>
-      assertNoHiddenSurfaces(empty, ["SPLITTER", "PAYROLL"], ALL_FEATURES_ON),
+      assertNoHiddenSurfaces(empty, ["SPLITTER", "CONDITIONAL"], ALL_FEATURES_ON),
     ).not.toThrow();
   });
   it("stops a deployment prepared before the switch went off (submit)", async () => {
-    setSwitch("FEATURE_PAYROLL_ENABLED", "false");
+    setSwitch("FEATURE_ORACLE_CONDITION_ENABLED", "false");
     const { assertPreparedDeploymentAllowed } = await import("@/lib/features");
     expect(() =>
-      assertPreparedDeploymentAllowed(PAYROLL_GRAPH, [
+      assertPreparedDeploymentAllowed(ORACLE_GRAPH, [
         { nodeId: "t", templateKind: "SUBSCRIPTION" },
       ]),
-    ).toThrow(/Payroll is turned off/);
-    setSwitch("FEATURE_PAYROLL_ENABLED", undefined);
+    ).toThrow(/oracle condition is turned off/);
+    setSwitch("FEATURE_ORACLE_CONDITION_ENABLED", undefined);
     const again = await import("@/lib/features");
-    expect(() => again.assertPreparedDeploymentAllowed(PAYROLL_GRAPH, [])).not.toThrow();
+    expect(() => again.assertPreparedDeploymentAllowed(ORACLE_GRAPH, [])).not.toThrow();
   });
 });
 describe("AI assistant routes", () => {
@@ -341,23 +335,9 @@ describe("AI assistant routes", () => {
     expect((await res.json()).data.text).toBe("hello");
   });
 });
-describe("payroll routes", () => {
-  it("GET payroll-status of an existing payroll still answers when off", async () => {
-    setSwitch("FEATURE_PAYROLL_ENABLED", "false");
-    mockDb.deployment.findFirst.mockResolvedValue({
-      id: ID,
-      flow: { templateKind: "PAYROLL" },
-      pipelineSnapshot: [{ nodeId: "t", contractAddress: "CSUB", templateKind: "SUBSCRIPTION" }],
-    });
-    const { GET } = await import("@/app/api/deployments/[id]/payroll-status/route");
-    const res = await GET(jsonRequest({}) as never, ctx());
-    expect(res.status).toBe(200);
-    expect((await res.json()).data).toEqual({ isCancelled: false, contractAddress: "CSUB" });
-  });
-});
 describe("flow save and validate", () => {
   it("PATCH (autosave) still saves an old flow holding a switched-off block", async () => {
-    setSwitch("FEATURE_PAYROLL_ENABLED", "false");
+    setSwitch("FEATURE_ORACLE_CONDITION_ENABLED", "false");
     mockDb.flow.findFirst.mockResolvedValue({
       id: ID,
       ownerId: "user-1",
@@ -368,7 +348,7 @@ describe("flow save and validate", () => {
     });
     mockDb.flow.update.mockImplementation(async ({ data }: { data: unknown }) => data);
     const { PATCH } = await import("@/app/api/flows/[id]/route");
-    const res = await PATCH(jsonRequest({ graph: PAYROLL_GRAPH }) as never, ctx());
+    const res = await PATCH(jsonRequest({ graph: ORACLE_GRAPH }) as never, ctx());
     expect(res.status).toBe(200);
     const saved = mockDb.flow.update.mock.calls[0]![0] as {
       data: {
@@ -379,7 +359,7 @@ describe("flow save and validate", () => {
         };
       };
     };
-    expect(saved.data.graph.nodes.map((n) => n.type)).toEqual(["payroll", "split"]);
+    expect(saved.data.graph.nodes.map((n) => n.type)).toEqual(["on_receive", "condition", "pay"]);
   });
   it("POST /api/flows/:id/validate reports the switched-off block", async () => {
     setSwitch("FEATURE_ORACLE_CONDITION_ENABLED", "false");

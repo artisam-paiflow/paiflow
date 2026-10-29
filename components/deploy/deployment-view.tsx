@@ -8,7 +8,6 @@ import LiveBalances from "./live-balances";
 import PipelineImplementations, { type MonitoredPipelineNode } from "./pipeline-implementations";
 import ContractCallButton from "./contract-call-button";
 import SubscriptionRelayerPanel from "./subscription-relayer-panel";
-import PayrollPanel from "./payroll-panel";
 import ReleaseNowPanel from "./release-now-panel";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { assetLabel, isTrigger } from "@/lib/flows/schema";
@@ -227,8 +226,6 @@ export default function DeploymentView({
   const subscriptionNode = isSubscription
     ? pipeline?.find((n) => ["SUBSCRIPTION"].includes(n.templateKind))
     : null;
-  const payrollNode = pipeline?.find((n) => ["PAYROLL", "SUBSCRIPTION"].includes(n.templateKind));
-  const isPayroll = templateKind === "PAYROLL";
   const timelockBranchIds =
     pipeline?.filter((n) => n.templateKind === "TIMELOCK_BRANCH").map((n) => n.nodeId) ?? [];
   const triggerNode = graph?.nodes.find(isTrigger);
@@ -548,17 +545,6 @@ export default function DeploymentView({
               </div>
             </div>
           )}
-          {isPayroll && payrollNode?.contractAddress && network && graph && (
-            <PayrollPanel
-              canEditRecipients={true}
-              deploymentId={deploymentId}
-              contractAddress={payrollNode.contractAddress}
-              network={network}
-              graph={graph}
-              pipeline={pipeline}
-            />
-          )}
-
           {isStreamer && streamerNode.contractAddress && network && pauseAllowed && (
             <div className="mt-md flex items-center gap-3">
               {isPaused ? (
@@ -822,7 +808,7 @@ export default function DeploymentView({
                   </div>
                 </div>
               </>
-            ) : isSubscription || isPayroll ? null : (
+            ) : isSubscription ? null : (
               <>
                 <p className="text-label-sm text-on-surface-variant mt-1 font-mono">
                   SCAN WITH FREIGHTER WALLET · CONFIRM AMOUNT IN TRIGGER PAGE.

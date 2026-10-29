@@ -273,16 +273,6 @@ describe.skipIf(!url)("request history on disposable PostgreSQL and Redis", () =
           attemptCount: 1,
         },
       });
-      await client.payrollRun.create({
-        data: {
-          deploymentId: deployment.id,
-          runAt: new Date(time),
-          totalStroops: "100",
-          status: "CHARGED",
-          chargedAt: new Date(time + 2000),
-          attemptCount: 1,
-        },
-      });
       const report = await apiRequestReport({ ...options(), audience: "INTERNAL" });
       expect(report.submission_linkage).toEqual([
         expect.objectContaining({
@@ -326,7 +316,6 @@ describe.skipIf(!url)("request history on disposable PostgreSQL and Redis", () =
       expect(report.scheduled_jobs).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ kind: "streamer", status: "CLAIMED", jobs: "1" }),
-          expect.objectContaining({ kind: "payroll", status: "CHARGED", jobs: "1" }),
         ]),
       );
       await client.user.update({ where: { id: user.id }, data: { analyticsAudience: "EXTERNAL" } });

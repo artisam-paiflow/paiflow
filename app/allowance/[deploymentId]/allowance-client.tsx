@@ -20,7 +20,7 @@ export default function AllowanceClient({
   flowName: string;
   network: "testnet" | "mainnet";
   assetLabel: string;
-  templateKind: "SUBSCRIPTION" | "PAYROLL";
+  templateKind: "SUBSCRIPTION";
   subscriber?: string | null;
   isCancelled?: boolean;
 }) {

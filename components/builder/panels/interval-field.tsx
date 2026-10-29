@@ -15,7 +15,7 @@ export function IntervalField({
   onAmountChange,
   onUnitChange,
 }: {
-  /** Use shared styling in migrated forms; Payroll retains its existing presentation. */
+  /** Use shared styling in migrated forms. */
   shared?: boolean;
   amount: number;
   unit: IntervalUnit;

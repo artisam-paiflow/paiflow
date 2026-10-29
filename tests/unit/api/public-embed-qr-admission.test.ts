@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   session: vi.fn(),
   owned: vi.fn(),
   deployment: vi.fn(),
+  recorded: vi.fn(),
   lock: vi.fn(),
   create: vi.fn(),
   finish: vi.fn(),
@@ -23,13 +24,17 @@ const mocks = vi.hoisted(() => ({
   admissionRate: vi.fn(),
   publicRate: vi.fn(),
 }));
-vi.mock("@/lib/auth", () => ({ requireSession: mocks.session, requirePayrollSession: vi.fn() }));
+vi.mock("@/lib/auth", () => ({ requireSession: mocks.session }));
 vi.mock("@/lib/db", () => {
   const tx = { $queryRaw: mocks.lock, deploymentWork: { create: mocks.create } };
   return {
     db: {
       $transaction: async (fn: (db: typeof tx) => Promise<unknown>) => fn(tx),
-      deployment: { findFirst: mocks.owned, findUnique: mocks.deployment },
+      deployment: {
+        findFirst: mocks.owned,
+        findUnique: (args: { select?: { paramsSnapshot?: boolean } }) =>
+          args.select?.paramsSnapshot ? mocks.recorded(args) : mocks.deployment(args),
+      },
       deploymentWork: { updateMany: mocks.finish, deleteMany: mocks.cleanup },
     },
   };
@@ -81,6 +86,7 @@ beforeEach(() => {
   mocks.lock.mockResolvedValue([{ id: ID, serviceState: "ACTIVE" }]);
   mocks.create.mockResolvedValue({ id: WORK_ID });
   mocks.deployment.mockResolvedValue(row());
+  mocks.recorded.mockResolvedValue(row());
   mocks.publicRate.mockResolvedValue({ ok: true });
 });
 

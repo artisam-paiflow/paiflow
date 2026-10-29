@@ -1,6 +1,6 @@
 # API v1 developer token permissions
 
-Developer credentials (`pfd_`) authorize only explicitly selected existing deployments that are still confirmed, active and owned by the active non-sandbox token owner. New deployments require explicit grants. Legacy deployment credentials (`pfk_`) keep their existing single-deployment behavior. Neither family authorizes owner-session payroll management or flow/deployment creation. Legacy `pkdev_` authentication was removed in #1138.
+Developer credentials (`pfd_`) authorize only explicitly selected existing deployments that are still confirmed, active and owned by the active non-sandbox token owner. New deployments require explicit grants. Legacy deployment credentials (`pfk_`) keep their existing single-deployment behavior. Neither family authorizes flow/deployment creation. Legacy `pkdev_` authentication was removed in #1138.
 
 `READ_ONLY` allows the reads below. `READ_OPERATE` allows every listed operation. An unlisted operation fails closed until explicitly classified. Wallet signatures, webhook secrets, deployment capability restrictions and retirement admission still apply. Reconciliation is an operate permission even though its response contains status; ordinary transaction-status reads are available to read-only credentials.
 

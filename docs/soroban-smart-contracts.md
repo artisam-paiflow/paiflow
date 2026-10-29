@@ -219,7 +219,7 @@ six, including a parent absent from Multisig storage. Its unauthenticated receiv
 requires review. Subscription/Webhook cannot invoke a condition exposing only `execute_step` via
 their receiving interface without an adapter or compiler support. These are existing integration
 findings, not fixes included in the Pay/Split change; do not imply those combinations are supported.
-Oracle/legacy yield, payroll/off-ramp, and dev variants are outside this optimization scope.
+Oracle/legacy yield are outside this optimization scope. Payroll/off-ramp and dev variants are retired.
 
 **Compatibility and release.** Pay/Split preserve public function names, positional arguments,
 historical argument names (including Payer's `_from`), error discriminants, storage keys, and payout
@@ -278,8 +278,8 @@ point weights with their existing rounding behavior; #795 does not redesign that
 Shared deployment validation checks standard payment amounts and fixed totals before encoding.
 Compiled Streamer parameters supply the lifetime bound, including default windows, occurrences,
 partial final intervals, and legacy rate conversion. Draft schemas still accept incomplete
-amounts for autosave; deployment requires complete valid inputs. Payroll remains a separate
-contract implementation. Schedule flows use the standard Streamer and its lifetime bound.
+amounts for autosave; deployment requires complete valid inputs. Payroll is retired (#1144).
+Schedule flows use the standard Streamer and its lifetime bound.
 
 The shared Rust percentage helper is compiled into the three existing crates without a new crate
 or dependency. The test-only token exercises the full i128 range; it does not claim that classic

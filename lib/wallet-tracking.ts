@@ -43,7 +43,7 @@ function hydrate() {
             typeof v.address === "string" &&
             typeof v.walletId === "string" &&
             ["testnet", "mainnet"].includes(v.network) &&
-            ["deploy_review", "trigger", "contract_call", "payroll"].includes(v.surface) &&
+            ["deploy_review", "trigger", "contract_call"].includes(v.surface) &&
             (v.sessionUserId === undefined ||
               v.sessionUserId === null ||
               typeof v.sessionUserId === "string"),

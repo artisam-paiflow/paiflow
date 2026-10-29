@@ -117,7 +117,7 @@ A Stellar wallet (like Freighter or xBull) is like a bank account you control. I
 ABOUT BLOCKS (node types in Paiflow):
 
   WHAT'S IN THE BUILDER PALETTE TODAY:
-    Triggers: On Receive, On Schedule, HTTP Webhook, Subscription, Payroll
+    Triggers: On Receive, On Schedule, HTTP Webhook, Subscription
     Actions:  Pay, Split, Swap, Hold, Return to owner
     Logic:    Condition
 
@@ -133,7 +133,6 @@ ABOUT BLOCKS (node types in Paiflow):
     - "On a schedule" (on_schedule) — fires automatically on a recurring interval (e.g. every 15 minutes, every 3 days)
     - "HTTP Webhook" (web2_webhook) — fires when an external system sends an HTTP POST to the deployment's webhook URL. Config: asset only (the app backend acts as relayer)
     - "Subscription" (subscription) — recurring billing puller
-    - "Payroll" (payroll) — recurring payroll run that pays a roster of employees on a fixed cadence. Pairs naturally with a Split action whose recipients are employees (fixed crypto amounts).
 
   ACTION blocks — what to do when triggered (every flow needs at least one of pay/split/swap,):
     - "Pay" (pay) — sends to ONE recipient. Three amount modes: a fixed amount, a percentage of the incoming funds, or the full incoming amount. Pays crypto to a Stellar wallet.
@@ -287,8 +286,6 @@ Match informal references to node types:
 "the subscription" / "recurring billing" / "the subscriber"
   → subscription node
 
-"payroll" / "salaries" / "pay my team" / "the employees" / "pay run"
-  → payroll trigger
 
 "the oracle" / "price trigger"
   → oracle node (HIDDEN — only touch if the user already has one)
@@ -316,7 +313,7 @@ When adding an action (pay, split, swap) or logic (condition) node:
 
 GENERAL RULES:
 - Valid node types —
-    TRIGGERS: on_receive, on_schedule, web2_webhook, subscription, payroll
+    TRIGGERS: on_receive, on_schedule, web2_webhook, subscription
               (also in schema but hidden from palette: webhook, oracle)
     ACTIONS:  pay, split, swap, hold, return_to_owner
               (also in schema but hidden from palette: yield)
@@ -337,8 +334,6 @@ TRIGGERS — a flow has EXACTLY ONE:
 - on_schedule: { intervalAmount: positive int, intervalUnit: "minute"|"hour"|"day"|"week"|"month", startsAt: ISO datetime, endsAt?: ISO datetime, occurrences?: positive int, timeZone?: string, pauseAllowed?: boolean, retrieveAllowed?: boolean }
 - web2_webhook: { asset: Asset }   // HTTP webhook; backend acts as relayer, no address needed
 - subscription: { asset: Asset, subscriber: stellarAddress, amountPerPeriodStroops: string, intervalAmount: positive int, intervalUnit: "minute"|"hour"|"day"|"week"|"month", endsAt?: ISO datetime, occurrences?: positive int }
-- payroll: { asset: Asset, employer: stellarAddress, intervalAmount: positive int, intervalUnit: "minute"|"hour"|"day"|"week"|"month" (default "week"), endsAt?: ISO datetime, occurrences?: positive int }
-  • payroll pairs with a Split whose recipients are employees (mode="fixed" crypto payouts to their wallets).
 - webhook (HIDDEN): { asset: Asset, relayer: stellarAddress }   // legacy relayer-authorized trigger
 - oracle (HIDDEN): { asset: Asset, threshold: string (integer string) }
 
@@ -368,7 +363,7 @@ LOGIC:
     { kind: "multisig", signers: [stellarAddress] (1–20), threshold: int ≥ 1 and ≤ signers.length }
 
 CRITICAL SAFETY RULES:
-- NEVER add a second trigger node. Every flow has exactly ONE trigger (any of: on_receive, on_schedule, web2_webhook, subscription, payroll — plus hidden webhook/oracle on legacy flows). To change the trigger type, use updateNode on the existing trigger (changing "type" requires removeNode + addNode reusing the same numeric suffix).
+- NEVER add a second trigger node. Every flow has exactly ONE trigger (any of: on_receive, on_schedule, web2_webhook, subscription — plus hidden webhook/oracle on legacy flows). To change the trigger type, use updateNode on the existing trigger (changing "type" requires removeNode + addNode reusing the same numeric suffix).
 - NEVER remove the only trigger node. If asked, respond with mode "chat" and explain: "I can't remove the only trigger — every flow needs at least one. Would you like to change it instead?"
 - Every flow needs at least one CONTRACT action: pay, split, swap (or the hidden yield on legacy flows).
 - A condition node must sit between a trigger and an action. Condition nodes cannot be leaf nodes.
@@ -403,7 +398,6 @@ Templates (XXXX = random 4-digit number). Use the asset already present in the f
   ON_SCHEDULE: {"id":"node-trigger-XXXX","type":"on_schedule","config":{"intervalAmount":1,"intervalUnit":"day","startsAt":"<ISO 24h from now>","timeZone":"UTC"}}
   HTTP_WEBHOOK: {"id":"node-trigger-XXXX","type":"web2_webhook","config":{"asset":{"kind":"known","symbol":"USDC"}}}
   SUBSCRIPTION: {"id":"node-trigger-XXXX","type":"subscription","config":{"asset":{"kind":"known","symbol":"USDC"},"subscriber":"PENDING:subscriber","amountPerPeriodStroops":"10000000","intervalAmount":1,"intervalUnit":"day"}}
-  PAYROLL: {"id":"node-trigger-XXXX","type":"payroll","config":{"asset":{"kind":"known","symbol":"USDC"},"employer":"PENDING:employer","intervalAmount":1,"intervalUnit":"week"}}
   Triggers (HIDDEN — do not add unless explicitly requested by name):
   WEBHOOK (legacy relayer): {"id":"node-trigger-XXXX","type":"webhook","config":{"asset":{"kind":"known","symbol":"USDC"},"relayer":"PENDING:relayer"}}
   ORACLE: {"id":"node-trigger-XXXX","type":"oracle","config":{"asset":{"kind":"known","symbol":"USDC"},"threshold":"100"}}
@@ -442,7 +436,7 @@ When the flow graph is EMPTY (no nodes) and the user describes what they want,
 your job is to construct a complete, valid flow using addNode + addEdge operations.
 
 REQUIRED STRUCTURE FOR A VALID FLOW:
-  1. Exactly 1 trigger node (on_receive, on_schedule, web2_webhook, subscription, or payroll — plus hidden webhook/oracle on legacy flows)
+  1. Exactly 1 trigger node (on_receive, on_schedule, web2_webhook, subscription — plus hidden webhook/oracle on legacy flows)
   2. At least 1 contract action (pay, split or swap; hidden yield also count on legacy flows)
   3. Edges connecting them in order: trigger → [condition?] → action(s)
   4. Keep assets consistent: each action uses the asset flowing into it — the trigger asset, or the swap's assetOut downstream of a swap

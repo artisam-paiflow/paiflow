@@ -13,9 +13,8 @@ values; removal never supplies guessed financial values.
 
 Dedicated `dev-*` mutation routes, machine dev-payroll creation, legacy `pkdev_` credentials,
 their token tooling and v1 per-payment-recipient payouts are removed. The scoped `pfd_` and
-`pfk_` credential families remain supported for their documented operations. Retained payroll
-management requires an authenticated owner session, with its existing sandbox restrictions;
-it has no legacy dev-token fallback. Standard payment execution still uses configured recipients.
+`pfk_` credential families remain supported for their documented operations. Payroll
+management was subsequently retired in [#1144](payroll-retirement.md). Standard payment execution still uses configured recipients.
 At that removal, native treasury deposits and refunds remained independent of dev mode.
 The subsequent [off-ramp retirement](offramp-retirement.md) removes their remaining provider-only call sites.
 

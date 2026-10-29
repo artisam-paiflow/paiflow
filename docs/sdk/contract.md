@@ -294,7 +294,7 @@ SDK checks cannot replace or weaken server validation.
 ## Exclusions, OpenAPI gaps and hosted verification
 
 Exclude owner-session account/token management even though token routes appear in
-OpenAPI; flow creation/deployment; admin/cron; and payroll management/allowance. Mutable
+OpenAPI; flow creation/deployment; admin/cron. Payroll is retired (#1144). Mutable
 dev APIs and v1 per-payment-recipient payouts have been removed in #1138; subscription
 allowance supports standard subscriptions. Owner-only `/events` SSE and
 `/poll-events` are excluded; public embed SSE is included.

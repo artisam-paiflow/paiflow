@@ -68,20 +68,18 @@ export default async function DeployReviewPage({
         }))
     : [];
   const isSubscriptionTrigger = graph.data!.nodes.some((n) => n.type === "subscription");
-  const isPayrollTrigger = graph.data!.nodes.some((n) => n.type === "payroll");
   if (pipeline) {
     const sp = deployPreviewFromGraph(graph.data!);
     if (sp) {
       const triggerNode = graph.data!.nodes.find(
-        (n) => n.type === "on_schedule" || n.type === "subscription" || n.type === "payroll",
+        (n) => n.type === "on_schedule" || n.type === "subscription",
       ) as
         | {
-            type: "on_schedule" | "subscription" | "payroll";
+            type: "on_schedule" | "subscription";
             config: {
               intervalAmount?: number;
               intervalUnit?: string;
               interval?: string;
-              employer?: string;
             };
           }
         | undefined;
@@ -98,7 +96,7 @@ export default async function DeployReviewPage({
           ? action.config.assetIn
           : (action?.config.asset ?? { kind: "native" });
       // Prefer the preview's per-period amount, but fall back to summing the
-      // action's fixed recipients so payroll/splitter previews never show 0 when
+      // action's fixed recipients so fixed-split previews never show 0 when
       // the recipients have real fixed amounts.
       const previewPerPeriod =
         "amountPerPeriodStroops" in sp
@@ -207,18 +205,12 @@ export default async function DeployReviewPage({
         {streamerPreview && (
           <section className="mt-4 rounded-xl border border-amber-900 bg-amber-950/20 p-4">
             <div className="text-[10px] font-medium tracking-wide text-amber-400 uppercase">
-              {isSubscriptionTrigger
-                ? "Subscription schedule"
-                : isPayrollTrigger
-                  ? "Payroll schedule"
-                  : "Streamer funding required"}
+              {isSubscriptionTrigger ? "Subscription schedule" : "Streamer funding required"}
             </div>
             <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
               <div>
                 <div className="text-xs text-zinc-400">
-                  {isSubscriptionTrigger || isPayrollTrigger
-                    ? "Amount per interval"
-                    : "Total vest amount"}
+                  {isSubscriptionTrigger ? "Amount per interval" : "Total vest amount"}
                 </div>
                 <div className="font-mono text-lg text-amber-200">
                   {
@@ -231,9 +223,7 @@ export default async function DeployReviewPage({
               </div>
               <div>
                 <div className="text-xs text-zinc-400">
-                  {isSubscriptionTrigger || isPayrollTrigger
-                    ? "Billing interval"
-                    : "Vesting interval"}
+                  {isSubscriptionTrigger ? "Billing interval" : "Vesting interval"}
                 </div>
                 <div className="font-mono text-lg text-amber-200">
                   {streamerPreview.intervalLabel}
@@ -249,15 +239,14 @@ export default async function DeployReviewPage({
               </div>
             </div>
             <p className="mt-3 text-xs text-amber-300">
-              {isSubscriptionTrigger || isPayrollTrigger ? (
+              {isSubscriptionTrigger ? (
                 <>
-                  This {isPayrollTrigger ? "payroll" : "subscription"} will pull{" "}
+                  This subscription will pull{" "}
                   <strong>
                     {`${(Number(streamerPreview.perPeriodStroops) / 10000000).toLocaleString()} ${assetLabel(streamerPreview.asset)}`}
                   </strong>{" "}
-                  each billing interval from the {isPayrollTrigger ? "employer" : "subscriber"}. The{" "}
-                  {isPayrollTrigger ? "employer" : "subscriber"} must maintain sufficient token
-                  allowance for each charge to succeed.
+                  each billing interval from the subscriber. The subscriber must maintain sufficient
+                  token allowance for each charge to succeed.
                 </>
               ) : (
                 <>
