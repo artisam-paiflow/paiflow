@@ -114,7 +114,7 @@ Participant-facing repository links use [`artisam-paiflow/paiflow` on `develop`]
 
 The [Windows setup guide](setup-guide.md) and its [PDF](setup-guide.pdf) consolidate the former Engr and starter setup guides. Follow one path: install Git, NVM, Node and pnpm, run the Paiflow starter, then set up Engr with a Kimi API key. Follow the current starter README for configuration; this setup guide ends with the local app and coding tools ready.
 
-The checked-in Paiflow Guide PDF predates the October 30 problem-discovery and optional-example wording. Regenerate it and review the distributed revision before sharing the revised guide as a PDF. The starter's matching source changes are in a separate checkout and need their own publication; a local edit does not update GitHub.
+The checked-in Paiflow Guide PDF was regenerated October 30, 2026 with the problem-discovery and optional-example wording. Check the shared Drive distribution copy against this revision before sharing it. Publish the starter's matching source changes in [starter PR #24](https://github.com/artisam-paiflow/paiflow-hackathon-starter/pull/24) before distributing links to its new problem-discovery section.
 
 After Markdown approval and an explicit request to regenerate, run from the repository root:
 

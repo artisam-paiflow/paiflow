@@ -29,7 +29,7 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
-- Begin hackathon AI guidance with problem discovery, make Receive → Pay the simplest payment exercise, and label Split walkthroughs and sample apps as optional inspiration. Add varied flow examples and align shared context with retired mutable configuration and participant feature availability.
+- Begin hackathon AI guidance with problem discovery, make Receive → Pay the simplest payment exercise, and label Split walkthroughs and sample apps as optional inspiration. Add varied flow examples, align shared context with retired mutable configuration and participant feature availability, and regenerate the Paiflow Guide PDF.
 
 - Clarify the hackathon app-building challenge around Paiflow, label examples and past winners as optional inspiration, and add examples beyond splitting. Set a two-minute pitch/demo with optional slides and three-minute Q&A; publish the five judging weights (15/20/10/30/25%), preserve the Excel rubric in an internal reference, and highlight the prize pool. Update onboarding, resource links, organiser guidance and the template PDF with flexible pagination.
 
