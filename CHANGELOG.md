@@ -29,6 +29,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Begin hackathon AI guidance with problem discovery, make Receive → Pay the simplest payment exercise, and label Split walkthroughs and sample apps as optional inspiration. Add varied flow examples and align shared context with retired mutable configuration and participant feature availability.
+
 - Clarify the hackathon app-building challenge around Paiflow, label examples and past winners as optional inspiration, and add examples beyond splitting. Set a two-minute pitch/demo with optional slides and three-minute Q&A; publish the five judging weights (15/20/10/30/25%), preserve the Excel rubric in an internal reference, and highlight the prize pool. Update onboarding, resource links, organiser guidance and the template PDF with flexible pagination.
 
 - Retire stored-file uploads, downloads and deletion with authenticated HTTP 410 responses; remove exclusive storage drivers, MinIO dependencies and configuration. The new migration removes stored-file metadata; underlying object cleanup remains separate. See the [retirement procedure](docs/file-storage-retirement.md) (#989, #881).

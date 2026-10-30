@@ -1,8 +1,20 @@
 # Paiflow developer context guide
 
+## First action: understand the user's problem
+
+When helping a team create or adapt a hackathon app, first ask: **"Do you already have a problem you want to solve?"** Use any problem the user has already described instead of asking them to repeat it. Do this before recommending an app idea, choosing flow blocks or generating application code. A request to fix or explain an existing integration can proceed within that scope without restarting ideation.
+
+- **If yes:** ask who experiences the problem, what is difficult today and how they handle it now. Clarify who pays, why, who receives the money and what a useful outcome looks like. Build on their problem rather than replacing it with a sample project.
+- **If no:** ask about people or communities they know, recurring difficulties they have seen and their event theme or constraints. Help them develop two or three concrete problem statements, each naming a user, a difficulty and its consequence. Invite them to choose or refine one; do not choose for them or generate an app before they decide.
+- **Once the problem is agreed:** describe the smallest useful app journey and identify where Paiflow's payment flow belongs. Choose blocks to fit that journey and confirm feature availability before proposing advanced behaviour. Use the simplest flow that meets the need; splitting is optional.
+
+Examples and previous winners are inspiration, not assigned challenges. Do not default to a bill splitter, tip jar, 90/10 revenue split or a reskinned Campus Snacks app. A single-recipient payment can be central to a useful app. Preserve the starter's wallet, signing and recovery safeguards when adapting the experience.
+
 Use the published **`@paiflow/sdk@0.2.0` beta** for typed Node integrations. The SDK payment example on the [starter repository's `main` branch](https://github.com/artisam-paiflow/paiflow-hackathon-starter) is the runnable starting point; use the SDK in your own app's server for a custom integration. The HTTP API remains available for other languages and direct integrations.
 
 SDK and starter guidance checked October 17, 2026 against starter `8d70da575afb0ce8d56ce9ef72d9670ed73ab41b`, staging `4bee66a` and published SDK `0.2.0`. Staging implements OpenAPI revision `1.1.0`, including developer credentials and scoped deployment discovery. Product/block details retain their October 12 source review against staging `b945e6a`; later funding, Subscription and Schedule evidence is dated separately below. These checks did not include a fresh signed transaction and do not certify every workflow on the target environment. This guide uses testnet only.
+
+Problem-discovery guidance and availability notes updated October 30, 2026 against the current repository and starter `41983da`. Earlier evidence dates below remain historical; this documentation edit does not establish hosted readiness.
 
 For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/developer-tokens.md). SDK `0.1.0` does not include developer credentials or scoped discovery; pin `0.2.0` explicitly because npm's `latest` tag still resolves to `0.1.0` as of the check above.
 
@@ -37,7 +49,7 @@ This guide explains how to build with Paiflow. Follow your event's primer for on
 Use **Node.js `>=22.22.2 <23`** and **pnpm `10.4.1`**, as declared in the starter's `package.json`. Follow its [README](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/README.md) for setup. The SDK dependency is pinned to **`@paiflow/sdk@0.2.0`**. Keep the package-manager pin unchanged.
 
 1. Follow your event's preparation rules, choose a problem and prepare dedicated testnet wallets. Obtain XLM for payments and fees. The minimal starter accepts native XLM only; USDC examples require a separate integration and the exact asset's trustline and balance.
-2. Build and deploy an **On Receive (native XLM)** flow with your chosen recipients. Wait for confirmation and review the fixed payment rules.
+2. Build and deploy an **On Receive (native XLM)** flow with rules that fit the agreed problem. For the simplest payment exercise, use **On Receive → Pay full amount to one configured recipient**; Split is optional. Wait for confirmation and review the fixed payment rules.
 3. Create a **Read and operate** developer token in **Account → Developer**, explicitly selecting that owned deployment. Copy the one-time `pfd_` secret. A deployment-bound `pfk_` token from its **API access** page also works.
 4. Copy `.env.example` to `.env.local`. Set server-only `PAIFLOW_BASE_URL`, `PAIFLOW_DEPLOYMENT_ID` and `PAIFLOW_API_TOKEN`, then restart. Never use `NEXT_PUBLIC_` for these settings or commit `.env.local`.
 5. Run `pnpm install --frozen-lockfile` and `pnpm dev`; open http://localhost:3000. Complete server configuration enables the payment actions; incomplete configuration disables them. There is no mode selector or shared-demo fallback.
@@ -46,7 +58,7 @@ The example pays a fixed **1 native testnet XLM** (`"10000000"` stroops), using 
 
 Persist the original preparation before asking for a signature, then the exact signed envelope before submitting. The example uses browser storage and Web Locks; it blocks financial progress if required storage fails. Recovery belongs to the same browser/origin and configured platform/deployment. Keep its evidence after reload, timeout, `UNKNOWN`, `NOT_FOUND` or expired preparation. Neither elapsed time nor absent events proves that a replacement is safe. Check the original hash, retry only the same signed envelope where appropriate, and obtain operator help when the outcome cannot be established. Never clear storage to bypass an unresolved payment. Removing credentials does not cancel an already signed transaction.
 
-This is a payment demonstration, without customer authentication, a durable order database, fulfilment or independent verification of your intended recipients/split. A production app must add session and ownership checks, rate limits, trusted pricing, durable order-to-transaction binding and exact receipt verification before fulfilling an order. Do not treat browser recovery storage as cross-device financial storage.
+This is a payment demonstration, without customer authentication, a durable order database, fulfilment or independent verification of your intended recipient payouts. A production app must add session and ownership checks, rate limits, trusted pricing, durable order-to-transaction binding and exact receipt verification before fulfilling an order. Do not treat browser recovery storage as cross-device financial storage.
 
 ## Demonstrating your integration
 
@@ -70,7 +82,7 @@ Paiflow is **non-custodial**: it does not hold customers' private keys. Customer
 
 ## Graph, assets and amounts
 
-The following describes the supported block palette for this reference. A graph contains `nodes`, `edges`, optional `devMode`, optional `notify`, and optional `positions` (node-id keys with numeric `x` and `y`). Each node has a unique nonempty `id`, `type`, and `config`. Each edge has nonempty `id`, `source`, `target`, and optionally `sourceHandle: "true" | "false"` for a condition output. A missing condition handle means True. The graph accepts at most 40 nodes and 80 edges.
+The blocks below describe product behaviour; confirm availability for the event before choosing advanced features. Multisig is not available for participants; do not recommend it. Mutable dev-mode flows and per-payment recipients are retired. A graph contains `nodes`, `edges`, optional `notify`, and optional `positions` (node-id keys with numeric `x` and `y`). Each node has a unique nonempty `id`, `type`, and `config`. Each edge has nonempty `id`, `source`, `target`, and optionally `sourceHandle: "true" | "false"` for a condition output. A missing condition handle means True. The graph accepts at most 40 nodes and 80 edges.
 
 Use exactly one trigger, with no incoming edges, and at least one action. Every node must be reachable from the trigger. No cycles or dangling edges. Keep the asset consistent along a path; Swap changes the downstream asset. A graph that saves as a draft is not necessarily deployable: deploy validation checks addresses, amounts, connectivity and contract support again.
 
@@ -104,7 +116,7 @@ For Pay, set a positive fixed `amountStroops` per interval. For a percentage Spl
 
 Fields: `asset`.
 
-A server-side authenticated HTTP callback makes the relayer invoke an already funded flow. The authenticated owner deployment page provides its trigger URL and webhook secret; keep the secret on your server. Public embeds omit credentials, owner controls and private configuration. Depositing funds tops up this flow and does not fire the callback. It can drive Pay, Split or Swap; its supported condition kind is multisig. This is not an `execute` flow: the v1 deposit API refuses a webhook-headed deployment. For the simplest payment integration use On Receive instead.
+A server-side authenticated HTTP callback makes the relayer invoke an already funded flow. The authenticated owner deployment page provides its trigger URL and webhook secret; keep the secret on your server. Public embeds omit credentials, owner controls and private configuration. Depositing funds tops up this flow and does not fire the callback. It can drive Pay, Split or Swap. Do not propose a multisig approval workflow for participants. This is not an `execute` flow: the v1 deposit API refuses a webhook-headed deployment. For the simplest payment integration use On Receive instead.
 
 After your server verifies the completed goal, release from the funded pool with `x-webhook-secret` and a JSON body containing `escrow: true`. `amount` is a stroop string; omit it or use `"0"` to release the entire available balance. For one reward at a time, specify its amount:
 
@@ -123,15 +135,15 @@ This requests 10 tokens from the pool. Use one stable `Idempotency-Key` per logi
 
 Fields: `asset`, `subscriber` (account address), `amountPerPeriodStroops` (integer string), `intervalAmount` (positive integer, default 1), `intervalUnit` (same five units, default `day`); optional `endsAt`, `occurrences`.
 
-Pull payments from the configured subscriber after they approve an allowance. The relayer charges when due, without the subscriber signing every charge, until the window ends or allowance/balance is exhausted. Starts at deployment time; end/count/default window follow the rules above. The non-deferred amount must be greater than zero. If the next Split has all fixed recipients, its total determines the pull amount instead of a stale manual period amount. Use the allowance page; `execute` cannot start a subscription. Use Pay or Split downstream; amount and time branching conditions are refused under this trigger.
+Pull payments from the configured subscriber after they approve an allowance. The relayer charges when due, without the subscriber signing every charge, until the window ends or allowance/balance is exhausted. Starts at deployment time; end/count/default window follow the rules above. The configured amount must be greater than zero. If the next Split has all fixed recipients, its total determines the pull amount instead of a stale manual period amount. Use the allowance page; `execute` cannot start a subscription. Use Pay or Split downstream; amount and time branching conditions are refused under this trigger.
 
 The subscriber and payment values must be configured before deployment. On builds containing #790, the configured customer can open `/allowance/[deploymentId]` while logged out and approve with their wallet, without a Paiflow account or deployment token. The page supports standard subscriptions and reads the current deployed subscriber and token; a different wallet is refused. An allowance still needs the customer's wallet signature. Do not claim that connecting any new wallet automatically creates a new subscriber in this one deployment.
 
 ## Pay — `pay`
 
-Fields: `recipient`, `asset`; optional `email` (up to 254 characters), `mode` (`fixed` or `percentage`), `amountStroops`, `percentage` (0–100), `fullAmount` (default false), `fillValueViaApi`, `payoutMode` (use `crypto`).
+Fields: `recipient`, `asset`; optional `email` (up to 254 characters), `mode` (`fixed` or `percentage`), `amountStroops`, `percentage` (0–100), `fullAmount` (default false), `payoutMode` (use `crypto`).
 
-Pay one recipient. Unless full amount or deferred value is selected, choose a mode: a fixed amount must be positive; a percentage must be greater than zero and at most 100. `fullAmount: true` pays 100% of what arrives. Fixed Pay sends the smaller of incoming amount and its configured cap; any surplus goes to its next step. With no next step, surplus stays in the Pay contract: avoid overfunding a terminal fixed Pay. For variable checkout prices, full amount is simpler.
+Pay one recipient. Unless full amount is selected, choose a mode: a fixed amount must be positive; a percentage must be greater than zero and at most 100. `fullAmount: true` pays 100% of what arrives. Fixed Pay sends the smaller of incoming amount and its configured cap; any surplus goes to its next step. With no next step, surplus stays in the Pay contract: avoid overfunding a terminal fixed Pay. For variable checkout prices, full amount is simpler.
 
 Configure the recipient and required amount before deployment. Deferred API-filled configuration has been removed.
 
@@ -157,19 +169,16 @@ Exchanges XLM for USDC or USDC for XLM through Soroswap. Input and output must d
 
 The `config.kind` determines fields and behavior:
 
-| Kind          | Fields                                                             | Rule                                                                              |
-| ------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
-| `amount_gt`   | `amountStroops`                                                    | True for strictly greater incoming amount; equality goes False.                   |
-| `amount_lt`   | `amountStroops`                                                    | True for strictly smaller incoming amount; equality goes False.                   |
-| `time_before` | `at`, optional `timeZone`                                          | Holds funds; a release strictly before `at` chooses True, at/after chooses False. |
-| `time_after`  | `at`, optional `timeZone`                                          | Holds funds; a release at/after `at` chooses True, strictly before chooses False. |
-| `multisig`    | `signers` (1–20 account addresses), `threshold` (positive integer) | Approval gate; threshold cannot exceed signer count. Has only True output.        |
+| Kind          | Fields                    | Rule                                                                              |
+| ------------- | ------------------------- | --------------------------------------------------------------------------------- |
+| `amount_gt`   | `amountStroops`           | True for strictly greater incoming amount; equality goes False.                   |
+| `amount_lt`   | `amountStroops`           | True for strictly smaller incoming amount; equality goes False.                   |
+| `time_before` | `at`, optional `timeZone` | Holds funds; a release strictly before `at` chooses True, at/after chooses False. |
+| `time_after`  | `at`, optional `timeZone` | Holds funds; a release at/after `at` chooses True, strictly before chooses False. |
 
-Amount and time conditions need **both True and False connected, each to exactly one step**. A direct branch target cannot itself be another condition. A step downstream of a branch cannot have multiple different parents. Both outputs may point to the same step. Use On Receive for these branching flows; they are refused under Schedule and Subscription, and HTTP Webhook supports only multisig.
+Amount and time conditions need **both True and False connected, each to exactly one step**. A direct branch target cannot itself be another condition. A step downstream of a branch cannot have multiple different parents. Both outputs may point to the same step. Use On Receive for these branching flows; they are refused under Schedule and Subscription, and are not supported under HTTP Webhook.
 
 A time condition does not immediately pay its before side when a deposit arrives. It holds funds until release. Before the deadline, the deploying wallet can release, or the app can authorise the relayer using `release-early`. The app must decide who can request this; possession of the deployment token authorises it. At/after the deadline, automatic release takes the after side. The deadline belongs to the after side; a request for the wrong side is refused rather than redirected. Multiple customers' deposits share this condition's balance and deadline.
-
-Multisig requires signer approvals and release through its contract/UI workflow; a v1 token is not a substitute for these approvals. There is no multisig-approval endpoint in v1.
 
 ## Hold — `hold`
 
@@ -177,7 +186,7 @@ Fields: none (`config: {}`). A terminal marker directly on the **before side of 
 
 ## Return to owner — `return_to_owner`
 
-Fields: none (`config: {}`). A terminal destination directly after an amount, time or multisig condition, with exactly one incoming edge and no outgoing edges. Pays the full incoming amount to the **wallet that signed deployment**, resolved when deploying and fixed for that deployment. It does **not** return each customer's contribution to its original wallet. For a customer refund, configure a Pay recipient explicitly instead.
+Fields: none (`config: {}`). A terminal destination directly after an amount or time condition, with exactly one incoming edge and no outgoing edges. Pays the full incoming amount to the **wallet that signed deployment**, resolved when deploying and fixed for that deployment. It does **not** return each customer's contribution to its original wallet. For a customer refund, configure a Pay recipient explicitly instead.
 
 ## Notification settings
 
@@ -202,13 +211,13 @@ The usual trigger QR opens this hosted page (or the allowance page for a subscri
 On builds containing capabilities discovery, `GET /api/v1/deployments/:id/capabilities` with the
 deployment's bearer token returns `data` with `network`, `triggerType`, initial `inputAsset` metadata,
 `configurationSource: "deployment_snapshot"` and `operations`. Operation keys are `execute`,
-`events`, `balances`, `funding`, `transactions`, `releaseEarly`, `payouts`, `webhook`,
+`events`, `balances`, `funding`, `transactions`, `releaseEarly`, `webhook`,
 `subscriptionState`, `subscriptionAllowance`, `subscriptionCancel`,
 `subscriptionReactivate`, `swapQuote`, `scheduleState` and `scheduleControls`. Each has
 `status` (`supported`, `conditional` or `unsupported`), `authentication`, `requirements` and
 candidate `nodeIds`. This is recorded integration support, not live readiness: no RPC or transaction
 is performed, and current funds, deadlines, consent and eligibility must be checked through the
-operation's state/preparation endpoint. Initial asset metadata may be stale after Dev mutations;
+operation's state/preparation endpoint. Initial asset metadata is not a live readiness check;
 null means unavailable. Standard flows cannot choose per-payment recipients. Webhook callbacks
 still require `x-webhook-secret`; allowance approval requires the configured subscriber's wallet.
 Discovery never returns credentials, recipient/subscriber addresses or private graph settings.
@@ -368,7 +377,7 @@ Organiser-provided fallback wallets are testnet-only; organisers hold copies of 
 
 # 6. Timing advice
 
-Recommend **at least five minutes** for On Schedule and Subscription charge intervals; when using Allowance for a subscription, plan its charges on that same minimum interval. Allowance itself is approval, not a separate timed block. Payments land **one to two minutes after they are due** because automation is polled. Shorter intervals make a demo look stalled and drain testnet funds quickly: 10 USDC/minute requires about 2,400 USDC over four hours. Choose demo amounts to fit your available balance. Deployments share relayer infrastructure. The builder allows one-minute intervals; this is advice, not enforcement, avoid them for shared-infrastructure demos.
+Recommend **at least five minutes** for On Schedule and Subscription charge intervals; when using Allowance for a subscription, plan its charges on that same minimum interval. Allowance itself is approval, not a separate timed block. Automation is polled, so a due time is not a guarantee of immediate payment. Ask organisers about current scheduling support and allow time to verify the result. Shorter intervals make a demo look stalled and drain testnet funds quickly: 10 USDC/minute requires about 2,400 USDC over four hours. Choose demo amounts to fit your available balance. Deployments share relayer infrastructure. The builder allows one-minute intervals; this is advice, not enforcement, avoid them for shared-infrastructure demos.
 
 The **live feed can lag by up to a minute** in normal background polling. Do not send another payment just because the animation has not appeared. Poll events with the rules above, track submission status/hash, and allow extra time when the network is slow; a minute is not a guaranteed upper bound.
 
@@ -392,43 +401,43 @@ The quoted text below is returned by the API or its contract error translation. 
 
 If submission returns `PENDING` or a transport/502 error, keep its signed envelope and check again. Expiry is a reason to prepare anew only once the old payment is known not to have succeeded; don't mistake an uncertain response for no payment. For any unfamiliar error, keep `x-request-id`, status, code and message for platform support, without exposing credentials.
 
-# 8. Worked examples
+# 8. Optional examples — choose from the problem
 
-These describe product patterns for custom apps, not additional screens in the payment-only starter. Use the detailed SDK/API references for each operation and retain original transaction evidence throughout signing, submission and recovery.
+These are equally valid starting points when they fit the user's problem, not assigned challenges. Ask about the problem first. For the simplest integration exercise, start with Receive → Pay; use conditions or Split only when they serve the chosen app. Confirm event support for advanced features.
 
-## Barkada bill splitter or creator tip jar
+| Example            | User need                                                                                         | Flow pattern                                                                |
+| ------------------ | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Workshop ticketing | A participant needs to pay the organiser and receive a ticket after verification                  | On Receive → Pay one organiser                                              |
+| Service booking    | A customer needs to pay a provider and track a confirmed booking                                  | On Receive → Pay one provider                                               |
+| Donation routing   | An organiser directs each donation to one of two beneficiaries according to that payment's amount | On Receive → Amount condition → Pay on both branches                        |
+| Savings lock       | A group needs funds held until a known date                                                       | On Receive → Time condition, with Hold before the deadline and Pay after it |
+| Shared checkout    | A business has a real agreement to share each sale with a partner                                 | On Receive → Split                                                          |
 
-Graph: **On Receive USDC → Split**, with two recipients at 5000/5000 bps (or your chosen shares summing to 10,000). Every positive customer deposit is distributed by percentage; recipients need USDC trustlines. Deploy once for the group/creator.
+For more inspiration, see [previous hackathon winners](https://beta.paiflow.xyz/hackathons.html). The team builds tickets, bookings, user accounts and other app behaviour. Paiflow provides the payment flow; a transaction confirmation alone is not a ticket, booking or verified order receipt.
 
-App calls: `deployment.execute.prepare({ from: customerPublicKey, amount: "100000000" })` for a 10-USDC contribution → customer's browser wallet signs → `deployment.execute.submit({ signedXdr }, submissionOptions)` → `deployment.events.list({ cursor })`. Show RECEIVE and PAYOUT events, deduplicated by eventId; use the hosted trigger page as a payment alternative and embed for the shared visual feed. Switch wallets to demonstrate three customers, not three deployments.
+## Single-recipient payment: simplest integration exercise
 
-## Campus Snacks reference sample
+Graph: **On Receive native XLM → Pay full amount to one configured recipient**. For the unchanged starter's 1 XLM payment, expect 1 XLM at that recipient, with the customer's transaction fee additional. Deploy once for the organiser, provider or business. Configure the recipient before deployment and verify the actual payout.
 
-Source: [artisam-paiflow/paiflow-campus-snacks](https://github.com/artisam-paiflow/paiflow-campus-snacks), a separate sample application. It represents one branch of a snack shop. See its [README setup instructions](https://github.com/artisam-paiflow/paiflow-campus-snacks/blob/main/README.md) for sample configuration, and follow your own event instructions for when integration is allowed.
+The existing starter can prepare, sign, submit and check this payment's transaction status without a Split action. Adapt its screens to the chosen problem; real apps also need server-side pricing, authorisation, durable order records and receipt verification. Keep original-envelope signing and recovery safeguards. Changing the fixed payment amount requires a deliberate integration change.
 
-Graph: **On Receive USDC → percentage Split**. Vendor first: **9000 bps (90%)**; student organisation second: **1000 bps (10%)**. Use distinct funded testnet recipients with the exact USDC trustline. One deployment serves all customers.
+## Amount-based donation routing
 
-Follow the sample's own README and configuration; its USDC shop is distinct from the minimal starter's fixed 1-XLM payment. The server calculates snack prices; Freighter signs in the browser.
+Graph: **On Receive native XLM → Condition `amount_gt` at a configured threshold**. True → Pay full amount to beneficiary A; False → Pay full amount to beneficiary B. The test applies to each incoming payment; equality takes False. Both outputs need destinations. It does not test a campaign's cumulative fundraising total.
 
-For example, a **3.50 USDC** payment splits into **3.15 USDC to the vendor + 0.35 USDC to the student organisation**. Verify your own deployment after setup. The two jars show cumulative received payouts, not wallet balances. They pair a USDC deposit with its percentage Split payout in the same transaction, deduplicate `eventId` and follow contract rounding; unmatched activity stays in history but does not increase totals. `$` labels denote testnet USDC; no real money or goods are involved.
+Confirm event support first. The unchanged starter sends 1 XLM, so it exercises only one branch for a fixed threshold. Testing both outcomes requires an adapted integration that prepares different amounts; do not claim a one-branch test verifies both. Recipients remain configured before deployment.
 
-## Sari-sari store checkout
+## Shared savings lock
 
-Graph: **On Receive USDC → Pay full amount to the store wallet**, or → percentage Split for the store and partner. The app's basket total supplies input `amount` as stroops. This one deployment serves this store; it does not create a new contract for every shopper.
+Graph: **On Receive native XLM → Condition `time_after` at a future deadline**. False/before → Hold; True/after → Pay full amount to a configured recipient. Hold prevents early release. All contributors share the same balance, destination and deadline; this is not a separate savings account per user.
 
-Custom SDK app calls: deployment.execute.prepare for the customer's address and checkout amount → browser wallet signs → deployment.execute.submit → deployment.events.list, optionally filtering `txHash` to show that checkout's payout. Only mark the payment complete on SUCCESS, not merely HTTP 200. Keep the store and partner recipients configured in the deployment.
+The starter can demonstrate a deposit into an eligible Receive flow. The deposit's SUCCESS does not mean the eventual payout has happened. Confirm time-condition and release support, then verify the release transaction and recipient payout after the deadline. Do not promise automatic per-contributor refunds or guaranteed release timing.
 
-## Freelance escrow
+## Optional Split and Campus Snacks reference
 
-Graph: **On Receive USDC → Condition `time_before` at a future deadline**. True/before → Pay full amount to the freelancer; False/after → Pay full amount to the client's configured wallet. Both outputs must be connected. Use an explicit client Pay for a refund, because Return to owner would pay the team's deploying wallet. Do not use Hold if work delivery should permit early release.
+Choose **On Receive → Split** when the problem actually requires sharing a payment among recipients. For example, a business and its partner may have agreed percentage shares. All percentage shares must sum to 10,000 bps. Splitting is not a hackathon requirement and additional blocks do not establish a better fit.
 
-Custom SDK app calls: deployment.execute.prepare for the client deposit → client signs → deployment.execute.submit. Poll deployment.events.list to show the deposit is held. When an authorised client accepts delivery **before** the deadline, call `deployment.releaseEarly({ nodeId: "deadline" })` (use the actual condition id), then poll events for the freelancer payout. If no early release occurs, automatic after-side release pays the configured client at/after the deadline, subject to polling delay. Everyone using this deployment shares that deadline and held balance; this is one escrow relationship, not independent escrows per customer.
-
-## Group-buy pool
-
-Graph: **On Receive USDC → Condition `time_after` at the collection deadline**. False/before → Hold; True/after → Return to owner. Customers contribute to one shared locked balance. Early release is disabled; at/after the deadline all funds go to the wallet that signed deployment so the group organiser can buy the goods. This is not automatic per-contributor refunds or a target-based success/failure pool.
-
-Custom SDK app calls: deployment.execute.prepare for each customer contribution → that customer's wallet signs → deployment.execute.submit → deployment.events.list for the shared deposit history. No releaseEarly call: Hold makes it a strict lock. Wait for automatic after-side release and show its event in the feed/embed. Explain in the pitch who controls the deploying wallet and that it receives the pooled money at the deadline.
+[Campus Snacks](https://github.com/artisam-paiflow/paiflow-campus-snacks) is a separate USDC sample with a vendor/community **90/10** agreement. Preserve its menu, USDC issuer, amounts and payout expectations when working on that sample; it is not the default design for every app. Follow its own README. The minimal starter accepts native XLM only; USDC needs a separate integration, exact trustlines and testnet funding.
 
 ### Source API: selected deployed Swap quotes (#917)
 
