@@ -10,29 +10,44 @@ Drafted October 16, 2026 for review. Companion to [the Markdown template](event-
 4. Keep wallet/code walkthroughs in the Paiflow and developer docs. Link to their canonical sources rather than copying them into the primer.
 5. Render and review the event PDF after the Markdown is approved. Update distributed copies together and keep the same source revision identifiable.
 
-The structure is based on the [JRU primer](jru/event-primer.md). It borrows the explicit qualification and coordination prompts from the [FEU proposal](feu-tech/event-proposal.md), without carrying over either event's rules, dates, prizes or benefits.
+## Current template guidance
+
+Updated October 30, 2026. The Markdown and PDF include the following decisions:
+
+- Teams build a working app with Paiflow at the centre of its payment experience. Examples are optional inspiration, separate from the event theme; the previous-winners page offers more ideas.
+- Examples cover single-recipient payments, amount routing and strict time locks. Splitting is optional. Multisig is not available for participants and is excluded. Confirm event support for the remaining examples; teams build ticketing, booking and other app behaviour themselves.
+- Online onboarding introduces the mechanics and lets teams ask organisers questions. Set its date, timezone and access details for each event. Early-building permissions remain event-specific; the shared template sets no qualifying payout window.
+- Each team has two minutes for pitch/demo and three minutes for Q&A. Prioritise the demo. Cover each talking point in one or two sentences; dedicated slides are unnecessary and teams can explain the points during the demo. Slides are optional.
+- Judging weights are Problem and user 15%, Solution and creativity 20%, Impact on Stellar 10%, Paiflow integration 30% and Works end to end 25%. The [rubric reference](judging-rubric.md) preserves the Excel descriptions, levels and calculation. Publish the event's demo-scoring policy; the template does not adopt the workbook's recording cap automatically.
+- Show the prize pool in the overview and highlighted callout using the same value. Resolve qualification, submission and other remaining event decisions before distribution.
+- Keep setup and integration walkthroughs in their linked technical guides. The challenge includes a short note directing feature-availability questions to organisers. Never expose credentials in submissions, screenshots or demos.
+
+The template draws on JRU's structure, FEU's qualification and coordination prompts, and Web3 Iloilo's pitch and onboarding guidance. Past-event rules remain specific to those events. The PDF uses flexible pagination and was regenerated after the current participant-facing changes.
 
 ## Decisions to settle for every event
 
-| Decision            | Suggested approach                                                                                                                                                                              |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Early preparation   | Explicitly distinguish ideation, app development, deployment, API integration and test payments. Do not inherit JRU, FEU or Iloilo permissions accidentally.                                    |
-| Qualification       | Name the team's deployment, required payout proof and exact evidence window. State whether a pre-event deployment or payout qualifies.                                                          |
-| Availability        | Confirm the event's target build, assets, wallet path and actual feature readiness. Start with standard Receive → Pay/Split examples; add advanced examples only when supported for that event. |
-| Judging             | Publish criteria, descriptions and weights totalling 100%, plus any live/recorded demo distinction. Keep calculation instructions and judge worksheets internal.                                |
-| Awards              | Decide overlap, ties, insufficient qualifying teams, delivery method and timing. Do not copy a prize pool or sponsor benefit without confirmation.                                              |
-| Logistics           | Resolve team eligibility, registration/submission deadlines, room or meeting access, internet, meals, accessibility and support availability.                                                   |
-| Privacy and conduct | State recording/analytics expectations, evidence visibility, permitted use of AI/existing work and the dispute contact.                                                                         |
+| Decision            | Suggested approach                                                                                                                                                                        |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Early preparation   | Explicitly distinguish ideation, app development, deployment, API integration and test payments. Do not inherit JRU, FEU or Iloilo permissions accidentally.                              |
+| Onboarding          | Set a dated session with a timezone, access details and setup expectations, or state that no session is planned. Keep its activities consistent with the early-integration policy.        |
+| Qualification       | Name the team's deployment and required payout proof. The shared template does not impose a qualifying payout window.                                                                     |
+| Availability        | Confirm the event's target build, assets, wallet path and actual feature readiness. Start with standard Receive → Pay examples; add advanced examples only when supported for that event. |
+| Judging             | Publish criteria, descriptions and weights totalling 100%, plus any live/recorded demo distinction. Keep calculation instructions and judge worksheets internal.                          |
+| Awards              | Decide overlap, ties, insufficient qualifying teams, delivery method and timing. Do not copy a prize pool or sponsor benefit without confirmation.                                        |
+| Logistics           | Resolve team eligibility, registration/submission deadlines, room or meeting access, internet, meals, accessibility and support availability.                                             |
+| Privacy and conduct | State recording/analytics expectations, evidence visibility, permitted use of AI/existing work and the dispute contact.                                                                   |
 
 ## Schedule check
 
 Allocate **team count × (pitch + Q&A + transition time), plus a buffer**. Keep the schedule table and pitch instructions consistent.
 
-The JRU source currently schedules 10 teams × 8 minutes inside 60 minutes. That needs at least 80 minutes before transitions or a buffer. For illustration, 10 teams × (5-minute pitch + 3-minute Q&A + 1-minute transition) needs 90 minutes; a further 10-minute buffer makes 100 minutes. This is a planning example, not the template's required format.
+The template sets two minutes for the combined pitch and demo plus three minutes for Q&A: five minutes per team. Account separately for transitions and buffer.
+
+For example, 10 teams × (2-minute pitch/demo + 3-minute Q&A + 1-minute transition) needs 60 minutes. Adding a 10-minute buffer makes 70 minutes. Do not copy a past event's pitch duration or schedule without checking the arithmetic.
 
 Also check that submission closes before judging needs final evidence, overlapping submission/build windows are labelled, breaks are explicit, and the closing time accommodates the complete program. Use a named timezone for every deadline, especially for online events.
 
-Distribute only the event primer and Paiflow Guide as PDFs. Keep detailed SDK and HTTP API instructions in their GitHub READMEs, linking OpenAPI and Postman from the API README. Older PDFs are archival, not additional participant handouts.
+Distribute the event primer and Paiflow Guide as the two core PDFs, with the Windows Setup Guide as a companion for Windows participants. Keep detailed SDK and HTTP API instructions in their GitHub READMEs, linking OpenAPI and Postman from the API README. Older PDFs are archival, not additional participant handouts.
 
 ## Resource defaults to review
 
@@ -40,6 +55,8 @@ Distribute only the event primer and Paiflow Guide as PDFs. Keep detailed SDK an
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Paiflow guide      | [Canonical guide](paiflow-guide.md); use the established shared PDF link only after its distributed revision is checked.                                                                                                      |
 | SDK docs           | [SDK README](../../packages/sdk/README.md), with supplementary [quickstart](../sdk/quickstart.md) and [coverage contract](../sdk/contract.md). Select publicly accessible URLs for the participant PDF.                       |
+| SDK type reference | [Method and type reference](../sdk/reference/README.md), alongside the SDK README.                                                                                                                                            |
+| Windows setup      | [Windows Setup Guide](setup-guide.md); use its public source or approved PDF for Windows participants.                                                                                                                        |
 | API docs           | [HTTP reference](../api/README.md), [OpenAPI](../api/openapi.json) and [Postman](../api/paiflow-api-v1.postman_collection.json).                                                                                              |
 | Starter            | [Minimal SDK payment example](https://github.com/artisam-paiflow/paiflow-hackathon-starter); Node `>=22.22.2 <23`, server-only SDK `0.2.0`, explicit deployment and token.                                                    |
 | Sample application | [Campus Snacks source](https://github.com/artisam-paiflow/paiflow-campus-snacks); preserve its USDC 90/10 use case when migrating it from the SDK starter. Verify availability and configuration before adding its live demo. |
@@ -55,16 +72,16 @@ The [API verification summary](../api/README.md#hosted-testnet-verification) dis
 - **Internal:** this template and its drafting notes; judge scoring/evidence instructions and worksheets; an organiser runbook for provisioning, funding, readiness, support and cleanup.
 - **Archive:** past events, superseded drafts/PDFs and dated verification evidence, clearly labelled and linked where useful.
 
-These are structure suggestions for review. This task does not move or remove existing documents, create the judging guide/runbook, or change an event's published rules.
+The rubric reference preserves judging guidance from the Excel workbook. An organiser runbook remains separate work; past-event documents retain their published rules.
 
 ## Rendering and review
 
 From the repository root:
 
 ```bash
-node scripts/render-event-primer-pdf.mjs docs/hackathon/event-primer-template.md
+node scripts/render-event-primer-pdf.mjs docs/hackathon/event-primer-template.md --paginate
 ```
 
-The existing renderer expects the template's major headings and a challenge examples table. It produces four fixed pages and rejects content exceeding their bounds. If a filled event primer becomes longer, shorten repetition or deliberately revise the layout; never distribute a clipped PDF.
+The existing renderer expects the template's major headings and a challenge examples table. Use its flexible pagination option for the expanded template; the default four-page layout no longer fits. Both modes reject content exceeding page bounds. Inspect the resulting page breaks before distribution; never distribute a clipped PDF.
 
 Before distribution, confirm all placeholders are resolved, weights and prize totals reconcile, schedule arithmetic fits, links are accessible, and PDF text matches the approved Markdown. Inspect all pages for clipping, awkward breaks and readable links.

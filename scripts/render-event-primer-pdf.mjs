@@ -57,6 +57,10 @@ const renderBlock = (node) => {
   ) {
     return `<aside class="prize-banner" aria-label="Prize pool"><div class="prize-banner-label">Prize pool</div><div class="prize-banner-amount">PHP 10,000</div><div class="prize-banner-details">${render(node).replace(/Prize pool: PHP 10,000, for qualifying teams only\./, "For qualifying teams only.")}</div></aside>`;
   }
+  if (node.type === "paragraph" && plain(node).startsWith("Prize pool:")) {
+    const amount = plain(node).slice("Prize pool:".length).trim();
+    return `<aside class="prize-banner" aria-label="Prize pool"><div class="prize-banner-label">Prize pool</div><div class="prize-banner-amount">${escape(amount)}</div></aside>`;
+  }
   return render(node);
 };
 const body = (items) => items.map(renderBlock).join("");
@@ -162,7 +166,7 @@ tr:nth-child(even){background:#f7f5f6}tr{break-inside:avoid}thead{display:table-
 .challenge p:has(>strong:first-child){background:#eef7ff;padding:6pt 9pt;border-left:2pt solid #0079c2}
 .prize-banner{margin:10pt 0 9pt;padding:9pt 13pt;border:1.5pt solid #e0005f;border-radius:6pt;break-inside:avoid;background-color:#17151a;background-image:radial-gradient(ellipse at 100% 0%,rgba(224,0,95,.38),transparent 70%),linear-gradient(115deg,#17151a,#301321);color:#fff;box-shadow:0 2pt 0 #ffb1c4}
 .prize-banner-label{font-family:'JetBrains Mono',monospace;font-size:7.5pt;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#ffb1c4;margin-bottom:4pt}
-.prize-banner-amount{font-family:'Space Grotesk',sans-serif;font-size:24pt;font-weight:700;line-height:1.05;letter-spacing:-.035em;color:#ffb1c4;margin-bottom:6pt}
+.prize-banner-amount{font-family:'Space Grotesk',sans-serif;font-size:24pt;font-weight:700;line-height:1.05;letter-spacing:-.035em;color:#ffb1c4;margin-bottom:6pt;overflow-wrap:anywhere}
 .prize-banner-details{font-size:8.5pt;line-height:1.4;color:#f2e8ed;max-width:145mm}
 .prize-banner-details p{margin:0}.prize-banner-details strong{color:#fff}
 .prizes{margin:0;break-inside:avoid}

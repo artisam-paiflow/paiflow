@@ -10,6 +10,14 @@ explain the placeholders, schedule checks and suggested documentation structure.
 Registration, submission, guides, starter, sample applications and support links belong
 inside each event's primer. Resolve the placeholders before participant distribution.
 
+The current template asks teams to build an app with Paiflow at the centre of its
+payment experience. Examples and previous winners are optional inspiration. Each
+team has a two-minute pitch/demo and three-minute Q&A; slides are optional and
+teams can explain the brief talking points during the demo. It includes the five
+weighted judging criteria and a highlighted prize pool. The internal
+[judging rubric reference](judging-rubric.md) preserves the Excel descriptions and
+scoring levels; publish the event's demo-scoring policy before applying it.
+
 ## Participant distribution
 
 Distribute the event-specific primer and the Paiflow Guide as the two core PDF resources.
@@ -46,6 +54,8 @@ Paths below are relative to this folder unless stated otherwise.
 
 | File or document                                                                                                                          | Purpose                                                                                  | Keep aligned with                                                                                                          |
 | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| [Event primer template](event-primer-template.md)                                                                                         | Reusable participant brief: challenge, pitching, judging and event placeholders          | `event-primer-template.pdf`, organiser notes, rubric weights and event-specific primers when drafting a new event          |
+| [Organiser notes](event-primer-template-notes.md) and [judging rubric](judging-rubric.md)                                                 | Internal drafting guidance and Excel rubric reference                                    | Template timing and weights, event demo-scoring policy and judges' worksheet                                               |
 | [Paiflow Guide](paiflow-guide.md)                                                                                                         | Two-part wallet/flow tutorial and SDK app integration walkthrough                        | `paiflow-guide.pdf`, SDK/API READMEs, current starter behaviour and tutorial videos                                        |
 | [Windows Setup Guide](setup-guide.md)                                                                                                     | Windows tools, starter setup and Engr with Kimi                                          | `setup-guide.pdf`, starter README and current tool installation instructions                                               |
 | [SDK README](../../packages/sdk/README.md)                                                                                                | Detailed typed Node integration examples, errors and recovery                            | SDK contract, API reference and package implementation                                                                     |
@@ -107,7 +117,7 @@ After Markdown approval and an explicit request to regenerate, run from the repo
 ```bash
 node scripts/render-developer-guide-pdf.mjs docs/hackathon/paiflow-guide.md
 node scripts/render-setup-guide-pdf.mjs
-node scripts/render-event-primer-pdf.mjs docs/hackathon/event-primer-template.md
+node scripts/render-event-primer-pdf.mjs docs/hackathon/event-primer-template.md --paginate
 ```
 
 The FEU proposal is an organiser planning artifact, not an additional participant PDF. Check page boundaries, code examples and links after rendering. Do not regenerate PDFs for every intermediate Markdown edit.
