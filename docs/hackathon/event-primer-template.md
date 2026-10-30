@@ -23,67 +23,94 @@ Build an app that solves a real problem with automated payments through Paiflow.
 
 **Before the event — prepare and integrate:** set up wallets and testnet funds using the Paiflow guide. USDC needs its exact trustline and separate funding; Friendbot supplies XLM only. «EARLY_DEPLOYMENT_API_INTEGRATION_AND_TEST_PAYMENT_POLICY».
 
-**During the event — finish and demonstrate:** use «EVENT_BUILD_WINDOW_WITH_TIMEZONE» to complete integration, verify a payout, collect evidence and prepare your pitch. Early preparation does not replace the qualifying payout requirement below.
+**Onboarding:** join the online onboarding session to learn the event mechanics and ask the organisers questions: «ONBOARDING_DATE_TIME_TIMEZONE_AND_ACCESS_OR_NO_SESSION». «ONBOARDING_DEMO_SETUP_HELP_AND_PREPARATION_DETAILS». Follow the early-integration policy above when building and testing around this session.
 
-**Qualifying payout window:** «EARLIEST_AND_LATEST_QUALIFYING_PAYOUT_TIMES_WITH_TIMEZONE». «WHETHER_PRE_EVENT_DEPLOYMENTS_AND_PAYOUTS_QUALIFY». Shared-demo and sandbox payouts do not establish your team's integration.
+**During the event — finish and demonstrate:** use «EVENT_BUILD_WINDOW_WITH_TIMEZONE» to complete integration, verify a payout, collect evidence and prepare your pitch. Early preparation does not replace the qualifying payout requirement below.
 
 **Submission deadline:** «SUBMISSION_DEADLINE_WITH_TIMEZONE» via «SUBMISSION_URL». Submit your evidence on time, even if app polishing continues. «LATE_SUBMISSION_AND_TECHNICAL_FAILURE_POLICY».
 
 ## Event program
 
-Prepare before the event, use the event's build sessions to finish and demonstrate your app, then submit before the deadline. The preparation timeline above states what is permitted early and when a payout counts for qualification.
+Prepare before the event, use the event's build sessions to finish and demonstrate your app, then submit before the deadline. The preparation timeline above states what is permitted early.
 
-The schedule lists event-day activities. All preparation permissions and qualifying evidence dates must be read together with that schedule.
+The schedule lists event-day activities. Read it together with the preparation permissions above.
 
 ### Hackathon schedule
 
 All times are in **«TIMEZONE»**. «BREAK_AND_REMOTE_ATTENDANCE_DETAILS»
 
-| Time                           | Activity              | What happens                                                                            |
-| ------------------------------ | --------------------- | --------------------------------------------------------------------------------------- |
-| «CHECK_IN_START_END»           | Check-in and briefing | Confirm attendance, rules and support access                                            |
-| «BUILD_SESSION_1_START_END»    | Build and integration | Work toward a confirmed payout                                                          |
-| «BREAK_START_END»              | Break                 | «BREAK_PROVISIONS_AND_OPTIONAL_CODING_RULE»                                             |
-| «BUILD_SESSION_2_START_END»    | Build and integration | Finish the app and prepare evidence                                                     |
-| «SUBMISSION_WINDOW»            | Submission            | Submit by «SUBMISSION_DEADLINE»; «OVERLAP_WITH_BUILD_SESSION»                           |
-| «PITCHING_START_END»           | Pitching              | «TEAM_COUNT» × «MINUTES_PER_TEAM» minutes, plus «TRANSITION_AND_BUFFER_MINUTES» minutes |
-| «JUDGING_START_END»            | Judging               | Verify evidence and finalise scores                                                     |
-| «AWARDS_AND_CLOSING_START_END» | Awards and closing    | Announce results and next steps                                                         |
+| Time                           | Activity              | What happens                                                                                                |
+| ------------------------------ | --------------------- | ----------------------------------------------------------------------------------------------------------- |
+| «CHECK_IN_START_END»           | Check-in and briefing | Confirm attendance, rules and support access                                                                |
+| «BUILD_SESSION_1_START_END»    | Build and integration | Work toward a confirmed payout                                                                              |
+| «BREAK_START_END»              | Break                 | «BREAK_PROVISIONS_AND_OPTIONAL_CODING_RULE»                                                                 |
+| «BUILD_SESSION_2_START_END»    | Build and integration | Finish the app and prepare evidence                                                                         |
+| «SUBMISSION_WINDOW»            | Submission            | Submit by «SUBMISSION_DEADLINE»; «OVERLAP_WITH_BUILD_SESSION»                                               |
+| «PITCHING_START_END»           | Pitching              | «TEAM_COUNT» × 5 minutes (2-minute pitch/demo + 3-minute Q&A), plus «TRANSITION_AND_BUFFER_MINUTES» minutes |
+| «JUDGING_START_END»            | Judging               | Verify evidence and finalise scores                                                                         |
+| «AWARDS_AND_CLOSING_START_END» | Awards and closing    | Announce results and next steps                                                                             |
 
 ## The challenge
 
-**Build for a real user.** «THEME_CONSTRAINTS_OR_OPEN_THEME». Explain the problem, why your flow fits it and how your app makes the payment useful.
+**Create a working app with Paiflow at the centre of its payment experience.** Choose a real user and a problem where receiving, routing or releasing money is essential to the solution. Your app provides the experience people use; Paiflow runs the payment flow that makes it work. «THEME_CONSTRAINTS_OR_OPEN_THEME».
 
-Paiflow turns a visual flow into Stellar smart contracts. One deployment can serve a business or group and accept payments from multiple customers. The SDK and HTTP integration API operate existing deployments; they do not create a separate deployment for every app user.
+### What your team needs to build
 
-| Idea            | What it does                                    | Paiflow pieces                      |
-| --------------- | ----------------------------------------------- | ----------------------------------- |
-| Shared checkout | Split each sale between a shop and a partner    | On Receive → Split                  |
-| Creator tip jar | Share tips among collaborators                  | On Receive → Split                  |
-| Event tickets   | Route ticket payments to a configured recipient | On Receive → Pay                    |
-| Donation drive  | Share donations and show confirmed payouts      | On Receive → Split, public activity |
+1. **Choose the problem and user.** Explain who pays, why they pay, who receives the money and what your app helps them do.
+2. **Design and deploy your Paiflow flow.** Choose when money moves, any conditions it must meet and where it goes. Configure recipients and the asset before deployment.
+3. **Connect your app to that flow.** Use the SDK or HTTP API so the payment is part of the app's main user journey. Show payment status and the confirmed outcome in your app.
+4. **Demonstrate the complete journey.** Use your team's own deployment, show the customer experience and verify that money reaches the intended destination. Keep the deployment ID and transaction hash available.
 
-**Feature availability:** «APPROVED_FEATURES_AND_EXCLUSIONS_FOR_THIS_EVENT». Use standard flows with recipients configured before deployment as the baseline. Mutable dev-mode flows and per-payment-recipient APIs have been removed. Advanced automation must not be assumed available.
+Paiflow turns your visual flow into Stellar smart contracts. One deployment can serve a business or group and accept payments from multiple customers. The SDK and HTTP API operate existing deployments; they do not create a separate deployment for every app user.
 
-Configure your deployment's recipients and asset, then integrate the SDK into your app. The starter is a minimal SDK payment example. Use your own team's deployment for qualifying evidence.
+### Optional inspiration — choose your own idea
 
-Never store customer wallet secret keys in your app. Keep developer/deployment API tokens and webhook secrets on your server. Each customer authorises their payment in their own wallet.
+**These are examples, not assigned challenges or a list you must choose from.** You may propose a different app within the event theme. Choose the flow that fits your user's problem; splitting payments is optional. A useful app can pay one recipient, route a payment by a condition or hold funds until a date.
 
-Explain who pays, what triggers the flow and who receives the payout. Show the confirmed outcome in your demo and retain its transaction hash.
+For more inspiration, explore [previous Paiflow hackathon winners](https://beta.paiflow.xyz/hackathons.html). Use them as a starting point to develop your own idea for your users.
 
-For Node integrations, use the published `@paiflow/sdk@0.2.0` beta for typed calls. Direct HTTP APIs remain available for other integrations. Read the developer docs and check the event deployment's capabilities and live state; package support alone does not establish feature readiness.
+Confirm event support before choosing an example involving conditions. The app features described below, such as tickets and order status, are built by your team.
 
-**Before choosing an advanced idea:** ask «TECHNICAL_SUPPORT_CHANNEL» about supported assets, fees, scheduled payouts, recurring charges or callbacks. Unattended scheduling and low fees must not be promised from SDK test coverage.
+| Example app        | What your app helps users do                                                  | Paiflow's role                                                              |
+| ------------------ | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Workshop ticketing | Pay an organiser and receive a ticket after payment confirmation              | On Receive → Pay one organiser                                              |
+| Service booking    | Pay a provider and track a confirmed booking                                  | On Receive → Pay one provider                                               |
+| Donation routing   | Send each donation to one of two beneficiaries based on that payment's amount | On Receive → Amount condition → Pay on each branch                          |
+| Savings lock       | Deposit funds and track when they become available                            | On Receive → Time condition, with Hold before the deadline and Pay after it |
+
+**Not sure whether a Paiflow feature is available for your idea?** Ask the organisers at «TECHNICAL_SUPPORT_CHANNEL» before you start building.
+
+## Pitching requirements and format
+
+Each team has **two minutes for the pitch and demo, followed by three minutes for Q&A**. **Focus on the demo:** spend most of your two minutes showing the app and its payment flow in action.
+
+Cover the points below briefly, using **one or two sentences for each**. They do not need dedicated slides. You can explain them during your demo instead of using a presentation deck; slides are optional.
+
+1. **Problem:** describe the intended user and their problem. Keep claims specific and proportionate; do not overstate the problem.
+2. **Solution:** explain what your app does and how it addresses the problem.
+3. **Impact on Stellar:** explain how your app uses Stellar and what useful activity or adoption it could bring. Distinguish demonstrated results from future potential.
+4. **Paiflow integration:** show your flow and explain its role in the app.
+5. **Demo:** show the customer experience, payment and confirmed payout to the intended recipients. Keep the deployment ID and transaction hash available for verification.
+
+Have your app and any slides ready before your turn and start promptly. «ORDER_TIMER_SETUP_AND_FALLBACK_RECORDING_RULES»
 
 ## Prizes
 
-**Qualification:** «CONFIRMED_TEAM_DEPLOYMENT_AND_VERIFIABLE_PAYOUT_REQUIREMENTS». Apply the evidence window above. «NON_QUALIFYING_TEAM_PITCH_AND_PRIZE_POLICY»
+**Qualification:** «CONFIRMED_TEAM_DEPLOYMENT_AND_VERIFIABLE_PAYOUT_REQUIREMENTS». «NON_QUALIFYING_TEAM_PITCH_AND_PRIZE_POLICY»
 
-**Public judging criteria:** «CRITERIA_WEIGHTS_AND_DESCRIPTIONS_TOTAL_100_PERCENT». Publish any live-versus-recorded demo scoring difference here: «DEMO_SCORING_POLICY». Full internal judge instructions must apply these published rules.
+**Judging criteria:**
 
-**Pitch format:** «PITCH_AND_DEMO_MINUTES» minutes plus «QA_MINUTES» minutes for questions. «ORDER_TIMER_SETUP_AND_FALLBACK_RECORDING_RULES»
+| Criterion               | Weight |
+| ----------------------- | -----: |
+| Problem and user        |    15% |
+| Solution and creativity |    20% |
+| Impact on Stellar       |    10% |
+| Paiflow integration     |    30% |
+| Works end to end        |    25% |
 
-**Awards:** «AWARD_NAMES_AMOUNTS_AND_ELIGIBILITY». «MULTIPLE_AWARD_RULE_AND_TOO_FEW_QUALIFYING_TEAMS_POLICY». «TIE_BREAK_RULE». «PRIZE_DELIVERY_METHOD_AND_TIMING»
+Publish any live-versus-recorded demo scoring difference here: «DEMO_SCORING_POLICY». Full internal judge instructions must apply these published rules.
+
+Prize pool: **«CURRENCY_AND_TOTAL_OR_NO_PRIZES»**
 
 ## Event support and coordination
 
@@ -93,18 +120,20 @@ Submit at **«SUBMISSION_URL»** by **«DEADLINE_AND_TIMEZONE»**: team details,
 
 ### Resources and support
 
-| Resource                    | Link or contact                                                       |
-| --------------------------- | --------------------------------------------------------------------- |
-| Registration and submission | «REGISTRATION_URL» · «SUBMISSION_URL»                                 |
-| Paiflow app and setup guide | «APP_URL» · «PAIFLOW_GUIDE_URL»                                       |
-| SDK and HTTP API docs       | «SDK_README_URL» · «API_README_URL»; API includes OpenAPI and Postman |
-| SDK payment example         | «STARTER_URL»                                                         |
-| Sample applications         | «SAMPLE_SOURCE_AND_DEMO_URLS»                                         |
-| Tutorials and AI context    | «TUTORIAL_URL» · «AI_CONTEXT_URL»                                     |
-| Support and announcements   | «SUPPORT_CONTACT_AND_AVAILABILITY»                                    |
+| Resource                    | Link or contact                                        |
+| --------------------------- | ------------------------------------------------------ |
+| Registration and submission | «REGISTRATION_URL» · «SUBMISSION_URL»                  |
+| Paiflow app and setup guide | «APP_URL» · «PAIFLOW_GUIDE_URL»                        |
+| Windows development setup   | «WINDOWS_SETUP_GUIDE_URL»                              |
+| SDK integration             | «SDK_README_URL» · «SDK_METHOD_AND_TYPE_REFERENCE_URL» |
+| HTTP integration            | «API_README_URL»; includes OpenAPI and Postman         |
+| SDK payment example         | «STARTER_URL»                                          |
+| Sample applications         | «SAMPLE_SOURCE_AND_DEMO_URLS»                          |
+| Tutorials and AI context    | «TUTORIAL_URL» · «AI_CONTEXT_URL»                      |
+| Support and announcements   | «SUPPORT_CONTACT_AND_AVAILABILITY»                     |
 
 ### What to prepare and bring
 
 Bring «EQUIPMENT_INTERNET_AND_POWER_REQUIREMENTS». Install the versions listed in the starter's current instructions and prepare a GitHub account and supported testnet wallet. «MEALS_ACCESSIBILITY_AND_VENUE_OR_REMOTE_PROVISIONS»
 
-**Shared rules:** use Paiflow for the core payment flow; use testnet only. «AI_OPEN_SOURCE_AND_EXISTING_WORK_DISCLOSURE_POLICY». No API or relayer load-testing or spam. «CONDUCT_PRIVACY_RECORDING_AND_DISPUTE_CONTACT». «HOW_RULE_CHANGES_WILL_BE_ANNOUNCED»
+**Shared rules:** use Paiflow for the core payment flow; use testnet only. Never expose API tokens, webhook secrets, private keys or signed envelopes in screenshots or demos. «AI_OPEN_SOURCE_AND_EXISTING_WORK_DISCLOSURE_POLICY». No API or relayer load-testing or spam. «CONDUCT_PRIVACY_RECORDING_AND_DISPUTE_CONTACT». «HOW_RULE_CHANGES_WILL_BE_ANNOUNCED»
