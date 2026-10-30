@@ -57,6 +57,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixed
 
+- Refuse deployment preparation when the saved flow type, raw graph or stored parameters identify retired Payroll instructions, before artifact lookup or RPC work; preserve historical records and ordinary payment preparation (#1148).
+
 - Preserve the reviewed cancelled payroll deployment, roster, original transaction identities and audit history during payroll retirement; retain historical schema without active payroll CRUD and block payroll recovery, ordinary-subscription admission and TTL spending. Support both unapplied and completed original-cleanup migration histories with explicit checksum checks and a forward schema restoration (#1144, #1146).
 
 - Encode public embed customer-payment QR links using the configured public app URL so reverse-proxy container addresses do not reach customers (#577).
