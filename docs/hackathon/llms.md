@@ -251,13 +251,12 @@ Read `subscription/state`, prepare with
 `{intent,signedXdr}`. Cancel requires active state and revokes allowance; reactivate requires
 cancelled state and grants no allowance, new subscriber or immediate charge. Both require the
 current configured subscriber's wallet, in addition to the scoped deployment token. Save the
-intent/hash and reconcile `{intent}` before replacing any uncertain preparation. Existing Dev cancellation
-continues when Dev is disabled; Dev reactivation requires Dev enabled. New Dev deployments
-remain unavailable for this hackathon. Bounded ordinary Subscription controls passed
+intent/hash and reconcile `{intent}` before replacing any uncertain preparation. Mutable Dev
+subscription controls are retired; use standard configured subscriptions. Bounded ordinary Subscription controls passed
 with wallet consent, ledger finality, state and zero-allowance checks on hosted
 testing/testnet. The [verification summary](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#hosted-testnet-verification)
 records the later fee-blocked charge and unverified unattended scheduler; it does
-not certify beta/staging availability or Dev variants. See the [complete API example](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#subscription-cancellation-and-reactivation-913).
+not certify current beta/staging availability. See the [complete API example](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#subscription-cancellation-and-reactivation-913).
 
 Browser → your app's server → Paiflow is the API path. The server returns unsigned preparation data to the browser. The customer's wallet signs there; the browser sends the signed envelope back to your server, which submits it. No private key crosses that boundary. Protect your own server routes: a browser action must not let an unauthorised caller release escrow merely because your server holds the token.
 
