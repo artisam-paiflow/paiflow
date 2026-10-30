@@ -19,6 +19,7 @@ import {
   getPendingLabels,
 } from "@/lib/flows/schema";
 import { issuesToFields } from "@/lib/flows/issues-to-fields";
+import { hasRetiredPayrollInput, PAYROLL_RETIRED_MESSAGE } from "@/lib/flows/retired-payroll";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
 import { preparePipelineDeployTx, checkAccountFunding } from "@/lib/stellar/deploy";
@@ -50,6 +51,16 @@ export async function POST(req: NextRequest) {
       where: { id: input.flowId, ownerId: user.id },
     });
     if (!flow) throw new AppError("NOT_FOUND", "Flow not found");
+    // Inspect recorded instructions before migration/parsing can discard unknown fields.
+    if (
+      hasRetiredPayrollInput({
+        templateKind: flow.templateKind,
+        graph: flow.graph,
+        parameters: flow.parameters,
+      })
+    ) {
+      throw new AppError("VALIDATION", "Invalid input", { _: [PAYROLL_RETIRED_MESSAGE] });
+    }
     const parsedGraph = FlowGraphSchema.parse(migrateFlowGraph(flow.graph));
     const graph = user.role === "SANDBOX" ? sandboxNotifications(parsedGraph) : parsedGraph;
     if (

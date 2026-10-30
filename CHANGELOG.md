@@ -29,6 +29,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Clarify the hackathon app-building challenge around Paiflow, label examples and past winners as optional inspiration, and add examples beyond splitting. Set a two-minute pitch/demo with optional slides and three-minute Q&A; publish the five judging weights (15/20/10/30/25%), preserve the Excel rubric in an internal reference, and highlight the prize pool. Update onboarding, resource links, organiser guidance and the template PDF with flexible pagination.
+
 - Retire stored-file uploads, downloads and deletion with authenticated HTTP 410 responses; remove exclusive storage drivers, MinIO dependencies and configuration. The new migration removes stored-file metadata; underlying object cleanup remains separate. See the [retirement procedure](docs/file-storage-retirement.md) (#989, #881).
 
 - Add confirmed JRU team names to winning-project cards and first-through-fourth placements to the team photo gallery (#1090).
@@ -56,6 +58,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 - Update the Rust contract workspace's transitive `serde_with` and `serde_with_macros` dependencies to 3.21.0 to fix the KeyValueMap serialization panic ([GHSA-7gcf-g7xr-8hxj](https://github.com/advisories/GHSA-7gcf-g7xr-8hxj)).
 
 ### Fixed
+
+- Refuse deployment preparation when the saved flow type, raw graph or stored parameters identify retired Payroll instructions, before artifact lookup or RPC work; preserve historical records and ordinary payment preparation (#1148).
 
 - Preserve the reviewed cancelled payroll deployment, roster, original transaction identities and audit history during payroll retirement; retain historical schema without active payroll CRUD and block payroll recovery, ordinary-subscription admission and TTL spending. Support both unapplied and completed original-cleanup migration histories with explicit checksum checks and a forward schema restoration (#1144, #1146).
 
