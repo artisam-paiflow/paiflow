@@ -481,6 +481,7 @@ export default function ConfigPanel({
             <PayRecipientEditor
               recipient={node.config.recipient}
               policy={nodePolicy}
+              fullAmount={node.config.fullAmount}
               executionIssue={executionIssue}
               error={fieldError("recipient")}
               onRecipientChange={(recipient) =>

@@ -28,6 +28,12 @@ import {
 } from "./schema";
 import { applyMutationValues } from "./values";
 import type { ApiTokenType } from "@/lib/api/v1/auth";
+import {
+  assertPreparationKeyNotRefused,
+  findPreparationRefusal,
+  fenceRefusedPreparation,
+  preparationRefusalError,
+} from "./refusals";
 
 export function mutationPreparedResponse(row: WalletControlIntent) {
   if (row.action !== "configuration.mutate" || !row.unsignedXdr)
@@ -49,7 +55,10 @@ export async function findMutationRetry(deploymentId: string, keyHash: string, d
   const row = await db.walletControlIntent.findFirst({
     where: { deploymentId, network: env().STELLAR_NETWORK, idempotencyKeyHash: keyHash },
   });
-  if (!row) return null;
+  if (!row) {
+    await findPreparationRefusal(deploymentId, keyHash, digest);
+    return null;
+  }
   if (row.action !== "configuration.mutate" || row.requestDigest !== digest)
     throw new AppError("CONFLICT", "Idempotency-Key already identifies a different request");
   return mutationPreparedResponse(row);
@@ -142,6 +151,13 @@ export async function createMutationIntent(input: {
         throw new AppError("CONFLICT", "Idempotency-Key already identifies a different request");
       return previous;
     }
+    await assertPreparationKeyNotRefused(
+      client,
+      binding.deploymentId,
+      binding.network,
+      input.keyHash,
+      input.requestDigest,
+    );
     const unresolved = await client.walletControlIntent.findFirst({
       where: {
         deploymentId: binding.deploymentId,
@@ -197,41 +213,76 @@ export async function prepareMutation(
     });
   const retry = await findMutationRetry(deployment.id, keyHash, requestDigest);
   if (retry) return retry;
-  const current = await readMutationState(deployment);
-  if (input.admin !== current.admin)
+  if (
+    input.admin !== deployment.sourceAccount ||
+    deployment.network !== env().STELLAR_NETWORK ||
+    deployment.status !== "CONFIRMED"
+  )
     throw new AppError(
       "FORBIDDEN",
-      "Only the deployment developer admin may authorize configuration updates",
+      "Only the deployment developer admin may prepare configuration updates on this network",
     );
-  if (current.obligations.some((status) => status.obligationsStroops !== "0"))
-    throw new AppError("CONFLICT", "Unsettled path obligations block configuration changes");
-  applyMutationValues(current.configurations, input.arguments);
-  const mutation = MutationIntentSchema.parse({
-    version: 1,
-    deploymentId: deployment.id,
-    network: deployment.network,
-    admin: current.admin,
-    rootContract: current.rootContract,
-    nodes: current.nodes.map(({ nodeId, contractAddress, expectedRevision }) => ({
-      nodeId,
-      contractAddress,
-      expectedRevision,
-    })),
-    arguments: input.arguments,
-    artifacts: current.nodes.map(({ nodeId, contractAddress, capabilities }) => ({
-      nodeId,
-      contractAddress,
-      wasmHash: capabilities.wasmHash,
-    })),
-  });
-  const unsignedXdr = await prepareMutationTransaction(mutation).catch((error: unknown) => {
-    throw prepareFailure(error);
-  });
+  let prepared: { mutation: MutationIntent; unsignedXdr: string; preparationLedger: number };
+  let simulationStarted = false;
+  try {
+    const current = await readMutationState(deployment);
+    if (input.admin !== current.admin)
+      throw new AppError(
+        "FORBIDDEN",
+        "Only the deployment developer admin may authorize configuration updates",
+      );
+    if (current.obligations.some((status) => status.obligationsStroops !== "0"))
+      throw new AppError("CONFLICT", "Unsettled path obligations block configuration changes");
+    applyMutationValues(current.configurations, input.arguments);
+    const mutation = MutationIntentSchema.parse({
+      version: 1,
+      deploymentId: deployment.id,
+      network: deployment.network,
+      admin: current.admin,
+      rootContract: current.rootContract,
+      nodes: current.nodes.map(({ nodeId, contractAddress, expectedRevision }) => ({
+        nodeId,
+        contractAddress,
+        expectedRevision,
+      })),
+      arguments: input.arguments,
+      artifacts: current.nodes.map(({ nodeId, contractAddress, capabilities }) => ({
+        nodeId,
+        contractAddress,
+        wasmHash: capabilities.wasmHash,
+      })),
+    });
+    simulationStarted = true;
+    const unsignedXdr = await prepareMutationTransaction(mutation);
+    prepared = { mutation, unsignedXdr, preparationLedger: current.confirmedLedger };
+  } catch (error) {
+    if (
+      error instanceof AppError &&
+      ["VALIDATION", "CONFLICT", "UPSTREAM_RPC", "INSUFFICIENT_FUNDS"].includes(error.code)
+    ) {
+      const reason = simulationStarted ? prepareFailure(error) : error;
+      const outcome = await fenceRefusedPreparation({
+        deployment,
+        request: input,
+        keyHash,
+        digest: requestDigest,
+        reason,
+        assertAdmission,
+        ip,
+      });
+      if (outcome.intent) return mutationPreparedResponse(outcome.intent);
+      throw preparationRefusalError(
+        outcome.refusal!,
+        requestDigest,
+        "fresh" in outcome && outcome.fresh ? reason : undefined,
+      );
+    }
+    // Unknown exceptions and authorization failures issue no terminal proof.
+    throw simulationStarted ? prepareFailure(error) : error;
+  }
   return createMutationIntent({
     deployment,
-    mutation,
-    unsignedXdr,
-    preparationLedger: current.confirmedLedger,
+    ...prepared,
     keyHash,
     requestDigest,
     assertAdmission,

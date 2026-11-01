@@ -10,7 +10,8 @@ import {
 } from "@/lib/flows/schema";
 import { cn, shortAddr } from "@/lib/utils";
 import type { AddressEntry } from "@/lib/address-book.types";
-import type { SplitFieldPolicy } from "@/lib/flows/field-policies";
+import type { SplitFieldPolicy, FieldMode } from "@/lib/flows/field-policies";
+import { AdditionalRecipientsEditor } from "./additional-recipients-editor";
 import { FieldModeSelect } from "../inputs/field-mode-select";
 import { RecipientEmailField } from "../notification-settings";
 import AddressInput from "../address-input";
@@ -65,6 +66,8 @@ export function SplitRecipientsEditor({
   const triggerType = trigger?.type ?? null;
   const isStreamer = triggerType === "on_schedule";
   const mode = node.config.recipients[0]?.mode ?? allocationMode ?? "percentage";
+  const authorityIssue =
+    "Split allocations and appended rows must share one authority. Change the other allocation declarations to constant before switching authority.";
   const hasExecution = Boolean(
     policy &&
     (policy.additionalRecipients === "execution" ||
@@ -72,14 +75,10 @@ export function SplitRecipientsEditor({
   );
   const hasVariableAllocation = Boolean(
     policy &&
-    (policy.additionalRecipients === "execution" ||
+    (policy.additionalRecipients !== "constant" ||
       policy.rows.some((row) => row.allocation !== "constant")),
   );
-  const changeRowMode = (
-    index: number,
-    field: "recipient" | "allocation",
-    value: "constant" | "execution",
-  ) => {
+  const changeRowMode = (index: number, field: "recipient" | "allocation", value: FieldMode) => {
     if (!policy || !onPolicyChange) return;
     onPolicyChange({
       ...policy,
@@ -186,7 +185,17 @@ export function SplitRecipientsEditor({
     });
     onChange({
       ...node,
-      config: { ...node.config, recipients: next },
+      config: {
+        ...node.config,
+        recipients: next,
+        additionalRecipients: node.config.additionalRecipients?.map((row) => ({
+          ...row,
+          allocation:
+            newMode === "percentage"
+              ? { kind: "percentage", bps: 0 }
+              : { kind: "fixed", amountStroops: "0" },
+        })),
+      },
     } as FlowNode);
   };
   const updateRecipient = (i: number, r: SplitRecipient) => {
@@ -227,7 +236,15 @@ export function SplitRecipientsEditor({
           value={policy.additionalRecipients}
           constantLabel="None — configured rows only"
           executionLabel="Payer supplies list and allocations each payment"
-          executionIssue={executionIssue}
+          executionIssue={
+            executionIssue ??
+            (policy.rows.some((r) => r.allocation === "mutable") ? authorityIssue : undefined)
+          }
+          mutableIssue={
+            executionIssue ??
+            (policy.rows.some((r) => r.allocation === "execution") ? authorityIssue : undefined)
+          }
+          allowMutable={!executionIssue}
           onChange={(additionalRecipients) => onPolicyChange({ ...policy, additionalRecipients })}
         />
       )}
@@ -238,6 +255,44 @@ export function SplitRecipientsEditor({
           order and cannot be replaced. The combined list has at most 20 recipients.
         </p>
       )}
+      {policy?.additionalRecipients === "mutable" && (
+        <AdditionalRecipientsEditor
+          mode={mode}
+          value={node.config.additionalRecipients ?? []}
+          commitOnApply
+          reservedIds={node.config.recipients.flatMap((r) => (r.rowId ? [r.rowId] : []))}
+          reservedRecipients={node.config.recipients.flatMap((r, i) =>
+            policy.rows[i]?.recipient !== "execution" ? [r.address] : [],
+          )}
+          asset={node.config.asset}
+          max={Math.max(0, 20 - node.config.recipients.length)}
+          onChange={(additionalRecipients) =>
+            onChange({ ...node, config: { ...node.config, additionalRecipients } })
+          }
+        />
+      )}
+      {policy?.additionalRecipients === "mutable" &&
+        mode === "percentage" &&
+        (() => {
+          const total =
+            node.config.recipients.reduce(
+              (sum, r) => sum + (r.mode === "percentage" ? r.bps : 0),
+              0,
+            ) +
+            (node.config.additionalRecipients ?? []).reduce(
+              (sum, r) => sum + (r.allocation.kind === "percentage" ? r.allocation.bps : 0),
+              0,
+            );
+          return (
+            <p
+              role={total === TOTAL_BPS ? "status" : "alert"}
+              className={cn("text-xs", total === TOTAL_BPS ? "text-zinc-400" : "text-error")}
+            >
+              Configured and applied stored shares total {bpsToPct(total)}%. They must total exactly
+              100% before deployment.
+            </p>
+          );
+        })()}
 
       {isStreamer && (
         <div className="text-xs text-zinc-400">
@@ -331,6 +386,7 @@ export function SplitRecipientsEditor({
                     label={`Recipient source for ${summaryLabel}`}
                     value={rowPolicy.recipient}
                     executionIssue={executionIssue}
+                    allowMutable={!executionIssue}
                     onChange={(value) => changeRowMode(i, "recipient", value)}
                   />
                 )}
@@ -384,7 +440,21 @@ export function SplitRecipientsEditor({
                     <FieldModeSelect
                       label={`Allocation source for ${summaryLabel}`}
                       value={rowPolicy.allocation}
-                      executionIssue={executionIssue}
+                      executionIssue={
+                        executionIssue ??
+                        (policy.additionalRecipients === "mutable" ||
+                        policy.rows.some((r, j) => j !== i && r.allocation === "mutable")
+                          ? authorityIssue
+                          : undefined)
+                      }
+                      mutableIssue={
+                        executionIssue ??
+                        (policy.additionalRecipients === "execution" ||
+                        policy.rows.some((r, j) => j !== i && r.allocation === "execution")
+                          ? authorityIssue
+                          : undefined)
+                      }
+                      allowMutable={!executionIssue}
                       onChange={(value) => changeRowMode(i, "allocation", value)}
                     />
                   )}
@@ -452,7 +522,7 @@ export function SplitRecipientsEditor({
                   </div>
                 </>
 
-                {!sandbox && !recipientInput && (
+                {!sandbox && !recipientInput && rowPolicy?.recipient !== "mutable" && (
                   <RecipientEmailField
                     shared
                     value={r.email}
@@ -467,9 +537,13 @@ export function SplitRecipientsEditor({
 
       {hasVariableAllocation && (
         <p className="text-xs text-zinc-400">
-          {mode === "percentage"
-            ? "Constant shares plus payer-supplied shares must total exactly 100% for every payment. Rounding remainder goes to the last row."
-            : "The final constant and payer-supplied amounts must exactly equal the funds entering this Split. No excess or partial payment is retained."}
+          {hasExecution
+            ? mode === "percentage"
+              ? "Constant shares plus payer-supplied shares must total exactly 100% for every payment. Rounding remainder goes to the last row."
+              : "The final constant and payer-supplied amounts must exactly equal the funds entering this Split. No excess or partial payment is retained."
+            : mode === "percentage"
+              ? "Configured and stored appended shares must total exactly 100%. Only declared stored fields may later be updated by the admin."
+              : "Stored fixed amounts accumulate until their full total can settle. Accepted unsettled funds block updates throughout the path."}
         </p>
       )}
       {mode === "percentage" &&
@@ -520,7 +594,9 @@ export function SplitRecipientsEditor({
 
       <button
         type="button"
-        disabled={node.config.recipients.length >= 20}
+        disabled={
+          node.config.recipients.length + (node.config.additionalRecipients?.length ?? 0) >= 20
+        }
         className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900"
         onClick={() => {
           // Generate identity at the user action, outside React's state updater.

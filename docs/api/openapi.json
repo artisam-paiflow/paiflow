@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Paiflow API v1",
-    "version": "1.6.0",
+    "version": "1.7.0",
     "description": "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.\n\nEvery `/api/v1/deployments/{id}/…` call requires a Bearer credential: a deployment token (`pfk_…`) bound to one deployment, or a developer token (`pfd_…`) with explicit grants to selected existing deployments still owned by the token owner. GET /api/v1/deployments discovers only that credential's eligible deployments. Developer READ_ONLY permits reads, quotes and funding discovery; READ_OPERATE additionally permits preparation, submission, reconciliation and relayer release. See docs/api/developer-token-permissions.md for the complete matrix. Existing deployment grants do not authorize template instance creation. The separate /api/v1/flow-templates/{id}/... lifecycle requires explicit owned-template pfd_ grants; READ_OPERATE permits developer-signed instance preparation/submission/reconciliation and READ_ONLY permits list/status/events. No bearer grants template publication, editing, retirement or legacy dev access.\n\n**Execute deposits are signed by the caller.** `execute` returns an unsigned envelope; you sign it with the `from` key, which stays on your side, and post it to `execute/submit`. A leaked token can prepare and relay a deposit you signed. Webhook and early-release operations use the relayer.\n\nSuccessful responses are `{ \"data\": … }`. Errors are `{ \"error\": { code, message, fields?, details? } }`:\n\n| Code | HTTP status |\n| --- | --- |\n| `UNAUTHENTICATED` | 401 |\n| `INSUFFICIENT_FUNDS` | 402 |\n| `FORBIDDEN` | 403 |\n| `NOT_FOUND` | 404 |\n| `CONFLICT` | 409 |\n| `VALIDATION` | 422 |\n| `RATE_LIMITED` | 429 |\n| `INTERNAL` | 500 |\n| `UPSTREAM_RPC` | 502 |\n\nRate limits are per token and per endpoint (each operation lists its own). Allowances are shared across the selected deployments. A token that has been issued or has worked in the last 30 days is subject to nothing else. Any other token is limited per client address before it is looked up: 6000 lookups per 60 seconds, and, after 300 failed authentications in 600 seconds from the address, 60 per 60 seconds. A token refused in the last minute is refused again without a lookup. Refusal of a live developer credential for a missing grant is never negatively cached, so selection edits take effect immediately. So one caller's bad token does not lock out others on the same network.\n\n`POST /api/v1/demo-token` explicitly requests a short-lived token for an operator-configured shared demo deployment. Availability depends on environment configuration; it may be disabled. A demo token does not guarantee every operation is eligible.\n\nThe public instance runs on Stellar **testnet**. Guide: `docs/api/README.md`."
   },
   "servers": [
@@ -4093,7 +4093,7 @@
         "tags": ["Configuration"],
         "operationId": "stateConfiguration",
         "summary": "state guarded admin-owned stored configuration",
-        "description": "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Rate limit: 60 requests per 60 seconds per token.",
+        "description": "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Known pre-intent failures can add error.fields.preparationRefusal as one JSON string matching MutationPreparationRefusal. This immutable request/key/admin/network/deployment-bound non-admission fence blocks every late creator for that key. Original error codes and safe field messages are preserved. Re-fetch and validate exact proof before fresh review/new key; generic errors, timeout, missing rows and admitted uncertainty provide no such authority. Rate limit: 60 requests per 60 seconds per token.",
         "security": [
           {
             "bearerAuth": []
@@ -4737,6 +4737,16 @@
               }
             }
           },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "403": {
             "description": "`FORBIDDEN`: Not allowed for this caller.",
             "content": {
@@ -4824,7 +4834,7 @@
         "tags": ["Configuration"],
         "operationId": "historyConfiguration",
         "summary": "history guarded admin-owned stored configuration",
-        "description": "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Rate limit: 60 requests per 60 seconds per token.",
+        "description": "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Known pre-intent failures can add error.fields.preparationRefusal as one JSON string matching MutationPreparationRefusal. This immutable request/key/admin/network/deployment-bound non-admission fence blocks every late creator for that key. Original error codes and safe field messages are preserved. Re-fetch and validate exact proof before fresh review/new key; generic errors, timeout, missing rows and admitted uncertainty provide no such authority. Rate limit: 60 requests per 60 seconds per token.",
         "security": [
           {
             "bearerAuth": []
@@ -5335,6 +5345,16 @@
               }
             }
           },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "403": {
             "description": "`FORBIDDEN`: Not allowed for this caller.",
             "content": {
@@ -5422,7 +5442,7 @@
         "tags": ["Configuration"],
         "operationId": "prepareConfiguration",
         "summary": "prepare guarded admin-owned stored configuration",
-        "description": "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Rate limit: 10 requests per 60 seconds per token.",
+        "description": "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Known pre-intent failures can add error.fields.preparationRefusal as one JSON string matching MutationPreparationRefusal. This immutable request/key/admin/network/deployment-bound non-admission fence blocks every late creator for that key. Original error codes and safe field messages are preserved. Re-fetch and validate exact proof before fresh review/new key; generic errors, timeout, missing rows and admitted uncertainty provide no such authority. Rate limit: 10 requests per 60 seconds per token.",
         "security": [
           {
             "bearerAuth": []
@@ -5710,6 +5730,16 @@
               }
             }
           },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "403": {
             "description": "`FORBIDDEN`: Not allowed for this caller.",
             "content": {
@@ -5797,7 +5827,7 @@
         "tags": ["Configuration"],
         "operationId": "submitConfiguration",
         "summary": "submit guarded admin-owned stored configuration",
-        "description": "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Rate limit: 30 requests per 60 seconds per token.",
+        "description": "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Known pre-intent failures can add error.fields.preparationRefusal as one JSON string matching MutationPreparationRefusal. This immutable request/key/admin/network/deployment-bound non-admission fence blocks every late creator for that key. Original error codes and safe field messages are preserved. Re-fetch and validate exact proof before fresh review/new key; generic errors, timeout, missing rows and admitted uncertainty provide no such authority. Rate limit: 30 requests per 60 seconds per token.",
         "security": [
           {
             "bearerAuth": []
@@ -5870,6 +5900,16 @@
                     "code": "UNAUTHENTICATED",
                     "message": "A valid API token for this deployment is required"
                   }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -5961,7 +6001,7 @@
         "tags": ["Configuration"],
         "operationId": "reconcileConfiguration",
         "summary": "reconcile guarded admin-owned stored configuration",
-        "description": "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Rate limit: 20 requests per 60 seconds per token.",
+        "description": "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Known pre-intent failures can add error.fields.preparationRefusal as one JSON string matching MutationPreparationRefusal. This immutable request/key/admin/network/deployment-bound non-admission fence blocks every late creator for that key. Original error codes and safe field messages are preserved. Re-fetch and validate exact proof before fresh review/new key; generic errors, timeout, missing rows and admitted uncertainty provide no such authority. Rate limit: 20 requests per 60 seconds per token.",
         "security": [
           {
             "bearerAuth": []
@@ -6079,6 +6119,16 @@
                     "code": "UNAUTHENTICATED",
                     "message": "A valid API token for this deployment is required"
                   }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -10231,6 +10281,67 @@
         ],
         "additionalProperties": false
       },
+      "MutationPreparationRefusal": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number",
+            "const": 1
+          },
+          "outcome": {
+            "type": "string",
+            "const": "NOT_ADMITTED"
+          },
+          "refusalId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "deploymentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "network": {
+            "type": "string",
+            "enum": ["testnet", "mainnet"]
+          },
+          "admin": {
+            "type": "string"
+          },
+          "idempotencyKeyHash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "requestDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "refusedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "reasonCode": {
+            "type": "string",
+            "enum": ["VALIDATION", "CONFLICT", "UPSTREAM_RPC", "INSUFFICIENT_FUNDS"]
+          }
+        },
+        "required": [
+          "version",
+          "outcome",
+          "refusalId",
+          "deploymentId",
+          "network",
+          "admin",
+          "idempotencyKeyHash",
+          "requestDigest",
+          "refusedAt",
+          "reasonCode"
+        ],
+        "additionalProperties": false
+      },
       "InstancePrepare": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -12596,7 +12707,7 @@
                     "type": "string"
                   }
                 },
-                "description": "Per-field validation messages, keyed by field path."
+                "description": "Per-field validation messages, keyed by field path. Configuration prepare may add preparationRefusal: a single JSON string matching MutationPreparationRefusal, proving durable non-admission only for its exact request/key/deployment/network/admin. Re-fetch and validate before replacing a refused preparation; generic errors and elapsed time are not proof."
               },
               "details": {
                 "type": "string",

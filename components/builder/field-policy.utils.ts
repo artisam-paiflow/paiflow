@@ -108,6 +108,9 @@ export function updateBuilderPolicy(draft: BuilderDraft, policy: NodeFieldPolicy
           ...candidate,
           config: {
             ...candidate.config,
+            ...(policy.additionalRecipients !== "mutable"
+              ? { additionalRecipients: undefined }
+              : {}),
             recipients: candidate.config.recipients.map((row, index) => ({
               ...row,
               rowId: policy.rows[index]?.rowId ?? row.rowId,
@@ -130,4 +133,4 @@ export function updateBuilderPolicy(draft: BuilderDraft, policy: NodeFieldPolicy
 }
 
 export const EXECUTION_ARTIFACTS_UNAVAILABLE =
-  "Execution input drafts can be saved, but this environment is not ready to deploy this flow with execution inputs.";
+  "Policy-aware drafts can be saved, but this environment is not ready to deploy this flow with its declared execution or stored-update modes.";

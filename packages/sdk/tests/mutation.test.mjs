@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Paiflow, PaiflowMalformedResponseError } from "../dist/index.js";
+import { Paiflow, PaiflowMalformedResponseError, PaiflowApiError } from "../dist/index.js";
 const id = "11111111-1111-4111-8111-111111111111",
   intentId = "22222222-2222-4222-8222-222222222222";
 const wallet = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
@@ -172,4 +172,45 @@ test("history exposes gaps and refuses foreign response/cursor data", async () =
     }),
   );
   await assert.rejects(() => client.history(), PaiflowMalformedResponseError);
+});
+test("refused preparation preserves existing status, useful fields and additive non-admission evidence without retry", async () => {
+  const proof = {
+    version: 1,
+    outcome: "NOT_ADMITTED",
+    refusalId: intentId,
+    deploymentId: id,
+    network: "testnet",
+    admin: wallet,
+    idempotencyKeyHash: "a".repeat(64),
+    requestDigest: "b".repeat(64),
+    refusedAt: "2026-11-01T13:00:00.000Z",
+    reasonCode: "VALIDATION",
+  };
+  const fields = {
+    arguments: ["Reviewed allocation was refused"],
+    preparationRefusal: [JSON.stringify(proof)],
+  };
+  let calls = 0;
+  const client = setup(async () => {
+    calls++;
+    return Response.json(
+      { error: { code: "VALIDATION", message: "Review the proposed allocation", fields } },
+      { status: 422 },
+    );
+  });
+  await assert.rejects(
+    () =>
+      client.prepare(
+        { admin: wallet, arguments: args },
+        { idempotencyKey: "original-refused-key" },
+      ),
+    (error) => {
+      assert.ok(error instanceof PaiflowApiError);
+      assert.equal(error.status, 422);
+      assert.equal(error.code, "VALIDATION");
+      assert.deepEqual(error.fields, fields);
+      return true;
+    },
+  );
+  assert.equal(calls, 1);
 });

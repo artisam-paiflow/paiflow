@@ -19,6 +19,21 @@ export const MutationPrepareSchema = z
   })
   .strict();
 export type MutationPrepare = z.infer<typeof MutationPrepareSchema>;
+export const MutationPreparationRefusalSchema = z
+  .object({
+    version: z.literal(1),
+    outcome: z.literal("NOT_ADMITTED"),
+    refusalId: z.uuid(),
+    deploymentId: z.uuid(),
+    network: z.enum(["testnet", "mainnet"]),
+    admin: WalletAddressSchema,
+    idempotencyKeyHash: z.string().regex(/^[a-f0-9]{64}$/),
+    requestDigest: z.string().regex(/^[a-f0-9]{64}$/),
+    refusedAt: z.iso.datetime(),
+    reasonCode: z.enum(["VALIDATION", "CONFLICT", "UPSTREAM_RPC", "INSUFFICIENT_FUNDS"]),
+  })
+  .strict();
+export type MutationPreparationRefusal = z.infer<typeof MutationPreparationRefusalSchema>;
 export const MutationIntentSchema = z
   .object({
     version: z.literal(1),

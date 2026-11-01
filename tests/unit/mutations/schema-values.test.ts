@@ -8,6 +8,7 @@ import {
   MutationIntentSchema,
   MutationSubmitSchema,
   ConfigurationHistoryQuerySchema,
+  MutationPreparationRefusalSchema,
 } from "@/lib/mutations/schema";
 import { applyMutationValues } from "@/lib/mutations/values";
 import { projectConfirmedGraph } from "@/lib/mutations/graph";
@@ -27,6 +28,32 @@ const args = () =>
     ],
   });
 describe("strict stored mutation inputs", () => {
+  it("requires strictly typed non-admission proof identity and rejects invented authority", () => {
+    const proof = {
+      version: 1,
+      outcome: "NOT_ADMITTED",
+      refusalId: "11111111-1111-4111-8111-111111111111",
+      deploymentId: "22222222-2222-4222-8222-222222222222",
+      network: "testnet",
+      admin: admin.publicKey(),
+      idempotencyKeyHash: "a".repeat(64),
+      requestDigest: "b".repeat(64),
+      refusedAt: "2026-11-01T13:00:00.000Z",
+      reasonCode: "VALIDATION",
+    };
+    expect(MutationPreparationRefusalSchema.safeParse(proof).success).toBe(true);
+    for (const value of [
+      { ...proof, outcome: "FAILED" },
+      { ...proof, reasonCode: "FORBIDDEN" },
+      { ...proof, network: "local" },
+      { ...proof, refusalId: "invalid" },
+      { ...proof, admin: recipient.slice(0, -1) },
+      { ...proof, requestDigest: "b".repeat(63) },
+      { ...proof, refusedAt: "yesterday" },
+      { ...proof, unlocksUnknown: true },
+    ])
+      expect(MutationPreparationRefusalSchema.safeParse(value).success).toBe(false);
+  });
   it("accepts eligible stored fields and keeps initial snapshots unchanged", () => {
     const next = applyMutationValues([configuration], args());
     expect(next[0]!.revision).toBe("1");

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { beforeAll, beforeEach, afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import {
   Account,
@@ -8,12 +8,25 @@ import {
   TransactionBuilder,
   type Transaction,
 } from "@stellar/stellar-sdk";
-import type { Deployment, Prisma } from "@prisma/client";
+import type { Deployment, Prisma, PrismaClient } from "@prisma/client";
+import { scratchDatabase } from "@/tests/helpers/scratch-database";
 const mocks = vi.hoisted(() => ({
+  client: null as unknown as PrismaClient,
   send: vi.fn(),
   get: vi.fn(),
   current: vi.fn(),
   prepare: vi.fn(),
+}));
+vi.mock("@/lib/db", () => ({
+  db: new Proxy(
+    {},
+    {
+      get(_target, key) {
+        const value = Reflect.get(mocks.client, key);
+        return typeof value === "function" ? value.bind(mocks.client) : value;
+      },
+    },
+  ),
 }));
 vi.mock("@/lib/stellar/client", () => ({
   sorobanRpc: () => ({ sendTransaction: mocks.send, getTransaction: mocks.get }),
@@ -31,9 +44,15 @@ import {
 } from "@/lib/mutations/service";
 import { configurationHistory, recordConfigurationObservation } from "@/lib/mutations/history";
 import { projectConfigurationEvent } from "@/lib/stellar/configuration-events";
-import { executionIdempotencyKey } from "@/lib/api/v1/execution-intent";
+import {
+  executionIdempotencyKey,
+  executionRequestDigest,
+  createExecutionIntent,
+} from "@/lib/api/v1/execution-intent";
+import { ExecutionIntentSchema } from "@/lib/flows/field-policies";
+import { AppError } from "@/lib/errors";
 import { reconcileControlIntent, recordControlFinality } from "@/lib/api/v1/control-intent";
-import { mutationV1Args } from "@/lib/stellar/execution-v1";
+import { mutationV1Args, executionV1Args } from "@/lib/stellar/execution-v1";
 import {
   admin,
   configuration,
@@ -48,9 +67,14 @@ import {
   snapshot,
   transaction,
 } from "./fixtures";
-let ownerId: string, flowId: string, deployment: Deployment;
+let ownerId: string,
+  flowId: string,
+  deployment: Deployment,
+  sequence = 10;
 const admission = async (_tx: Prisma.TransactionClient) => {};
+const scratch = scratchDatabase();
 beforeAll(async () => {
+  mocks.client = await scratch.start();
   ownerId = (
     await db.user.create({
       data: { username: `mutations-${randomUUID()}`, passwordHash: "unused" },
@@ -77,26 +101,26 @@ beforeEach(async () => {
     },
   });
   mocks.current.mockImplementation(async () => current(deployment));
-  mocks.prepare.mockImplementation(async (mutation) => transaction(mutation).toXDR());
+  mocks.prepare.mockImplementation(async (mutation) =>
+    new TransactionBuilder(new Account(mutation.admin, String(sequence++)), {
+      fee: "100",
+      networkPassphrase: Networks.TESTNET,
+    })
+      .addOperation(
+        new Contract(mutation.rootContract).call(
+          "mutate_v1",
+          ...mutationV1Args(mutation.nodes, mutation.arguments),
+        ),
+      )
+      .setTimeout(180)
+      .build()
+      .toXDR(),
+  );
   mocks.get.mockResolvedValue({ status: "NOT_FOUND" });
   mocks.send.mockResolvedValue({ status: "PENDING" });
 });
-afterEach(async () => {
-  if (!deployment) return;
-  await db.serviceTransaction.deleteMany({ where: { work: { deploymentId: deployment.id } } });
-  await db.deploymentWork.deleteMany({ where: { deploymentId: deployment.id } });
-  await db.walletControlIntent.deleteMany({ where: { deploymentId: deployment.id } });
-  await db.signedTransaction.deleteMany({ where: { deploymentId: deployment.id } });
-  await db.configurationHistory.deleteMany({ where: { deploymentId: deployment.id } });
-  await db.contractEvent.deleteMany({ where: { deploymentId: deployment.id } });
-  await db.auditLog.deleteMany({
-    where: { metadata: { path: ["deploymentId"], equals: deployment.id } },
-  });
-  await db.deployment.delete({ where: { id: deployment.id } });
-});
 afterAll(async () => {
-  await db.flow.delete({ where: { id: flowId } });
-  await db.user.delete({ where: { id: ownerId } });
+  await scratch.stop();
 });
 const prepare = (key = "mutation:1") =>
   prepareMutation(
@@ -204,9 +228,9 @@ describe("admin mutation durable lifecycle", () => {
       ...current(deployment),
       admin: Keypair.random().publicKey(),
     });
-    await expect(prepare()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(prepare("wrong-admin")).rejects.toMatchObject({ code: "FORBIDDEN" });
     mocks.current.mockResolvedValue(current(deployment));
-    const data = await prepare();
+    const data = await prepare("fresh-reviewed-update");
     const stale = current(deployment);
     stale.nodes[1]!.expectedRevision = "1";
     stale.configurations[0]!.revision = "1";
@@ -273,6 +297,199 @@ describe("admin mutation durable lifecycle", () => {
     mocks.prepare.mockRejectedValue(new Error("simulation failed"));
     await expect(prepare()).rejects.toBeDefined();
     expect(await db.walletControlIntent.count({ where: { deploymentId: deployment.id } })).toBe(0);
+  });
+  it("fences a refused key before a delayed same-key simulation can admit", async () => {
+    let release: () => void = () => {},
+      started: () => void = () => {};
+    const began = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    mocks.prepare.mockImplementationOnce(
+      (mutation) =>
+        new Promise<string>((resolve) => {
+          release = () => resolve(transaction(mutation).toXDR());
+          started();
+        }),
+    );
+    const late = prepare("race-refusal").then(
+      (value) => ({ value, error: null }),
+      (error) => ({ value: null, error }),
+    );
+    await began;
+    mocks.prepare.mockRejectedValueOnce(new AppError("VALIDATION", "Original simulation refused"));
+    const refusal = await prepare("race-refusal").catch((error) => error as AppError);
+    expect(refusal).toBeInstanceOf(AppError);
+    const proof = JSON.parse((refusal as AppError).fields!.preparationRefusal![0]!);
+    release();
+    const delayed = await late;
+    expect(delayed.value).toBeNull();
+    expect(JSON.parse(delayed.error.fields.preparationRefusal[0]).refusalId).toBe(proof.refusalId);
+    expect(await db.walletControlIntent.count({ where: { deploymentId: deployment.id } })).toBe(0);
+    expect(
+      await db.mutationPreparationRefusal.count({ where: { deploymentId: deployment.id } }),
+    ).toBe(1);
+    const before = mocks.current.mock.calls.length;
+    await expect(prepare("race-refusal")).rejects.toMatchObject({
+      fields: { preparationRefusal: [JSON.stringify(proof)] },
+    });
+    expect(mocks.current.mock.calls.length).toBe(before);
+    await expect(
+      prepareMutation(
+        deployment,
+        {
+          admin: admin.publicKey(),
+          arguments: {
+            version: 1,
+            changes: [{ kind: "pay", nodeId: "pay", expectedRevision: "0", recipient }],
+          },
+        },
+        executionIdempotencyKey("race-refusal")!,
+        admission,
+        "127.0.0.1",
+      ),
+    ).rejects.toMatchObject({ code: "CONFLICT", fields: undefined });
+  });
+  it.each(["VALIDATION", "UPSTREAM_RPC", "INSUFFICIENT_FUNDS"] as const)(
+    "preserves first-failure %s status and useful fields with additive refusal proof",
+    async (code) => {
+      const original = new AppError(
+        code,
+        "Useful safe preparation reason",
+        { arguments: ["Review the proposed allocation"] },
+        "public contract diagnostic",
+      );
+      mocks.prepare.mockRejectedValueOnce(original);
+      const error = await prepare(`reason-${code}`).catch((e) => e as AppError);
+      expect(error).toMatchObject({
+        code,
+        status: original.status,
+        message: original.message,
+        details: original.details,
+        fields: { arguments: ["Review the proposed allocation"] },
+      });
+      const proof = JSON.parse((error as AppError).fields!.preparationRefusal![0]!);
+      expect(proof.reasonCode).toBe(code);
+      const retry = await prepare(`reason-${code}`).catch((e) => e as AppError);
+      expect((retry as AppError).code).toBe(code);
+      expect((retry as AppError).details).toBeUndefined();
+      expect(JSON.parse((retry as AppError).fields!.preparationRefusal![0]!).refusalId).toBe(
+        proof.refusalId,
+      );
+    },
+  );
+  it("returns an admitted original intent when a concurrent preflight later fails", async () => {
+    let reject: (error: Error) => void = () => {},
+      started: () => void = () => {};
+    const began = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    mocks.prepare.mockImplementationOnce(
+      () =>
+        new Promise<string>((_, fail) => {
+          reject = fail;
+          started();
+        }),
+    );
+    const slow = prepare("admission-wins");
+    await began;
+    const admitted = await prepare("admission-wins");
+    reject(new AppError("VALIDATION", "A concurrent simulation refused"));
+    expect((await slow).intent).toBe(admitted.intent);
+    expect(
+      await db.mutationPreparationRefusal.count({ where: { deploymentId: deployment.id } }),
+    ).toBe(0);
+    expect(await db.walletControlIntent.count({ where: { deploymentId: deployment.id } })).toBe(1);
+  });
+  it("retains refusal evidence immutably and fences the shared execution keyspace", async () => {
+    mocks.prepare.mockRejectedValueOnce(new AppError("VALIDATION", "Refused before admission"));
+    await expect(prepare("shared-refused-key")).rejects.toMatchObject({ code: "VALIDATION" });
+    const refusal = await db.mutationPreparationRefusal.findFirstOrThrow({
+      where: { deploymentId: deployment.id },
+    });
+    await expect(
+      db.mutationPreparationRefusal.update({
+        where: { id: refusal.id },
+        data: { requestDigest: "a".repeat(64) },
+      }),
+    ).rejects.toBeDefined();
+    await expect(
+      db.mutationPreparationRefusal.delete({ where: { id: refusal.id } }),
+    ).rejects.toBeDefined();
+    const execution = ExecutionIntentSchema.parse({
+      version: 1,
+      deploymentId: deployment.id,
+      networkPassphraseHash: createHash("sha256").update(Networks.TESTNET).digest("hex"),
+      rootContract: root,
+      assetContract: asset,
+      payer: admin.publicKey(),
+      amountStroops: "100",
+      nonce: "ab".repeat(32),
+      expiresAtLedger: 110,
+      nodes: current(deployment).nodes.map(({ nodeId, contractAddress, expectedRevision }) => ({
+        nodeId,
+        contractAddress,
+        expectedRevision,
+      })),
+      arguments: { version: 1, inputs: [] },
+    });
+    const tx = new TransactionBuilder(new Account(admin.publicKey(), "10"), {
+      fee: "100",
+      networkPassphrase: Networks.TESTNET,
+    })
+      .addOperation(new Contract(root).call("execute_v1", ...executionV1Args(execution)))
+      .setTimeout(180)
+      .build();
+    await expect(
+      createExecutionIntent({
+        deployment,
+        execution,
+        artifacts: intent(deployment).artifacts,
+        unsignedXdr: tx.toXDR(),
+        preparationLedger: 100,
+        keyHash: executionIdempotencyKey("shared-refused-key"),
+        requestDigest: executionRequestDigest(execution),
+        assertAdmission: admission,
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await db.walletControlIntent.count({ where: { deploymentId: deployment.id } })).toBe(0);
+  });
+  it("issues no refusal proof for unknown exceptions, removed admission or retired service", async () => {
+    const unexpected = new Error("Unexpected current-reader programming or database error");
+    mocks.current.mockRejectedValueOnce(unexpected);
+    await expect(prepare("unexpected-reader-error")).rejects.toBe(unexpected);
+    mocks.prepare.mockRejectedValueOnce(new TypeError("unexpected programming failure"));
+    const unknown = await prepare("unknown-error").catch((error) => error as AppError);
+    expect((unknown as AppError).fields?.preparationRefusal).toBeUndefined();
+    expect(
+      await db.mutationPreparationRefusal.count({ where: { deploymentId: deployment.id } }),
+    ).toBe(0);
+    mocks.current.mockResolvedValue({
+      ...current(deployment),
+      obligations: [{ nodeId: "pay", obligationsStroops: "1" }],
+    });
+    await expect(
+      prepareMutation(
+        deployment,
+        { admin: admin.publicKey(), arguments: intent(deployment).arguments },
+        executionIdempotencyKey("removed-access")!,
+        async () => {
+          throw new AppError("FORBIDDEN", "Access removed");
+        },
+        "127.0.0.1",
+      ),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(
+      await db.mutationPreparationRefusal.count({ where: { deploymentId: deployment.id } }),
+    ).toBe(0);
+    await db.deployment.update({
+      where: { id: deployment.id },
+      data: { serviceState: "RETIRING", retirementRequestedAt: new Date() },
+    });
+    const retired = await prepare("retired-refusal").catch((error) => error as AppError);
+    expect((retired as AppError).fields?.preparationRefusal).toBeUndefined();
+    expect(
+      await db.mutationPreparationRefusal.count({ where: { deploymentId: deployment.id } }),
+    ).toBe(0);
   });
 });
 describe("confirmed revision observations and direct-chain receipts", () => {

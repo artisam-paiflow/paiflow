@@ -19,6 +19,7 @@ import {
 } from "./control-intent";
 import type { ExecutePrepared } from "./schema";
 import { ExecutionArtifactsSchema, type ExecutionArtifacts } from "./execution-schema";
+import { assertPreparationKeyNotRefused } from "@/lib/mutations/refusals";
 
 /** Hash structured validated values with deterministic object-key ordering.
  * Array order is meaningful (Split payout/rounding), so never sort arrays. */
@@ -184,6 +185,13 @@ export async function createExecutionIntent(input: {
           );
         return previous;
       }
+      await assertPreparationKeyNotRefused(
+        client,
+        binding.deploymentId,
+        binding.network,
+        input.keyHash,
+        input.requestDigest,
+      );
     }
     const previous = await client.walletControlIntent.findFirst({
       where: {

@@ -2166,7 +2166,7 @@
           "host": ["{{baseUrl}}"],
           "path": ["api", "v1", "deployments", "{{deploymentId}}", "configuration", "prepare"]
         },
-        "description": "Guarded admin-owned stored configuration. Retain original intent/key after uncertainty; no automatic replacement. See docs/api/configuration.md.",
+        "description": "Guarded admin-owned stored configuration. Retain original intent/key after uncertainty; no automatic replacement. See docs/api/configuration.md. Known pre-intent failures may include error.fields.preparationRefusal: one JSON proof bound to the original request/key/deployment/network/admin. Re-fetch and validate the durable non-admission fence before a new key/review; generic errors and elapsed time are not proof. Original HTTP codes and useful field errors remain unchanged.",
         "body": {
           "mode": "raw",
           "raw": "{\n  \"admin\": \"{{walletAddress}}\",\n  \"arguments\": {\n    \"version\": 1,\n    \"changes\": [\n      {\n        \"kind\": \"pay\",\n        \"nodeId\": \"pay\",\n        \"expectedRevision\": \"0\",\n        \"recipient\": \"{{walletAddress}}\"\n      }\n    ]\n  }\n}",

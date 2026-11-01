@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { StrKey } from "@stellar/stellar-sdk";
 import { FlowGraphSchema, FlowPatchSchema, type FlowGraph } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
-import { EXECUTION_V1_WASM_HASHES } from "@/lib/stellar/execution-artifacts";
+import {
+  EXECUTION_V1_WASM_HASHES,
+  MUTATION_V1_WASM_HASHES,
+} from "@/lib/stellar/execution-artifacts";
 import {
   builderNodePolicy,
   executionArtifactsFromHashes,
@@ -161,6 +165,83 @@ describe("builder field declarations", () => {
 });
 
 describe("environment artifact readiness", () => {
+  it("validates initial mutable appended allocation totals, uniqueness and the combined20row limit", () => {
+    const g = splitGraph(),
+      node = g.nodes[1];
+    if (node?.type !== "split") throw new Error();
+    node.config.recipients = [
+      { rowId: "platform", address: ADDRESS, mode: "percentage", bps: 500 },
+    ];
+    node.config.additionalRecipients = Array.from({ length: 19 }, (_, i) => ({
+      rowId: `extra_${i}`,
+      recipient: StrKey.encodeEd25519PublicKey(Buffer.alloc(32, i + 10)),
+      allocation: { kind: "percentage" as const, bps: 500 },
+    }));
+    g.fieldPolicies = {
+      version: 1,
+      nodes: [
+        {
+          kind: "split",
+          nodeId: node.id,
+          allocationMode: "percentage",
+          rows: [{ rowId: "platform", recipient: "constant", allocation: "constant" }],
+          additionalRecipients: "mutable",
+        },
+      ],
+    };
+    expect(validateFlow(g).ok).toBe(true);
+    node.config.additionalRecipients[0]!.allocation = { kind: "percentage", bps: 400 };
+    expect(validateFlow(g).ok).toBe(false);
+    node.config.additionalRecipients[0]!.allocation = { kind: "percentage", bps: 500 };
+    node.config.additionalRecipients[0]!.recipient = ADDRESS;
+    expect(validateFlow(g).ok).toBe(false);
+    node.config.additionalRecipients[0]!.recipient = StrKey.encodeEd25519PublicKey(
+      Buffer.alloc(32, 10),
+    );
+    node.config.additionalRecipients.push({
+      rowId: "extra_20",
+      recipient: StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 40)),
+      allocation: { kind: "percentage", bps: 500 },
+    });
+    expect(validateFlow(g).ok).toBe(false);
+  });
+  it("requires the guarded generation throughout mutable paths and keeps full payout constant", () => {
+    const graph = splitGraph(),
+      policy = builderNodePolicy(graph.nodes[1]!);
+    if (policy?.kind !== "split") throw new Error();
+    const mutable = {
+      ...graph,
+      ...updateBuilderPolicy(graph, { ...policy, additionalRecipients: "mutable" }),
+    };
+    const old = executionArtifactsFromHashes(new Map(Object.entries(EXECUTION_V1_WASM_HASHES)));
+    const guarded = executionArtifactsFromHashes(new Map(Object.entries(MUTATION_V1_WASM_HASHES)));
+    expect(executionDeploymentAvailable(mutable, old)).toBe(false);
+    expect(executionDeploymentAvailable(mutable, guarded)).toBe(true);
+    const mixed = new Map<string, string>(Object.entries(MUTATION_V1_WASM_HASHES));
+    mixed.set("DEPOSIT_TRIGGER", EXECUTION_V1_WASM_HASHES.DEPOSIT_TRIGGER);
+    expect(executionDeploymentAvailable(mutable, executionArtifactsFromHashes(mixed))).toBe(false);
+    const payGraph = FlowGraphSchema.parse({
+      nodes: [
+        graph.nodes[0],
+        {
+          id: "pay",
+          type: "pay",
+          config: { asset: { kind: "native" }, recipient: ADDRESS, fullAmount: true },
+        },
+      ],
+      edges: [{ id: "p", source: "receive", target: "pay" }],
+    });
+    const full = updateBuilderPolicy(payGraph, {
+      kind: "pay",
+      nodeId: "pay",
+      recipient: "mutable",
+      payoutValue: "mutable",
+    });
+    expect(full.fieldPolicies?.nodes[0]).toMatchObject({
+      payoutValue: "constant",
+      recipient: "mutable",
+    });
+  });
   it("matches exact reviewed hashes per kind and fails closed for absent, wrong-kind and unknown artifacts", () => {
     const reviewed = executionArtifactsFromHashes(
       new Map(Object.entries(EXECUTION_V1_WASM_HASHES)),

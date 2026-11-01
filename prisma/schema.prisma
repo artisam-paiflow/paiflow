@@ -429,6 +429,7 @@ model Deployment {
   webhookAttempts       WebhookAttempt[]
   walletControlIntents  WalletControlIntent[]
   configurationHistory ConfigurationHistory[]
+  preparationRefusals MutationPreparationRefusal[]
 
   @@index([templateVersionId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([ownerId, sourceAccount, status])
@@ -1043,4 +1044,20 @@ model ConfigurationHistory {
 
   @@unique([deploymentId, network, nodeId, revision])
   @@index([deploymentId, network, observedLedger, id])
+}
+
+/// Immutable non-admission fence. A refused key can never later admit a transaction.
+model MutationPreparationRefusal {
+  id                 String     @id @default(uuid()) @db.Uuid
+  deploymentId       String     @db.Uuid
+  deployment         Deployment @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
+  network            String
+  idempotencyKeyHash String
+  requestDigest      String
+  admin              String
+  request            Json
+  reasonCode         String
+  createdAt          DateTime   @default(now())
+
+  @@unique([deploymentId, network, idempotencyKeyHash], map: "MutationPreparationRefusal_deploymentId_network_key_key")
 }

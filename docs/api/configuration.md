@@ -2,7 +2,7 @@
 
 [#1169](https://github.com/webnxt-2030/pinkraft/issues/1169) adds the API and SDK for
 [guarded mutation v1](../mutation-v1.md). These routes do not activate artifacts,
-deploy services or retrofit existing deployments. Owner editing remains #1170;
+deploy services or retrofit existing deployments. [Owner editing and signing review](../owner-configuration.md) implements #1170;
 financial-safety release acceptance remains #1171. Phase release order is execution,
 instances, mutation. Network selection follows [CLAUDE.md §7.5](../../CLAUDE.md#75-networks).
 
@@ -115,8 +115,8 @@ Existing execution/hosted previews already use verified current configuration an
 revisions. Owner deployment detail exposes `currentConfiguration` separately from
 `graphSnapshot`. The owner canvas displays a copied current graph, its confirmed
 ledger, refreshes on activity/every 15 seconds and hides terms when current reads
-fail; original snapshots remain available as initial evidence. There is no deployed
-editor/history UI in this issue. Supported mutable paths have no scheduled or relayer
+fail; original snapshots remain available as initial evidence. The private [owner editor](../owner-configuration.md) now separates current values,
+proposed terms, initial evidence and observed history. Supported mutable paths have no scheduled or relayer
 payout worker; their event worker persists actual configuration receipts. Payment
 notifications use actual payout event recipients and amounts. Constructor-time
 recipient emails are not transferred to mutable/execution recipients, and owner

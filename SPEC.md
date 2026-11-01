@@ -272,18 +272,19 @@ for every node; legacy and unknown hashes fail closed, including for all-constan
 tables. New fixed Pay calls refuse underfunding; terminal Pay returns that invocation's
 unused remainder to its payer. Execution-aware fixed Split calls require exact incoming
 funding, while constant-only fixed Split retains accounted accumulation. No path sweeps
-unsolicited holdings. Guarded Pay/Split stored mutation is implemented for new reviewed-artifact immediate paths with whole-path obligation admission and revision binding; exact admin-signed mutation APIs/SDK and confirmed observed history are implemented in [#1169](docs/api/configuration.md); owner editing remains #1170. See [mutation v1](docs/mutation-v1.md). Mode-less saved definitions keep existing configured behavior;
+unsolicited holdings. Guarded Pay/Split stored mutation is implemented for new reviewed-artifact immediate paths with whole-path obligation admission and revision binding; exact admin-signed mutation APIs/SDK and confirmed observed history are implemented in [#1169](docs/api/configuration.md); [owner editing and signing review](docs/owner-configuration.md) implements #1170. See [mutation v1](docs/mutation-v1.md). Mode-less saved definitions keep existing configured behavior;
 no new execution or mutation authority is inferred from an absent policy. Execution,
 instances and mutation ship in that order; schemas alone do not activate a phase.
 
-The builder offers constant or payer-supplied sources for eligible Pay/Split fields,
-including an appended variable Split roster. It keeps configured constant rows and
+The builder offers constant, eligible payer-supplied and admin-mutable stored sources
+for Pay/Split fields, including complete initial stored appended Split rosters. It keeps configured constant rows and
 their ordering. Execution fields need no fallback destination/value at deployment;
 every declared input is supplied when paying. The full path is described in English,
 including constant values, runtime permissions, rounding and fixed-funding rules.
 Policy drafts may be saved before compatible artifacts are available, but their
 deployment controls remain unavailable until every participating artifact matches the
-reviewed manifest. Stored-update modes are not offered before that capability ships.
+reviewed manifest. Stored-update declarations require compatible guarded artifacts throughout the path
+before deployment; source authoring does not activate those artifacts.
 
 Private template persistence and owner-session management now save drafts and
 publish immutable versions with typed declared creation bindings and pinned

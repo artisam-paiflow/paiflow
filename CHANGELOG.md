@@ -21,6 +21,14 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Owner review and exact admin signing for declared mutable Pay/Split values,
+  current configuration and observed history (#1170). Add complete initial stored
+  roster authoring and guarded-artifact deployment checks. Persist immutable,
+  request-bound non-admission refusals so stale rejected preparations can be
+  reviewed again without allowing delayed or unknown transactions to be replaced.
+  Existing deployments, lifetime modes and constants remain unchanged; no artifacts
+  or hosted services are activated.
+
 - Private-instance cross-layer isolation evidence for immediate payments, schedules,
   subscriptions and time conditions, with same-version signing/retirement checks,
   unsigned production constructor vectors and local compiled-WASM probes (#1167).

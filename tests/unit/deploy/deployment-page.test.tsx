@@ -4,11 +4,13 @@ import { StrKey } from "@stellar/stellar-sdk";
 import type { ComponentProps } from "react";
 import type ApiAccessPanel from "@/components/deploy/api-access-panel";
 import type DeploymentView from "@/components/deploy/deployment-view";
+import type ConfigurationPanel from "@/components/deploy/configuration-panel";
 const mocks = vi.hoisted(() => ({
   deployment: vi.fn(),
   session: vi.fn(),
   panel: vi.fn(),
   overview: vi.fn(),
+  configuration: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({ db: { deployment: { findFirst: mocks.deployment } } }));
 vi.mock("@/lib/auth", () => ({ requirePageSession: mocks.session }));
@@ -36,6 +38,12 @@ vi.mock("@/components/deploy/api-access-panel", () => ({
   default: (props: ComponentProps<typeof ApiAccessPanel>) => {
     mocks.panel(props);
     return <div>Integration panel</div>;
+  },
+}));
+vi.mock("@/components/deploy/configuration-panel", () => ({
+  default: (props: ComponentProps<typeof ConfigurationPanel>) => {
+    mocks.configuration(props);
+    return <div>Stored configuration editor</div>;
   },
 }));
 import DeploymentPage from "@/app/deployments/[deploymentId]/page";
@@ -80,6 +88,57 @@ beforeEach(() => {
   mocks.deployment.mockResolvedValue(deployment());
 });
 describe("owner deployment integration panel", () => {
+  it("offers stored editing only for owned confirmed non-sandbox mutable deployments on this environment", async () => {
+    const g = {
+      nodes: [
+        { id: "root", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "pay",
+          type: "pay",
+          config: {
+            asset: { kind: "native" },
+            recipient: StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 4)),
+            fullAmount: true,
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "root", target: "pay" }],
+      fieldPolicies: {
+        version: 1,
+        nodes: [{ kind: "pay", nodeId: "pay", recipient: "mutable", payoutValue: "constant" }],
+      },
+    };
+    mocks.deployment.mockResolvedValue(
+      deployment({
+        graphSnapshot: g,
+        flow: { name: "Mutable payment", templateKind: "DEPOSIT_TRIGGER" },
+      }),
+    );
+    let view = render(await DeploymentPage({ params }));
+    expect(screen.getByText("Stored configuration editor")).toBeTruthy();
+    expect(mocks.configuration.mock.lastCall![0]).toMatchObject({
+      ownerId: "owner",
+      deploymentId: id,
+      network: "testnet",
+    });
+    view.unmount();
+    mocks.configuration.mockClear();
+    for (const changed of [{ network: "mainnet" }, { status: "PENDING" }]) {
+      mocks.deployment.mockResolvedValue(deployment({ graphSnapshot: g, ...changed }));
+      view = render(await DeploymentPage({ params }));
+      expect(mocks.configuration).not.toHaveBeenCalled();
+      view.unmount();
+    }
+    mocks.session.mockResolvedValue({ id: "owner", username: "Owner", role: "SANDBOX" });
+    mocks.deployment.mockResolvedValue(deployment({ graphSnapshot: g }));
+    view = render(await DeploymentPage({ params }));
+    expect(mocks.configuration).not.toHaveBeenCalled();
+    view.unmount();
+    mocks.session.mockResolvedValue({ id: "owner", username: "Owner", role: "USER" });
+    mocks.deployment.mockResolvedValue(deployment());
+    view = render(await DeploymentPage({ params }));
+    expect(mocks.configuration).not.toHaveBeenCalled();
+  });
   it.each([
     ["on_receive", "On Receive"],
     ["web2_webhook", "HTTP Webhook"],

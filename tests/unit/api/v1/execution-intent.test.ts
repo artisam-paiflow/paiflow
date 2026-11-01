@@ -18,6 +18,7 @@ import { EXECUTION_V1_WASM_HASHES } from "@/lib/stellar/execution-artifacts";
 const mocks = vi.hoisted(() => ({
   db: {
     walletControlIntent: { findFirst: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
+    mutationPreparationRefusal: { findUnique: vi.fn(async () => null) },
     auditLog: { create: vi.fn() },
     $transaction: vi.fn(),
   },

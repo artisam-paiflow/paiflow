@@ -7,6 +7,7 @@ import {
   MutationStateSchema,
   ConfigurationHistorySchema,
   MutationReconciledSchema,
+  MutationPreparationRefusalSchema,
 } from "@/lib/mutations/schema";
 import {
   InstancePrepareSchema,
@@ -862,7 +863,7 @@ export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: "Paiflow API v1",
-    version: "1.6.0",
+    version: "1.7.0",
     description: [
       "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.",
       "",
@@ -1207,7 +1208,7 @@ export const openApiDocument = {
               operationId: `${action}Configuration`,
               summary: `${action} guarded admin-owned stored configuration`,
               description:
-                "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. " +
+                "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Known pre-intent failures can add error.fields.preparationRefusal as one JSON string matching MutationPreparationRefusal. This immutable request/key/admin/network/deployment-bound non-admission fence blocks every late creator for that key. Original error codes and safe field messages are preserved. Re-fetch and validate exact proof before fresh review/new key; generic errors, timeout, missing rows and admitted uncertainty provide no such authority. " +
                 rate(
                   action === "prepare"
                     ? V1_RATE_LIMITS.schedulePrepare
@@ -1278,6 +1279,7 @@ export const openApiDocument = {
                   "VALIDATION",
                   "CONFLICT",
                   "RATE_LIMITED",
+                  "INSUFFICIENT_FUNDS",
                   "UPSTREAM_RPC",
                   "INTERNAL",
                 ),
@@ -2112,6 +2114,7 @@ export const openApiDocument = {
     schemas: {
       MutationIntent: z.toJSONSchema(MutationIntentSchema),
       MutationPrepared: z.toJSONSchema(MutationPreparedSchema),
+      MutationPreparationRefusal: z.toJSONSchema(MutationPreparationRefusalSchema),
       InstancePrepare: z.toJSONSchema(InstancePrepareSchema),
       InstanceSubmit: z.toJSONSchema(InstanceSubmitSchema),
       InstanceReconcile: z.toJSONSchema(InstanceReconcileSchema),
@@ -2758,7 +2761,8 @@ export const openApiDocument = {
               fields: {
                 type: "object",
                 additionalProperties: { type: "array", items: { type: "string" } },
-                description: "Per-field validation messages, keyed by field path.",
+                description:
+                  "Per-field validation messages, keyed by field path. Configuration prepare may add preparationRefusal: a single JSON string matching MutationPreparationRefusal, proving durable non-admission only for its exact request/key/deployment/network/admin. Re-fetch and validate before replacing a refused preparation; generic errors and elapsed time are not proof.",
               },
               details: {
                 type: "string",

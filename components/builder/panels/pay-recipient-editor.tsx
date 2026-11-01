@@ -9,6 +9,7 @@ import { FieldModeSelect } from "../inputs/field-mode-select";
 export function PayRecipientEditor({
   recipient,
   policy,
+  fullAmount = false,
   executionIssue,
   error,
   onRecipientChange,
@@ -20,6 +21,7 @@ export function PayRecipientEditor({
 }: {
   recipient: string;
   policy: PayFieldPolicy;
+  fullAmount?: boolean;
   executionIssue?: string;
   error?: string | null;
   onRecipientChange: (recipient: string) => void;
@@ -35,12 +37,13 @@ export function PayRecipientEditor({
         label="Recipient source"
         value={policy.recipient}
         executionIssue={executionIssue}
+        allowMutable={!executionIssue}
         onChange={(recipientMode) => onPolicyChange({ ...policy, recipient: recipientMode })}
       />
       {policy.recipient === "execution" ? (
         <p className="text-xs text-zinc-400">
           The payer must supply the recipient for every payment. No saved address is used. The
-          payout amount or percentage stays constant.
+          payout value follows its separate stored-value declaration.
         </p>
       ) : (
         <AddressPicker
@@ -54,6 +57,27 @@ export function PayRecipientEditor({
           addressBookLoading={addressBookLoading}
           addressBookError={addressBookError}
         />
+      )}
+      {!fullAmount ? (
+        <FieldModeSelect
+          label="Payout value source"
+          value={policy.payoutValue}
+          allowExecution={false}
+          allowMutable={!executionIssue}
+          executionIssue={executionIssue}
+          onChange={(payoutValue) => {
+            if (payoutValue !== "execution") onPolicyChange({ ...policy, payoutValue });
+          }}
+        />
+      ) : (
+        <p className="text-xs text-zinc-400">Sending the full amount is a constant rule.</p>
+      )}
+      {(policy.recipient === "mutable" || policy.payoutValue === "mutable") && (
+        <p className="text-xs text-zinc-400">
+          Set complete initial values now. Only the deployment admin can update declared stored
+          fields later, when the whole path has no unsettled obligations. Deployment needs guarded
+          artifacts.
+        </p>
       )}
     </div>
   );
