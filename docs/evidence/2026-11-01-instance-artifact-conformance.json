@@ -1,0 +1,488 @@
+{
+  "schemaVersion": 1,
+  "contractsSourceCommit": "08690c6564db44d1c0ed841a0d91c333c3ffa7a1",
+  "evidence": "local compiled WASM spec compared with production TypeScript constructor packets; no RPC, signing, upload or activation",
+  "observations": [
+    {
+      "kind": "immediate",
+      "nodes": [
+        {
+          "nodeId": "root",
+          "templateKind": "DEPOSIT_TRIGGER",
+          "wasmSha256": "2bd7fd8d6251092f49833513f50e3c04b9188f8da47a7cb73e5c84b521dc16ec",
+          "bytes": 39407,
+          "constructorInputs": [
+            {
+              "name": "admin",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "asset",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "next_steps",
+              "type": "scSpecTypeVal"
+            }
+          ],
+          "encodedArgumentCount": 3,
+          "constructorError": null,
+          "requiredIncomingMethod": null,
+          "incomingMethodAvailable": true
+        },
+        {
+          "nodeId": "pay",
+          "templateKind": "PAYER",
+          "wasmSha256": "dcfc03ef0b4f608148313059c531e034ae43d3c2b6ae6149f9766e341c887318",
+          "bytes": 50918,
+          "constructorInputs": [
+            {
+              "name": "admin",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "asset",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "recipient",
+              "type": "scSpecTypeVal"
+            },
+            {
+              "name": "amount",
+              "type": "scSpecTypeI128"
+            },
+            {
+              "name": "percentage_bps",
+              "type": "scSpecTypeU32"
+            },
+            {
+              "name": "next_steps",
+              "type": "scSpecTypeVec"
+            },
+            {
+              "name": "parent",
+              "type": "scSpecTypeAddress"
+            }
+          ],
+          "encodedArgumentCount": 7,
+          "constructorError": null,
+          "requiredIncomingMethod": "execute_step",
+          "incomingMethodAvailable": true
+        }
+      ]
+    },
+    {
+      "kind": "schedule",
+      "nodes": [
+        {
+          "nodeId": "pay",
+          "templateKind": "STREAMER",
+          "wasmSha256": "9789a4c823ad3a990abf0d0c688505d5199d00ec0d3238a74f6c49469cf45917",
+          "bytes": 12036,
+          "constructorInputs": [
+            {
+              "name": "admin",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "recipients",
+              "type": "scSpecTypeVec"
+            },
+            {
+              "name": "asset",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "amount_per_interval",
+              "type": "scSpecTypeI128"
+            },
+            {
+              "name": "interval_seconds",
+              "type": "scSpecTypeU64"
+            },
+            {
+              "name": "start_ts",
+              "type": "scSpecTypeU64"
+            },
+            {
+              "name": "end_ts",
+              "type": "scSpecTypeU64"
+            },
+            {
+              "name": "parent",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "pause_allowed",
+              "type": "scSpecTypeBool"
+            },
+            {
+              "name": "retrieve_allowed",
+              "type": "scSpecTypeBool"
+            }
+          ],
+          "encodedArgumentCount": 10,
+          "constructorError": null,
+          "requiredIncomingMethod": null,
+          "incomingMethodAvailable": true
+        }
+      ]
+    },
+    {
+      "kind": "subscription",
+      "nodes": [
+        {
+          "nodeId": "root",
+          "templateKind": "SUBSCRIPTION",
+          "wasmSha256": "373562f70c8b2f9c71c90813b029a829d00cfbe1373e97bc1018c007803ba8c3",
+          "bytes": 23030,
+          "constructorInputs": [
+            {
+              "name": "admin",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "asset",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "subscriber",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "amount_per_period",
+              "type": "scSpecTypeI128"
+            },
+            {
+              "name": "next_steps",
+              "type": "scSpecTypeVec"
+            },
+            {
+              "name": "relayer",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "start_time",
+              "type": "scSpecTypeU64"
+            },
+            {
+              "name": "interval_seconds",
+              "type": "scSpecTypeU64"
+            },
+            {
+              "name": "end_time",
+              "type": "scSpecTypeU64"
+            }
+          ],
+          "encodedArgumentCount": 9,
+          "constructorError": null,
+          "requiredIncomingMethod": null,
+          "incomingMethodAvailable": true
+        },
+        {
+          "nodeId": "pay",
+          "templateKind": "PAYER",
+          "wasmSha256": "dcfc03ef0b4f608148313059c531e034ae43d3c2b6ae6149f9766e341c887318",
+          "bytes": 50918,
+          "constructorInputs": [
+            {
+              "name": "admin",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "asset",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "recipient",
+              "type": "scSpecTypeVal"
+            },
+            {
+              "name": "amount",
+              "type": "scSpecTypeI128"
+            },
+            {
+              "name": "percentage_bps",
+              "type": "scSpecTypeU32"
+            },
+            {
+              "name": "next_steps",
+              "type": "scSpecTypeVec"
+            },
+            {
+              "name": "parent",
+              "type": "scSpecTypeAddress"
+            }
+          ],
+          "encodedArgumentCount": 7,
+          "constructorError": null,
+          "requiredIncomingMethod": "receive_and_forward",
+          "incomingMethodAvailable": true
+        }
+      ]
+    },
+    {
+      "kind": "time-condition",
+      "nodes": [
+        {
+          "nodeId": "root",
+          "templateKind": "DEPOSIT_TRIGGER",
+          "wasmSha256": "2bd7fd8d6251092f49833513f50e3c04b9188f8da47a7cb73e5c84b521dc16ec",
+          "bytes": 39407,
+          "constructorInputs": [
+            {
+              "name": "admin",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "asset",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "next_steps",
+              "type": "scSpecTypeVal"
+            }
+          ],
+          "encodedArgumentCount": 3,
+          "constructorError": null,
+          "requiredIncomingMethod": null,
+          "incomingMethodAvailable": true
+        },
+        {
+          "nodeId": "condition",
+          "templateKind": "TIMELOCK_BRANCH",
+          "wasmSha256": "a02262008907d5e5ce6524702cc78f7a971209cbb98cd7a2694002a968c4faaf",
+          "bytes": 6594,
+          "constructorInputs": [
+            {
+              "name": "admin",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "asset",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "unlock_time",
+              "type": "scSpecTypeU64"
+            },
+            {
+              "name": "before_steps",
+              "type": "scSpecTypeVec"
+            },
+            {
+              "name": "after_steps",
+              "type": "scSpecTypeVec"
+            },
+            {
+              "name": "parent",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "relayer",
+              "type": "scSpecTypeAddress"
+            }
+          ],
+          "encodedArgumentCount": 7,
+          "constructorError": null,
+          "requiredIncomingMethod": "execute_step",
+          "incomingMethodAvailable": true
+        },
+        {
+          "nodeId": "pay",
+          "templateKind": "PAYER",
+          "wasmSha256": "dcfc03ef0b4f608148313059c531e034ae43d3c2b6ae6149f9766e341c887318",
+          "bytes": 50918,
+          "constructorInputs": [
+            {
+              "name": "admin",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "asset",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "recipient",
+              "type": "scSpecTypeVal"
+            },
+            {
+              "name": "amount",
+              "type": "scSpecTypeI128"
+            },
+            {
+              "name": "percentage_bps",
+              "type": "scSpecTypeU32"
+            },
+            {
+              "name": "next_steps",
+              "type": "scSpecTypeVec"
+            },
+            {
+              "name": "parent",
+              "type": "scSpecTypeAddress"
+            }
+          ],
+          "encodedArgumentCount": 7,
+          "constructorError": null,
+          "requiredIncomingMethod": "execute_step",
+          "incomingMethodAvailable": true
+        },
+        {
+          "nodeId": "before",
+          "templateKind": "PAYER",
+          "wasmSha256": "dcfc03ef0b4f608148313059c531e034ae43d3c2b6ae6149f9766e341c887318",
+          "bytes": 50918,
+          "constructorInputs": [
+            {
+              "name": "admin",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "asset",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "recipient",
+              "type": "scSpecTypeVal"
+            },
+            {
+              "name": "amount",
+              "type": "scSpecTypeI128"
+            },
+            {
+              "name": "percentage_bps",
+              "type": "scSpecTypeU32"
+            },
+            {
+              "name": "next_steps",
+              "type": "scSpecTypeVec"
+            },
+            {
+              "name": "parent",
+              "type": "scSpecTypeAddress"
+            }
+          ],
+          "encodedArgumentCount": 7,
+          "constructorError": null,
+          "requiredIncomingMethod": "execute_step",
+          "incomingMethodAvailable": true
+        }
+      ]
+    },
+    {
+      "kind": "multisig",
+      "nodes": [
+        {
+          "nodeId": "root",
+          "templateKind": "DEPOSIT_TRIGGER",
+          "wasmSha256": "2bd7fd8d6251092f49833513f50e3c04b9188f8da47a7cb73e5c84b521dc16ec",
+          "bytes": 39407,
+          "constructorInputs": [
+            {
+              "name": "admin",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "asset",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "next_steps",
+              "type": "scSpecTypeVal"
+            }
+          ],
+          "encodedArgumentCount": 3,
+          "constructorError": null,
+          "requiredIncomingMethod": null,
+          "incomingMethodAvailable": true
+        },
+        {
+          "nodeId": "condition",
+          "templateKind": "MULTISIG",
+          "wasmSha256": "d5eb14f43d236f22c96c9e4340dfe1f94e60bf32f95f63e8e21d45de93419c4a",
+          "bytes": 5821,
+          "constructorInputs": [
+            {
+              "name": "admin",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "asset",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "signers",
+              "type": "scSpecTypeVec"
+            },
+            {
+              "name": "threshold",
+              "type": "scSpecTypeU32"
+            },
+            {
+              "name": "next_steps",
+              "type": "scSpecTypeVec"
+            }
+          ],
+          "encodedArgumentCount": 6,
+          "constructorError": "expected 5 arguments; production encoder supplied 6; signers: ScSpecType scSpecTypeAddress was not map, but {",
+          "requiredIncomingMethod": "execute_step",
+          "incomingMethodAvailable": false,
+          "contractSpecXdr": [
+            "AAAAAgAAAAAAAAAAAAAAA0tleQAAAAAIAAAAAAAAAAAAAAAFQWRtaW4AAAAAAAAAAAAAAAAAAAVBc3NldAAAAAAAAAAAAAAAAAAAB1NpZ25lcnMAAAAAAAAAAAAAAAAJVGhyZXNob2xkAAAAAAAAAAAAAAAAAAAJTmV4dFN0ZXBzAAAAAAAAAAAAAAAAAAAHQmFsYW5jZQAAAAAAAAAAAAAAAAlBcHByb3ZhbHMAAAAAAAAAAAAAAAAAAAdWZXJzaW9uAA==",
+            "AAAABAAAAAAAAAAAAAAABUVycm9yAAAAAAAACAAAAAAAAAASQWxyZWFkeUluaXRpYWxpemVkAAAAAAABAAAAAAAAAAxVbmF1dGhvcml6ZWQAAAACAAAAAAAAAA1JbnZhbGlkQW1vdW50AAAAAAAAAwAAAAAAAAAKTm90QVNpZ25lcgAAAAAABAAAAAAAAAAPQWxyZWFkeUFwcHJvdmVkAAAAAAUAAAAAAAAAD1RocmVzaG9sZE5vdE1ldAAAAAAGAAAAAAAAABBOb3RoaW5nVG9SZWxlYXNlAAAABwAAAAAAAAAIT3ZlcmZsb3cAAAAI",
+            "AAAAAAAAAAAAAAAHYmFsYW5jZQAAAAAAAAAAAQAAAAs=",
+            "AAAAAAAAAAAAAAAHcmVsZWFzZQAAAAAAAAAAAA==",
+            "AAAAAAAAAAAAAAAJYXBwcm92YWxzAAAAAAAAAAAAAAEAAAPsAAAAEwAAAAE=",
+            "AAAAAAAAAAAAAAAJdGhyZXNob2xkAAAAAAAAAAAAAAEAAAAE",
+            "AAAAAAAAAFJBcHByb3ZlIHRoZSBjdXJyZW50IHBlbmRpbmcgYmF0Y2guIGBzaWduZXJgIG11c3QgYmUgb25lIG9mIHRoZSBhdXRob3JpemVkIHNpZ25lcnMuAAAAAAAKYXBwcm92ZV9ieQAAAAAAAQAAAAAAAAAGc2lnbmVyAAAAAAATAAAAAA==",
+            "AAAAAQAAAAAAAAAAAAAADldvcmtmbG93VGFyZ2V0AAAAAAACAAAAAAAAAAdhZGRyZXNzAAAAABMAAAAAAAAABGRhdGEAAAAQ",
+            "AAAAAAAAAAAAAAANX19jb25zdHJ1Y3RvcgAAAAAAAAUAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAAFYXNzZXQAAAAAAAATAAAAAAAAAAdzaWduZXJzAAAAA+oAAAATAAAAAAAAAAl0aHJlc2hvbGQAAAAAAAAEAAAAAAAAAApuZXh0X3N0ZXBzAAAAAAPqAAAH0AAAAA5Xb3JrZmxvd1RhcmdldAAAAAAAAA==",
+            "AAAAAAAAAAAAAAATcmVjZWl2ZV9hbmRfZm9yd2FyZAAAAAAEAAAAAAAAAARmcm9tAAAAEwAAAAAAAAAFYXNzZXQAAAAAAAATAAAAAAAAAAZhbW91bnQAAAAAAAsAAAAAAAAACm5leHRfc3RlcHMAAAAAA+oAAAfQAAAADldvcmtmbG93VGFyZ2V0AAAAAAAA"
+          ]
+        },
+        {
+          "nodeId": "pay",
+          "templateKind": "PAYER",
+          "wasmSha256": "dcfc03ef0b4f608148313059c531e034ae43d3c2b6ae6149f9766e341c887318",
+          "bytes": 50918,
+          "constructorInputs": [
+            {
+              "name": "admin",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "asset",
+              "type": "scSpecTypeAddress"
+            },
+            {
+              "name": "recipient",
+              "type": "scSpecTypeVal"
+            },
+            {
+              "name": "amount",
+              "type": "scSpecTypeI128"
+            },
+            {
+              "name": "percentage_bps",
+              "type": "scSpecTypeU32"
+            },
+            {
+              "name": "next_steps",
+              "type": "scSpecTypeVec"
+            },
+            {
+              "name": "parent",
+              "type": "scSpecTypeAddress"
+            }
+          ],
+          "encodedArgumentCount": 7,
+          "constructorError": null,
+          "requiredIncomingMethod": "receive_and_forward",
+          "incomingMethodAvailable": true
+        }
+      ]
+    }
+  ]
+}

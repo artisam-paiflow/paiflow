@@ -21,6 +21,13 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Private-instance cross-layer isolation evidence for immediate payments, schedules,
+  subscriptions and time conditions, with same-version signing/retirement checks,
+  unsigned production constructor vectors and local compiled-WASM probes (#1167).
+  Document confirmed pre-existing Multisig constructor/forwarding incompatibilities,
+  per-instance costs/admission and remaining release gates; readiness remains blocked
+  and no artifacts or hosted services are activated.
+
 - Cross-layer execution acceptance vectors join the production compiler, hosted/API
   payment lifecycle and reviewed contract WASMs (#1163), including fixed 15% shares,
   varied recipients, exact fixed rosters and resource-failure admission. Document

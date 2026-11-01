@@ -1,5 +1,10 @@
 # Private flow template versions
 
+Local isolation evidence, standard-flow compatibility blockers, per-instance costs
+and the remaining phased release gate are recorded in
+[instance readiness](instance-readiness.md). Publication eligibility alone does not
+establish runtime ABI compatibility; the standard Multisig path remains blocked.
+
 Flow templates are private reusable definitions, separate from `ContractTemplate`
 (the WASM registry). Their owner publishes immutable versions; each future instance
 is a separate developer-owned deployment. Publication and binding endpoints implement

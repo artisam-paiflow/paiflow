@@ -295,6 +295,12 @@ signing and original-instance recovery. Publication requires a
 configured deployable exemplar; required creation bindings never fall back to
 its values. See [private template versions](docs/flow-templates.md).
 
+Local same-version isolation and lifecycle evidence covers immediate, scheduled,
+subscription and time-condition instances. The standard Multisig path has confirmed
+constructor/forwarding incompatibilities and blocks complete instance readiness;
+publication eligibility does not prove runtime ABI compatibility. See
+[instance readiness and remaining release gates](docs/instance-readiness.md).
+
 ### 3.5 English Preview Pane
 
 `flowToEnglish(graph)` (`lib/flows/english.ts`) is a pure function rendering the canvas as prose, so

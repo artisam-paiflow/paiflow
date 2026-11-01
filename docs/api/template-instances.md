@@ -1,5 +1,9 @@
 # Developer-signed private-template instances
 
+See [instance readiness](../instance-readiness.md) for local cross-layer evidence,
+deployment-cost and admission guidance, confirmed Multisig compatibility blockers
+and the remaining release acceptance. Source support is not a phase-release claim.
+
 API specification revision 1.5 adds instance lifecycle operations to private owned
 flow templates (#1165). Each instance is an ordinary independent Deployment with
 its own separately deployed Soroban contracts. The developer is transaction source,

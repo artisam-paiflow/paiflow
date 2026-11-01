@@ -17,6 +17,18 @@ import {
 import { NextRequest } from "next/server";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { scratchDatabase } from "@/tests/helpers/scratch-database";
+import {
+  instanceBindings,
+  instanceAdmin,
+  instanceConstructors,
+  instanceDefinition,
+  instanceEpoch,
+  relocateInstanceValue,
+  type InstanceAcceptanceKind,
+} from "@/tests/fixtures/instance-acceptance";
+import type { TemplateDefinition } from "@/lib/flow-templates/schema";
+import { requestRetirement } from "@/lib/deployments/retirement";
+import { cronPollableDeploymentWhere } from "@/lib/sandbox";
 
 const mocks = vi.hoisted(() => ({
   client: null as unknown as PrismaClient,
@@ -68,6 +80,7 @@ vi.mock("@/lib/analytics/outbox", () => ({
 vi.mock("@/lib/api/request-history/delivery", () => ({ queueApiRequest: async () => undefined }));
 import {
   createFlowTemplate,
+  updateFlowTemplate,
   publishFlowTemplate,
   retireFlowTemplate,
 } from "@/lib/flow-templates/service";
@@ -197,13 +210,21 @@ async function fixture(
     expiresAt?: string;
     agreement?: "schedule" | "subscription";
     constantRecipient?: boolean;
+    definition?: TemplateDefinition;
   } = {},
 ) {
   const owner = await mocks.client.user.create({ data: { username: `instance-${randomUUID()}` } });
   const other = await mocks.client.user.create({ data: { username: `instance-${randomUUID()}` } });
   const actor = { id: owner.id, role: owner.role };
   mocks.session.mockResolvedValue(actor);
-  for (const kind of ["DEPOSIT_TRIGGER", "PAYER", "STREAMER", "SUBSCRIPTION"] as const)
+  for (const kind of [
+    "DEPOSIT_TRIGGER",
+    "PAYER",
+    "STREAMER",
+    "SUBSCRIPTION",
+    "TIMELOCK_BRANCH",
+    "MULTISIG",
+  ] as const)
     await mocks.client.contractTemplate.upsert({
       where: { kind_network: { kind, network: "testnet" } },
       create: { kind, network: "testnet", wasmHash: "a".repeat(64), abiJson: {} },
@@ -218,7 +239,7 @@ async function fixture(
     owner.id,
     {
       name: "Private agreement",
-      definition: {
+      definition: options.definition ?? {
         schemaVersion: 1,
         graph: {
           nodes: [
@@ -300,7 +321,165 @@ function signed(value: string, key = payer, network = Networks.TESTNET) {
   return tx.toXDR();
 }
 
+function assertGuestPacketMatchesPreparation(
+  kind: InstanceAcceptanceKind,
+  index: number,
+  state: Awaited<ReturnType<typeof prepareTemplateInstance>>,
+) {
+  const packet = instanceConstructors(kind, index);
+  const addresses = new Map<string, string>([
+    [instanceAdmin, payer.publicKey()],
+    ...packet.map((node): [string, string] => [
+      node.address,
+      state.pipeline.find((actual) => actual.nodeId === node.nodeId)!.contractAddress,
+    ]),
+  ]);
+  const tx = TransactionBuilder.fromXDR(state.prepared!.xdr, Networks.TESTNET) as Transaction;
+  const op = tx.operations[0]!;
+  if (op.type !== "invokeHostFunction") throw new Error("Factory operation expected");
+  const blueprints = op.func.invokeContract().args()[1]!.vec()!;
+  expect(blueprints).toHaveLength(packet.length);
+  packet.forEach((node, i) => {
+    const args = blueprints[i]!.map()!
+      .find((entry) => scValToNative(entry.key()) === "constructor_args")!
+      .val()
+      .vec()!;
+    expect(args.map((value) => value.toXDR("hex"))).toEqual(
+      node.args.map((value) => relocateInstanceValue(value, addresses).toXDR("hex")),
+    );
+  });
+}
+
 describe("private template instance durable lifecycle", () => {
+  it.each(["immediate", "schedule", "subscription", "time-condition"] as const)(
+    "keeps two %s instances of one private version independently signed, pinned and retired",
+    async (kind) => {
+      const f = await fixture({ definition: instanceDefinition(kind) });
+      const originalNow = Date.now;
+      Date.now = () => instanceEpoch * 1000;
+      try {
+        const prepare = (index: number) =>
+          prepareTemplateInstance(
+            f.actor,
+            f.template.id,
+            f.version.id,
+            InstancePrepareSchema.parse({
+              sourceAccount: payer.publicKey(),
+              idempotencyKey: `matrix-${kind}-${index}-${f.template.id}`,
+              bindings: instanceBindings(kind, index, f.version.id),
+            }),
+            req("POST"),
+          );
+        const a = await prepare(0);
+        assertGuestPacketMatchesPreparation(kind, 0, a);
+        const admittedA = await getOwnedInstance(f.owner.id, f.template.id, a.deploymentId);
+        const exactA = {
+          xdr: admittedA.unsignedXdr,
+          graph: admittedA.graphSnapshot,
+          params: admittedA.paramsSnapshot,
+          pins: admittedA.instanceSnapshot,
+        };
+        // A second version and draft edit do not change an already-admitted instance.
+        await updateFlowTemplate(
+          f.owner.id,
+          f.template.id,
+          { expectedRevision: 1, name: "Next definition" },
+          req("PATCH"),
+        );
+        const newer = await publishFlowTemplate(
+          f.owner.id,
+          f.template.id,
+          { expectedRevision: 2 },
+          req("POST"),
+        );
+        expect(newer.id).not.toBe(f.version.id);
+        const submitted = await submitTemplateInstance(
+          f.actor,
+          f.template.id,
+          a.deploymentId,
+          req("POST", { signedXdr: signed(a.prepared!.xdr) }),
+        );
+        expect(submitted.status).toBe("CONFIRMED");
+        await reconcileTemplateInstance(f.owner.id, f.template.id, a.deploymentId);
+        mocks.account.mockImplementation(
+          async (_server, address: string) => new Account(address, "11"),
+        );
+        const b = await prepare(1);
+        assertGuestPacketMatchesPreparation(kind, 1, b);
+        expect(a.pipeline.length).toBeGreaterThan(0);
+        expect(
+          b.pipeline
+            .map((n) => n.contractAddress)
+            .every((address) => !a.pipeline.some((n) => n.contractAddress === address)),
+        ).toBe(true);
+        expect(b.templateVersionId).toBe(f.version.id);
+        expect(b.sourceAccount).toBe(payer.publicKey());
+        expect(b.prepared!.txHash).not.toBe(a.prepared!.txHash);
+        const aAfter = await getOwnedInstance(f.owner.id, f.template.id, a.deploymentId);
+        expect({
+          xdr: aAfter.unsignedXdr,
+          graph: aAfter.graphSnapshot,
+          params: aAfter.paramsSnapshot,
+          pins: aAfter.instanceSnapshot,
+        }).toEqual(exactA);
+        await retireFlowTemplate(f.owner.id, f.template.id, req("POST"));
+        const reviewedA = await ownerReview(
+          req("GET"),
+          ctx(f.template.id, undefined, a.deploymentId),
+        );
+        const reviewedB = await ownerReview(
+          req("GET"),
+          ctx(f.template.id, undefined, b.deploymentId),
+        );
+        expect(reviewedA.status).toBe(200);
+        expect(reviewedB.status).toBe(200);
+        const termsA = (await reviewedA.json()).data,
+          termsB = (await reviewedB.json()).data;
+        expect(JSON.stringify(termsA.compiledTerms)).not.toEqual(
+          JSON.stringify(termsB.compiledTerms),
+        );
+        expect(termsB.receipt.templateVersionId).toBe(f.version.id);
+        expect(
+          (
+            await submitTemplateInstance(
+              f.actor,
+              f.template.id,
+              b.deploymentId,
+              req("POST", { signedXdr: signed(b.prepared!.xdr) }),
+            )
+          ).status,
+        ).toBe("CONFIRMED");
+        if (kind === "subscription") {
+          const confirmed = await getOwnedInstance(f.owner.id, f.template.id, b.deploymentId);
+          expect(confirmed.nextChargeAt).toEqual(new Date(instanceEpoch * 1000));
+          expect(confirmed.chargeEndAt).toEqual(new Date((instanceEpoch + 180) * 1000));
+          expect(confirmed.chargeRelayerMode).toBe("MANUAL"); // No relayer consent is invented by a creation binding.
+        }
+        // Service retirement belongs to one deployment, never its template sibling.
+        await requestRetirement(a.deploymentId, f.owner.id);
+        const sibling = await getOwnedInstance(f.owner.id, f.template.id, b.deploymentId);
+        expect(sibling.serviceState).toBe("ACTIVE");
+        expect(
+          (
+            await mocks.client.deployment.findMany({
+              where: {
+                AND: [
+                  cronPollableDeploymentWhere(new Date()),
+                  { id: { in: [a.deploymentId, b.deploymentId] } },
+                ],
+              },
+              select: { id: true },
+            })
+          ).map((row) => row.id),
+        ).toEqual([b.deploymentId]);
+        await expect(
+          getOwnedInstance(f.other.id, f.template.id, b.deploymentId),
+        ).rejects.toMatchObject({ code: "NOT_FOUND" });
+      } finally {
+        Date.now = originalNow;
+      }
+    },
+  );
   it("keeps authoritative initial review private, version-scoped and readable after version retirement", async () => {
     const f = await fixture();
     const first = await prepareTemplateInstance(
