@@ -1,5 +1,6 @@
 import { StrKey } from "@stellar/stellar-sdk";
 import { TemplateKind } from "@prisma/client";
+import { assertFieldPoliciesDeployable } from "./field-policies";
 import { hasRetiredPayrollInput, PAYROLL_RETIRED_MESSAGE } from "./retired-payroll";
 import { DEPLOYING_WALLET, resolveOwnerReturns, terminalOutcomeIssues } from "./terminal-outcomes";
 import type {
@@ -464,6 +465,7 @@ export function flowToPipeline(
   } = {},
 ): CompiledPipelineNode[] {
   graph = FlowGraphSchema.parse(migrateFlowGraph(graph));
+  assertFieldPoliciesDeployable(graph.fieldPolicies);
   const outcomeIssues = terminalOutcomeIssues(graph);
   if (outcomeIssues.length) throw new Error(outcomeIssues[0]!.message);
   const ownerReturns = new Set(

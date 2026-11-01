@@ -152,6 +152,9 @@ export default function ConfigPanel({
   // Every AssetField edits `config.asset`; a Zod issue lands under it
   // (`asset.code`, `asset.issuer`), validateFlow's mismatch on it (#407).
   const assetError = fieldErrorUnder(nodeErrors.field, "asset");
+  const splitPolicy = graph.fieldPolicies?.nodes.find(
+    (p) => p.nodeId === node?.id && p.kind === "split",
+  );
   if (!node) {
     return (
       <aside
@@ -668,6 +671,9 @@ export default function ConfigPanel({
 
           {node.type === "split" && (
             <SplitRecipientsEditor
+              allocationMode={
+                splitPolicy?.kind === "split" ? splitPolicy.allocationMode : undefined
+              }
               node={
                 node as Extract<
                   FlowNode,

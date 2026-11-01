@@ -8,6 +8,7 @@ export type SwapIssueCode =
 
 export type ValidationIssueCode =
   | SwapIssueCode
+  | "FIELD_POLICY_UNSUPPORTED"
   | "ROUTER_EMPTY_PATH"
   | "TIMELOCK_EMPTY_SIDE"
   | "TERMINAL_OUTCOME"

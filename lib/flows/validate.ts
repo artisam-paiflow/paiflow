@@ -422,6 +422,19 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
     };
   }
   const originalGraph = parsed.data;
+  if (originalGraph.fieldPolicies !== undefined)
+    return {
+      ok: false,
+      errors: [
+        {
+          path: "fieldPolicies",
+          code: "FIELD_POLICY_UNSUPPORTED",
+          message: "Versioned field policies are not supported by the current deployment artifacts",
+          friendlyMessage:
+            "This deployment requires field-policy support that is not available yet.",
+        },
+      ],
+    };
   const outcomeIssues = terminalOutcomeIssues(originalGraph);
   if (outcomeIssues.length) return { ok: false, errors: outcomeIssues };
   let graph: FlowGraph;

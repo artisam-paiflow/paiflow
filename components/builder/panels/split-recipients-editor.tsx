@@ -29,6 +29,7 @@ export function SplitRecipientsEditor({
   fieldErrors,
   onChange,
   sandbox,
+  allocationMode,
 }: {
   node: Extract<
     FlowNode,
@@ -46,6 +47,8 @@ export function SplitRecipientsEditor({
   fieldErrors?: Map<string, string>;
   onChange: (n: FlowNode) => void;
   sandbox?: boolean;
+  /** Retain a policy-aware empty draft's configured mode until a row exists. */
+  allocationMode?: "percentage" | "fixed";
 }) {
   const onAddressBookChange = refreshAddressBook ?? (() => {});
   const listError = fieldErrors?.get("recipients") ?? null;
@@ -53,7 +56,7 @@ export function SplitRecipientsEditor({
     fieldErrors?.get(`recipients.${i}.${field}`) ?? null;
   const triggerType = trigger?.type ?? null;
   const isStreamer = triggerType === "on_schedule";
-  const mode = node.config.recipients[0]?.mode ?? "percentage";
+  const mode = node.config.recipients[0]?.mode ?? allocationMode ?? "percentage";
   const totalFixed = splitTotalFixedStroops(node.config.recipients);
   const minAmount = trigger?.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
   // For scheduled splits the projection base lives on the split itself: the
@@ -68,10 +71,11 @@ export function SplitRecipientsEditor({
       : undefined);
   // Cache the shares from the mode the user is leaving so that toggling
   // percentage → fixed → percentage restores the previously entered values
-  // instead of silently zeroing them out. Keyed by recipient index.
+  // instead of silently zeroing them out. Policy-aware rows use stable IDs;
+  // legacy rows retain the existing index-based behavior.
   const modeCache = useRef<{
-    bps: Map<number, number>;
-    amountStroops: Map<number, string>;
+    bps: Map<string, number>;
+    amountStroops: Map<string, string>;
   }>({ bps: new Map(), amountStroops: new Map() });
   // Each recipient card can be collapsed to a summary row. Default to all
   // expanded when there are only a few recipients; collapse all but the first
@@ -116,20 +120,27 @@ export function SplitRecipientsEditor({
       return next;
     });
   };
+  const cacheKey = (r: SplitRecipient, i: number) =>
+    r.rowId === undefined ? `index:${i}` : `row:${r.rowId}`;
   const setMode = (newMode: "percentage" | "fixed") => {
     // Snapshot the current mode's values before the union switch discards them.
     node.config.recipients.forEach((r, i) => {
-      if (r.mode === "percentage") modeCache.current.bps.set(i, r.bps);
-      else modeCache.current.amountStroops.set(i, r.amountStroops);
+      if (r.mode === "percentage") modeCache.current.bps.set(cacheKey(r, i), r.bps);
+      else modeCache.current.amountStroops.set(cacheKey(r, i), r.amountStroops);
     });
     // A recipient with no cached share gets an even part of what the cached
     // ones leave, so switching a fresh fixed split to percentage lands on a
     // valid 100% instead of writing 0 into every share (#583).
-    const fresh = defaultShares(node.config.recipients.map((_, i) => modeCache.current.bps.get(i)));
+    const fresh = defaultShares(
+      node.config.recipients.map((r, i) => modeCache.current.bps.get(cacheKey(r, i))),
+    );
     const next = node.config.recipients.map((r, i) => {
       const base = {
+        rowId: r.rowId,
         address: r.address,
         label: r.label,
+        email: r.email,
+        payoutMode: r.payoutMode,
       };
       if (newMode === "percentage") {
         return { ...base, mode: "percentage" as const, bps: fresh[i] ?? 0 };
@@ -137,7 +148,7 @@ export function SplitRecipientsEditor({
       return {
         ...base,
         mode: "fixed" as const,
-        amountStroops: modeCache.current.amountStroops.get(i) ?? "0",
+        amountStroops: modeCache.current.amountStroops.get(cacheKey(r, i)) ?? "0",
       };
     });
     onChange({
@@ -161,6 +172,12 @@ export function SplitRecipientsEditor({
             {...control}
             className={inputClass}
             value={mode}
+            disabled={allocationMode !== undefined && node.config.recipients.length === 0}
+            title={
+              allocationMode !== undefined && node.config.recipients.length === 0
+                ? "Add a recipient before changing distribution mode."
+                : undefined
+            }
             onChange={(e) => setMode(e.target.value as "percentage" | "fixed")}
           >
             <option value="percentage">Percentage</option>
@@ -215,7 +232,7 @@ export function SplitRecipientsEditor({
             : "0";
         return (
           <div
-            key={i}
+            key={r.rowId ?? i}
             className={cn(
               "overflow-hidden rounded border bg-zinc-900/50",
               cardHasError ? "border-error/60" : "border-zinc-800",
@@ -393,15 +410,19 @@ export function SplitRecipientsEditor({
       <button
         className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900"
         onClick={() => {
+          // Generate identity at the user action, outside React's state updater.
+          const identity = allocationMode === undefined ? {} : { rowId: crypto.randomUUID() };
           const nextRecipients = [
             ...node.config.recipients,
             mode === "fixed"
               ? {
+                  ...identity,
                   address: "PENDING:unnamed",
                   mode: "fixed" as const,
                   amountStroops: "0",
                 }
               : {
+                  ...identity,
                   address: "PENDING:unnamed",
                   mode: "percentage" as const,
                   bps: 100,

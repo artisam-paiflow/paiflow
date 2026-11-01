@@ -32,6 +32,12 @@ import { TriggerNode, ActionNode, LogicNode } from "@/components/nodes";
 import AnimatedStraightEdge from "@/components/nodes/animated-edge";
 import { NotificationSettingsDialog } from "./notification-settings";
 import { sendWithRateLimitRetry } from "./autosave-retry.utils";
+import {
+  builderGraph,
+  editBuilderNodes,
+  removeBuilderNodes,
+  type BuilderDraft,
+} from "./graph-state.utils";
 import { createSaveCoordinator, type SaveOutcome } from "./save-outcome.utils";
 import CanvasConfigPanel from "./canvas-config-panel";
 import Palette from "./palette";
@@ -182,7 +188,7 @@ function toFlowEdge(e: Edge): FlowEdge {
 }
 export default function BuilderClient(props: BuilderProps) {
   return (
-    <ReactFlowProvider>
+    <ReactFlowProvider key={props.flowId}>
       <Builder {...props} />
     </ReactFlowProvider>
   );
@@ -198,7 +204,15 @@ function Builder({
   features,
 }: BuilderProps) {
   const [name, setName] = useState(initialName);
-  const [flowNodes, setFlowNodes] = useState<FlowNode[]>(initialGraph.nodes);
+  const [draft, setDraft] = useState<BuilderDraft>({
+    nodes: initialGraph.nodes,
+    fieldPolicies: initialGraph.fieldPolicies,
+  });
+  const { nodes: flowNodes, fieldPolicies } = draft;
+  // Both keyboard and panel authoring mutate nodes/policies in one state update.
+  const setFlowNodes = useCallback((update: (nodes: FlowNode[]) => FlowNode[]) => {
+    setDraft((current) => editBuilderNodes(current, update(current.nodes)));
+  }, []);
   const [rfNodes, setRfNodes] = useState<Node[]>(
     initialGraph.nodes.map((n, i) => nodeToReactFlow(n, i, initialGraph.positions)),
   );
@@ -269,15 +283,14 @@ function Builder({
     setReady(true);
   }, []);
   const graph: FlowGraph = useMemo(
-    () => ({
-      nodes: flowNodes,
-      edges: rfEdges.map(toFlowEdge),
-      notify: sandbox ? { mode: "off", sendTo: "" } : notify,
-      // Persist canvas positions with the flow (autosave is debounced, so a
-      // drag saves once it settles rather than on every frame).
-      positions: Object.fromEntries(rfNodes.map((n) => [n.id, n.position])),
-    }),
-    [flowNodes, rfEdges, false, notify, sandbox, rfNodes],
+    () =>
+      builderGraph(flowNodes, rfEdges.map(toFlowEdge), {
+        fieldPolicies,
+        notify: sandbox ? { mode: "off", sendTo: "" } : notify,
+        // Persist canvas positions when the debounced autosave settles.
+        positions: Object.fromEntries(rfNodes.map((n) => [n.id, n.position])),
+      }),
+    [flowNodes, rfEdges, notify, sandbox, rfNodes, fieldPolicies],
   );
   // Snapshot of the live canvas positions — used as a fallback when a
   // server-returned graph (AI edit, address resolution) doesn't carry them.
@@ -489,7 +502,7 @@ function Builder({
         if (removed) track("node_removed", { node_type: removed.type, via: "keyboard" });
       }
       const removedSet = new Set(removedIds);
-      setFlowNodes((arr) => arr.filter((n) => !removedSet.has(n.id)));
+      setDraft((current) => removeBuilderNodes(current, removedSet));
       setRfEdges((eds) =>
         eds.filter((e) => !removedSet.has(e.source) && !removedSet.has(e.target)),
       );
@@ -574,7 +587,7 @@ function Builder({
   function deleteNode(id: string) {
     const removed = nodeLookupRef.current.get(id);
     if (removed) track("node_removed", { node_type: removed.type, via: "panel" });
-    setFlowNodes((arr) => arr.filter((n) => n.id !== id));
+    setDraft((current) => removeBuilderNodes(current, new Set([id])));
     setRfNodes((arr) => arr.filter((n) => n.id !== id));
     setRfEdges((arr) => arr.filter((e) => e.source !== id && e.target !== id));
     if (selectedId === id) setSelectedId(null);
@@ -631,7 +644,7 @@ function Builder({
       }
       if (applied && patchedGraph) {
         // Use server-normalized graph directly (Issue #6 fix)
-        setFlowNodes(patchedGraph.nodes);
+        setDraft({ nodes: patchedGraph.nodes, fieldPolicies: patchedGraph.fieldPolicies });
         if (patchedGraph.notify) setNotify(patchedGraph.notify);
         setRfNodes(
           patchedGraph.nodes.map((n, i) =>
@@ -684,7 +697,7 @@ function Builder({
         return;
       }
       const resolvedFlow = json.data.flow as FlowGraph;
-      setFlowNodes(resolvedFlow.nodes);
+      setDraft({ nodes: resolvedFlow.nodes, fieldPolicies: resolvedFlow.fieldPolicies });
       setRfNodes(
         resolvedFlow.nodes.map((n, i) =>
           nodeToReactFlow(n, i, resolvedFlow.positions ?? currentPositions()),

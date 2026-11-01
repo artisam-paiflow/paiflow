@@ -2,6 +2,7 @@ import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
 import { integerNumber } from "@/lib/validation/number";
 import { formatStroops } from "@/lib/utils";
+import { FlowFieldPoliciesSchema, PolicyIdSchema } from "./field-policies";
 import { hasRetiredPayoutInput } from "./retired-inputs";
 import { hasRetiredPayrollInput, PAYROLL_RETIRED_MESSAGE } from "./retired-payroll";
 import { bpsSchema, TOTAL_BPS } from "./primitives";
@@ -173,6 +174,8 @@ export const PayAction = z.object({
     }),
 });
 const SplitRecipientBase = z.object({
+  // Stable identity only for new policy-aware definitions; legacy rows stay unchanged.
+  rowId: PolicyIdSchema.optional(),
   address: splitRecipientAddress,
   email: z.string().max(254).optional(),
   label: z.string().max(64).optional(),
@@ -497,6 +500,7 @@ export const NotifySchema = z.object({
   sendTo: z.string().max(254),
 });
 const FlowGraphShape = z.object({
+  fieldPolicies: FlowFieldPoliciesSchema.optional(),
   nodes: z.array(FlowNodeSchema).max(40),
   edges: z.array(FlowEdgeSchema).max(80),
   notify: NotifySchema.optional(),
@@ -513,7 +517,53 @@ export const FlowGraphSchema = z
     message: "Fiat payouts and bank/KYC configuration have been retired.",
   })
   .refine((value) => !hasRetiredPayrollInput(value), { message: PAYROLL_RETIRED_MESSAGE })
-  .pipe(z.preprocess(migrateFlowGraph, FlowGraphShape));
+  .pipe(z.preprocess(migrateFlowGraph, FlowGraphShape))
+  .superRefine((graph, ctx) => {
+    const ids = graph.nodes.map((n) => n.id);
+    if (new Set(ids).size !== ids.length)
+      ctx.addIssue({ code: "custom", path: ["nodes"], message: "Duplicate node ID" });
+    graph.fieldPolicies?.nodes.forEach((policy, index) => {
+      const path = ["fieldPolicies", "nodes", index];
+      const node = graph.nodes.find((n) => n.id === policy.nodeId);
+      if (!node || node.type !== policy.kind) {
+        ctx.addIssue({
+          code: "custom",
+          path,
+          message: "Policy must reference a matching Pay or Split node",
+        });
+        return;
+      }
+      if (policy.kind === "pay" && node.type === "pay") {
+        if (node.config.fullAmount && policy.payoutValue !== "constant")
+          ctx.addIssue({
+            code: "custom",
+            path,
+            message: "Full-amount Pay has no stored payout value",
+          });
+      }
+      if (policy.kind === "split" && node.type === "split") {
+        const rows = node.config.recipients;
+        const rowIds = rows.map((r) => r.rowId);
+        if (
+          rows.some((r) => !r.rowId) ||
+          new Set(rowIds).size !== rowIds.length ||
+          rows.length !== policy.rows.length ||
+          policy.rows.some((r, i) => r.rowId !== rows[i]?.rowId)
+        )
+          ctx.addIssue({
+            code: "custom",
+            path,
+            message: "Policy rows must match every configured row ID in order",
+          });
+        if (rows.some((r) => r.mode !== policy.allocationMode))
+          ctx.addIssue({
+            code: "custom",
+            path,
+            message: "Split allocation mode must match every configured row",
+          });
+      }
+    });
+  });
 export type FlowGraph = z.infer<typeof FlowGraphSchema>;
 export const FlowSaveSchema = z.object({
   name: z.string().min(1).max(80),

@@ -242,6 +242,26 @@ Deferred configuration:
   ([#1138](https://github.com/webnxt-2030/pinkraft/issues/1138)). Incomplete drafts may still be
   saved, but cannot deploy until their required configuration is complete.
 
+### 3.4.1 Reusable-flow field policies (phased foundation)
+
+New deployments will use one standard contract family with lifetime-fixed per-field
+modes: constant (default), declared per-execution inputs, or admin-mutable stored
+configuration. Pay execution inputs cover its recipient only; Split covers identified
+recipients and percentage/fixed allocations, preserving constant rows. Mutable
+eligibility covers Pay/Split stored recipients and payout values, with on-chain
+revision binding and obligation-safe admission. Template creation bindings are a
+separate, private, immutable-version mechanism; the developer signs, pays for and
+owns each isolated instance. Existing deployments are not retrofitted.
+
+The supported-field matrix, strict v1 wire schemas, immediate execution path subset,
+rounding/conservation rules, immutable row/routing guarantees, phased capabilities
+and ABI/storage ownership are specified in [reusable-flows.md](docs/reusable-flows.md).
+This foundation preserves declared policies on save but refuses **all explicit v1
+policy deployments** until compatible artifacts implement those guarantees, including
+all-constant tables. Mode-less saved definitions keep existing configured behavior;
+no new execution or mutation authority is inferred from an absent policy. Execution,
+instances and mutation ship in that order; schemas alone do not activate a phase.
+
 ### 3.5 English Preview Pane
 
 `flowToEnglish(graph)` (`lib/flows/english.ts`) is a pure function rendering the canvas as prose, so

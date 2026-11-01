@@ -5,6 +5,14 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+### Added
+
+- Shared versioned field-policy and input contracts for reusable flows (#1158):
+  distinguish execution arguments, private template creation bindings and guarded
+  stored updates. Preserve policies on draft save and reject explicit v1 deployment
+  until compatible contracts enforce them. Existing deployments and mode-less flow
+  behavior remain unchanged; this foundation activates no runtime capability.
+
 ### Removed
 
 - Payroll trigger, owner management APIs, scheduled payroll charges, contract build target and payroll capability/SDK metadata (#1144). Preserve historical payroll storage and the reviewed cancelled TESTNET fixture while refusing new or resumed payroll work. See [payroll retirement](docs/payroll-retirement.md) for the corrective migration disposition, cutover requirements and intentional compatibility exception.
