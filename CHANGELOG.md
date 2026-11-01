@@ -29,6 +29,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Add Aklan winners and the Blocktrain: Paiflow x Web3Iloilo showcase, include JRU’s fourth winning project Pundar, use champion/runner-up award labels throughout, and include the supplied Aklan and Iloilo winner/group photos.
+
+- Begin hackathon AI guidance with problem discovery, make Receive → Pay the simplest payment exercise, and label Split walkthroughs and sample apps as optional inspiration. Add varied flow examples, align shared context with retired mutable configuration and participant feature availability, and regenerate the Paiflow Guide PDF.
+
 - Clarify the hackathon app-building challenge around Paiflow, label examples and past winners as optional inspiration, and add examples beyond splitting. Set a two-minute pitch/demo with optional slides and three-minute Q&A; publish the five judging weights (15/20/10/30/25%), preserve the Excel rubric in an internal reference, and highlight the prize pool. Update onboarding, resource links, organiser guidance and the template PDF with flexible pagination.
 
 - Retire stored-file uploads, downloads and deletion with authenticated HTTP 410 responses; remove exclusive storage drivers, MinIO dependencies and configuration. The new migration removes stored-file metadata; underlying object cleanup remains separate. See the [retirement procedure](docs/file-storage-retirement.md) (#989, #881).
@@ -42,6 +46,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 - Reorganize Developer API around a compact token list, expandable details, dedicated creation panel and Quickstart. Search eligible deployments across pages while preserving explicit selections and one-time token reveal protections. Add the flow-name index migration; OpenAPI revision 1.2.0 documents the optional owner-session deployment search parameter.
 
 ### Security
+
+- Raise the `follow-redirects` override to >=1.16.2 and consolidate transitive `minimatch` versions on >=11.0.1 to address GHSA-mrwp-f3q8-3g9p and GHSA-g3hv-75wg-m249. Preserve the existing audit exception without adding new ignores.
 
 - Remove the obsolete stream-json audit exception because the lockfile resolves patched version 3.7.0; retain the separately accepted elliptic exception and all dependency versions (#1110, #753).
 

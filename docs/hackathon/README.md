@@ -48,6 +48,8 @@ Use the SDK as the default Node integration path. The [starter](https://github.c
 
 ## Files to keep in sync
 
+The shared `llms.md` and starter instructions begin app ideation by asking whether the team already has a problem. If not, help them explore and choose one before proposing an app or flow. Receive → Pay is the simplest payment exercise; Split and the guide's 90/10 walkthrough are optional examples. Keep the starter's `README.md`, `AGENTS.md` and `llms.md` aligned with this approach.
+
 Keep shared facts consistent without repeating every detail in every document. When behaviour changes, update the technical reference first, then the affected walkthroughs, samples and AI context. PDFs are generated copies of their Markdown sources; regenerate them when requested or before distributing a final revision.
 
 Paths below are relative to this folder unless stated otherwise.
@@ -111,6 +113,8 @@ Participant-facing repository links use [`artisam-paiflow/paiflow` on `develop`]
 ## PDF regeneration
 
 The [Windows setup guide](setup-guide.md) and its [PDF](setup-guide.pdf) consolidate the former Engr and starter setup guides. Follow one path: install Git, NVM, Node and pnpm, run the Paiflow starter, then set up Engr with a Kimi API key. Follow the current starter README for configuration; this setup guide ends with the local app and coding tools ready.
+
+The checked-in Paiflow Guide PDF was regenerated October 30, 2026 with the problem-discovery and optional-example wording. Check the shared Drive distribution copy against this revision before sharing it. Publish the starter's matching source changes in [starter PR #24](https://github.com/artisam-paiflow/paiflow-hackathon-starter/pull/24) before distributing links to its new problem-discovery section.
 
 After Markdown approval and an explicit request to regenerate, run from the repository root:
 
