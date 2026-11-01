@@ -204,7 +204,7 @@ const artifact = (value: unknown) => {
     d.policyVersion !== 1 ||
     d.executionAbi !== 1 ||
     d.execution !== true ||
-    d.mutation !== false ||
+    typeof d.mutation !== "boolean" ||
     d.immutablePolicies !== true ||
     d.revisionBinding !== true
   )
@@ -213,7 +213,7 @@ const artifact = (value: unknown) => {
     policyVersion: 1 as const,
     executionAbi: 1 as const,
     execution: true as const,
-    mutation: false as const,
+    mutation: d.mutation,
     immutablePolicies: true as const,
     revisionBinding: true as const,
     wasmHash: hash(d.wasmHash),
@@ -304,6 +304,14 @@ export function parseExecutionDiscovery(value: unknown) {
     )
   )
     throw new Error();
+  const policies = { version: 1 as const, nodes: array(object(d.policies).nodes, nodePolicy, 40) };
+  const mutable = policies.nodes.some((policy) =>
+    policy.kind === "pay"
+      ? policy.recipient === "mutable" || policy.payoutValue === "mutable"
+      : policy.additionalRecipients === "mutable" ||
+        policy.rows.some((row) => row.recipient === "mutable" || row.allocation === "mutable"),
+  );
+  if (mutable && nodes.some((node) => !node.capabilities.mutation)) throw new Error();
   return {
     ...base,
     supported: true as const,
@@ -312,7 +320,7 @@ export function parseExecutionDiscovery(value: unknown) {
     rootContract: address(d.rootContract, "C"),
     assetContract: address(d.assetContract, "C"),
     minAmountStroops: stroops(pattern(d.minAmountStroops, /^(0|[1-9]\d*)$/)),
-    policies: { version: 1 as const, nodes: array(object(d.policies).nodes, nodePolicy, 40) },
+    policies,
     nodes,
     configurations,
   };

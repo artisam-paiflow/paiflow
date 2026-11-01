@@ -33,6 +33,9 @@ export function payoutRecipients(graph: FlowGraph): PayoutRecipient[] {
           asset: n.config.asset,
         });
       }
+      if (policy?.kind === "split" && policy.additionalRecipients === "mutable")
+        for (const row of n.config.additionalRecipients ?? [])
+          out.push({ nodeId: n.id, address: row.recipient, asset: n.config.asset });
     }
   }
   return out;

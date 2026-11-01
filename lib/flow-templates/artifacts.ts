@@ -6,7 +6,8 @@ import { env } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { flowToPipeline } from "@/lib/flows/to-params";
-import { assertExecutionArtifact } from "@/lib/stellar/execution-artifacts";
+import { assertExecutionArtifact, assertMutationArtifact } from "@/lib/stellar/execution-artifacts";
+import { hasMutablePolicies } from "@/lib/flows/execution-v1";
 import { TemplateArtifactsSchema, type TemplateArtifacts } from "./schema";
 
 /** Stable JSON digest for immutable publication evidence (not signatures). */
@@ -57,6 +58,8 @@ export async function pinTemplateArtifacts(
       if (graph.fieldPolicies) {
         try {
           assertExecutionArtifact(node.templateKind, artifact.wasmHash);
+          if (hasMutablePolicies(graph))
+            assertMutationArtifact(node.templateKind, artifact.wasmHash);
         } catch {
           throw new AppError(
             "CONFLICT",

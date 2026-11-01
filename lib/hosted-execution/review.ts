@@ -22,6 +22,7 @@ export function hostedPaymentReview(
     const config = snapshot.configuration;
     const input = execution.arguments.inputs.find((value) => value.nodeId === snapshot.nodeId);
     if (config.kind === "pay") {
+      if (snapshot.policy.kind !== "pay") throw new Error("Confirmed Pay policy mismatch");
       const payout =
         config.payoutValue.kind === "full"
           ? incoming
@@ -41,21 +42,25 @@ export function hostedPaymentReview(
             : config.payoutValue.kind === "fixed"
               ? `${formatStroops(config.payoutValue.amountStroops)} tokens`
               : `${formatStroops(BigInt(config.payoutValue.bps), 2)}%`,
-        recipientSource: input?.kind === "pay" ? "execution" : "constant",
-        allocationSource: "constant",
+        recipientSource: snapshot.policy.recipient,
+        allocationSource: snapshot.policy.payoutValue,
       });
       incoming -= payout;
       continue;
     }
+    const policy = snapshot.policy;
+    if (policy.kind !== "split") throw new Error("Confirmed Split policy mismatch");
     const configured = config.configuredRows.map((row) => {
+      const declared = policy.rows.find((candidate) => candidate.rowId === row.rowId);
+      if (!declared) throw new Error("Confirmed Split row policy missing");
       const override =
         input?.kind === "split" ? input.rows.find((r) => r.rowId === row.rowId) : undefined;
       return {
         ...row,
         recipient: override?.recipient ?? row.recipient,
         allocation: override?.allocation ?? row.allocation,
-        recipientSource: override?.recipient ? ("execution" as const) : ("constant" as const),
-        allocationSource: override?.allocation ? ("execution" as const) : ("constant" as const),
+        recipientSource: declared.recipient,
+        allocationSource: declared.allocation,
       };
     });
     const additional = input?.kind === "split" ? (input.additionalRecipients ?? []) : [];
@@ -63,8 +68,8 @@ export function hostedPaymentReview(
       ...configured,
       ...config.additionalRecipients.map((row) => ({
         ...row,
-        recipientSource: "constant" as const,
-        allocationSource: "constant" as const,
+        recipientSource: "mutable" as const,
+        allocationSource: "mutable" as const,
       })),
       ...additional.map((row) => ({
         ...row,

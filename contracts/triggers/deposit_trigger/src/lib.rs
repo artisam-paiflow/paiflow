@@ -2,8 +2,8 @@
 #[path = "../../../execution-v1.rs"]
 pub mod execution_v1;
 use execution_v1::{
-    Binding, Capabilities, ExecutionContext, ExecutionError, NodeInput, PolicyKey, RootConfig,
-    RootState,
+    Binding, Capabilities, ExecutionContext, ExecutionError, MutationContext, NodeInput,
+    NodeMutation, PolicyKey, RootConfig, RootState,
 };
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, token,
@@ -196,6 +196,29 @@ impl DepositTrigger {
 
     pub fn capabilities(env: Env) -> Capabilities {
         execution_v1::capabilities(&env)
+    }
+    /// One atomic admin-authorized update of the complete conserved path.
+    /// Every accepted obligation is checked before any stored term is changed.
+    pub fn mutate_v1(env: Env, bindings: Vec<Binding>, changes: Vec<NodeMutation>) {
+        let config = Self::field_policy(env.clone());
+        let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
+        admin.require_auth();
+        let context = MutationContext {
+            root: env.current_contract_address(),
+            admin,
+            asset: env.storage().instance().get(&Key::Asset).unwrap(),
+            bindings,
+            changes,
+            index: 0,
+        };
+        execution_v1::preflight_mutation(
+            &env,
+            &context,
+            &config.node_id,
+            &config.next_steps.first().unwrap().address,
+        );
+        execution_v1::forward_mutation(&env, context, &config.next_steps);
+        bump_ttl(&env);
     }
     pub fn config_revision(env: Env) -> u64 {
         execution_v1::revision(&env)

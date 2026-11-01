@@ -8,7 +8,10 @@ import {
   assertPinnedTemplateArtifacts,
 } from "@/lib/flow-templates/artifacts";
 import { FlowGraphSchema } from "@/lib/flows/schema";
-import { EXECUTION_V1_WASM_HASHES } from "@/lib/stellar/execution-artifacts";
+import {
+  EXECUTION_V1_WASM_HASHES,
+  MUTATION_V1_WASM_HASHES,
+} from "@/lib/stellar/execution-artifacts";
 const A = Keypair.random().publicKey();
 const factory = StrKey.encodeContract(Buffer.alloc(32, 1));
 const graph = () =>
@@ -147,4 +150,29 @@ describe("template artifact evidence", () => {
       },
     ]);
   });
+});
+
+it("requires new guarded artifacts throughout a mutable template before publishing or preparing", async () => {
+  const value = graph();
+  value.fieldPolicies = {
+    version: 1,
+    nodes: [{ kind: "pay", nodeId: "p", recipient: "mutable", payoutValue: "constant" }],
+  };
+  const old = registry(true);
+  await expect(pinTemplateArtifacts(value, "testnet", old.tx)).rejects.toMatchObject({
+    code: "CONFLICT",
+  });
+  const current = registry(true);
+  current.rows.forEach((row) => {
+    row.wasmHash = MUTATION_V1_WASM_HASHES[row.kind as "DEPOSIT_TRIGGER" | "PAYER"];
+  });
+  const pins = await pinTemplateArtifacts(value, "testnet", current.tx);
+  expect(
+    pins.nodes.every((node) =>
+      Object.values(MUTATION_V1_WASM_HASHES).some((hash) => hash === node.wasmHash),
+    ),
+  ).toBe(true);
+  await expect(assertPinnedTemplateArtifacts(value, "testnet", pins, old.tx)).rejects.toMatchObject(
+    { code: "CONFLICT" },
+  );
 });

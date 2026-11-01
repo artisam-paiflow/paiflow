@@ -1,30 +1,42 @@
 import type { NodeFieldPolicy, FlowFieldPolicies } from "@/lib/flows/field-policies";
-import { executionPath } from "@/lib/flows/execution-v1";
+import { executionPath, hasMutablePolicies } from "@/lib/flows/execution-v1";
 import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
-import { assertExecutionArtifact } from "@/lib/stellar/execution-artifacts";
+import { assertExecutionArtifact, assertMutationArtifact } from "@/lib/stellar/execution-artifacts";
 import { editBuilderNodes, type BuilderDraft } from "./graph-state.utils";
 
-export type ExecutionArtifacts = { receive: boolean; pay: boolean; split: boolean };
+export type ExecutionArtifacts = {
+  receive: boolean;
+  pay: boolean;
+  split: boolean;
+  mutation?: { receive: boolean; pay: boolean; split: boolean };
+};
 
 /** Readiness comes from the environment's resolved hashes, never a client flag
  * or the existence of source code for the new ABI. */
 export function executionArtifactsFromHashes(
   hashes: ReadonlyMap<string, string>,
 ): ExecutionArtifacts {
-  const supports = (kind: string) => {
+  const supports = (kind: string, mutation = false) => {
     const hash = hashes.get(kind);
     if (!hash) return false;
     try {
       assertExecutionArtifact(kind, hash);
+      if (mutation) assertMutationArtifact(kind, hash);
       return true;
     } catch {
       return false;
     }
   };
+  const mutation = {
+    receive: supports("DEPOSIT_TRIGGER", true),
+    pay: supports("PAYER", true),
+    split: supports("SPLITTER", true),
+  };
   return {
     receive: supports("DEPOSIT_TRIGGER"),
     pay: supports("PAYER"),
     split: supports("SPLITTER"),
+    ...(Object.values(mutation).some(Boolean) ? { mutation } : {}),
   };
 }
 
@@ -33,13 +45,14 @@ export function executionDeploymentAvailable(
   artifacts?: ExecutionArtifacts,
 ): boolean {
   if (graph.fieldPolicies === undefined) return true;
+  const selected = hasMutablePolicies(graph) ? artifacts?.mutation : artifacts;
   return Boolean(
-    artifacts?.receive &&
+    selected?.receive &&
     graph.nodes.every(
       (node) =>
         node.type === "on_receive" ||
-        (node.type === "pay" && artifacts.pay) ||
-        (node.type === "split" && artifacts.split),
+        (node.type === "pay" && selected.pay) ||
+        (node.type === "split" && selected.split),
     ),
   );
 }

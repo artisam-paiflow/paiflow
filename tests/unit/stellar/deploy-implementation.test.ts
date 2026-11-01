@@ -3,7 +3,10 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import { flowToPipeline } from "@/lib/flows/to-params";
 import { paymentAccountResponse } from "./payment-account-fixture";
-import { EXECUTION_V1_WASM_HASHES } from "@/lib/stellar/execution-artifacts";
+import {
+  EXECUTION_V1_WASM_HASHES,
+  MUTATION_V1_WASM_HASHES,
+} from "@/lib/stellar/execution-artifacts";
 
 const {
   getAccount,
@@ -262,3 +265,27 @@ it.each(["send-timeout", "read-timeout", "deadline"])(
     }
   },
 );
+
+it("requires guarded artifacts for every participating mutable path node before RPC", async () => {
+  const value = executionGraph();
+  const node = value.nodes[1];
+  const policy = value.fieldPolicies!.nodes[0];
+  if (node?.type !== "pay" || policy?.kind !== "pay") throw new Error();
+  node.config.recipient = ACCOUNT;
+  policy.recipient = "mutable";
+  const nodes = flowToPipeline(value).map((node) => ({
+    ...node,
+    wasmHash: EXECUTION_V1_WASM_HASHES[node.templateKind as keyof typeof EXECUTION_V1_WASM_HASHES],
+  }));
+  await expect(
+    preparePipelineDeployTx({ sourceAccount: ACCOUNT, graph: value, nodes }),
+  ).rejects.toThrow("artifacts");
+  expect(simulate).not.toHaveBeenCalled();
+  nodes.forEach((node) => {
+    node.wasmHash = MUTATION_V1_WASM_HASHES[
+      node.templateKind as keyof typeof MUTATION_V1_WASM_HASHES
+    ] as typeof node.wasmHash;
+  });
+  const result = await preparePipelineDeployTx({ sourceAccount: ACCOUNT, graph: value, nodes });
+  expect(result.pipeline.every((node) => node.artifactCapabilities?.mutation)).toBe(true);
+});

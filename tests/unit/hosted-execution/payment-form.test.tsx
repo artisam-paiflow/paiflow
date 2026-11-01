@@ -5,7 +5,15 @@ import axe from "axe-core";
 import { createHostedOwnershipChallenge } from "@/lib/stellar/hosted-ownership";
 import HostedPaymentForm from "@/components/deploy/hosted-payment-form";
 import { hostedRecoveryStorageKey, readHostedRecovery } from "@/lib/hosted-execution/form";
-import { alice, bob, deploymentId, hostedState, payer, preparation } from "./fixtures";
+import {
+  alice,
+  bob,
+  deploymentId,
+  hostedState,
+  payer,
+  preparation,
+  storedMutableState,
+} from "./fixtures";
 
 const wallet = vi.hoisted(() => ({ sign: vi.fn(), connect: vi.fn() }));
 vi.mock("@/components/deploy/wallet-kit", () => ({ getWalletKit: vi.fn(async () => ({})) }));
@@ -351,4 +359,31 @@ describe("wallet-only hosted execution fixture", () => {
     expect(screen.queryByLabelText("Payment amount")).toBeNull();
     expect(fetcher).not.toHaveBeenCalled();
   });
+});
+
+it("labels current stored terms as admin-updatable and provides no payer override input", async () => {
+  const state = storedMutableState();
+  const original = fetcher.getMockImplementation()!;
+  fetcher.mockImplementation(async (url, options) => {
+    if (url.endsWith("/state")) return Response.json({ data: state });
+    if (url.endsWith("/prepare")) {
+      const body = JSON.parse(String(options?.body));
+      if (!body.ownershipProofXdr) throw new Error("Missing ownership proof");
+      current = preparation(body.payment, ++serial, state);
+      return Response.json({ data: current });
+    }
+    return original(url, options);
+  });
+  render(form());
+  await screen.findByLabelText("Payment amount");
+  expect(screen.queryByLabelText("Payment recipient")).toBeNull();
+  fireEvent.change(screen.getByLabelText("Payment amount"), { target: { value: "0.00001" } });
+  fireEvent.click(screen.getByRole("button", { name: "Connect wallet" }));
+  await screen.findByText(`Payer: ${payer.publicKey()}`);
+  fireEvent.click(screen.getByRole("button", { name: "Prepare payment" }));
+  await screen.findByRole("region", { name: "Review payment" });
+  expect(
+    screen.getByText(/Recipient: stored; admin may update; allocation: stored; admin may update/),
+  ).toBeTruthy();
+  expect(current?.prepared.execution.nodes[1]!.expectedRevision).toBe("2");
 });

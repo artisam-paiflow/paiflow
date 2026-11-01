@@ -40,7 +40,8 @@ import { simulationFailure } from "./sim-error";
 import { loadPaymentAccount, MissingPaymentAccountError } from "./load-payment-account";
 import { deploymentPreparationRead } from "./deployment-preparation";
 import { contractKeyForTemplate, type ContractErrorKey } from "./soroban-errors";
-import { executionArtifactMetadata } from "./execution-artifacts";
+import { assertMutationArtifact, executionArtifactMetadata } from "./execution-artifacts";
+import { hasMutablePolicies } from "@/lib/flows/execution-v1";
 import type { ArtifactCapabilities } from "@/lib/flows/field-policies";
 // 2 XLM covers: 1 XLM base reserve + ~0.5 XLM Soroban storage entries + ~0.5 XLM tx fee buffer
 const MIN_DEPLOYMENT_XLM_STROOPS = 20000000n;
@@ -111,6 +112,7 @@ function buildPipelinePlan(
     for (const node of nodes) {
       try {
         executionArtifactMetadata(node.templateKind, node.wasmHash);
+        if (hasMutablePolicies(graph)) assertMutationArtifact(node.templateKind, node.wasmHash);
       } catch {
         throw new AppError(
           "VALIDATION",

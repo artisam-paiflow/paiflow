@@ -12,6 +12,7 @@ import { ExecutionIntentSchema } from "@/lib/flows/field-policies";
 import {
   executionArtifactMetadata,
   EXECUTION_V1_WASM_HASHES,
+  MUTATION_V1_WASM_HASHES,
 } from "@/lib/stellar/execution-artifacts";
 import { executionV1Args } from "@/lib/stellar/execution-v1";
 import { hostedPaymentReview } from "@/lib/hosted-execution/review";
@@ -71,18 +72,18 @@ export const state = ExecutionDiscoverySchema.parse({
 });
 if (!state.supported) throw new Error("Invalid test fixture");
 export const hostedState = state;
-export function preparation(input: ExecutePrepare, serial = 1) {
+export function preparation(input: ExecutePrepare, serial = 1, currentState = hostedState) {
   const execution = ExecutionIntentSchema.parse({
     version: 1,
     deploymentId,
     networkPassphraseHash: createHash("sha256").update(Networks.TESTNET).digest("hex"),
     rootContract: root,
-    assetContract: hostedState.assetContract,
+    assetContract: currentState.assetContract,
     payer: input.from,
     amountStroops: input.amount,
     nonce: serial.toString(16).padStart(64, "0"),
     expiresAtLedger: 800,
-    nodes: hostedState.nodes.map(({ nodeId, contractAddress, expectedRevision }) => ({
+    nodes: currentState.nodes.map(({ nodeId, contractAddress, expectedRevision }) => ({
       nodeId,
       contractAddress,
       expectedRevision,
@@ -106,7 +107,7 @@ export function preparation(input: ExecutePrepare, serial = 1) {
     expiresAt: new Date(Number(tx.timeBounds!.maxTime) * 1000).toISOString(),
     execution,
   };
-  return { prepared, feeStroops: tx.fee, ...hostedPaymentReview(hostedState, execution) };
+  return { prepared, feeStroops: tx.fee, ...hostedPaymentReview(currentState, execution) };
 }
 export const payment = {
   from: payer.publicKey(),
@@ -116,3 +117,29 @@ export const payment = {
     inputs: [{ kind: "pay" as const, nodeId: "pay", recipient: alice }],
   },
 };
+
+export function storedMutableState() {
+  const value = structuredClone(hostedState);
+  const policy = {
+    kind: "pay" as const,
+    nodeId: "pay",
+    recipient: "mutable" as const,
+    payoutValue: "mutable" as const,
+  };
+  value.policies.nodes = [policy];
+  value.configurations[0]!.policy = policy;
+  value.configurations[0]!.configuration = {
+    kind: "pay",
+    recipient: alice,
+    payoutValue: { kind: "fixed", amountStroops: "40" },
+  };
+  value.configurations[0]!.revision = "2";
+  value.nodes[1]!.expectedRevision = "2";
+  value.nodes.forEach((node, index) => {
+    const kind = index === 0 ? "DEPOSIT_TRIGGER" : "PAYER";
+    node.capabilities = executionArtifactMetadata(kind, MUTATION_V1_WASM_HASHES[kind]);
+  });
+  const parsed = ExecutionDiscoverySchema.parse(value);
+  if (!parsed.supported) throw new Error("Expected stored state");
+  return parsed;
+}

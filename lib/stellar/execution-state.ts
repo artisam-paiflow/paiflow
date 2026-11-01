@@ -15,7 +15,7 @@ import { z } from "zod";
 import { stellarPassphrase, stellarRelayerAddress, env } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { FlowGraphSchema, type FlowGraph } from "@/lib/flows/schema";
-import { executionPath, executionPolicy } from "@/lib/flows/execution-v1";
+import { executionPath, executionPolicy, hasMutablePolicies } from "@/lib/flows/execution-v1";
 import {
   ArtifactCapabilitiesSchema,
   ContractAddressSchema,
@@ -26,7 +26,7 @@ import { sorobanRpc } from "./client";
 import { loadPaymentAccount } from "./load-payment-account";
 import { assetContractId } from "./assets";
 import { decodeExecutionCapabilities, decodeExecutionState } from "./execution-v1";
-import { assertExecutionArtifact } from "./execution-artifacts";
+import { assertExecutionArtifact, executionArtifactMetadata } from "./execution-artifacts";
 
 type ExecutionDeployment = Pick<
   Deployment,
@@ -80,7 +80,10 @@ function assertOriginalConfiguration(graph: FlowGraph, current: ConfirmedNodeCon
         : { kind: "fixed", amountStroops: BigInt(node.config.amountStroops ?? "0").toString() };
     if (
       !isDeepStrictEqual(policy, current.policy) ||
-      !isDeepStrictEqual(payoutValue, current.configuration.payoutValue) ||
+      (policy.kind === "pay" &&
+        policy.payoutValue === "constant" &&
+        !isDeepStrictEqual(payoutValue, current.configuration.payoutValue)) ||
+      (policy.kind === "pay" && payoutValue.kind !== current.configuration.payoutValue.kind) ||
       (policy.kind === "pay" &&
         policy.recipient === "constant" &&
         node.config.recipient !== current.configuration.recipient)
@@ -92,20 +95,27 @@ function assertOriginalConfiguration(graph: FlowGraph, current: ConfirmedNodeCon
     const policy = executionPolicy(graph, node);
     if (!policy || policy.kind !== "split" || !isDeepStrictEqual(policy, current.policy))
       throw unavailable();
-    const expected = node.config.recipients.map((row, index) => ({
-      rowId: policy.rows[index]!.rowId,
-      ...(policy.rows[index]!.recipient === "execution" ? {} : { recipient: row.address }),
-      ...(policy.rows[index]!.allocation === "execution"
-        ? {}
-        : {
-            allocation:
-              row.mode === "fixed"
-                ? { kind: "fixed", amountStroops: BigInt(row.amountStroops).toString() }
-                : { kind: "percentage", bps: row.bps },
-          }),
-    }));
+    if (node.config.recipients.length !== current.configuration.configuredRows.length)
+      throw unavailable();
+    node.config.recipients.forEach((row, index) => {
+      const declared = policy.rows[index]!;
+      const actual =
+        current.configuration.kind === "split"
+          ? current.configuration.configuredRows[index]
+          : undefined;
+      const allocation =
+        row.mode === "fixed"
+          ? { kind: "fixed", amountStroops: BigInt(row.amountStroops).toString() }
+          : { kind: "percentage", bps: row.bps };
+      if (
+        actual?.rowId !== declared.rowId ||
+        (declared.recipient === "constant" && row.address !== actual.recipient) ||
+        (declared.allocation === "constant" && !isDeepStrictEqual(allocation, actual.allocation))
+      )
+        throw unavailable();
+    });
     if (
-      !isDeepStrictEqual(expected, current.configuration.configuredRows) ||
+      policy.additionalRecipients !== "mutable" &&
       current.configuration.additionalRecipients.length !== 0
     )
       throw unavailable();
@@ -156,22 +166,14 @@ export async function readExecutionState(
       node.artifactCapabilities.policyVersion !== 1 ||
       !node.artifactCapabilities.execution ||
       node.artifactCapabilities.wasmHash !== node.wasmHash ||
-      node.artifactCapabilities.mutation
+      !isDeepStrictEqual(
+        node.artifactCapabilities,
+        executionArtifactMetadata(node.templateKind, node.wasmHash),
+      ) ||
+      (hasMutablePolicies(graph) && !node.artifactCapabilities.mutation)
     )
       throw unavailable();
   }
-  if (
-    graph.fieldPolicies.nodes.some((policy) =>
-      policy.kind === "pay"
-        ? policy.recipient === "mutable" || policy.payoutValue === "mutable"
-        : policy.additionalRecipients === "mutable" ||
-          policy.rows.some((row) => row.recipient === "mutable" || row.allocation === "mutable"),
-    )
-  )
-    throw new AppError(
-      "VALIDATION",
-      "Mutable configuration is not available for this execution ABI",
-    );
   const server = sorobanRpc();
   const source = stellarRelayerAddress() ?? deployment.sourceAccount;
   if (!source) throw unavailable();
@@ -239,7 +241,6 @@ export async function readExecutionState(
               if (
                 capabilities.policyVersion !== 1 ||
                 !capabilities.execution ||
-                capabilities.mutation ||
                 !isDeepStrictEqual(capabilities, node.artifactCapabilities)
               )
                 throw unavailable();

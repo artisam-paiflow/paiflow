@@ -5,6 +5,12 @@ SDK versions are independent of the app and API. Follow the repository release
 
 ## [Unreleased]
 
+- Accept server-verified mutation capability metadata when discovering new guarded
+  Pay/Split artifacts, while retaining execution-only discovery with `mutation: false`
+  (#1168). Older strict SDKs may require an update for the new artifact generation;
+  existing execution-only deployment responses are unchanged. Mutation endpoints
+  remain subsequent work; no release is published by this change.
+
 - Add execution input types, verified configuration reads, idempotent preparation,
   exact-intent signing/submission and explicit reconciliation for policy-v1 backend
   deployments (#1160, OpenAPI 1.4.0). UNKNOWN/REJECTED remain unresolved outcomes;

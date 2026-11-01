@@ -6,13 +6,17 @@ import {
   ConfirmedNodeConfigurationSchema,
   ContractAddressSchema,
   ExecutionIntentSchema,
+  ExecutionNodeBindingSchema,
   PolicyIdSchema,
   WalletAddressSchema,
   type Allocation,
   type ArtifactCapabilities,
   type ConfirmedNodeConfiguration,
   type ExecutionIntent,
+  type MutationArguments,
+  MutationArgumentsSchema,
 } from "@/lib/flows/field-policies";
+import { MUTATION_V1_WASM_HASHES } from "./execution-artifacts";
 import type {
   DepositTriggerNodeParams,
   PayerNodeParams,
@@ -83,7 +87,7 @@ export function executionConstructorConfig(
     });
   if (params.kind !== "splitter" || policy.kind !== "split")
     throw new Error("Mismatched execution policy");
-  return record({
+  const splitPolicy = record({
     version: u32(1),
     node_id: string(policy.nodeId),
     allocation_mode: variant(policy.allocationMode === "fixed" ? "Fixed" : "Percentage"),
@@ -111,6 +115,81 @@ export function executionConstructorConfig(
       }),
     ),
   });
+  if (policy.additionalRecipients !== "mutable") return splitPolicy;
+  return record({
+    policy: splitPolicy,
+    additional: xdr.ScVal.scvVec(
+      (params.initialAdditionalRecipients ?? []).map((row) =>
+        record({
+          row_id: string(row.rowId),
+          recipient: address(row.recipient),
+          allocation: allocation(row.allocation),
+        }),
+      ),
+    ),
+  });
+}
+
+/** Root invocation authenticates the complete ordered path and all atomic changes. */
+export function mutationV1Args(
+  bindings: ExecutionIntent["nodes"],
+  raw: MutationArguments,
+): xdr.ScVal[] {
+  const args = MutationArgumentsSchema.parse(raw);
+  const nodes = z.array(ExecutionNodeBindingSchema).min(2).max(40).parse(bindings);
+  return [
+    xdr.ScVal.scvVec(
+      nodes.map((binding) =>
+        record({
+          node_id: string(binding.nodeId),
+          contract_address: address(binding.contractAddress),
+          expected_revision: u64(binding.expectedRevision),
+        }),
+      ),
+    ),
+    xdr.ScVal.scvVec(
+      args.changes.map((change) =>
+        change.kind === "pay"
+          ? variant(
+              "Pay",
+              record({
+                node_id: string(change.nodeId),
+                expected_revision: u64(change.expectedRevision),
+                recipient: optionalAddress(change.recipient),
+                payout_value: maybeAllocation(change.payoutValue),
+              }),
+            )
+          : variant(
+              "Split",
+              record({
+                node_id: string(change.nodeId),
+                expected_revision: u64(change.expectedRevision),
+                rows: xdr.ScVal.scvVec(
+                  change.rows.map((row) =>
+                    record({
+                      row_id: string(row.rowId),
+                      recipient: optionalAddress(row.recipient),
+                      allocation: maybeAllocation(row.allocation),
+                    }),
+                  ),
+                ),
+                additional:
+                  change.additionalRecipients === undefined
+                    ? xdr.ScVal.scvVoid()
+                    : xdr.ScVal.scvVec(
+                        change.additionalRecipients.map((row) =>
+                          record({
+                            row_id: string(row.rowId),
+                            recipient: address(row.recipient),
+                            allocation: allocation(row.allocation),
+                          }),
+                        ),
+                      ),
+              }),
+            ),
+      ),
+    ),
+  ];
 }
 
 /** Exact args authenticated by the payer on the root invocation. */
@@ -266,6 +345,18 @@ const splitState = z
     asset: ContractAddressSchema,
     parent: ContractAddressSchema,
     min_amount: decimal,
+    additional: z
+      .array(
+        z
+          .object({
+            row_id: PolicyIdSchema,
+            recipient: WalletAddressSchema,
+            allocation: rawAllocation,
+          })
+          .strict(),
+      )
+      .max(20)
+      .optional(),
   })
   .strict();
 export type DecodedExecutionState =
@@ -290,12 +381,14 @@ export function decodeExecutionCapabilities(raw: unknown, wasmHash: string): Art
       policy_version: z.literal(1),
       execution_abi: z.literal(1),
       execution: z.literal(true),
-      mutation: z.literal(false),
+      mutation: z.boolean(),
       immutable_policies: z.literal(true),
       revision_binding: z.literal(true),
     })
     .strict()
     .parse(rawValue(raw));
+  if (value.mutation !== Object.values(MUTATION_V1_WASM_HASHES).some((hash) => hash === wasmHash))
+    throw new Error("Mutation capability differs from the pinned reviewed artifact");
   return ArtifactCapabilitiesSchema.parse({
     policyVersion: value.policy_version,
     executionAbi: value.execution_abi,
@@ -337,8 +430,6 @@ export function decodeExecutionState(
   if (binding.templateKind === "PAYER") {
     const value = payState.parse(rawValue(raw));
     const rule = value.policy.payout_rule;
-    if (value.policy.payout_value_mode !== "constant" || value.policy.recipient_mode === "mutable")
-      throw new Error("Unsupported mutable policy");
     if (
       rule[0] === "Fixed"
         ? value.amount !== rule[1] || value.percentage_bps !== 0
@@ -375,14 +466,7 @@ export function decodeExecutionState(
   }
   if (binding.templateKind !== "SPLITTER") throw new Error("Unsupported execution contract kind");
   const value = splitState.parse(rawValue(raw));
-  if (
-    value.min_amount !== "0" ||
-    value.policy.additional_mode === "mutable" ||
-    value.policy.rows.some(
-      (row) => row.recipient_mode === "mutable" || row.allocation_mode === "mutable",
-    )
-  )
-    throw new Error("Unsupported Split configuration");
+  if (value.min_amount !== "0") throw new Error("Unsupported Split configuration");
   const configuration = ConfirmedNodeConfigurationSchema.parse({
     ...base,
     revision: value.revision,
@@ -404,7 +488,11 @@ export function decodeExecutionState(
         ...(row.recipient ? { recipient: row.recipient } : {}),
         ...(row.allocation ? { allocation: row.allocation } : {}),
       })),
-      additionalRecipients: [],
+      additionalRecipients: (value.additional ?? []).map((row) => ({
+        rowId: row.row_id,
+        recipient: row.recipient,
+        allocation: row.allocation,
+      })),
     },
   });
   return { kind: "split", configuration, asset: value.asset, parent: value.parent, nextSteps: [] };

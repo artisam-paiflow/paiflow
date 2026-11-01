@@ -185,3 +185,16 @@ native security tests still enforce exact auth entries and reject altered signed
 inputs, unauthorized parents, stale revisions and replay without mock-all-auth.
 Network resource suitability remains a simulation and
 cross-layer acceptance concern in #1163. Actual activation requires separate approval.
+
+## Guarded mutation-capable artifact generation (#1168)
+
+The original execution-only hashes above remain trusted for existing pinned
+snapshots with `mutation: false`. New standard root/Pay/Split builds add guarded
+stored configuration without retrofitting those contracts. The per-hash manifest,
+constructor initial mutable roster wrapper, current-state reads, whole-path
+obligation admission and local resource comparison are documented in
+[mutation v1](mutation-v1.md). New mutable graphs require that new artifact generation
+throughout the path; existing execution-only graphs remain compatible with their
+old pinned hashes and strict execution semantics. The local verifier now defaults
+to the current guarded source build; use `--execution-only` when verifying a rebuild
+of the retained execution-only source. No artifact activation is implied.

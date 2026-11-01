@@ -10,6 +10,17 @@ import { directBinding } from "./implementation";
 import { pctToBps, type FlowGraph, type FlowNode } from "./schema";
 import type { CompiledPipelineNode } from "./to-params";
 
+export function hasMutablePolicies(graph: Pick<FlowGraph, "fieldPolicies">): boolean {
+  return (
+    graph.fieldPolicies?.nodes.some((policy) =>
+      policy.kind === "pay"
+        ? policy.recipient === "mutable" || policy.payoutValue === "mutable"
+        : policy.additionalRecipients === "mutable" ||
+          policy.rows.some((row) => row.recipient === "mutable" || row.allocation === "mutable"),
+    ) ?? false
+  );
+}
+
 /** The complete, deliberately narrow v1 path. This never enables an artifact. */
 export function executionPath(graph: FlowGraph): FlowNode[] {
   if (graph.fieldPolicies === undefined) throw new Error("An explicit field policy is required");
@@ -101,9 +112,12 @@ export function compileExecutionPipeline(graph: FlowGraph): CompiledPipelineNode
     if (JSON.stringify(node.config.asset) !== JSON.stringify(asset))
       throw new Error("Every execution node must use the root asset");
     if (node.type === "pay" && policy.kind === "pay") {
-      if (policy.recipient === "mutable" || policy.payoutValue !== "constant")
-        throw new Error("Mutable policies are not implemented");
-      if (policy.recipient === "constant" && !StrKey.isValidEd25519PublicKey(node.config.recipient))
+      if (node.config.fullAmount && policy.payoutValue !== "constant")
+        throw new Error("Full-amount Pay has no mutable stored payout value");
+      if (
+        policy.recipient !== "execution" &&
+        !StrKey.isValidEd25519PublicKey(node.config.recipient)
+      )
         throw new Error("Invalid constant Pay recipient");
       const percentageBps = node.config.fullAmount
         ? 10_000
@@ -134,11 +148,9 @@ export function compileExecutionPipeline(graph: FlowGraph): CompiledPipelineNode
     }
     if (node.type !== "split" || policy.kind !== "split")
       throw new Error("Policy does not match execution node");
-    if (
-      policy.additionalRecipients === "mutable" ||
-      policy.rows.some((r) => r.recipient === "mutable" || r.allocation === "mutable")
-    )
-      throw new Error("Mutable policies are not implemented");
+    const additional = node.config.additionalRecipients ?? [];
+    if (node.config.additionalRecipients !== undefined && policy.additionalRecipients !== "mutable")
+      throw new Error("Initial stored additional recipients require a mutable roster policy");
     if (policy.rows.length !== node.config.recipients.length)
       throw new Error("Configured Split policy rows must match");
     let constantBps = 0;
@@ -154,7 +166,7 @@ export function compileExecutionPipeline(graph: FlowGraph): CompiledPipelineNode
       )
         throw new Error("Invalid configured Split row identity or mode");
       ids.add(declared.rowId);
-      if (declared.recipient === "constant") {
+      if (declared.recipient !== "execution") {
         if (!StrKey.isValidEd25519PublicKey(row.address) || addresses.has(row.address))
           throw new Error("Invalid or duplicate constant Split recipient");
         addresses.add(row.address);
@@ -172,16 +184,27 @@ export function compileExecutionPipeline(graph: FlowGraph): CompiledPipelineNode
         amount: row.mode === "fixed" ? row.amountStroops : "0",
       };
     });
+    for (const row of additional) {
+      if (
+        ids.has(row.rowId) ||
+        addresses.has(row.recipient) ||
+        row.allocation.kind !== policy.allocationMode
+      )
+        throw new Error("Invalid initial additional roster identity, recipient or mode");
+      ids.add(row.rowId);
+      addresses.add(row.recipient);
+      if (row.allocation.kind === "percentage") constantBps += row.allocation.bps;
+    }
     if (
-      (!recipients.length && policy.additionalRecipients !== "execution") ||
-      recipients.length > 20
+      (!recipients.length && !additional.length && policy.additionalRecipients !== "execution") ||
+      recipients.length + additional.length > 20
     )
       throw new Error("Invalid Split recipient count");
     if (
       policy.allocationMode === "percentage" &&
       (constantBps + variableAllocations > 10_000 ||
         (!variableAllocations &&
-          policy.additionalRecipients === "constant" &&
+          policy.additionalRecipients !== "execution" &&
           constantBps !== 10_000))
     )
       throw new Error("Invalid Split percentage total");
@@ -194,6 +217,9 @@ export function compileExecutionPipeline(graph: FlowGraph): CompiledPipelineNode
         recipients,
         minAmountStroops: "0",
         fieldPolicy: policy,
+        ...(policy.additionalRecipients === "mutable"
+          ? { initialAdditionalRecipients: additional }
+          : {}),
         nextStepNodeIds,
       },
     };

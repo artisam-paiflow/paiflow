@@ -58,8 +58,8 @@ export const HostedReviewRowSchema = z
     recipient: WalletAddressSchema,
     amountStroops: z.string().regex(/^(0|[1-9]\d*)$/),
     allocation: z.string(),
-    recipientSource: z.enum(["constant", "execution"]),
-    allocationSource: z.enum(["constant", "execution"]),
+    recipientSource: z.enum(["constant", "execution", "mutable"]),
+    allocationSource: z.enum(["constant", "execution", "mutable"]),
   })
   .strict();
 export type HostedReviewRow = z.infer<typeof HostedReviewRowSchema>;

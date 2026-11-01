@@ -1,6 +1,6 @@
 import { StrKey } from "@stellar/stellar-sdk";
 import { TemplateKind } from "@prisma/client";
-import type { PayFieldPolicy, SplitFieldPolicy } from "./field-policies";
+import type { AdditionalRecipient, PayFieldPolicy, SplitFieldPolicy } from "./field-policies";
 import { compileExecutionPipeline } from "./execution-v1";
 import { hasRetiredPayrollInput, PAYROLL_RETIRED_MESSAGE } from "./retired-payroll";
 import { DEPLOYING_WALLET, resolveOwnerReturns, terminalOutcomeIssues } from "./terminal-outcomes";
@@ -75,6 +75,7 @@ export type SplitterNodeParams = {
   minAmountStroops: string;
   nextStepNodeIds: string[];
   fieldPolicy?: SplitFieldPolicy;
+  initialAdditionalRecipients?: AdditionalRecipient[];
 };
 export type StreamerNodeParams = {
   kind: "streamer";

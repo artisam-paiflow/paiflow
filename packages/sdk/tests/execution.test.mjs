@@ -156,3 +156,46 @@ test("incomplete preparation evidence and inconsistent payer are malformed respo
     );
   }
 });
+
+for (const mutation of [false, true])
+  test(`execution discovery preserves server-verified mutation=${mutation} capability`, async () => {
+    const policy = { kind: "pay", nodeId: "pay", recipient: "execution", payoutValue: "constant" };
+    const capabilities = {
+      policyVersion: 1,
+      executionAbi: 1,
+      execution: true,
+      mutation,
+      immutablePolicies: true,
+      revisionBinding: true,
+      wasmHash: "ab".repeat(32),
+    };
+    const data = {
+      supported: true,
+      policyVersion: 1,
+      deploymentId: id,
+      network: "testnet",
+      confirmedLedger: 10,
+      rootContract: root,
+      assetContract: child,
+      minAmountStroops: "0",
+      policies: { version: 1, nodes: [policy] },
+      nodes: [
+        { nodeId: "root", contractAddress: root, expectedRevision: "0", capabilities },
+        { nodeId: "pay", contractAddress: child, expectedRevision: "0", capabilities },
+      ],
+      configurations: [
+        {
+          version: 1,
+          nodeId: "pay",
+          contractAddress: child,
+          confirmedLedger: 10,
+          revision: "0",
+          policy,
+          configuration: { kind: "pay", payoutValue: { kind: "full" } },
+        },
+      ],
+    };
+    const result = await setup(async () => response(data)).execute.state();
+    assert.equal(result.data.supported, true);
+    assert.equal(result.data.nodes[0].capabilities.mutation, mutation);
+  });

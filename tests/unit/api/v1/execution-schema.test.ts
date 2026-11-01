@@ -71,7 +71,7 @@ describe("execution response/reconciliation contracts", () => {
       }).success,
     ).toBe(true);
   });
-  it.each(["root", "revision", "ledger", "duplicate", "legacy-capability", "mutation"])(
+  it.each(["root", "revision", "ledger", "duplicate", "legacy-capability"])(
     "refuses inconsistent %s evidence",
     (field) => {
       const value = state();
@@ -81,7 +81,6 @@ describe("execution response/reconciliation contracts", () => {
       if (field === "duplicate") value.nodes[1]!.contractAddress = root;
       if (field === "legacy-capability")
         Object.assign(value.nodes[0]!.capabilities, { policyVersion: 0, execution: false });
-      if (field === "mutation") value.nodes[0]!.capabilities.mutation = true;
       expect(ExecutionDiscoverySchema.safeParse(value).success).toBe(false);
     },
   );
@@ -113,4 +112,28 @@ describe("execution response/reconciliation contracts", () => {
     expect(hasExecutionPolicies({ fieldPolicies: null })).toBe(true);
     expect(hasExecutionPolicies({ fieldPolicies: { version: 99 } })).toBe(true);
   });
+});
+
+it("accepts guarded capabilities while refusing mutable declarations on an execution-only path", () => {
+  const value = state();
+  value.nodes.forEach((node) => {
+    node.capabilities.mutation = true;
+  });
+  expect(ExecutionDiscoverySchema.safeParse(value).success).toBe(true);
+  const raw: unknown = {
+    ...value,
+    policies: {
+      version: 1,
+      nodes: [{ kind: "pay", nodeId: "pay", recipient: "mutable", payoutValue: "constant" }],
+    },
+    configurations: value.configurations.map((config) => ({
+      ...config,
+      policy: { ...config.policy, recipient: "mutable" },
+    })),
+    nodes: value.nodes.map((node) => ({
+      ...node,
+      capabilities: { ...node.capabilities, mutation: false },
+    })),
+  };
+  expect(ExecutionDiscoverySchema.safeParse(raw).success).toBe(false);
 });

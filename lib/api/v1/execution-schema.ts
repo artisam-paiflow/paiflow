@@ -37,8 +37,7 @@ export const ExecutionDiscoverySchema = z.discriminatedUnion("supported", [
               contractAddress: ContractAddressSchema,
               expectedRevision: ConfigurationRevisionSchema,
               capabilities: ArtifactCapabilitiesSchema.refine(
-                (capability) =>
-                  capability.policyVersion === 1 && capability.execution && !capability.mutation,
+                (capability) => capability.policyVersion === 1 && capability.execution,
                 "Execution requires an enforced v1 artifact",
               ),
             })
@@ -50,6 +49,17 @@ export const ExecutionDiscoverySchema = z.discriminatedUnion("supported", [
     })
     .strict()
     .superRefine((state, ctx) => {
+      const mutable = state.policies.nodes.some((policy) =>
+        policy.kind === "pay"
+          ? policy.recipient === "mutable" || policy.payoutValue === "mutable"
+          : policy.additionalRecipients === "mutable" ||
+            policy.rows.some((row) => row.recipient === "mutable" || row.allocation === "mutable"),
+      );
+      if (mutable && state.nodes.some((node) => !node.capabilities.mutation))
+        ctx.addIssue({
+          code: "custom",
+          message: "Mutable configuration requires guarded artifacts throughout the path",
+        });
       if (
         state.nodes[0]?.contractAddress !== state.rootContract ||
         state.configurations.length !== state.nodes.length - 1 ||

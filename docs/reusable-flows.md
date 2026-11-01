@@ -18,8 +18,9 @@ immediate-path tables can be validated and compiled; deployment requires the exa
 reviewed policy-capable hashes for every participating contract, including all-constant
 and empty tables. Legacy artifacts cannot enforce that table. #1159 implements this
 check against the pinned manifest; an env flag or graph declaration is insufficient.
-Unsupported paths and mutable phases must
-continue to fail closed. No existing contract is upgraded automatically.
+Unsupported paths continue to fail closed. #1168 implements guarded stored mutation
+for new reviewed-artifact immediate paths; see [mutation v1](mutation-v1.md). API/history
+and owner editing remain subsequent work. No existing contract is upgraded automatically.
 
 Unknown version, keys, modes, policy node kinds and input keys are errors; strict
 new objects never silently strip declarations into constant behavior. Existing

@@ -14,9 +14,21 @@ import {
   tokenInput,
   fieldKey,
 } from "@/lib/hosted-execution/form";
+import {
+  executionArtifactMetadata,
+  MUTATION_V1_WASM_HASHES,
+} from "@/lib/stellar/execution-artifacts";
 import { hostedPaymentReview } from "@/lib/hosted-execution/review";
 import { ExecutionDiscoverySchema } from "@/lib/api/v1/execution-schema";
-import { alice, bob, hostedState, payment, preparation, intentId } from "./fixtures";
+import {
+  alice,
+  bob,
+  hostedState,
+  payment,
+  preparation,
+  intentId,
+  storedMutableState,
+} from "./fixtures";
 
 describe("hosted request boundaries", () => {
   const key = "ab".repeat(32);
@@ -184,6 +196,44 @@ describe("input and payout review", () => {
       [alice, "11", "constant"],
       [bob, "100", "execution"],
     ]);
+    const stored = structuredClone(state);
+    const declared = stored.policies.nodes[0];
+    const configuration = stored.configurations[0];
+    if (
+      declared?.kind !== "split" ||
+      configuration?.policy.kind !== "split" ||
+      configuration.configuration.kind !== "split"
+    )
+      throw new Error();
+    declared.additionalRecipients = "mutable";
+    configuration.policy.additionalRecipients = "mutable";
+    configuration.configuration.additionalRecipients = [
+      { rowId: "worker", recipient: bob, allocation: { kind: "percentage", bps: 9000 } },
+    ];
+    stored.nodes.forEach((node, index) => {
+      const kind = index === 0 ? "DEPOSIT_TRIGGER" : "SPLITTER";
+      node.capabilities = executionArtifactMetadata(kind, MUTATION_V1_WASM_HASHES[kind]);
+    });
+    const storedArgs = formArguments(stored, {}, {});
+    expect(storedArgs.inputs).toEqual([]);
+    const storedReview = hostedPaymentReview(stored, {
+      ...preparation(payment).prepared.execution,
+      amountStroops: "111",
+      arguments: storedArgs,
+    });
+    expect(
+      storedReview.rows.map((row) => [row.recipient, row.amountStroops, row.allocationSource]),
+    ).toEqual([
+      [alice, "11", "constant"],
+      [bob, "100", "mutable"],
+    ]);
+    expect(() =>
+      hostedPaymentReview(stored, {
+        ...preparation(payment).prepared.execution,
+        amountStroops: "111",
+        arguments: args,
+      }),
+    ).toThrow();
     expect(() =>
       formArguments(state, {}, { pay: [{ rowId: "platform", recipient: bob, allocation: "90" }] }),
     ).toThrow();
@@ -198,4 +248,19 @@ describe("input and payout review", () => {
       }),
     ).toThrow();
   });
+});
+
+it("reviews current admin-mutable stored terms distinctly and refuses payer overrides", () => {
+  const state = storedMutableState();
+  const request = { ...payment, arguments: { version: 1 as const, inputs: [] } };
+  const prepared = preparation(request, 1, state);
+  expect(prepared.rows[0]).toMatchObject({
+    recipient: alice,
+    amountStroops: "40",
+    recipientSource: "mutable",
+    allocationSource: "mutable",
+  });
+  expect(prepared.refundStroops).toBe("60");
+  expect(HostedPreparedSchema.parse(prepared).rows[0]!.recipientSource).toBe("mutable");
+  expect(() => preparation(payment, 1, state)).toThrow();
 });

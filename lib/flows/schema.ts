@@ -2,7 +2,11 @@ import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
 import { integerNumber } from "@/lib/validation/number";
 import { formatStroops } from "@/lib/utils";
-import { FlowFieldPoliciesSchema, PolicyIdSchema } from "./field-policies";
+import {
+  AdditionalRecipientSchema,
+  FlowFieldPoliciesSchema,
+  PolicyIdSchema,
+} from "./field-policies";
 import { hasRetiredPayoutInput } from "./retired-inputs";
 import { hasRetiredPayrollInput, PAYROLL_RETIRED_MESSAGE } from "./retired-payroll";
 import { bpsSchema, TOTAL_BPS } from "./primitives";
@@ -356,6 +360,8 @@ export const SplitAction = z.object({
   config: z.object({
     asset: AssetSchema,
     recipients: z.array(SplitRecipient).min(0).max(20),
+    // Initial stored mutable roster; never defaults for payer execution inputs.
+    additionalRecipients: z.array(AdditionalRecipientSchema).max(20).optional(),
     amountPerIntervalStroops: z
       .string()
       .regex(/^\d+$/, "Amount must be a positive integer string")
@@ -533,6 +539,16 @@ export const FlowGraphSchema = z
     const ids = graph.nodes.map((n) => n.id);
     if (new Set(ids).size !== ids.length)
       ctx.addIssue({ code: "custom", path: ["nodes"], message: "Duplicate node ID" });
+    graph.nodes.forEach((node, index) => {
+      if (node.type !== "split" || node.config.additionalRecipients === undefined) return;
+      const policy = graph.fieldPolicies?.nodes.find((policy) => policy.nodeId === node.id);
+      if (policy?.kind !== "split" || policy.additionalRecipients !== "mutable")
+        ctx.addIssue({
+          code: "custom",
+          path: ["nodes", index, "config", "additionalRecipients"],
+          message: "Initial stored roster requires an explicit mutable additional-recipient policy",
+        });
+    });
     graph.fieldPolicies?.nodes.forEach((policy, index) => {
       const path = ["fieldPolicies", "nodes", index];
       const node = graph.nodes.find((n) => n.id === policy.nodeId);

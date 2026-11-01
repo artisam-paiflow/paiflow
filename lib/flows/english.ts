@@ -22,7 +22,7 @@ import {
 } from "./schema";
 import { inFlowOrder } from "./graph";
 import { formatScheduleStart } from "./format-time";
-import { executionPath, executionPolicy } from "./execution-v1";
+import { executionPath, executionPolicy, hasMutablePolicies } from "./execution-v1";
 import {
   BRANCH_LABEL,
   branchAmountText,
@@ -160,15 +160,6 @@ function describeBranch(
 /** Policy-aware review describes every hop and never presents saved draft
  * placeholders as destinations or allocations for the next payment. */
 function describeExecutionFlow(graph: FlowGraph): string {
-  if (
-    graph.fieldPolicies?.nodes.some((policy) =>
-      policy.kind === "pay"
-        ? policy.recipient === "mutable" || policy.payoutValue === "mutable"
-        : policy.additionalRecipients === "mutable" ||
-          policy.rows.some((row) => row.recipient === "mutable" || row.allocation === "mutable"),
-    )
-  )
-    return "This draft requests stored configuration updates, which are not available. Choose constant values or supported execution inputs before deploying.";
   let path: FlowNode[];
   try {
     path = executionPath(graph);
@@ -186,15 +177,16 @@ function describeExecutionFlow(graph: FlowGraph): string {
         policy.recipient === "execution"
           ? `the recipient supplied by the payer for ${node.id}`
           : policy.recipient === "mutable"
-            ? "an unsupported stored-update recipient"
+            ? `initial stored recipient ${node.config.recipient} (admin may update when obligations are clear)`
             : needsAddress(node.config.recipient)
               ? "a constant recipient (needs address)"
               : `constant recipient ${node.config.recipient}`;
+      const valueSource = policy.payoutValue === "mutable" ? "initial stored" : "constant";
       const amount = node.config.fullAmount
         ? `the full incoming ${asset}`
         : node.config.mode === "percentage"
-          ? `a constant ${bpsToPct(pctToBps(node.config.percentage ?? 0))}% of this step’s incoming ${asset}`
-          : `a constant ${formatStroops(node.config.amountStroops || "0")} ${asset}`;
+          ? `a ${valueSource} ${bpsToPct(pctToBps(node.config.percentage ?? 0))}% of this step’s incoming ${asset}`
+          : `a ${valueSource} ${formatStroops(node.config.amountStroops || "0")} ${asset}`;
       const onward =
         index < path.length - 2
           ? "; forward only this payment’s remainder to the next step"
@@ -211,7 +203,7 @@ function describeExecutionFlow(graph: FlowGraph): string {
           rowPolicy?.allocation === "execution"
             ? "the allocation supplied by the payer"
             : rowPolicy?.allocation === "mutable"
-              ? "an unsupported stored-update allocation"
+              ? `initial stored ${row.mode === "percentage" ? `${bpsToPct(row.bps)}%` : `${formatStroops(row.amountStroops)} ${asset}`} (admin mutable)`
               : row.mode === "percentage"
                 ? `constant ${bpsToPct(row.bps)}%`
                 : `constant ${formatStroops(row.amountStroops)} ${asset}`;
@@ -219,7 +211,7 @@ function describeExecutionFlow(graph: FlowGraph): string {
           rowPolicy?.recipient === "execution"
             ? "a recipient supplied by the payer"
             : rowPolicy?.recipient === "mutable"
-              ? "an unsupported stored-update recipient"
+              ? `initial stored recipient ${row.address} (admin mutable)`
               : needsAddress(row.address)
                 ? "a constant recipient (needs address)"
                 : `constant recipient ${row.address}`;
@@ -229,6 +221,15 @@ function describeExecutionFlow(graph: FlowGraph): string {
         rows.push(
           "additional recipients and their allocations supplied by the payer, after the configured rows",
         );
+      if (policy.additionalRecipients === "mutable") {
+        for (const row of node.config.additionalRecipients ?? [])
+          rows.push(
+            `${row.rowId}: initial stored ${row.allocation.kind === "percentage" ? `${bpsToPct(row.allocation.bps)}%` : `${formatStroops(row.allocation.amountStroops)} ${asset}`} to ${row.recipient}`,
+          );
+        rows.push(
+          "the admin may replace only this appended stored roster when accepted obligations are clear",
+        );
+      }
       const execution =
         policy.additionalRecipients === "execution" ||
         policy.rows.some((row) => row.recipient === "execution" || row.allocation === "execution");
@@ -237,12 +238,14 @@ function describeExecutionFlow(graph: FlowGraph): string {
           ? "All shares must total exactly 100%; the last row receives the rounding remainder"
           : execution
             ? "The final fixed amounts must exactly match this payment’s funds entering the Split; underfunding and excess are refused"
-            : "Constant fixed amounts accumulate until the configured total is reached";
+            : hasMutablePolicies(graph)
+              ? "Stored fixed amounts accumulate until the configured total is reached; accepted accumulation blocks configuration changes"
+              : "Constant fixed amounts accumulate until the configured total is reached";
       return `split ${asset} — ${rows.join("; ")}. ${rule}`;
     }
     return "an unsupported execution step";
   });
-  return `For each immediate payment funded and signed by its payer${minimum && minimum !== "0" ? ` (minimum ${formatStroops(minimum)} ${asset})` : ""}, ${steps.join("; then ")}. Modes, constant values, asset and routing stay fixed for the deployment’s lifetime. Every declared input is required for each payment; saved draft values are not defaults. Template creation inputs and stored updates are separate.`;
+  return `For each immediate payment funded and signed by its payer${minimum && minimum !== "0" ? ` (minimum ${formatStroops(minimum)} ${asset})` : ""}, ${steps.join("; then ")}. Modes, constant values, asset and routing stay fixed for the deployment’s lifetime. Every declared input is required for each payment; saved draft values are not defaults. Template creation inputs and stored updates are separate.${hasMutablePolicies(graph) ? " Declared stored updates require admin authorization, clear accepted obligations and a new configuration revision; previously reviewed payments fail on chain after a relevant update." : ""}`;
 }
 export function flowToEnglish(graph: FlowGraph): string {
   try {

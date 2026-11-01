@@ -5,6 +5,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Add guarded admin-authorized stored Pay/Split updates for newly reviewed-artifact immediate paths, with atomic whole-path obligation admission, immutable policies and initial evidence, revision-bound payments, valid initial mutable rosters, and retained execution-only artifact compatibility (#1168). Mutation API/history and owner editing remain subsequent work; no live artifacts are activated.
+
 ### Added
 
 - Private flow template drafts and immutable published versions with owner-only

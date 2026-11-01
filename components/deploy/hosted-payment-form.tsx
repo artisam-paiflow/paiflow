@@ -603,8 +603,19 @@ export default function HostedPaymentForm({
                   {formatStroops(row.amountStroops)} · {row.allocation}
                 </p>
                 <p>
-                  Recipient: {row.recipientSource === "constant" ? "fixed" : "your input"};
-                  allocation: {row.allocationSource === "constant" ? "fixed" : "your input"}.
+                  Recipient:{" "}
+                  {row.recipientSource === "constant"
+                    ? "fixed"
+                    : row.recipientSource === "execution"
+                      ? "your input"
+                      : "stored; admin may update"}
+                  ; allocation:{" "}
+                  {row.allocationSource === "constant"
+                    ? "fixed"
+                    : row.allocationSource === "execution"
+                      ? "your input"
+                      : "stored; admin may update"}
+                  .
                 </p>
               </div>
             ))}

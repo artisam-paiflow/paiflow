@@ -5,8 +5,8 @@ pub mod execution_v1;
 #[path = "../../../payment-math.rs"]
 mod payment_math;
 use execution_v1::{
-    Capabilities, ExecutionContext, ExecutionError, FieldMode, NodeInput, PayConfig, PayState,
-    PayoutRule, PolicyKey, Target,
+    Capabilities, ExecutionContext, ExecutionError, FieldMode, MutationContext, MutationStatus,
+    NodeInput, NodeMutation, PayConfig, PayState, PayoutRule, PolicyKey, Target,
 };
 
 use soroban_sdk::{
@@ -178,18 +178,14 @@ impl Payer {
     }
 
     pub fn execute_step_v1(env: Env, context: ExecutionContext, asset: Address, amount: i128) {
-        let config: PayConfig = env
-            .storage()
-            .instance()
-            .get(&PolicyKey::Pay)
-            .unwrap_or_else(|| execution_v1::fail(&env, ExecutionError::Unsupported));
+        let config = execution_v1::current_pay(&env);
         let parent: Address = env.storage().instance().get(&Key::ParentNode).unwrap();
         let stored_asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
         execution_v1::require(&env, stored_asset == asset, ExecutionError::Unauthorized);
         execution_v1::check_node(&env, &context, &config.node_id, &parent, &asset, amount);
         let input = execution_v1::find_input(&env, &context, &config.node_id);
         let recipient = match config.recipient_mode {
-            FieldMode::Constant => {
+            FieldMode::Constant | FieldMode::Mutable => {
                 execution_v1::require(&env, input.is_none(), ExecutionError::InvalidInput);
                 config.recipient.unwrap()
             }
@@ -197,7 +193,6 @@ impl Payer {
                 Some(NodeInput::Pay(value)) => value.recipient,
                 _ => execution_v1::fail(&env, ExecutionError::InvalidInput),
             },
-            FieldMode::Mutable => execution_v1::fail(&env, ExecutionError::Unsupported),
         };
         execution_v1::require_wallet(&env, &recipient);
         let payment = match config.payout_rule {
@@ -265,6 +260,60 @@ impl Payer {
     pub fn capabilities(env: Env) -> Capabilities {
         execution_v1::capabilities(&env)
     }
+    pub fn mutation_status(env: Env) -> MutationStatus {
+        let config = execution_v1::current_pay(&env);
+        let next: Vec<WorkflowTarget> = env.storage().instance().get(&Key::NextSteps).unwrap();
+        let next_val: Val = next.into_val(&env);
+        MutationStatus {
+            node_id: config.node_id,
+            admin: env.storage().instance().get(&Key::Admin).unwrap(),
+            asset: env.storage().instance().get(&Key::Asset).unwrap(),
+            parent: env.storage().instance().get(&Key::ParentNode).unwrap(),
+            next_steps: Vec::<Target>::try_from_val(&env, &next_val).unwrap(),
+            revision: execution_v1::revision(&env),
+            obligations: 0, // Policy Pay never retains an accepted per-call budget.
+        }
+    }
+    pub fn mutate_step_v1(env: Env, context: MutationContext) {
+        let status = Self::mutation_status(env.clone());
+        execution_v1::check_mutation_node(&env, &context, &status);
+        if let Some(change) = execution_v1::find_mutation(&env, &context, &status.node_id) {
+            status.admin.require_auth();
+            let change = match change {
+                NodeMutation::Pay(change) => change,
+                _ => execution_v1::fail(&env, ExecutionError::InvalidInput),
+            };
+            let config =
+                execution_v1::apply_pay_mutation(&env, execution_v1::current_pay(&env), &change);
+            execution_v1::require(
+                &env,
+                status.next_steps.is_empty()
+                    || config.payout_rule != PayoutRule::Percentage(10_000),
+                ExecutionError::InvalidInput,
+            );
+            let (amount, bps) = match config.payout_rule {
+                PayoutRule::Full => (0, 10_000),
+                PayoutRule::Percentage(value) => (0, value),
+                PayoutRule::Fixed(value) => (value, 0),
+            };
+            if let Some(recipient) = &config.recipient {
+                env.storage().instance().set(&Key::Recipient, recipient);
+            }
+            env.storage().instance().set(&Key::Amount, &amount);
+            env.storage().instance().set(&Key::PercentageBps, &bps);
+            env.storage()
+                .instance()
+                .set(&PolicyKey::CurrentPay, &config);
+            execution_v1::increment_revision(&env);
+            #[allow(deprecated)]
+            env.events().publish(
+                (symbol_short!("config_v1"), status.node_id),
+                Self::current_config(env.clone()),
+            );
+        }
+        bump_ttl(&env);
+        execution_v1::forward_mutation(&env, context, &status.next_steps);
+    }
     pub fn config_revision(env: Env) -> u64 {
         execution_v1::revision(&env)
     }
@@ -278,7 +327,7 @@ impl Payer {
         let next: Vec<WorkflowTarget> = env.storage().instance().get(&Key::NextSteps).unwrap();
         let next_val: Val = next.into_val(&env);
         PayState {
-            policy: Self::field_policy(env.clone()),
+            policy: execution_v1::current_pay(&env),
             revision: execution_v1::revision(&env),
             asset: env.storage().instance().get(&Key::Asset).unwrap(),
             parent: env.storage().instance().get(&Key::ParentNode).unwrap(),

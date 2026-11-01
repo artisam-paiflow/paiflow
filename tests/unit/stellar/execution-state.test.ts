@@ -13,6 +13,7 @@ import {
 import type { Deployment } from "@prisma/client";
 import {
   EXECUTION_V1_WASM_HASHES,
+  MUTATION_V1_WASM_HASHES,
   executionArtifactMetadata,
 } from "@/lib/stellar/execution-artifacts";
 const mock = vi.hoisted(() => ({
@@ -268,4 +269,96 @@ describe("verified current execution state", () => {
     });
     await expect(readExecutionState(deployment)).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
   });
+});
+
+function useGuardedArtifacts() {
+  const nodes = deployment.pipelineSnapshot as Array<Record<string, unknown>>;
+  for (const node of nodes) {
+    const kind = node.templateKind as "DEPOSIT_TRIGGER" | "PAYER";
+    node.wasmHash = MUTATION_V1_WASM_HASHES[kind];
+    node.artifactCapabilities = executionArtifactMetadata(kind, MUTATION_V1_WASM_HASHES[kind]);
+  }
+  const ledger = mock.rpc._getLedgerEntries.getMockImplementation()!;
+  mock.rpc._getLedgerEntries.mockImplementation(async (...keys: xdr.LedgerKey[]) => {
+    const result = await ledger(...keys);
+    result.entries.forEach((entry: { xdr: string }, index: number) => {
+      const data = xdr.LedgerEntryData.fromXDR(entry.xdr, "base64");
+      data
+        .contractData()
+        .val()
+        .instance()
+        .executable(
+          xdr.ContractExecutable.contractExecutableWasm(
+            Buffer.from(
+              index === 0 ? MUTATION_V1_WASM_HASHES.DEPOSIT_TRIGGER : MUTATION_V1_WASM_HASHES.PAYER,
+              "hex",
+            ),
+          ),
+        );
+      entry.xdr = data.toXDR("base64");
+    });
+    return result;
+  });
+  const simulate = mock.rpc.simulateTransaction.getMockImplementation()!;
+  mock.rpc.simulateTransaction.mockImplementation(async (tx: Transaction) => {
+    const result = await simulate(tx);
+    const op = tx.operations[0];
+    if (
+      op?.type === "invokeHostFunction" &&
+      op.func.invokeContract().functionName().toString() === "capabilities"
+    )
+      result.result.retval = abiValue({ ...capabilities, mutation: true });
+    return result;
+  });
+}
+
+it("new guarded artifacts retain execution discovery while old pinned artifacts remain execution-only", async () => {
+  const original = await readExecutionState(deployment);
+  expect(original.supported && original.nodes.every((node) => !node.capabilities.mutation)).toBe(
+    true,
+  );
+  useGuardedArtifacts();
+  const state = await readExecutionState(deployment);
+  expect(state.supported && state.nodes.every((node) => node.capabilities.mutation)).toBe(true);
+});
+it("reads changed mutable values at confirmed revision while preserving original graph evidence", async () => {
+  useGuardedArtifacts();
+  const graph = deployment.graphSnapshot as {
+    nodes: Array<{ config: Record<string, unknown> }>;
+    fieldPolicies: { nodes: Array<Record<string, unknown>> };
+  };
+  Object.assign(graph.nodes[1]!.config, {
+    fullAmount: false,
+    mode: "fixed",
+    amountStroops: "10",
+    recipient,
+  });
+  Object.assign(graph.fieldPolicies.nodes[0]!, { recipient: "mutable", payoutValue: "mutable" });
+  rawPay.policy = {
+    ...(rawPay.policy as object),
+    recipient_mode: ["Mutable"],
+    payout_value_mode: ["Mutable"],
+    recipient: owner,
+    payout_rule: ["Fixed", 20n],
+  };
+  Object.assign(rawPay, { revision: 2n, amount: 20n, percentage_bps: 0 });
+  const state = await readExecutionState(deployment);
+  expect(state.supported).toBe(true);
+  if (!state.supported) throw new Error();
+  expect(state.configurations[0]).toMatchObject({
+    revision: "2",
+    configuration: { recipient: owner, payoutValue: { kind: "fixed", amountStroops: "20" } },
+  });
+  expect(graph.nodes[1]!.config.amountStroops).toBe("10");
+  Object.assign(graph.fieldPolicies.nodes[0]!, { payoutValue: "constant" });
+  rawPay.policy = { ...(rawPay.policy as object), payout_value_mode: ["Constant"] };
+  await expect(readExecutionState(deployment)).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
+});
+it("refuses mutable declarations on retained execution-only artifacts before RPC", async () => {
+  const graph = deployment.graphSnapshot as {
+    fieldPolicies: { nodes: Array<Record<string, unknown>> };
+  };
+  Object.assign(graph.fieldPolicies.nodes[0]!, { recipient: "mutable" });
+  await expect(readExecutionState(deployment)).rejects.toThrow();
+  expect(mock.rpc._getLedgerEntries).not.toHaveBeenCalled();
 });

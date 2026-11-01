@@ -130,14 +130,31 @@ describe("policy-aware English/deployment review", () => {
     expect(payoutRecipients(graph()).map((row) => row.address)).toEqual([ADDRESS, ADDRESS]);
   });
 
-  it("never describes unimplemented mutable or incompatible topology as available", () => {
+  it("describes declared mutable initial values and refuses incompatible topology", () => {
     const value = graph();
     const policy = value.fieldPolicies!.nodes[0]!;
     if (policy.kind !== "split") throw new Error("Expected policy");
     policy.rows[0]!.recipient = "mutable";
-    expect(flowToEnglish(value)).toContain("stored configuration updates, which are not available");
+    expect(flowToEnglish(value)).toContain(`initial stored recipient ${ADDRESS} (admin mutable)`);
     const incompatible = graph();
     incompatible.edges = [];
     expect(flowToEnglish(incompatible)).toContain("Fix the path before deploying");
   });
+});
+
+it("includes the initial stored mutable appended roster and its deployment trustline recipients", () => {
+  const value = graph();
+  const split = value.nodes[2];
+  const policy = value.fieldPolicies!.nodes[0];
+  if (split?.type !== "split" || policy?.kind !== "split") throw new Error();
+  split.config.recipients = split.config.recipients.slice(0, 1);
+  policy.rows = policy.rows.slice(0, 1);
+  policy.additionalRecipients = "mutable";
+  split.config.additionalRecipients = [
+    { rowId: "initial", recipient: OLD, allocation: { kind: "percentage", bps: 8766 } },
+  ];
+  const text = flowToEnglish(value);
+  expect(text).toContain(`initial: initial stored 87.66% to ${OLD}`);
+  expect(text).toContain("admin may replace only this appended stored roster");
+  expect(payoutRecipients(value).map((row) => row.address)).toEqual([ADDRESS, ADDRESS, OLD]);
 });

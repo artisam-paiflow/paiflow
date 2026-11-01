@@ -76,7 +76,7 @@ describe("versioned lifetime field policies", () => {
     ).toMatchObject({ recipient: "constant", payoutValue: "constant" });
   });
   it.each(["execution", "mutable"])(
-    "preserves %s policies and only compiles implemented execution semantics",
+    "preserves %s policies and compiles implemented immediate semantics",
     (mode) => {
       const saved = FlowSaveSchema.parse({
         name: "Draft",
@@ -84,17 +84,8 @@ describe("versioned lifetime field policies", () => {
       });
       expect(saved.graph.fieldPolicies?.nodes[0]).toMatchObject({ recipient: mode });
       const result = validateFlow(saved.graph);
-      expect(result.ok).toBe(mode === "execution");
-      if (!result.ok)
-        expect(result.errors).toContainEqual(
-          expect.objectContaining({ code: "FIELD_POLICY_UNSUPPORTED" }),
-        );
-      if (mode === "mutable") expect(() => flowToPipeline(saved.graph)).toThrow("not implemented");
-      else
-        expect(flowToPipeline(saved.graph)[1]?.params).toHaveProperty(
-          "fieldPolicy.recipient",
-          "execution",
-        );
+      expect(result.ok).toBe(true);
+      expect(flowToPipeline(saved.graph)[1]?.params).toHaveProperty("fieldPolicy.recipient", mode);
     },
   );
   it.each([
