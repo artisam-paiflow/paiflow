@@ -130,6 +130,23 @@ beforeEach(async () => {
 });
 
 describe("prepare → sign → submit", () => {
+  it.each(["unsigned", "wrong-key", "wrong-network"])(
+    "refuses %s before signed attribution and relay (#550)",
+    async (kind) => {
+      const unsigned = await prepareDeposit();
+      const tx = TransactionBuilder.fromXDR(
+        unsigned,
+        kind === "wrong-network" ? Networks.PUBLIC : Networks.TESTNET,
+      ) as Transaction;
+      if (kind !== "unsigned") tx.sign(kind === "wrong-key" ? Keypair.random() : partner);
+      const result = await postSigned(tx.toXDR());
+      expect(result.status).toBe(422);
+      expect((await result.json()).error.message).toContain("source account");
+      expect(mockDb.signedTransaction.createMany).not.toHaveBeenCalled();
+      expect(mockRpc.getTransaction).not.toHaveBeenCalled();
+      expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+    },
+  );
   it("lands SUCCESS for the envelope prepare built, signed by the partner", async () => {
     const signed = sign(await prepareDeposit());
     const txHash = signed.hash().toString("hex");

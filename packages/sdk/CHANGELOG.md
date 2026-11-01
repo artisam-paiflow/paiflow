@@ -5,6 +5,11 @@ SDK versions are independent of the app and API. Follow the repository release
 
 ## [Unreleased]
 
+- Add execution input types, verified configuration reads, idempotent preparation,
+  exact-intent signing/submission and explicit reconciliation for policy-v1 backend
+  deployments (#1160, OpenAPI 1.4.0). UNKNOWN/REJECTED remain unresolved outcomes;
+  there are no automatic payment retries. Legacy execute input remains compatible.
+
 - Remove the retired `payroll` capability trigger value (#1144). Payroll application and API support is intentionally discontinued; ordinary Subscription, Pay and Split integrations remain supported. Previously published packages are unchanged.
 
 - Point package repository metadata and the release-policy link to the public

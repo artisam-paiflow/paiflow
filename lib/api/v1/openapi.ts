@@ -1,4 +1,7 @@
 import { SwapQuoteSchema } from "./swap-quote-schema";
+import { z } from "zod";
+import { ExecutionArgumentsSchema, ExecutionIntentSchema } from "@/lib/flows/field-policies";
+import { ExecutionDiscoverySchema, ExecutionReconcileSchema } from "./execution-schema";
 import {
   DeploymentCapabilitiesSchema,
   SubscriptionStateSchema,
@@ -748,7 +751,7 @@ export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: "Paiflow API v1",
-    version: "1.3.0",
+    version: "1.4.0",
     description: [
       "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.",
       "",
@@ -1074,6 +1077,73 @@ export const openApiDocument = {
       },
     },
     ...schedulePaths(),
+    "/api/v1/deployments/{id}/execution": {
+      get: {
+        tags: ["Execute"],
+        operationId: "getExecutionState",
+        summary: "Read verified execution capabilities, current configuration and required inputs",
+        description:
+          "Legacy definitions return supported:false. Policy-v1 reads pin actual deployed WASM and immutable original configuration, with capabilities/current_config getters at one confirmed ledger. Missing, unknown, incompatible and unimplemented modes fail closed. No contact emails or labels are returned. " +
+          rate(V1_RATE_LIMITS.capabilities, "per token"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        responses: {
+          "200": {
+            description: "Verified execution state or explicit legacy unavailability",
+            content: json(dataEnvelope("#/components/schemas/ExecutionDiscovery")),
+          },
+          ...errors("UNAUTHENTICATED", "NOT_FOUND", "VALIDATION", "RATE_LIMITED", "UPSTREAM_RPC"),
+        },
+      },
+    },
+    "/api/v1/deployments/{id}/execute/reconcile": {
+      post: {
+        tags: ["Execute"],
+        operationId: "reconcileExecution",
+        summary: "Reconcile the original execution without sending another transaction",
+        description:
+          "Returns the original durable intent state and scoped transaction result. UNKNOWN or missing history never permits replacement. Expiry requires authoritative closing-ledger and complete RPC history evidence, never elapsed wall-clock time. " +
+          rate(V1_RATE_LIMITS.executeSubmit, "per token"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        requestBody: {
+          required: true,
+          content: json({ $ref: "#/components/schemas/ExecutionReconcileRequest" }),
+        },
+        responses: {
+          "200": {
+            description: "Original intent and transaction status",
+            content: json({
+              type: "object",
+              required: ["data"],
+              properties: {
+                data: {
+                  type: "object",
+                  required: ["intent", "state", "transaction"],
+                  properties: {
+                    intent: { type: "string", format: "uuid" },
+                    state: {
+                      type: "string",
+                      enum: ["PREPARED", "SUBMITTING", "SUCCESS", "FAILED", "EXPIRED"],
+                    },
+                    transaction: { $ref: "#/components/schemas/TransactionStatus" },
+                  },
+                },
+              },
+            }),
+          },
+          ...errors(
+            "UNAUTHENTICATED",
+            "FORBIDDEN",
+            "NOT_FOUND",
+            "VALIDATION",
+            "CONFLICT",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+          ),
+        },
+      },
+    },
     ...Object.fromEntries(
       (["cancel", "reactivate"] as const).flatMap((action) =>
         (["prepare", "submit", "reconcile"] as const).map((step) => {
@@ -1402,12 +1472,23 @@ export const openApiDocument = {
           "",
           "The flow runs through its deposit trigger; the next pipeline steps (pay, split, condition, swap) run as part of the same transaction. " +
             "Sign the returned `xdr` with the `from` key using `networkPassphrase`, before " +
-            "`expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook and other trigger-headed flows are refused with `VALIDATION`. Configure every Pay and Split recipient before deployment.",
+            "`expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook and other trigger-headed flows are refused with `VALIDATION`. Legacy recipients are configured before deployment. Policy-v1 supports only the verified immediate Pay chain/terminal Split subset returned by /execution. Supply every declared execution argument; no constant overrides or fallback recipients. Terminal Pay refunds only this invocation's unpaid remainder to its payer.",
+          "Policy-v1 preparations persist exact transaction, payer, amount, asset, inputs, node revisions, deployment and network. Idempotency-Key (1–128 letters/digits/._:-) returns the same preparation on an identical retry and 409 on a different payload. One unresolved payment per payer/deployment blocks replacement; different payers remain independent. Retain intent and txHash before signing. No key, signature or signed envelope is stored.",
           "",
           rate(V1_RATE_LIMITS.execute, "per token"),
         ].join("\n"),
         security: [{ bearerAuth: [] }],
-        parameters: [deploymentIdParam],
+        parameters: [
+          deploymentIdParam,
+          {
+            name: "Idempotency-Key",
+            in: "header",
+            required: false,
+            description:
+              "Stable policy-v1 preparation key; never reused for a different payment. Legacy preparations do not provide key-based deduplication.",
+            schema: { type: "string", minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9._:-]+$" },
+          },
+        ],
         requestBody: {
           required: true,
           content: json(
@@ -1445,7 +1526,8 @@ export const openApiDocument = {
           "",
           "The envelope must be the one `execute` returned, signed by `from`: anything but a single " +
             "`deposit` call on this flow's trigger contract is refused with `VALIDATION`, as is a " +
-            "fee-bump envelope.",
+            "fee-bump envelope. Unsigned, wrong-key and wrong-network envelopes are refused before relay. For policy-v1, the exact prepared body (operations, arguments, auth, resources, fee/source and expiry) and payer signature are required. Include its intent, or use the exact hash lookup supported by signedXdr-only submissions. Stale node revisions fail on chain even if a change races the submit preflight.",
+          "Policy-v1 uses an atomic durable send claim: retries never resend after a claimed/unknown submission. UNKNOWN and REJECTED are uncertainty/refusal states, not proof of failed payment; reconcile the original intent or query its hash. Finality remains discoverable after expiry. Legacy submission recovery retains its existing behavior.",
           "",
           "Idempotent on the envelope hash: submitting the same `signedXdr` again never sends a " +
             "second transaction, it reports the one already on the network. That is also how to " +
@@ -1817,6 +1899,8 @@ export const openApiDocument = {
       },
     },
     schemas: {
+      ExecutionDiscovery: z.toJSONSchema(ExecutionDiscoverySchema),
+      ExecutionReconcileRequest: z.toJSONSchema(ExecutionReconcileSchema),
       DeveloperToken: {
         type: "object",
         additionalProperties: false,
@@ -2459,6 +2543,7 @@ export const openApiDocument = {
         required: ["amount", "from"],
         description: EXECUTE_PREREQUISITES,
         properties: {
+          arguments: z.toJSONSchema(ExecutionArgumentsSchema),
           amount: {
             type: "string",
             pattern: "^\\d{1,39}$",
@@ -2476,6 +2561,10 @@ export const openApiDocument = {
         required: ["xdr", "networkPassphrase", "network", "expiresAt"],
         description: ExecutePreparedSchema.description,
         properties: {
+          intent: { type: "string", format: "uuid" },
+          txHash: { type: "string", pattern: "^[a-f0-9]{64}$" },
+          walletAddress: { type: "string", pattern: "^G[A-Z2-7]{55}$" },
+          execution: z.toJSONSchema(ExecutionIntentSchema),
           xdr: { type: "string", description: preparedShape.xdr.description },
           networkPassphrase: {
             type: "string",
@@ -2494,6 +2583,7 @@ export const openApiDocument = {
         additionalProperties: false,
         required: ["signedXdr"],
         properties: {
+          intent: { type: "string", format: "uuid" },
           signedXdr: {
             type: "string",
             minLength: 10,
@@ -2541,7 +2631,7 @@ export const openApiDocument = {
           txHash: { type: "string", description: submittedShape.txHash.description },
           status: {
             type: "string",
-            enum: ["SUCCESS", "PENDING", "FAILED"],
+            enum: ["SUCCESS", "PENDING", "FAILED", "UNKNOWN", "REJECTED"],
             description: submittedShape.status.description,
           },
           ledger: { type: "integer", description: "Ledger the transaction was final in." },

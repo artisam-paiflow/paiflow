@@ -162,13 +162,13 @@ Indexed event list or bounded deduplicating pages; events may lag chain finality
 
 ### execute
 
-> `readonly` **execute**: \{ `prepare`: (`body`: [`ExecutePrepareInput`](../interfaces/ExecutePrepareInput.md), `options?`: [`RequestOptions`](../interfaces/RequestOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `expiresAt`: `string`; `network`: `"testnet"` \| `"mainnet"`; `networkPassphrase`: `"Test SDF Network ; September 2015"` \| `"Public Global Stellar Network ; September 2015"`; `xdr`: `string`; \}\>\>; `submit`: (`body`: [`SignedSubmission`](../interfaces/SignedSubmission.md), `options?`: [`ExecuteSubmitOptions`](../interfaces/ExecuteSubmitOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `error?`: \{ `code`: `string`; `message`: `string`; \}; `ledger?`: `number`; `status`: `"SUCCESS"` \| `"FAILED"` \| `"PENDING"`; `txHash`: `string`; \}\>\>; \}
+> `readonly` **execute**: \{ `prepare`: (`body`: [`ExecutePrepareInput`](../interfaces/ExecutePrepareInput.md), `options?`: [`RequestOptions`](../interfaces/RequestOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `execution?`: [`ExecutionIntent`](../interfaces/ExecutionIntent.md); `expiresAt`: `string`; `intent?`: `string`; `network`: `"testnet"` \| `"mainnet"`; `networkPassphrase`: `"Test SDF Network ; September 2015"` \| `"Public Global Stellar Network ; September 2015"`; `txHash?`: `string`; `walletAddress?`: `string`; `xdr`: `string`; \}\>\>; `reconcile`: (`body`: \{ `intent`: `string`; \}, `options?`: [`RequestOptions`](../interfaces/RequestOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `intent`: `string`; `state`: `"SUCCESS"` \| `"FAILED"` \| `"PREPARED"` \| `"SUBMITTING"` \| `"EXPIRED"`; `transaction`: \{ `error?`: \{ `code`: `string`; `message`: `string`; \}; `ledger?`: `number`; `network`: `"testnet"` \| `"mainnet"`; `status`: `"SUCCESS"` \| `"FAILED"` \| `"PENDING"` \| `"UNKNOWN"` \| `"REJECTED"`; `txHash`: `string`; \}; \}\>\>; `state`: (`options?`: [`RequestOptions`](../interfaces/RequestOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `deploymentId`: `string`; `network`: `"testnet"` \| `"mainnet"`; `policyVersion`: `0`; `reason`: `string`; `supported`: `false`; \} \| \{ `assetContract`: `string`; `configurations`: \{ `configuration`: \{ `additionalRecipients?`: `undefined`; `configuredRows?`: `undefined`; `kind`: `"pay"`; `payoutValue`: ... \| ... \| ...; `recipient?`: ... \| ...; \} \| \{ `additionalRecipients`: ...[]; `configuredRows`: ...[]; `kind`: `"split"`; \}; `confirmedLedger`: `number`; `contractAddress`: `string`; `nodeId`: `string`; `policy`: \{ `additionalRecipients?`: `undefined`; `allocationMode?`: `undefined`; `kind`: `"pay"`; `nodeId`: `string`; `payoutValue`: ... \| ...; `recipient`: ... \| ... \| ...; `rows?`: `undefined`; \} \| \{ `additionalRecipients`: ... \| ... \| ...; `allocationMode`: ... \| ...; `kind`: `"split"`; `nodeId`: `string`; `payoutValue?`: `undefined`; `recipient?`: `undefined`; `rows`: ...[]; \}; `revision`: `string`; `version`: `1`; \}[]; `confirmedLedger`: `number`; `deploymentId`: `string`; `minAmountStroops`: `string`; `network`: `"testnet"` \| `"mainnet"`; `nodes`: \{ `capabilities`: \{ `execution`: `true`; `executionAbi`: `1`; `immutablePolicies`: `true`; `mutation`: `false`; `policyVersion`: `1`; `revisionBinding`: `true`; `wasmHash`: `string`; \}; `contractAddress`: `string`; `expectedRevision`: `string`; `nodeId`: `string`; \}[]; `policies`: \{ `nodes`: (\{ `additionalRecipients?`: `undefined`; `allocationMode?`: `undefined`; `kind`: `"pay"`; `nodeId`: `string`; `payoutValue`: ... \| ...; `recipient`: ... \| ... \| ...; `rows?`: `undefined`; \} \| \{ `additionalRecipients`: ... \| ... \| ...; `allocationMode`: ... \| ...; `kind`: `"split"`; `nodeId`: `string`; `payoutValue?`: `undefined`; `recipient?`: `undefined`; `rows`: ...[]; \})[]; `version`: `1`; \}; `policyVersion`: `1`; `rootContract`: `string`; `supported`: `true`; \}\>\>; `submit`: (`body`: [`ExecuteSubmission`](../interfaces/ExecuteSubmission.md), `options?`: [`ExecuteSubmitOptions`](../interfaces/ExecuteSubmitOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `error?`: \{ `code`: `string`; `message`: `string`; \}; `ledger?`: `number`; `status`: `"SUCCESS"` \| `"FAILED"` \| `"PENDING"` \| `"UNKNOWN"` \| `"REJECTED"`; `txHash`: `string`; \}\>\>; \}
 
 Token-authenticated prepare and explicit submit; preserve the original envelope.
 
 #### prepare
 
-> **prepare**: (`body`: [`ExecutePrepareInput`](../interfaces/ExecutePrepareInput.md), `options?`: [`RequestOptions`](../interfaces/RequestOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `expiresAt`: `string`; `network`: `"testnet"` \| `"mainnet"`; `networkPassphrase`: `"Test SDF Network ; September 2015"` \| `"Public Global Stellar Network ; September 2015"`; `xdr`: `string`; \}\>\>
+> **prepare**: (`body`: [`ExecutePrepareInput`](../interfaces/ExecutePrepareInput.md), `options?`: [`RequestOptions`](../interfaces/RequestOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `execution?`: [`ExecutionIntent`](../interfaces/ExecutionIntent.md); `expiresAt`: `string`; `intent?`: `string`; `network`: `"testnet"` \| `"mainnet"`; `networkPassphrase`: `"Test SDF Network ; September 2015"` \| `"Public Global Stellar Network ; September 2015"`; `txHash?`: `string`; `walletAddress?`: `string`; `xdr`: `string`; \}\>\>
 
 ##### Parameters
 
@@ -182,17 +182,51 @@ Token-authenticated prepare and explicit submit; preserve the original envelope.
 
 ##### Returns
 
-`Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `expiresAt`: `string`; `network`: `"testnet"` \| `"mainnet"`; `networkPassphrase`: `"Test SDF Network ; September 2015"` \| `"Public Global Stellar Network ; September 2015"`; `xdr`: `string`; \}\>\>
+`Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `execution?`: [`ExecutionIntent`](../interfaces/ExecutionIntent.md); `expiresAt`: `string`; `intent?`: `string`; `network`: `"testnet"` \| `"mainnet"`; `networkPassphrase`: `"Test SDF Network ; September 2015"` \| `"Public Global Stellar Network ; September 2015"`; `txHash?`: `string`; `walletAddress?`: `string`; `xdr`: `string`; \}\>\>
 
-#### submit
+#### reconcile
 
-> **submit**: (`body`: [`SignedSubmission`](../interfaces/SignedSubmission.md), `options?`: [`ExecuteSubmitOptions`](../interfaces/ExecuteSubmitOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `error?`: \{ `code`: `string`; `message`: `string`; \}; `ledger?`: `number`; `status`: `"SUCCESS"` \| `"FAILED"` \| `"PENDING"`; `txHash`: `string`; \}\>\>
+> **reconcile**: (`body`: \{ `intent`: `string`; \}, `options?`: [`RequestOptions`](../interfaces/RequestOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `intent`: `string`; `state`: `"SUCCESS"` \| `"FAILED"` \| `"PREPARED"` \| `"SUBMITTING"` \| `"EXPIRED"`; `transaction`: \{ `error?`: \{ `code`: `string`; `message`: `string`; \}; `ledger?`: `number`; `network`: `"testnet"` \| `"mainnet"`; `status`: `"SUCCESS"` \| `"FAILED"` \| `"PENDING"` \| `"UNKNOWN"` \| `"REJECTED"`; `txHash`: `string`; \}; \}\>\>
 
 ##### Parameters
 
 ###### body
 
-[`SignedSubmission`](../interfaces/SignedSubmission.md)
+###### intent
+
+`string`
+
+###### options?
+
+[`RequestOptions`](../interfaces/RequestOptions.md)
+
+##### Returns
+
+`Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `intent`: `string`; `state`: `"SUCCESS"` \| `"FAILED"` \| `"PREPARED"` \| `"SUBMITTING"` \| `"EXPIRED"`; `transaction`: \{ `error?`: \{ `code`: `string`; `message`: `string`; \}; `ledger?`: `number`; `network`: `"testnet"` \| `"mainnet"`; `status`: `"SUCCESS"` \| `"FAILED"` \| `"PENDING"` \| `"UNKNOWN"` \| `"REJECTED"`; `txHash`: `string`; \}; \}\>\>
+
+#### state
+
+> **state**: (`options?`: [`RequestOptions`](../interfaces/RequestOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `deploymentId`: `string`; `network`: `"testnet"` \| `"mainnet"`; `policyVersion`: `0`; `reason`: `string`; `supported`: `false`; \} \| \{ `assetContract`: `string`; `configurations`: \{ `configuration`: \{ `additionalRecipients?`: `undefined`; `configuredRows?`: `undefined`; `kind`: `"pay"`; `payoutValue`: ... \| ... \| ...; `recipient?`: ... \| ...; \} \| \{ `additionalRecipients`: ...[]; `configuredRows`: ...[]; `kind`: `"split"`; \}; `confirmedLedger`: `number`; `contractAddress`: `string`; `nodeId`: `string`; `policy`: \{ `additionalRecipients?`: `undefined`; `allocationMode?`: `undefined`; `kind`: `"pay"`; `nodeId`: `string`; `payoutValue`: ... \| ...; `recipient`: ... \| ... \| ...; `rows?`: `undefined`; \} \| \{ `additionalRecipients`: ... \| ... \| ...; `allocationMode`: ... \| ...; `kind`: `"split"`; `nodeId`: `string`; `payoutValue?`: `undefined`; `recipient?`: `undefined`; `rows`: ...[]; \}; `revision`: `string`; `version`: `1`; \}[]; `confirmedLedger`: `number`; `deploymentId`: `string`; `minAmountStroops`: `string`; `network`: `"testnet"` \| `"mainnet"`; `nodes`: \{ `capabilities`: \{ `execution`: `true`; `executionAbi`: `1`; `immutablePolicies`: `true`; `mutation`: `false`; `policyVersion`: `1`; `revisionBinding`: `true`; `wasmHash`: `string`; \}; `contractAddress`: `string`; `expectedRevision`: `string`; `nodeId`: `string`; \}[]; `policies`: \{ `nodes`: (\{ `additionalRecipients?`: `undefined`; `allocationMode?`: `undefined`; `kind`: `"pay"`; `nodeId`: `string`; `payoutValue`: ... \| ...; `recipient`: ... \| ... \| ...; `rows?`: `undefined`; \} \| \{ `additionalRecipients`: ... \| ... \| ...; `allocationMode`: ... \| ...; `kind`: `"split"`; `nodeId`: `string`; `payoutValue?`: `undefined`; `recipient?`: `undefined`; `rows`: ...[]; \})[]; `version`: `1`; \}; `policyVersion`: `1`; `rootContract`: `string`; `supported`: `true`; \}\>\>
+
+##### Parameters
+
+###### options?
+
+[`RequestOptions`](../interfaces/RequestOptions.md)
+
+##### Returns
+
+`Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `deploymentId`: `string`; `network`: `"testnet"` \| `"mainnet"`; `policyVersion`: `0`; `reason`: `string`; `supported`: `false`; \} \| \{ `assetContract`: `string`; `configurations`: \{ `configuration`: \{ `additionalRecipients?`: `undefined`; `configuredRows?`: `undefined`; `kind`: `"pay"`; `payoutValue`: ... \| ... \| ...; `recipient?`: ... \| ...; \} \| \{ `additionalRecipients`: ...[]; `configuredRows`: ...[]; `kind`: `"split"`; \}; `confirmedLedger`: `number`; `contractAddress`: `string`; `nodeId`: `string`; `policy`: \{ `additionalRecipients?`: `undefined`; `allocationMode?`: `undefined`; `kind`: `"pay"`; `nodeId`: `string`; `payoutValue`: ... \| ...; `recipient`: ... \| ... \| ...; `rows?`: `undefined`; \} \| \{ `additionalRecipients`: ... \| ... \| ...; `allocationMode`: ... \| ...; `kind`: `"split"`; `nodeId`: `string`; `payoutValue?`: `undefined`; `recipient?`: `undefined`; `rows`: ...[]; \}; `revision`: `string`; `version`: `1`; \}[]; `confirmedLedger`: `number`; `deploymentId`: `string`; `minAmountStroops`: `string`; `network`: `"testnet"` \| `"mainnet"`; `nodes`: \{ `capabilities`: \{ `execution`: `true`; `executionAbi`: `1`; `immutablePolicies`: `true`; `mutation`: `false`; `policyVersion`: `1`; `revisionBinding`: `true`; `wasmHash`: `string`; \}; `contractAddress`: `string`; `expectedRevision`: `string`; `nodeId`: `string`; \}[]; `policies`: \{ `nodes`: (\{ `additionalRecipients?`: `undefined`; `allocationMode?`: `undefined`; `kind`: `"pay"`; `nodeId`: `string`; `payoutValue`: ... \| ...; `recipient`: ... \| ... \| ...; `rows?`: `undefined`; \} \| \{ `additionalRecipients`: ... \| ... \| ...; `allocationMode`: ... \| ...; `kind`: `"split"`; `nodeId`: `string`; `payoutValue?`: `undefined`; `recipient?`: `undefined`; `rows`: ...[]; \})[]; `version`: `1`; \}; `policyVersion`: `1`; `rootContract`: `string`; `supported`: `true`; \}\>\>
+
+#### submit
+
+> **submit**: (`body`: [`ExecuteSubmission`](../interfaces/ExecuteSubmission.md), `options?`: [`ExecuteSubmitOptions`](../interfaces/ExecuteSubmitOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `error?`: \{ `code`: `string`; `message`: `string`; \}; `ledger?`: `number`; `status`: `"SUCCESS"` \| `"FAILED"` \| `"PENDING"` \| `"UNKNOWN"` \| `"REJECTED"`; `txHash`: `string`; \}\>\>
+
+##### Parameters
+
+###### body
+
+[`ExecuteSubmission`](../interfaces/ExecuteSubmission.md)
 
 ###### options?
 
@@ -200,7 +234,7 @@ Token-authenticated prepare and explicit submit; preserve the original envelope.
 
 ##### Returns
 
-`Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `error?`: \{ `code`: `string`; `message`: `string`; \}; `ledger?`: `number`; `status`: `"SUCCESS"` \| `"FAILED"` \| `"PENDING"`; `txHash`: `string`; \}\>\>
+`Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `error?`: \{ `code`: `string`; `message`: `string`; \}; `ledger?`: `number`; `status`: `"SUCCESS"` \| `"FAILED"` \| `"PENDING"` \| `"UNKNOWN"` \| `"REJECTED"`; `txHash`: `string`; \}\>\>
 
 ---
 

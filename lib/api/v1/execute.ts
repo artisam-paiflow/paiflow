@@ -20,6 +20,7 @@ import {
   withIndependentEventRpcBudget,
 } from "@/lib/stellar/interactive-rpc-budget";
 import { sorobanRpc } from "@/lib/stellar/client";
+import { signerFromTransaction } from "@/lib/stellar/signer";
 import { pollEventsFor } from "@/lib/stellar/events";
 import { buildPipelineErrorHint } from "@/lib/stellar/pipeline-error-hint";
 import { translateSorobanError } from "@/lib/stellar/soroban-errors";
@@ -104,8 +105,8 @@ export function resolveExecutablePipeline(
  *
  * Without this a token for deployment A could relay any transaction it holds a
  * signature for and have it recorded under A's audit trail (CLAUDE.md §7.3).
- * Parsing with this environment's passphrase also pins the network: the hash
- * the caller signed over only matches if they signed for the same one.
+ * Parsing assigns the environment passphrase; verifying the source signature
+ * over that hash, below, establishes that the wallet signed for this network.
  */
 export function assertDepositEnvelope(signedXdr: string, triggerAddress: string): Transaction {
   let parsed: Transaction | FeeBumpTransaction;
@@ -143,6 +144,12 @@ export function assertDepositEnvelope(signedXdr: string, triggerAddress: string)
   if (call.functionName().toString() !== "deposit") {
     throw new AppError("VALIDATION", "The envelope must call deposit on this flow's trigger");
   }
+  const signer = signerFromTransaction(parsed);
+  if (!signer.ok || !signer.signedBySource)
+    throw new AppError(
+      "VALIDATION",
+      "The envelope must be signed by its source account for the deployment network",
+    );
   return parsed;
 }
 /** The transaction's `maxTime` — execute uses 180 seconds; payout deposits use 60. */

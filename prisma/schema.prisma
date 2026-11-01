@@ -873,6 +873,12 @@ model WalletControlIntent {
   txHash            String             @unique
   maxTime           String
   preparationLedger Int
+  // Execution preparations retain unsigned intent only, never customer signatures.
+  unsignedXdr        String?
+  executionIntent    Json?
+  executionArtifacts Json?
+  idempotencyKeyHash String?
+  requestDigest      String?
   // PREPARED -> SUBMITTING -> SUCCESS|FAILED|EXPIRED. Uncertainty never clears a reservation.
   state             WalletControlState @default(PREPARED)
   ledger            Int?
@@ -881,6 +887,8 @@ model WalletControlIntent {
   completedAt       DateTime?
 
   @@index([deploymentId, network, nodeId, state])
+  @@index([deploymentId, network, action, walletAddress, state], map: "WalletControlIntent_execution_payer_state_idx")
+  @@unique([deploymentId, network, idempotencyKeyHash])
 }
 
 /// Historical storage only: excluded from generated runtime CRUD.

@@ -19,6 +19,8 @@ export interface RequestOptions {
   requestId?: string;
   /** Original preparation history UUID. Preserve it for explicit submit correlation. */
   preparationRequestId?: string;
+  /** Execution prepare only: stable key. Reusing it never creates a replacement payment. */
+  idempotencyKey?: string;
 }
 /** HTTP diagnostics retained on responses and typed API errors. */
 export interface ResponseMetadata {
@@ -173,6 +175,16 @@ export class PaiflowTransport {
       url.searchParams.set(key, value);
     }
     const headers = new Headers({ Accept: "application/json", "Content-Type": "application/json" });
+    if (
+      options.idempotencyKey !== undefined &&
+      request.auth.kind === "token" &&
+      request.method === "POST" &&
+      /^\/api\/v1\/deployments\/[A-Za-z0-9_-]+\/execute$/.test(request.path)
+    ) {
+      if (!/^[A-Za-z0-9._:-]{1,128}$/.test(options.idempotencyKey))
+        throw new TypeError("Invalid idempotencyKey");
+      headers.set("Idempotency-Key", options.idempotencyKey);
+    }
     if (request.auth.kind === "token") {
       if (!this.#token) throw new TypeError("API token required");
       headers.set("Authorization", `Bearer ${this.#token}`);

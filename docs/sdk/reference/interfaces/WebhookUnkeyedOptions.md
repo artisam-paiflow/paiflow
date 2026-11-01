@@ -18,6 +18,18 @@ Per-request cancellation and correlation. No option enables automatic retries.
 
 ## Properties
 
+### idempotencyKey?
+
+> `optional` **idempotencyKey?**: `string`
+
+Execution prepare only: stable key. Reusing it never creates a replacement payment.
+
+#### Inherited from
+
+[`RequestOptions`](RequestOptions.md).[`idempotencyKey`](RequestOptions.md#idempotencykey)
+
+---
+
 ### preparationRequestId?
 
 > `optional` **preparationRequestId?**: `string`

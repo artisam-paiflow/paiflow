@@ -9,7 +9,15 @@ import {
   timestamp,
   network,
   stroops,
+  uuid,
+  parseTransaction,
 } from "./read-parsers.js";
+import {
+  parseExecutionArguments,
+  parseExecutionDiscovery,
+  parseExecutionIntent,
+  type ExecutionArguments,
+} from "./execution.js";
 import { PaiflowAbortError, PaiflowTimeoutError } from "./transport.js";
 import type { ApiResponse, PaiflowTransport, RequestOptions } from "./transport.js";
 /** Prepare a caller-signed deposit into this existing deployment. */
@@ -17,6 +25,8 @@ export interface ExecutePrepareInput {
   /** Positive integer stroop string bounded to i128, never a floating-point amount. */
   amount: string;
   from: string;
+  /** All declared node inputs; never stored-configuration overrides. */
+  arguments?: ExecutionArguments;
 }
 export interface PublicPaymentPrepareInput {
   /** Positive integer stroop string bounded to i128, never a floating-point amount. */
@@ -26,6 +36,10 @@ export interface PublicPaymentPrepareInput {
 /** Exact original wallet-signed envelope. Persist securely before explicit submission. */
 export interface SignedSubmission {
   signedXdr: string;
+}
+export interface ExecuteSubmission extends SignedSubmission {
+  /** Retain the original parameterized execution preparation identifier. */
+  intent?: string;
 }
 /** Request options plus explicit server waiting policy; neither setting enables SDK polling. */
 export interface ExecuteSubmitOptions extends RequestOptions {
@@ -55,13 +69,32 @@ const parseExecutePrepared = (value: unknown) => {
     prepared = parsePublicPrepared(value),
     net = network(d.network);
   if (prepared.networkPassphrase !== passphrases[net]) throw new Error();
-  return { ...prepared, network: net, expiresAt: timestamp(d.expiresAt) };
+  const execution = d.execution === undefined ? undefined : parseExecutionIntent(d.execution);
+  if (
+    [d.intent, d.txHash, d.walletAddress, execution].some((value) => value !== undefined) &&
+    [d.intent, d.txHash, d.walletAddress, execution].some((value) => value === undefined)
+  )
+    throw new Error();
+  if (execution && d.walletAddress !== execution.payer) throw new Error();
+  return {
+    ...prepared,
+    network: net,
+    expiresAt: timestamp(d.expiresAt),
+    ...(execution
+      ? {
+          intent: uuid(d.intent),
+          txHash: hash(d.txHash),
+          walletAddress: address(d.walletAddress, "G"),
+          execution,
+        }
+      : {}),
+  };
 };
 const parseExecuteSubmitted = (value: unknown) => {
   const d = object(value);
   return {
     txHash: hash(d.txHash),
-    status: choice(d.status, ["SUCCESS", "PENDING", "FAILED"]),
+    status: choice(d.status, ["SUCCESS", "PENDING", "FAILED", "UNKNOWN", "REJECTED"]),
     ...(d.ledger === undefined ? {} : { ledger: integer(d.ledger, 1) }),
     ...(d.error === undefined
       ? {}
@@ -110,6 +143,16 @@ export function paymentMethods(transport: PaiflowTransport, id: string) {
     pub = `/api/deployments/${id}`;
   return {
     execute: {
+      state: (options?: RequestOptions) =>
+        transport.request(
+          {
+            path: `${partner}/execution`,
+            method: "GET",
+            auth: { kind: "token" },
+            parse: parseExecutionDiscovery,
+          },
+          options,
+        ),
       prepare: (body: ExecutePrepareInput, options?: RequestOptions) =>
         transport.request(
           {
@@ -119,12 +162,15 @@ export function paymentMethods(transport: PaiflowTransport, id: string) {
             body: input(() => ({
               amount: stroops(body.amount, true),
               from: address(body.from, "G"),
+              ...(body.arguments === undefined
+                ? {}
+                : { arguments: parseExecutionArguments(body.arguments) }),
             })),
             parse: parseExecutePrepared,
           },
           options,
         ),
-      submit: (body: SignedSubmission, options: ExecuteSubmitOptions = {}) => {
+      submit: (body: ExecuteSubmission, options: ExecuteSubmitOptions = {}) => {
         if (options.wait !== undefined && typeof options.wait !== "boolean")
           throw new TypeError("Invalid wait");
         return transport.request(
@@ -132,13 +178,34 @@ export function paymentMethods(transport: PaiflowTransport, id: string) {
             path: `${partner}/execute/submit`,
             method: "POST",
             auth: { kind: "token" },
-            body: submission(body),
+            body: {
+              ...submission(body),
+              ...(body.intent === undefined ? {} : { intent: input(() => uuid(body.intent)) }),
+            },
             query: options.wait === undefined ? undefined : { wait: String(options.wait) },
             parse: parseExecuteSubmitted,
           },
           options,
         );
       },
+      reconcile: (body: { intent: string }, options?: RequestOptions) =>
+        transport.request(
+          {
+            path: `${partner}/execute/reconcile`,
+            method: "POST",
+            auth: { kind: "token" },
+            body: input(() => ({ intent: uuid(body.intent) })),
+            parse: (value: unknown) => {
+              const d = object(value);
+              return {
+                intent: uuid(d.intent),
+                state: choice(d.state, ["PREPARED", "SUBMITTING", "SUCCESS", "FAILED", "EXPIRED"]),
+                transaction: parseTransaction(d.transaction),
+              };
+            },
+          },
+          options,
+        ),
     },
     publicPayment: {
       prepare: (body: PublicPaymentPrepareInput, options?: RequestOptions) =>
@@ -226,16 +293,21 @@ export function signPrepared<T extends PreparedEnvelope>(
   signer: PreparedSigner,
   options: SignOptions,
 ) {
-  return signPreparedEnvelope(prepared, signer, options, submission);
+  return signPreparedEnvelope(prepared, signer, options, (value) => ({
+    ...submission(value),
+    ...(object(prepared.data).intent === undefined
+      ? {}
+      : { intent: uuid(object(prepared.data).intent) }),
+  }));
 }
 /** Internal signing engine; workflow supplies its own signed-envelope bounds. */
-export async function signPreparedEnvelope<T extends PreparedEnvelope>(
+export async function signPreparedEnvelope<T extends PreparedEnvelope, S extends SignedSubmission>(
   prepared: ApiResponse<T>,
   signer: PreparedSigner,
   options: SignOptions,
-  validateSubmission: (body: SignedSubmission) => SignedSubmission,
+  validateSubmission: (body: SignedSubmission) => S,
 ): Promise<{
-  submission: SignedSubmission;
+  submission: S;
   preparation: ApiResponse<T>;
   submissionOptions: RequestOptions;
 }> {

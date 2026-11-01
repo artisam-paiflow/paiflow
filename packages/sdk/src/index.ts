@@ -42,9 +42,20 @@ export type {
 
 export { signPrepared, PaiflowSigningError } from "./payment.js";
 export type {
+  ExecutionAllocation,
+  ExecutionRowInput,
+  ExecutionAdditionalRecipient,
+  ExecutionNodeInput,
+  ExecutionArguments,
+  ExecutionNodeBinding,
+  ExecutionIntent,
+  ExecutionDiscovery,
+} from "./execution.js";
+export type {
   ExecutePrepareInput,
   PublicPaymentPrepareInput,
   SignedSubmission,
+  ExecuteSubmission,
   ExecuteSubmitOptions,
   ExecutePrepared,
   ExecuteSubmitted,

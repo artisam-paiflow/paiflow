@@ -6,7 +6,7 @@
 
 # Type Alias: ExecuteSubmitted
 
-> **ExecuteSubmitted** = \{ `error?`: \{ `code`: `string`; `message`: `string`; \}; `ledger?`: `number`; `status`: `"SUCCESS"` \| `"FAILED"` \| `"PENDING"`; `txHash`: `string`; \}
+> **ExecuteSubmitted** = \{ `error?`: \{ `code`: `string`; `message`: `string`; \}; `ledger?`: `number`; `status`: `"SUCCESS"` \| `"FAILED"` \| `"PENDING"` \| `"UNKNOWN"` \| `"REJECTED"`; `txHash`: `string`; \}
 
 Execute submission result; inspect status rather than relying on HTTP success.
 
@@ -34,7 +34,7 @@ Execute submission result; inspect status rather than relying on HTTP success.
 
 ### status
 
-> **status**: `"SUCCESS"` \| `"FAILED"` \| `"PENDING"`
+> **status**: `"SUCCESS"` \| `"FAILED"` \| `"PENDING"` \| `"UNKNOWN"` \| `"REJECTED"`
 
 ---
 

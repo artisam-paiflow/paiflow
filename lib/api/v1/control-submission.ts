@@ -24,7 +24,8 @@ import type { TransactionStatus } from "./schema";
 /** Domain routes authenticate with v1Route and supply an eligibility check for the selected action. */
 export async function submitControlIntent(input: {
   deployment: Deployment;
-  tokenId: string;
+  /** Omitted only by an explicitly authorized public wallet route. */
+  tokenId?: string;
   tokenType?: ApiTokenType;
   action: WalletControlAction;
   intent: string;
@@ -33,6 +34,8 @@ export async function submitControlIntent(input: {
   /** Check live controller/config/permissions. Token ownership is never wallet authorization. */
   assertEligible: () => Promise<void>;
 }): Promise<TransactionStatus> {
+  if (!input.tokenId && input.action !== "payment.execute")
+    throw new AppError("FORBIDDEN", "This wallet control requires an authenticated API credential");
   const intent = await readControlIntent(input.intent, input.deployment.id, input.action);
   const { tx, signer } = verifyControlTransaction(intent, input.signedXdr);
   linkApiTransaction(intent.txHash);
@@ -56,17 +59,29 @@ export async function submitControlIntent(input: {
       if (!count) return false;
       const row = signedTransactionRow({
         signer,
-        kind: "INVOKE",
+        kind:
+          input.action === "payment.execute"
+            ? input.tokenId
+              ? "API_EXECUTE"
+              : "TRIGGER"
+            : "INVOKE",
         network: env().STELLAR_NETWORK,
         deploymentId: input.deployment.id,
-        ...signedTokenAttribution(input),
+        ...(input.tokenId
+          ? signedTokenAttribution({ tokenId: input.tokenId, tokenType: input.tokenType })
+          : {}),
         ip: input.ip,
       });
       if (!row) throw new AppError("INTERNAL", "Cannot record wallet-control signer");
       await insertSignedTransaction(row, client);
       await client.auditLog.create({
         data: {
-          action: "DEPLOY_INVOKE",
+          action:
+            input.action === "payment.execute"
+              ? input.tokenId
+                ? "API_EXECUTE_SUBMITTED"
+                : "DEPLOY_TRIGGER"
+              : "DEPLOY_INVOKE",
           userId: null,
           ip: input.ip,
           metadata: {
@@ -77,7 +92,7 @@ export async function submitControlIntent(input: {
             method: input.action,
             signerAddress: intent.walletAddress,
             tokenId: input.tokenId,
-            tokenType: input.tokenType ?? "deployment_token",
+            tokenType: input.tokenId ? (input.tokenType ?? "deployment_token") : "public_wallet",
           },
         },
       });

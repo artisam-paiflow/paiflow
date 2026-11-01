@@ -7,6 +7,12 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Exact payer-signed execution preparations for new policy-v1 deployments (#1160):
+  verified pinned artifacts/current revisions, required node inputs, idempotent
+  prepare receipts and one-send recovery through uncertain outcomes. API/SDK reads
+  and reconciliation preserve original evidence; legacy public submit paths refuse
+  policy-v1. No artifact activation or hosted opt-in is implied.
+
 - Payer-bound execution input contracts and compiler support (#1159) for immediate
   Receive → Pay → terminal Pay/Split paths. Preserve constant recipients/allocations,
   enforce exact fixed execution splits, revisions and replay deadlines, and prevent
@@ -61,6 +67,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 - Reorganize Developer API around a compact token list, expandable details, dedicated creation panel and Quickstart. Search eligible deployments across pages while preserving explicit selections and one-time token reveal protections. Add the flow-name index migration; OpenAPI revision 1.2.0 documents the optional owner-session deployment search parameter.
 
 ### Security
+
+- Verify the paying source account's signature on the environment network before
+  relaying retained v1 execute submissions; unsigned, wrong-key and wrong-network
+  envelopes are refused before attribution or RPC submission (#550, #1160).
 
 - Raise the `follow-redirects` override to >=1.16.2 and consolidate transitive `minimatch` versions on >=11.0.1 to address GHSA-mrwp-f3q8-3g9p and GHSA-g3hv-75wg-m249. Preserve the existing audit exception without adding new ignores.
 

@@ -6,7 +6,7 @@
 
 # Function: signPrepared()
 
-> **signPrepared**\<`T` _extends_ [`PreparedEnvelope`](../interfaces/PreparedEnvelope.md)\>(`prepared`: [`ApiResponse`](../interfaces/ApiResponse.md)\<`T`\>, `signer`: [`SignTransaction`](../type-aliases/SignTransaction.md), `options`: [`SignOptions`](../interfaces/SignOptions.md)): `Promise`\<\{ `preparation`: [`ApiResponse`](../interfaces/ApiResponse.md)\<`T`\>; `submission`: [`SignedSubmission`](../interfaces/SignedSubmission.md); `submissionOptions`: [`RequestOptions`](../interfaces/RequestOptions.md); \}\>
+> **signPrepared**\<`T` _extends_ [`PreparedEnvelope`](../interfaces/PreparedEnvelope.md)\>(`prepared`: [`ApiResponse`](../interfaces/ApiResponse.md)\<`T`\>, `signer`: [`SignTransaction`](../type-aliases/SignTransaction.md), `options`: [`SignOptions`](../interfaces/SignOptions.md)): `Promise`\<\{ `preparation`: [`ApiResponse`](../interfaces/ApiResponse.md)\<`T`\>; `submission`: \{ `intent?`: `string`; `signedXdr`: `string`; \}; `submissionOptions`: [`RequestOptions`](../interfaces/RequestOptions.md); \}\>
 
 Sign a saved execute/public-payment preparation once, without submitting.
 
@@ -38,7 +38,7 @@ Wallet/network checks, cancellation and a signing deadline.
 
 ## Returns
 
-`Promise`\<\{ `preparation`: [`ApiResponse`](../interfaces/ApiResponse.md)\<`T`\>; `submission`: [`SignedSubmission`](../interfaces/SignedSubmission.md); `submissionOptions`: [`RequestOptions`](../interfaces/RequestOptions.md); \}\>
+`Promise`\<\{ `preparation`: [`ApiResponse`](../interfaces/ApiResponse.md)\<`T`\>; `submission`: \{ `intent?`: `string`; `signedXdr`: `string`; \}; `submissionOptions`: [`RequestOptions`](../interfaces/RequestOptions.md); \}\>
 
 Original preparation plus signed submission and preparation-history correlation.
 

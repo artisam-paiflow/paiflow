@@ -19,6 +19,7 @@ import { allowanceHasExpired } from "@/lib/stellar/allowance-status";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 export const WalletControlActionSchema = z.enum([
+  "payment.execute",
   "subscription.cancel",
   "subscription.reactivate",
   "schedule.pause",
@@ -35,6 +36,7 @@ export const WalletControlSubmitSchema = z
   })
   .strict();
 const actions = {
+  "payment.execute": { method: "execute_v1", kinds: ["DEPOSIT_TRIGGER"] },
   "subscription.cancel": { method: "unsubscribe", kinds: ["SUBSCRIPTION"] },
   "subscription.reactivate": { method: "subscribe", kinds: ["SUBSCRIPTION"] },
   "schedule.pause": { method: "pause", kinds: ["STREAMER"] },
@@ -92,7 +94,15 @@ export function assertControlTransaction(tx: Transaction, binding: ControlBindin
     )
       throw new Error();
     const args = call.args();
-    if (action === "schedule.fund" || action === "webhook.fund") {
+    if (action === "payment.execute") {
+      if (
+        args.length !== 7 ||
+        Address.fromScVal(args[0]!).toString() !== binding.walletAddress ||
+        args[2]!.switch().name !== "scvI128" ||
+        BigInt(String(scValToNative(args[2]!))) <= 0n
+      )
+        throw new Error();
+    } else if (action === "schedule.fund" || action === "webhook.fund") {
       if (
         args.length !== 2 ||
         Address.fromScVal(args[0]!).toString() !== binding.walletAddress ||

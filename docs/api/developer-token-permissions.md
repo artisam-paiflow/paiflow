@@ -11,12 +11,14 @@ For deployment operations, append the listed path to `/api/v1/deployments/{id}/`
 | `GET balances`                           | `READ_ONLY`        |
 | `GET capabilities`                       | `READ_ONLY`        |
 | `GET events`                             | `READ_ONLY`        |
+| `GET execution`                          | `READ_ONLY`        |
 | `GET funding`                            | `READ_ONLY`        |
 | `GET schedule/state`                     | `READ_ONLY`        |
 | `GET subscription/state`                 | `READ_ONLY`        |
 | `GET swap-quote`                         | `READ_ONLY`        |
 | `GET transactions/:txHash`               | `READ_ONLY`        |
 | `POST execute`                           | `READ_OPERATE`     |
+| `POST execute/reconcile`                 | `READ_OPERATE`     |
 | `POST execute/submit`                    | `READ_OPERATE`     |
 | `POST funding`                           | `READ_OPERATE`     |
 | `POST funding/reconcile`                 | `READ_OPERATE`     |
