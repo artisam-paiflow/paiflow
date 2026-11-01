@@ -27,11 +27,18 @@ import { flowToEnglish } from "@/lib/flows/english";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import type { AddressEntry } from "@/lib/address-book.types";
+import type { NodeFieldPolicy } from "@/lib/flows/field-policies";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
 import { TriggerNode, ActionNode, LogicNode } from "@/components/nodes";
 import AnimatedStraightEdge from "@/components/nodes/animated-edge";
 import { NotificationSettingsDialog } from "./notification-settings";
 import { sendWithRateLimitRetry } from "./autosave-retry.utils";
+import {
+  executionDeploymentAvailable,
+  EXECUTION_ARTIFACTS_UNAVAILABLE,
+  updateBuilderPolicy,
+  type ExecutionArtifacts,
+} from "./field-policy.utils";
 import {
   builderGraph,
   editBuilderNodes,
@@ -81,6 +88,7 @@ type BuilderProps = {
    * and makes the in-builder validation match the server's refusal.
    */
   features: FeatureFlags;
+  executionArtifacts?: ExecutionArtifacts;
 };
 function nodeToReactFlow(n: FlowNode, index: number, positions?: FlowGraph["positions"]): Node {
   if (n.type === "email_notify") throw new Error("Legacy graph must be migrated before rendering");
@@ -202,6 +210,7 @@ function Builder({
   network,
   routerContractId,
   features,
+  executionArtifacts,
 }: BuilderProps) {
   const [name, setName] = useState(initialName);
   const [draft, setDraft] = useState<BuilderDraft>({
@@ -212,6 +221,9 @@ function Builder({
   // Both keyboard and panel authoring mutate nodes/policies in one state update.
   const setFlowNodes = useCallback((update: (nodes: FlowNode[]) => FlowNode[]) => {
     setDraft((current) => editBuilderNodes(current, update(current.nodes)));
+  }, []);
+  const setFieldPolicy = useCallback((policy: NodeFieldPolicy) => {
+    setDraft((current) => updateBuilderPolicy(current, policy));
   }, []);
   const [rfNodes, setRfNodes] = useState<Node[]>(
     initialGraph.nodes.map((n, i) => nodeToReactFlow(n, i, initialGraph.positions)),
@@ -719,9 +731,24 @@ function Builder({
   function handleSkipAddresses() {
     setPendingAddresses([]);
   }
-  const isValid = validation.ok;
+  const executionAvailable = executionDeploymentAvailable(graph, executionArtifacts);
+  const isValid = validation.ok && executionAvailable;
   const pipeline = validation.ok ? validation.pipeline : undefined;
-  const errors = useMemo(() => (validation.ok ? [] : validation.errors), [validation]);
+  const errors = useMemo(
+    () => [
+      ...(validation.ok ? [] : validation.errors),
+      ...(!executionAvailable
+        ? [
+            {
+              path: "fieldPolicies",
+              message: EXECUTION_ARTIFACTS_UNAVAILABLE,
+              friendlyMessage: EXECUTION_ARTIFACTS_UNAVAILABLE,
+            },
+          ]
+        : []),
+    ],
+    [validation, executionAvailable],
+  );
   useValidationTracking(errors, flowNodes);
   // Close the validation-issues modal on Escape, or once all issues are fixed
   // while it's open.
@@ -930,6 +957,8 @@ function Builder({
                 features={features}
                 sandbox={sandbox}
                 onChange={updateNode}
+                onPolicyChange={setFieldPolicy}
+                executionAvailable={executionAvailable}
                 onDelete={deleteNode}
                 addressBook={addressBook}
                 refreshAddressBook={refreshAddressBook}

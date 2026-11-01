@@ -16,11 +16,13 @@ import {
   isTrigger,
   isPendingAddress,
   bpsToPct,
+  pctToBps,
   assetLabel,
   subscriptionAmountPerPeriodStroops,
 } from "./schema";
 import { inFlowOrder } from "./graph";
 import { formatScheduleStart } from "./format-time";
+import { executionPath, executionPolicy } from "./execution-v1";
 import {
   BRANCH_LABEL,
   branchAmountText,
@@ -154,12 +156,101 @@ function describeBranch(
   }
   return parts.length > 0 ? parts.join(" and ") : "nothing is paid out yet";
 }
+
+/** Policy-aware review describes every hop and never presents saved draft
+ * placeholders as destinations or allocations for the next payment. */
+function describeExecutionFlow(graph: FlowGraph): string {
+  if (
+    graph.fieldPolicies?.nodes.some((policy) =>
+      policy.kind === "pay"
+        ? policy.recipient === "mutable" || policy.payoutValue === "mutable"
+        : policy.additionalRecipients === "mutable" ||
+          policy.rows.some((row) => row.recipient === "mutable" || row.allocation === "mutable"),
+    )
+  )
+    return "This draft requests stored configuration updates, which are not available. Choose constant values or supported execution inputs before deploying.";
+  let path: FlowNode[];
+  try {
+    path = executionPath(graph);
+  } catch {
+    return "This draft declares execution inputs, but its blocks are not a supported immediate On Receive → Pay → terminal Pay or Split path. Fix the path before deploying.";
+  }
+  const root = path[0];
+  if (root?.type !== "on_receive") return "(incomplete execution flow)";
+  const asset = assetLabel(root.config.asset);
+  const minimum = root.config.minAmountStroops;
+  const steps = path.slice(1).map((node, index) => {
+    const policy = executionPolicy(graph, node);
+    if (node.type === "pay" && policy?.kind === "pay") {
+      const recipient =
+        policy.recipient === "execution"
+          ? `the recipient supplied by the payer for ${node.id}`
+          : policy.recipient === "mutable"
+            ? "an unsupported stored-update recipient"
+            : needsAddress(node.config.recipient)
+              ? "a constant recipient (needs address)"
+              : `constant recipient ${node.config.recipient}`;
+      const amount = node.config.fullAmount
+        ? `the full incoming ${asset}`
+        : node.config.mode === "percentage"
+          ? `a constant ${bpsToPct(pctToBps(node.config.percentage ?? 0))}% of this step’s incoming ${asset}`
+          : `a constant ${formatStroops(node.config.amountStroops || "0")} ${asset}`;
+      const onward =
+        index < path.length - 2
+          ? "; forward only this payment’s remainder to the next step"
+          : "; return any unused amount from this payment to its payer";
+      return `pay ${amount} to ${recipient}${onward}`;
+    }
+    if (node.type === "split" && policy?.kind === "split") {
+      const rows = node.config.recipients.map((row, rowIndex) => {
+        const rowPolicy = policy.rows[rowIndex];
+        const identity = row.label
+          ? `${row.label} (${rowPolicy?.rowId ?? rowIndex + 1})`
+          : (rowPolicy?.rowId ?? `row ${rowIndex + 1}`);
+        const allocation =
+          rowPolicy?.allocation === "execution"
+            ? "the allocation supplied by the payer"
+            : rowPolicy?.allocation === "mutable"
+              ? "an unsupported stored-update allocation"
+              : row.mode === "percentage"
+                ? `constant ${bpsToPct(row.bps)}%`
+                : `constant ${formatStroops(row.amountStroops)} ${asset}`;
+        const recipient =
+          rowPolicy?.recipient === "execution"
+            ? "a recipient supplied by the payer"
+            : rowPolicy?.recipient === "mutable"
+              ? "an unsupported stored-update recipient"
+              : needsAddress(row.address)
+                ? "a constant recipient (needs address)"
+                : `constant recipient ${row.address}`;
+        return `${identity}: ${allocation} to ${recipient}`;
+      });
+      if (policy.additionalRecipients === "execution")
+        rows.push(
+          "additional recipients and their allocations supplied by the payer, after the configured rows",
+        );
+      const execution =
+        policy.additionalRecipients === "execution" ||
+        policy.rows.some((row) => row.recipient === "execution" || row.allocation === "execution");
+      const rule =
+        policy.allocationMode === "percentage"
+          ? "All shares must total exactly 100%; the last row receives the rounding remainder"
+          : execution
+            ? "The final fixed amounts must exactly match this payment’s funds entering the Split; underfunding and excess are refused"
+            : "Constant fixed amounts accumulate until the configured total is reached";
+      return `split ${asset} — ${rows.join("; ")}. ${rule}`;
+    }
+    return "an unsupported execution step";
+  });
+  return `For each immediate payment funded and signed by its payer${minimum && minimum !== "0" ? ` (minimum ${formatStroops(minimum)} ${asset})` : ""}, ${steps.join("; then ")}. Modes, constant values, asset and routing stay fixed for the deployment’s lifetime. Every declared input is required for each payment; saved draft values are not defaults. Template creation inputs and stored updates are separate.`;
+}
 export function flowToEnglish(graph: FlowGraph): string {
   try {
     graph = resolveOwnerReturns(graph, DEPLOYING_WALLET);
   } catch {
     return "(incomplete flow)";
   }
+  if (graph.fieldPolicies !== undefined) return describeExecutionFlow(graph);
   const trigger = graph.nodes.find(isTrigger);
   const action = inFlowOrder(graph, graph.nodes.filter(isContractAction))[0];
   const condition = graph.nodes.find(isLogic);

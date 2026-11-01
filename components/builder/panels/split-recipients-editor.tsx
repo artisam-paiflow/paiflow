@@ -10,6 +10,8 @@ import {
 } from "@/lib/flows/schema";
 import { cn, shortAddr } from "@/lib/utils";
 import type { AddressEntry } from "@/lib/address-book.types";
+import type { SplitFieldPolicy } from "@/lib/flows/field-policies";
+import { FieldModeSelect } from "../inputs/field-mode-select";
 import { RecipientEmailField } from "../notification-settings";
 import AddressInput from "../address-input";
 import { AmountInput } from "../inputs/amount-input";
@@ -30,6 +32,9 @@ export function SplitRecipientsEditor({
   onChange,
   sandbox,
   allocationMode,
+  policy,
+  onPolicyChange,
+  executionIssue,
 }: {
   node: Extract<
     FlowNode,
@@ -49,6 +54,9 @@ export function SplitRecipientsEditor({
   sandbox?: boolean;
   /** Retain a policy-aware empty draft's configured mode until a row exists. */
   allocationMode?: "percentage" | "fixed";
+  policy?: SplitFieldPolicy;
+  onPolicyChange?: (policy: SplitFieldPolicy) => void;
+  executionIssue?: string;
 }) {
   const onAddressBookChange = refreshAddressBook ?? (() => {});
   const listError = fieldErrors?.get("recipients") ?? null;
@@ -57,6 +65,27 @@ export function SplitRecipientsEditor({
   const triggerType = trigger?.type ?? null;
   const isStreamer = triggerType === "on_schedule";
   const mode = node.config.recipients[0]?.mode ?? allocationMode ?? "percentage";
+  const hasExecution = Boolean(
+    policy &&
+    (policy.additionalRecipients === "execution" ||
+      policy.rows.some((row) => row.recipient === "execution" || row.allocation === "execution")),
+  );
+  const hasVariableAllocation = Boolean(
+    policy &&
+    (policy.additionalRecipients === "execution" ||
+      policy.rows.some((row) => row.allocation !== "constant")),
+  );
+  const changeRowMode = (
+    index: number,
+    field: "recipient" | "allocation",
+    value: "constant" | "execution",
+  ) => {
+    if (!policy || !onPolicyChange) return;
+    onPolicyChange({
+      ...policy,
+      rows: policy.rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
+    });
+  };
   const totalFixed = splitTotalFixedStroops(node.config.recipients);
   const minAmount = trigger?.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
   // For scheduled splits the projection base lives on the split itself: the
@@ -123,6 +152,10 @@ export function SplitRecipientsEditor({
   const cacheKey = (r: SplitRecipient, i: number) =>
     r.rowId === undefined ? `index:${i}` : `row:${r.rowId}`;
   const setMode = (newMode: "percentage" | "fixed") => {
+    if (node.config.recipients.length === 0 && policy && onPolicyChange) {
+      onPolicyChange({ ...policy, allocationMode: newMode });
+      return;
+    }
     // Snapshot the current mode's values before the union switch discards them.
     node.config.recipients.forEach((r, i) => {
       if (r.mode === "percentage") modeCache.current.bps.set(cacheKey(r, i), r.bps);
@@ -172,9 +205,11 @@ export function SplitRecipientsEditor({
             {...control}
             className={inputClass}
             value={mode}
-            disabled={allocationMode !== undefined && node.config.recipients.length === 0}
+            disabled={
+              allocationMode !== undefined && node.config.recipients.length === 0 && !onPolicyChange
+            }
             title={
-              allocationMode !== undefined && node.config.recipients.length === 0
+              allocationMode !== undefined && node.config.recipients.length === 0 && !onPolicyChange
                 ? "Add a recipient before changing distribution mode."
                 : undefined
             }
@@ -185,6 +220,24 @@ export function SplitRecipientsEditor({
           </select>
         )}
       </SharedField>
+
+      {policy && onPolicyChange && (
+        <FieldModeSelect
+          label="Additional recipients"
+          value={policy.additionalRecipients}
+          constantLabel="None — configured rows only"
+          executionLabel="Payer supplies list and allocations each payment"
+          executionIssue={executionIssue}
+          onChange={(additionalRecipients) => onPolicyChange({ ...policy, additionalRecipients })}
+        />
+      )}
+      {policy?.additionalRecipients === "execution" && (
+        <p className="text-xs text-zinc-400">
+          The payer supplies additional recipients and their{" "}
+          {mode === "percentage" ? "shares" : "amounts"} for every payment. Configured rows stay in
+          order and cannot be replaced. The combined list has at most 20 recipients.
+        </p>
+      )}
 
       {isStreamer && (
         <div className="text-xs text-zinc-400">
@@ -199,7 +252,9 @@ export function SplitRecipientsEditor({
           ? "Recipients (shares must sum to 100%)"
           : isStreamer
             ? "Recipients (each receives their amount every interval)"
-            : "Recipients (fixed amounts accumulate until the total is reached)"}
+            : hasExecution
+              ? "Recipients (each payment must exactly fund the final fixed total)"
+              : "Recipients (fixed amounts accumulate until the total is reached)"}
       </div>
 
       {listError && (
@@ -208,9 +263,14 @@ export function SplitRecipientsEditor({
         </p>
       )}
 
-      {mode === "percentage" && <AllocationBar recipients={node.config.recipients} />}
+      {mode === "percentage" && !hasVariableAllocation && (
+        <AllocationBar recipients={node.config.recipients} />
+      )}
 
       {node.config.recipients.map((r, i) => {
+        const rowPolicy = policy?.rows[i];
+        const recipientInput = rowPolicy?.recipient === "execution";
+        const allocationInput = rowPolicy?.allocation === "execution";
         const isPending = isPendingAddress(r.address);
         const isPercentage = r.mode === "percentage";
         const isExpanded = expandedRecipients.has(i);
@@ -218,18 +278,24 @@ export function SplitRecipientsEditor({
           ? [...fieldErrors.keys()].some((k) => k.startsWith(`recipients.${i}.`))
           : false;
         const projected =
-          isPercentage && projectionBase
+          isPercentage && projectionBase && !allocationInput
             ? stroopsToDisplay(
                 ((BigInt(projectionBase) * BigInt(r.bps)) / 10000n).toString(),
                 node.config.asset,
               )
             : null;
-        const summaryLabel = r.label ? r.label : shortAddr(r.address);
-        const summaryAmount = isPercentage
-          ? `${bpsToPct(r.bps)}%`
-          : r.amountStroops && r.amountStroops !== "0"
-            ? stroopsToDisplay(r.amountStroops, node.config.asset)
-            : "0";
+        const summaryLabel = r.label
+          ? r.label
+          : recipientInput
+            ? `Recipient ${i + 1} from payer`
+            : shortAddr(r.address);
+        const summaryAmount = allocationInput
+          ? "Set each payment"
+          : isPercentage
+            ? `${bpsToPct(r.bps)}%`
+            : r.amountStroops && r.amountStroops !== "0"
+              ? stroopsToDisplay(r.amountStroops, node.config.asset)
+              : "0";
         return (
           <div
             key={r.rowId ?? i}
@@ -260,34 +326,49 @@ export function SplitRecipientsEditor({
 
             {isExpanded && (
               <div className="space-y-2 border-t border-zinc-800 p-2 pt-1">
+                {rowPolicy && onPolicyChange && (
+                  <FieldModeSelect
+                    label={`Recipient source for ${summaryLabel}`}
+                    value={rowPolicy.recipient}
+                    executionIssue={executionIssue}
+                    onChange={(value) => changeRowMode(i, "recipient", value)}
+                  />
+                )}
                 <>
                   {/* Row 1: wallet address + delete */}
                   <div className="grid grid-cols-[1fr_auto] items-start gap-2">
                     <div className="grid gap-0.5">
-                      <AddressInput
-                        value={r.address}
-                        placeholder="G... or PENDING:label"
-                        onChange={(address) =>
-                          updateRecipient(i, {
-                            ...r,
-                            address,
-                          } as SplitRecipient)
-                        }
-                        onSelectEntry={(entry) =>
-                          updateRecipient(i, {
-                            ...r,
-                            address: entry.address,
-                            label: entry.label || r.label,
-                          } as SplitRecipient)
-                        }
-                        pending={isPendingAddress(r.address)}
-                        label={`Wallet address for recipient ${i + 1}`}
-                        error={recipientError(i, "address")}
-                        addressBook={addressBook}
-                        onAddressBookChange={onAddressBookChange}
-                        addressBookLoading={addressBookLoading}
-                        addressBookError={addressBookError}
-                      />
+                      {recipientInput ? (
+                        <p className="text-xs text-zinc-400">
+                          Wallet address required from the payer for every payment. No saved address
+                          is used.
+                        </p>
+                      ) : (
+                        <AddressInput
+                          value={r.address}
+                          placeholder="G... or PENDING:label"
+                          onChange={(address) =>
+                            updateRecipient(i, {
+                              ...r,
+                              address,
+                            } as SplitRecipient)
+                          }
+                          onSelectEntry={(entry) =>
+                            updateRecipient(i, {
+                              ...r,
+                              address: entry.address,
+                              label: entry.label || r.label,
+                            } as SplitRecipient)
+                          }
+                          pending={isPendingAddress(r.address)}
+                          label={`Wallet address for recipient ${i + 1}`}
+                          error={recipientError(i, "address")}
+                          addressBook={addressBook}
+                          onAddressBookChange={onAddressBookChange}
+                          addressBookLoading={addressBookLoading}
+                          addressBookError={addressBookError}
+                        />
+                      )}
                     </div>
                     <button
                       type="button"
@@ -299,7 +380,20 @@ export function SplitRecipientsEditor({
                     </button>
                   </div>
 
-                  {isPercentage ? (
+                  {rowPolicy && onPolicyChange && (
+                    <FieldModeSelect
+                      label={`Allocation source for ${summaryLabel}`}
+                      value={rowPolicy.allocation}
+                      executionIssue={executionIssue}
+                      onChange={(value) => changeRowMode(i, "allocation", value)}
+                    />
+                  )}
+                  {allocationInput ? (
+                    <p className="text-xs text-zinc-400">
+                      The payer supplies this row’s {isPercentage ? "share" : "amount"} for every
+                      payment.
+                    </p>
+                  ) : isPercentage ? (
                     <ShareInput
                       label={`Share for ${summaryLabel}`}
                       error={recipientError(i, "bps")}
@@ -336,7 +430,7 @@ export function SplitRecipientsEditor({
                       )}
                     </SharedField>
                     <div className="flex items-center gap-1 text-[10px]">
-                      {isPending && (
+                      {isPending && !recipientInput && (
                         <span className="rounded bg-amber-950 px-1.5 py-0.5 text-amber-400">
                           needs address
                         </span>
@@ -346,16 +440,19 @@ export function SplitRecipientsEditor({
                           {projected}
                         </span>
                       )}
-                      {!isPercentage && r.amountStroops && r.amountStroops !== "0" && (
-                        <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
-                          {stroopsToDisplay(r.amountStroops, node.config.asset)}
-                        </span>
-                      )}
+                      {!allocationInput &&
+                        !isPercentage &&
+                        r.amountStroops &&
+                        r.amountStroops !== "0" && (
+                          <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
+                            {stroopsToDisplay(r.amountStroops, node.config.asset)}
+                          </span>
+                        )}
                     </div>
                   </div>
                 </>
 
-                {!sandbox && (
+                {!sandbox && !recipientInput && (
                   <RecipientEmailField
                     shared
                     value={r.email}
@@ -368,13 +465,23 @@ export function SplitRecipientsEditor({
         );
       })}
 
-      {mode === "percentage" && remainingPct(node.config.recipients) > 0 && (
-        <div className="text-xs text-amber-400">
-          Remaining: {remainingPct(node.config.recipients).toFixed(1)}% unallocated
-        </div>
+      {hasVariableAllocation && (
+        <p className="text-xs text-zinc-400">
+          {mode === "percentage"
+            ? "Constant shares plus payer-supplied shares must total exactly 100% for every payment. Rounding remainder goes to the last row."
+            : "The final constant and payer-supplied amounts must exactly equal the funds entering this Split. No excess or partial payment is retained."}
+        </p>
       )}
+      {mode === "percentage" &&
+        !hasVariableAllocation &&
+        remainingPct(node.config.recipients) > 0 && (
+          <div className="text-xs text-amber-400">
+            Remaining: {remainingPct(node.config.recipients).toFixed(1)}% unallocated
+          </div>
+        )}
 
       {mode === "percentage" &&
+        !hasVariableAllocation &&
         node.config.recipients.reduce((s, r2) => s + (r2.mode === "percentage" ? r2.bps : 0), 0) >
           TOTAL_BPS && (
           <div className="text-error text-xs">
@@ -391,7 +498,7 @@ export function SplitRecipientsEditor({
           </div>
         )}
 
-      {mode === "fixed" && totalFixed && (
+      {mode === "fixed" && !hasVariableAllocation && totalFixed && (
         <div className="text-xs text-zinc-400">
           Total fixed amount:{" "}
           <span className="font-mono text-zinc-300">
@@ -400,18 +507,25 @@ export function SplitRecipientsEditor({
         </div>
       )}
 
-      {mode === "fixed" && minAmount && totalFixed && BigInt(totalFixed) > BigInt(minAmount) && (
-        <div className="text-xs text-amber-400">
-          Total fixed amount is greater than the trigger minimum. Deposits will accumulate until the
-          total is reached.
-        </div>
-      )}
+      {mode === "fixed" &&
+        !hasExecution &&
+        minAmount &&
+        totalFixed &&
+        BigInt(totalFixed) > BigInt(minAmount) && (
+          <div className="text-xs text-amber-400">
+            Total fixed amount is greater than the trigger minimum. Deposits will accumulate until
+            the total is reached.
+          </div>
+        )}
 
       <button
+        type="button"
+        disabled={node.config.recipients.length >= 20}
         className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900"
         onClick={() => {
           // Generate identity at the user action, outside React's state updater.
-          const identity = allocationMode === undefined ? {} : { rowId: crypto.randomUUID() };
+          const identity =
+            allocationMode === undefined && !policy ? {} : { rowId: crypto.randomUUID() };
           const nextRecipients = [
             ...node.config.recipients,
             mode === "fixed"

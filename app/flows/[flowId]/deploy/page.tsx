@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { TemplateKind } from "@prisma/client";
 import { requirePageSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import Topbar from "@/components/app/topbar";
 import { FlowGraphSchema, type Asset, type FlowGraph, assetLabel } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToEnglish } from "@/lib/flows/english";
@@ -10,9 +10,17 @@ import { deployPreviewFromGraph } from "@/lib/flows/deploy-preview";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
 import { payoutRecipients } from "@/lib/flows/payout-recipients";
 import { checkPayoutTrustlines } from "@/lib/stellar/trustline-check";
-import DeployReview from "@/components/deploy/deploy-review";
 import { env } from "@/lib/env";
 import { serverFeatures } from "@/lib/features";
+import { getWasmHash } from "@/lib/stellar/config";
+import Topbar from "@/components/app/topbar";
+import DeployReview from "@/components/deploy/deploy-review";
+import {
+  executionArtifactsFromHashes,
+  executionDeploymentAvailable,
+  EXECUTION_ARTIFACTS_UNAVAILABLE,
+} from "@/components/builder/field-policy.utils";
+import { FieldPolicyNotice } from "@/components/builder/field-policy-notice";
 export const dynamic = "force-dynamic";
 export default async function DeployReviewPage({
   params,
@@ -26,6 +34,18 @@ export default async function DeployReviewPage({
   const flow = await db.flow.findFirst({ where: { id: flowId, ownerId: user.id } });
   if (!flow) notFound();
   const graph = FlowGraphSchema.safeParse(flow.graph);
+  const hashes =
+    graph.success && graph.data.fieldPolicies !== undefined
+      ? new Map(
+          await Promise.all(
+            [TemplateKind.DEPOSIT_TRIGGER, TemplateKind.PAYER, TemplateKind.SPLITTER].map(
+              async (kind) => [kind, (await getWasmHash(kind)) ?? ""] as const,
+            ),
+          ),
+        )
+      : new Map<string, string>();
+  const executionAvailable =
+    graph.success && executionDeploymentAvailable(graph.data, executionArtifactsFromHashes(hashes));
   const validation = graph.success
     ? validateFlow(graph.data, { features: serverFeatures(), ignoreOwnerEmail: true })
     : null;
@@ -67,7 +87,8 @@ export default async function DeployReviewPage({
           slippageBps: n.config.slippageBps,
         }))
     : [];
-  const isSubscriptionTrigger = graph.data!.nodes.some((n) => n.type === "subscription");
+  const isSubscriptionTrigger =
+    graph.success && graph.data.nodes.some((n) => n.type === "subscription");
   if (pipeline) {
     const sp = deployPreviewFromGraph(graph.data!);
     if (sp) {
@@ -150,7 +171,12 @@ export default async function DeployReviewPage({
             <span className="material-symbols-outlined text-[14px]">subject</span>
             ENGLISH PREVIEW
           </div>
-          <p className="text-body-md text-on-surface mt-2">{english}</p>
+          <p className="text-body-md text-on-surface mt-2 break-words">{english}</p>
+          {graph.success && graph.data.fieldPolicies && (
+            <div className="mt-3">
+              <FieldPolicyNotice available={executionAvailable} />
+            </div>
+          )}
           {pipeline && pipeline.length > 0 && (
             <div className="mt-md">
               <div className="text-label-sm text-on-surface-variant font-mono">
@@ -280,7 +306,12 @@ export default async function DeployReviewPage({
           </div>
         )}
 
-        {validation?.ok && (
+        {validation?.ok && !executionAvailable && (
+          <p role="alert" className="text-error mt-md">
+            {EXECUTION_ARTIFACTS_UNAVAILABLE}
+          </p>
+        )}
+        {validation?.ok && executionAvailable && (
           <DeployReview
             flowId={flow.id}
             network={env().STELLAR_NETWORK}

@@ -19,10 +19,13 @@ export type PayoutRecipient = {
 export function payoutRecipients(graph: FlowGraph): PayoutRecipient[] {
   const out: PayoutRecipient[] = [];
   for (const n of graph.nodes) {
+    const policy = graph.fieldPolicies?.nodes.find((candidate) => candidate.nodeId === n.id);
     if (n.type === "pay") {
+      if (policy?.kind === "pay" && policy.recipient === "execution") continue;
       out.push({ nodeId: n.id, address: n.config.recipient, asset: n.config.asset });
     } else if (n.type === "split") {
-      for (const r of n.config.recipients) {
+      for (const [index, r] of n.config.recipients.entries()) {
+        if (policy?.kind === "split" && policy.rows[index]?.recipient === "execution") continue;
         out.push({
           nodeId: n.id,
           address: r.address,

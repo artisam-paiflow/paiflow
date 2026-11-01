@@ -7,6 +7,12 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Builder declarations for payer-supplied Pay recipients and Split recipients,
+  allocations and additional rosters (#1161), with constant defaults and stable
+  configured rows. Review the full immediate payment path and its exact constants
+  before deployment; unsupported artifacts block deployment while allowing draft
+  authoring. Stored configuration updates remain unavailable. No artifacts are activated.
+
 - Exact payer-signed execution preparations for new policy-v1 deployments (#1160):
   verified pinned artifacts/current revisions, required node inputs, idempotent
   prepare receipts and one-send recovery through uncertain outcomes. API/SDK reads

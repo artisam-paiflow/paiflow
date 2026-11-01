@@ -10,6 +10,7 @@ import type { AddressEntry } from "@/lib/address-book.types";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
 import type { ValidationIssue } from "@/lib/flows/validate";
 import type { FeatureFlags } from "@/lib/feature-flags";
+import type { NodeFieldPolicy } from "@/lib/flows/field-policies";
 
 type CanvasConfigPanelProps = {
   selectedId: string;
@@ -17,6 +18,8 @@ type CanvasConfigPanelProps = {
   graph: FlowGraph;
   errors: ValidationIssue[];
   onChange: (n: FlowNode) => void;
+  onPolicyChange: (policy: NodeFieldPolicy) => void;
+  executionAvailable: boolean;
   onDelete: (id: string) => void;
   addressBook: AddressEntry[];
   refreshAddressBook: () => void;
@@ -38,6 +41,8 @@ export default function CanvasConfigPanel({
   graph,
   errors,
   onChange,
+  onPolicyChange,
+  executionAvailable,
   onDelete,
   addressBook,
   refreshAddressBook,
@@ -106,6 +111,8 @@ export default function CanvasConfigPanel({
         graph={graph}
         errors={errors}
         onChange={onChange}
+        onPolicyChange={onPolicyChange}
+        executionAvailable={executionAvailable}
         onDelete={onDelete}
         addressBook={addressBook}
         refreshAddressBook={refreshAddressBook}

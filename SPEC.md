@@ -266,6 +266,15 @@ unsolicited holdings. Mutable policies remain unavailable. Mode-less saved defin
 no new execution or mutation authority is inferred from an absent policy. Execution,
 instances and mutation ship in that order; schemas alone do not activate a phase.
 
+The builder offers constant or payer-supplied sources for eligible Pay/Split fields,
+including an appended variable Split roster. It keeps configured constant rows and
+their ordering. Execution fields need no fallback destination/value at deployment;
+every declared input is supplied when paying. The full path is described in English,
+including constant values, runtime permissions, rounding and fixed-funding rules.
+Policy drafts may be saved before compatible artifacts are available, but their
+deployment controls remain unavailable until every participating artifact matches the
+reviewed manifest. Stored-update modes are not offered before that capability ships.
+
 ### 3.5 English Preview Pane
 
 `flowToEnglish(graph)` (`lib/flows/english.ts`) is a pure function rendering the canvas as prose, so

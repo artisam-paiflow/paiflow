@@ -58,6 +58,32 @@ upgrade, policy/mode update or routing setter can bypass constants. Legacy
 Pay/Split `set_next_steps` refuse policy-aware instances. Admin Split pause/unpause
 retains its existing availability control and does not rewrite configuration.
 
+## Builder declaration and review (#1161)
+
+Pay settings offer a constant recipient or one supplied by the payer on each
+payment. The configured payout rule/value remains constant. Split settings offer
+independent recipient/allocation sources for each stable configured row, plus an
+appended payer-supplied recipient/allocations list. A constant platform recipient
+and share can remain fixed while destinations and remaining allocations vary.
+Draft edits preserve surviving identities/modes; newly configured rows start
+constant. Changing a draft is not an update to a deployed contract.
+
+Runtime fields hide their saved draft address/allocation controls and explain that
+every input is required for every payment, with no saved default. Percentage totals,
+rounding and exact fixed execution funding are described beside the controls and
+in the complete-path English/deployment review. Deployment trustline checks include
+only configured recipients; the payer's actual destinations are checked at payment
+preparation. Template creation bindings and stored updates remain distinct, and no
+stored-update option is offered here.
+
+The server resolves this environment's configured hashes using the normal
+DB/environment resolution and compares each participating kind against the reviewed
+manifest. Draft design/save remains available before activation, with an explicit
+unavailability message. Policy-aware deployment controls are withheld until all
+required kinds match. The server preparation path repeats its authoritative checks;
+UI readiness never authorizes an artifact or weakens deployment validation. Existing
+mode-less flows keep their configured behavior and ordinary deployment controls.
+
 ## ABI and persistence handoff
 
 `contracts/execution-v1.rs` is included by the three standard contracts and defines
