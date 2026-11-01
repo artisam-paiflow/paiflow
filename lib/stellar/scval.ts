@@ -123,12 +123,13 @@ export function pipelineNodeConstructorArgs(
   admin: string,
   parentAddress: string | undefined,
   nodeAddresses: Record<string, string>,
+  resolveAssetContract: typeof assetContractId = assetContractId,
 ): xdr.ScVal[] {
   switch (params.kind) {
     case "deposit_trigger": {
       return [
         addr(admin),
-        addr(assetContractId(params.asset)),
+        addr(resolveAssetContract(params.asset)),
         params.executionNodeId
           ? executionConstructorConfig(params, nodeAddresses)
           : workflowTargets(params.nextStepNodeIds, nodeAddresses),
@@ -138,7 +139,7 @@ export function pipelineNodeConstructorArgs(
       if (!parentAddress) throw new Error("Splitter requires a parent address");
       return [
         addr(admin),
-        addr(assetContractId(params.asset)),
+        addr(resolveAssetContract(params.asset)),
         params.fieldPolicy
           ? executionConstructorConfig(params, nodeAddresses)
           : recipientsVec(params.recipients, nodeAddresses),
@@ -152,7 +153,7 @@ export function pipelineNodeConstructorArgs(
       return [
         addr(admin),
         recipientsVec(params.recipients, nodeAddresses),
-        addr(assetContractId(params.asset)),
+        addr(resolveAssetContract(params.asset)),
         amountPerIntervalStroops(params),
         intervalSeconds(params),
         u64(params.startTs),
@@ -171,7 +172,7 @@ export function pipelineNodeConstructorArgs(
       return [
         addr(admin),
         recipientsVec(params.recipients, nodeAddresses),
-        addr(assetContractId(params.asset)),
+        addr(resolveAssetContract(params.asset)),
         amountStroops(params),
         cond ? conditionKind(cond) : xdr.ScVal.scvVoid(),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
@@ -182,7 +183,7 @@ export function pipelineNodeConstructorArgs(
       if (!parentAddress) throw new Error("Router requires a parent address");
       return [
         addr(admin),
-        addr(assetContractId(params.asset)),
+        addr(resolveAssetContract(params.asset)),
         i128(params.threshold),
         workflowTargets(params.pathANodeIds, nodeAddresses),
         workflowTargets(params.pathBNodeIds, nodeAddresses),
@@ -193,7 +194,7 @@ export function pipelineNodeConstructorArgs(
       if (!parentAddress) throw new Error("Timelock requires a parent address");
       return [
         addr(admin),
-        addr(assetContractId(params.asset)),
+        addr(resolveAssetContract(params.asset)),
         u64(params.unlockTime),
         enumVariant(params.mode === "after" ? "After" : "Before"),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
@@ -205,7 +206,7 @@ export function pipelineNodeConstructorArgs(
       if (!parentAddress) throw new Error("Timelock branch requires a parent address");
       return [
         addr(admin),
-        addr(assetContractId(params.asset)),
+        addr(resolveAssetContract(params.asset)),
         u64(params.unlockTime),
         workflowTargets(params.beforeNodeIds, nodeAddresses),
         workflowTargets(params.afterNodeIds, nodeAddresses),
@@ -216,7 +217,7 @@ export function pipelineNodeConstructorArgs(
     case "webhook_trigger": {
       return [
         addr(admin),
-        addr(assetContractId(params.asset)),
+        addr(resolveAssetContract(params.asset)),
         addr(params.relayer),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
       ];
@@ -224,7 +225,7 @@ export function pipelineNodeConstructorArgs(
     case "subscription_trigger": {
       return [
         addr(admin),
-        addr(assetContractId(params.asset)),
+        addr(resolveAssetContract(params.asset)),
         addr(params.subscriber),
         i128(params.amountPerPeriodStroops),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
@@ -237,7 +238,7 @@ export function pipelineNodeConstructorArgs(
     case "oracle_trigger": {
       return [
         addr(admin),
-        addr(assetContractId(params.asset)),
+        addr(resolveAssetContract(params.asset)),
         i128(params.threshold),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
       ];
@@ -246,7 +247,7 @@ export function pipelineNodeConstructorArgs(
       if (!parentAddress) throw new Error("Multisig requires a parent address");
       return [
         addr(admin),
-        addr(assetContractId(params.asset)),
+        addr(resolveAssetContract(params.asset)),
         recipientsVec(
           params.signers.map((s) => ({ ...s, amount: "0" })),
           nodeAddresses,
@@ -262,8 +263,8 @@ export function pipelineNodeConstructorArgs(
       // Order matches contracts/actions/swapper `__constructor`.
       return [
         addr(admin),
-        addr(assetContractId(params.assetIn)),
-        addr(assetContractId(params.assetOut)),
+        addr(resolveAssetContract(params.assetIn)),
+        addr(resolveAssetContract(params.assetOut)),
         u32(params.slippageBps),
         addr(params.router),
         u64(params.deadlineSecs),
@@ -280,7 +281,7 @@ export function pipelineNodeConstructorArgs(
       // execute_step parent, or an on-chain next step).
       return [
         addr(admin),
-        addr(assetContractId(params.asset)),
+        addr(resolveAssetContract(params.asset)),
         addr(params.vault),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
       ];
@@ -289,7 +290,7 @@ export function pipelineNodeConstructorArgs(
       if (!parentAddress) throw new Error("Payer requires a parent address");
       return [
         addr(admin),
-        addr(assetContractId(params.asset)),
+        addr(resolveAssetContract(params.asset)),
         params.fieldPolicy
           ? executionConstructorConfig(params, nodeAddresses)
           : addr(nodeAddresses[params.recipient] ?? params.recipient),

@@ -14,12 +14,17 @@ const KNOWN_ISSUERS: Record<"testnet" | "mainnet", Record<string, string>> = {
   },
 };
 
+export function resolveAssetForNetwork(a: FlowAsset, network: "testnet" | "mainnet"): Asset {
+  if (a.kind === "native") return Asset.native();
+  if (a.kind === "custom") return new Asset(a.code, a.issuer);
+  const issuer = KNOWN_ISSUERS[network][a.symbol];
+  if (!issuer) throw new Error(`Unknown asset ${a.symbol} on ${network}`);
+  return new Asset(a.symbol, issuer);
+}
 export function resolveAsset(a: FlowAsset): Asset {
   if (a.kind === "native") return Asset.native();
   if (a.kind === "custom") return new Asset(a.code, a.issuer);
-  const issuer = KNOWN_ISSUERS[env().STELLAR_NETWORK][a.symbol];
-  if (!issuer) throw new Error(`Unknown asset ${a.symbol} on ${env().STELLAR_NETWORK}`);
-  return new Asset(a.symbol, issuer);
+  return resolveAssetForNetwork(a, env().STELLAR_NETWORK);
 }
 
 export function assetContractId(a: FlowAsset): string {

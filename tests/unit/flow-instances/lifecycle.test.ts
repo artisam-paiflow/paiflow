@@ -96,6 +96,7 @@ import { GET as apiState } from "@/app/api/v1/flow-templates/[id]/instances/[ins
 import { GET as apiEvents } from "@/app/api/v1/flow-templates/[id]/instances/[instanceId]/events/route";
 import { POST as ownerPrepare } from "@/app/api/flow-templates/[id]/versions/[versionId]/instances/prepare/route";
 import { POST as ordinarySubmit } from "@/app/api/deployments/[id]/submit/route";
+import { GET as ownerReview } from "@/app/api/flow-templates/[id]/instances/[instanceId]/review/route";
 
 const scratch = scratchDatabase();
 const payer = Keypair.random(),
@@ -191,12 +192,18 @@ beforeEach(() => {
     };
   });
 });
-async function fixture(options: { expiresAt?: string } = {}) {
+async function fixture(
+  options: {
+    expiresAt?: string;
+    agreement?: "schedule" | "subscription";
+    constantRecipient?: boolean;
+  } = {},
+) {
   const owner = await mocks.client.user.create({ data: { username: `instance-${randomUUID()}` } });
   const other = await mocks.client.user.create({ data: { username: `instance-${randomUUID()}` } });
   const actor = { id: owner.id, role: owner.role };
   mocks.session.mockResolvedValue(actor);
-  for (const kind of ["DEPOSIT_TRIGGER", "PAYER"] as const)
+  for (const kind of ["DEPOSIT_TRIGGER", "PAYER", "STREAMER", "SUBSCRIPTION"] as const)
     await mocks.client.contractTemplate.upsert({
       where: { kind_network: { kind, network: "testnet" } },
       create: { kind, network: "testnet", wasmHash: "a".repeat(64), abiJson: {} },
@@ -215,7 +222,31 @@ async function fixture(options: { expiresAt?: string } = {}) {
         schemaVersion: 1,
         graph: {
           nodes: [
-            { id: "root", type: "on_receive", config: { asset: { kind: "native" } } },
+            options.agreement === "schedule"
+              ? {
+                  id: "root",
+                  type: "on_schedule",
+                  config: {
+                    startsAt: "2026-01-01T00:00:00Z",
+                    intervalAmount: 1,
+                    intervalUnit: "day",
+                    occurrences: 2,
+                  },
+                }
+              : options.agreement === "subscription"
+                ? {
+                    id: "root",
+                    type: "subscription",
+                    config: {
+                      asset: { kind: "native" },
+                      subscriber: payer.publicKey(),
+                      amountPerPeriodStroops: "100",
+                      intervalAmount: 1,
+                      intervalUnit: "day",
+                      occurrences: 2,
+                    },
+                  }
+                : { id: "root", type: "on_receive", config: { asset: { kind: "native" } } },
             {
               id: "pay",
               type: "pay",
@@ -230,14 +261,16 @@ async function fixture(options: { expiresAt?: string } = {}) {
           ],
           edges: [{ id: "edge", source: "root", target: "pay" }],
         },
-        inputs: [
-          {
-            inputId: "recipient",
-            label: "Recipient",
-            type: "wallet",
-            target: { nodeId: "pay", field: "recipient" },
-          },
-        ],
+        inputs: options.constantRecipient
+          ? []
+          : [
+              {
+                inputId: "recipient",
+                label: "Recipient",
+                type: "wallet",
+                target: { nodeId: "pay", field: "recipient" },
+              },
+            ],
       },
     },
     req("POST"),
@@ -253,7 +286,9 @@ async function fixture(options: { expiresAt?: string } = {}) {
     bindings: {
       version: 1,
       templateVersionId: version.id,
-      values: [{ inputId: "recipient", value: { type: "wallet", value: otherRecipient } }],
+      values: options.constantRecipient
+        ? []
+        : [{ inputId: "recipient", value: { type: "wallet", value: otherRecipient } }],
     },
     idempotencyKey: randomUUID(),
   });
@@ -266,6 +301,112 @@ function signed(value: string, key = payer, network = Networks.TESTNET) {
 }
 
 describe("private template instance durable lifecycle", () => {
+  it("keeps authoritative initial review private, version-scoped and readable after version retirement", async () => {
+    const f = await fixture();
+    const first = await prepareTemplateInstance(
+      f.actor,
+      f.template.id,
+      f.version.id,
+      f.input,
+      req("POST"),
+    );
+    await retireFlowTemplate(f.owner.id, f.template.id, req("POST"), f.version.id);
+    const context = {
+      params: Promise.resolve({ id: f.template.id, instanceId: first.deploymentId }),
+    };
+    const response = await ownerReview(req("GET"), context);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const data = (await response.json()).data;
+    expect(data.receipt).toEqual(first);
+    expect(data.bindings).toEqual(f.input.bindings);
+    expect(data.graph.nodes[1].config.recipient).toBe(otherRecipient);
+    expect(data.artifacts.factoryAddress).toBe(factory);
+    expect(data.contentHash).toBe(f.version.contentHash);
+    const recorded = await mocks.client.deployment.findUniqueOrThrow({
+      where: { id: first.deploymentId },
+    });
+    expect(data.compiledTerms).toEqual(recorded.paramsSnapshot);
+    mocks.session.mockResolvedValue({ id: f.other.id, role: f.other.role });
+    expect((await ownerReview(req("GET"), context)).status).toBe(404);
+    mocks.session.mockResolvedValue({ ...f.actor, role: "SANDBOX" });
+    expect((await ownerReview(req("GET"), context)).status).toBe(403);
+    mocks.session.mockResolvedValue(f.actor);
+    const another = await fixture();
+    mocks.session.mockResolvedValue(f.actor);
+    expect(
+      (
+        await ownerReview(req("GET"), {
+          params: Promise.resolve({ id: another.template.id, instanceId: first.deploymentId }),
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await ownerReview(req("GET"), {
+          params: Promise.resolve({ id: f.template.id, instanceId: "not-an-id" }),
+        })
+      ).status,
+    ).toBe(404);
+  });
+  it.each(["schedule", "subscription"] as const)(
+    "reviews persisted %s dates and full undeclared constant recipients unchanged after reload",
+    async (agreement) => {
+      const f = await fixture({ agreement, constantRecipient: true });
+      const before = Math.floor(Date.now() / 1000);
+      const first = await prepareTemplateInstance(
+        f.actor,
+        f.template.id,
+        f.version.id,
+        f.input,
+        req("POST"),
+      );
+      const row = await mocks.client.deployment.findUniqueOrThrow({
+        where: { id: first.deploymentId },
+      });
+      const params = row.paramsSnapshot as Array<{
+        params: {
+          kind: string;
+          startTs?: number;
+          endTs?: number;
+          intervalSeconds?: number;
+          recipients?: Array<{ address: string }>;
+          recipient?: string;
+        };
+      }>;
+      const timed = params.find((n) =>
+        ["streamer", "subscription_trigger"].includes(n.params.kind),
+      )!.params;
+      expect(timed.startTs).toBeGreaterThanOrEqual(before);
+      expect(timed.startTs).not.toBe(Date.parse("2026-01-01T00:00:00Z") / 1000);
+      expect(timed.intervalSeconds).toBe(86400);
+      expect(timed.endTs).toBe(timed.startTs! + 172800);
+      const context = {
+        params: Promise.resolve({ id: f.template.id, instanceId: first.deploymentId }),
+      };
+      const firstReview = (await (await ownerReview(req("GET"), context)).json()).data;
+      const expectedTerms = (row.paramsSnapshot as Array<{ params: { kind: string } }>).map(
+        (node) =>
+          node.params.kind === "subscription_trigger"
+            ? { ...node, params: { ...node.params, relayer: payer.publicKey() } }
+            : node,
+      );
+      expect(firstReview.compiledTerms).toEqual(expectedTerms);
+      expect(firstReview.bindings.values).toEqual([]);
+      expect(JSON.stringify(firstReview.compiledTerms)).toContain(recipient);
+      await retireFlowTemplate(f.owner.id, f.template.id, req("POST"), f.version.id);
+      const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 3 * 86400 * 1000);
+      try {
+        const reloaded = await ownerReview(req("GET"), context);
+        expect(reloaded.status).toBe(200);
+        expect((await reloaded.json()).data.compiledTerms).toEqual(firstReview.compiledTerms);
+        mocks.session.mockResolvedValue({ id: f.other.id, role: f.other.role });
+        expect((await ownerReview(req("GET"), context)).status).toBe(404);
+      } finally {
+        clock.mockRestore();
+      }
+    },
+  );
   it("pins an owned version, exact bindings, artifacts and developer factory admin; repeats one identity", async () => {
     const f = await fixture();
     const first = await prepareTemplateInstance(

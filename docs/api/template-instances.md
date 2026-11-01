@@ -90,7 +90,7 @@ while RETIRING. Revocation, expiry, role changes and grant removal are rechecked
 for new work; they do not erase admitted work, finality, audit or financial history.
 Owners retain history through the existing deployment lifecycle.
 
-## SDK and later UI integration
+## SDK and authenticated UI
 
 The source SDK exposes `client.flowTemplate(templateId).instances` with `prepare`,
 `list`, `get`, `sign`, `submit`, `reconcile` and `events`. Release/publication follows
@@ -101,10 +101,23 @@ The source SDK exposes `client.flowTemplate(templateId).instances` with `prepare
 returns the submission body/options without sending it. No lifecycle method
 silently retries uncertain submission or creates a replacement preparation.
 Consumers should retain the instance ID, original preparation and hash, display
-pending/unknown state and offer explicit reconciliation. A future UI (#1166) must
-show the environment network chip before signing and distinguish initial bound
+pending/unknown state and offer explicit reconciliation. The authenticated
+`/flow-templates` workspace (#1166) shows the environment network chip before signing and distinguishes initial bound
 terms from runtime mutation capabilities. Immutable template definitions and
 creation bindings do not retrofit legacy mode-less contracts with v1 lifetime
 policy guarantees; absent runtime policies retain existing contract behavior.
 Creation bindings grant no new mutation authority. See
 [reusable-flow policies](../reusable-flows.md).
+
+The owner workspace also uses `GET /api/flow-templates/{id}/instances/{instanceId}/review`
+to read the immutable initial admission graph, resolved bindings, artifact pins,
+validated prepared terms from `paramsSnapshot` and the exact original unsigned
+factory envelope (including actual agreement windows and final router/relayer
+constructor bindings),
+content hash and current ordinary instance receipt. This owner-session-only read
+refuses sandbox/foreign identities and never changes public SDK state responses.
+It remains readable after template/version retirement. Read the
+[workspace recovery behavior](../flow-templates.md#authenticated-template-workspace)
+before integrating signing/reload flows. Developer API token management now offers
+explicit private-template selections as well as deployment selections; template
+grants do not grant publication or ordinary deployment operation access.

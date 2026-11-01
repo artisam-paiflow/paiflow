@@ -854,6 +854,20 @@ function Builder({
               <div className="flex items-center gap-2">
                 {!sandbox && (
                   <button
+                    type="button"
+                    className="text-primary min-h-11 text-xs underline"
+                    onClick={() => {
+                      void saves.navigateAfterSave(saveGraph(graph, name, true), () => {
+                        if (!unmounted.current)
+                          window.location.href = `/flow-templates?flowId=${flowId}`;
+                      });
+                    }}
+                  >
+                    Create private template from saved flow
+                  </button>
+                )}
+                {!sandbox && (
+                  <button
                     id="notification-settings-button"
                     type="button"
                     aria-expanded={notificationsOpen}

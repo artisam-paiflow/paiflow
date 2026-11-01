@@ -4,8 +4,61 @@ Flow templates are private reusable definitions, separate from `ContractTemplate
 (the WASM registry). Their owner publishes immutable versions; each future instance
 is a separate developer-owned deployment. Publication and binding endpoints implement
 #1164; [developer-signed instance lifecycle and SDK](api/template-instances.md)
-implement #1165. Hosted instance UI remains #1166. Publication endpoints do not
+implement #1165. The authenticated template and instance UI implements #1166. Publication endpoints do not
 deploy or submit transactions.
+
+## Authenticated template workspace
+
+Open **Private templates** in the account menu or follow the builder's **Create
+private template from saved flow** control (which waits for the graph save).
+`/flow-templates` requires a full live owner session and refuses sandbox users.
+Copy an owned saved graph as a configured exemplar, name the private draft, and
+declare creation inputs using finite node/field/row choices. Inputs have explicit
+IDs, labels, scalar types and optional typed defaults/bounds. Required fields never
+inherit exemplar values. Save the draft before publishing an immutable numbered
+version; revision conflicts require an explicit reload. Copying another graph
+replaces only the editable draft and clears its declarations. Existing published
+versions and instances remain unchanged.
+
+Select the exact published version to bind initial values. The workspace shows
+initial bound terms separately from per-payment inputs and declared admin-mutable
+fields. Legacy graphs are labelled as legacy configured behavior, without v1
+lifetime guarantees. The developer connects a wallet, reviews the source/admin/fee
+payer, environment network and the simulated total deployment fee (including
+resource/storage charges), then signs exactly the prepared transaction. A separate
+lifetime storage quote is not available. A private template is never made public
+by publishing a version.
+
+The browser retains the original request and ordered bindings/default omissions
+before dispatch, plus the instance/hash and signing phase as they become known.
+It never saves signed XDR. Local recovery data is untrusted; an owner-only
+`GET /api/flow-templates/:id/instances/:instanceId/review` reloads validated initial
+admission graph/bindings/artifacts and the original receipt. The server validates
+the saved `paramsSnapshot` and the complete original unsigned factory envelope,
+including its hash/source/network/factory, pinned ordered WASMs, salt-derived
+contract addresses and every constructor argument. The final swap router and
+timelock/subscription relayer authority (including source-account fallback) come
+from that envelope, never the current environment. They are overlaid only in the
+review response; original snapshots remain unchanged. Missing or inconsistent
+prepared evidence refuses review and signing while retaining recovery identity.
+The signing review displays these verified prepared terms for every contract kind,
+including full constant recipient addresses, integer amounts, concrete
+schedule/subscription start and end timestamps in UTC, and intervals in seconds.
+Graph prose is only an authored design preview before preparation: an old schedule
+start can move to preparation time, and subscription dates are fixed during
+preparation. The browser never recompiles these admitted terms on reload. These are historical
+initial terms, not a claim about current mutable configuration. The response is
+scoped to the owning template and deployment and remains available after version
+retirement. Signing checks the exact authoritative prepared body again.
+
+A lost prepare response retries the same original request/key. Unknown signing,
+submission or crashed BUILDING work retains its identity and offers reconciliation
+only; there is no cancellation, timeout release, automatic rebroadcast or fresh-key
+replacement. Browser storage and origin locks must be available before creating or
+signing. Instance history can reconcile the original IDs even after local page
+state is lost. Only authoritative terminal outcomes enable a separate new instance.
+Actual hosted rollout and funded browser/device acceptance remain separate from
+this source implementation.
 
 ## Owner API
 

@@ -34,6 +34,7 @@ let rows: DeveloperToken[];
 let requests: { url: string; method: string; body: unknown }[];
 let mutationError: { error: { message: string; fields?: Record<string, string[]> } } | null;
 let failDeployments: boolean;
+let failTemplates: boolean;
 let failTokens: boolean;
 let emptyDeployments: boolean;
 let paginateTokens: boolean;
@@ -44,6 +45,7 @@ beforeEach(() => {
   requests = [];
   mutationError = null;
   failDeployments = false;
+  failTemplates = false;
   failTokens = false;
   emptyDeployments = false;
   paginateTokens = false;
@@ -57,6 +59,21 @@ beforeEach(() => {
       if (method !== "GET" && failMutationNetwork) throw new Error("network");
       if (method !== "GET" && mutationError)
         return new Response(JSON.stringify(mutationError), { status: 422 });
+      if (input.startsWith("/api/flow-templates") && failTemplates)
+        throw new Error("template list unavailable");
+      if (input.startsWith("/api/flow-templates"))
+        return response({
+          items: [
+            {
+              id: C,
+              name: "Private agreements",
+              description: null,
+              draftRevision: 1,
+              retiredAt: null,
+            },
+          ],
+          nextCursor: null,
+        });
       if (input.startsWith("/api/developer-tokens/deployments")) {
         if (failDeployments) throw new Error("network");
         return response({
@@ -79,11 +96,13 @@ beforeEach(() => {
           label?: string;
           deploymentIds: string[];
           permission: DeveloperToken["permission"];
+          templateIds: string[];
         };
         const metadata = token({
           label: data.label ?? null,
           deploymentIds: data.deploymentIds,
           permission: data.permission,
+          templateIds: data.templateIds,
         });
         rows = [metadata];
         return response({ ...metadata, token: SECRET }, 201);
@@ -92,6 +111,7 @@ beforeEach(() => {
         const updated = token({
           ...rows[0],
           deploymentIds: (body as { deploymentIds: string[] }).deploymentIds,
+          templateIds: (body as { templateIds: string[] }).templateIds,
         });
         rows = [updated];
         return response(updated);
@@ -147,6 +167,40 @@ function deferResponse(matches: (url: string, method: string) => boolean) {
 }
 
 describe("developer token management", () => {
+  it("creates template-only grants explicitly without gaining deployment or publication authority", async () => {
+    const user = userEvent.setup();
+    render(<DeveloperTokenPanel />);
+    await ready();
+    await user.click(screen.getByRole("button", { name: "Create token" }));
+    await user.click(await screen.findByRole("checkbox", { name: /Private agreements/ }));
+    await user.click(form().getByRole("button", { name: "Generate token" }));
+    await screen.findByTestId("developer-token-reveal");
+    expect(requests.find((r) => r.method === "POST")?.body).toEqual({
+      permission: "READ_ONLY",
+      deploymentIds: [],
+      templateIds: [C],
+    });
+    expect(screen.getByText("Selected templates")).toBeTruthy();
+    expect(screen.queryByText("Suspended (no resources)")).toBeNull();
+  });
+
+  it("preserves explicit template selections when deployment grants are edited", async () => {
+    failTemplates = true;
+    rows = [token({ templateIds: [C] })];
+    const user = userEvent.setup();
+    render(<DeveloperTokenPanel />);
+    await ready();
+    await user.click(screen.getByText("View details for Campus backend"));
+    await user.click(screen.getByRole("button", { name: "Edit deployments" }));
+    await screen.findByRole("button", { name: "Save selection" });
+    await user.click(screen.getByRole("button", { name: "Save selection" }));
+    await waitFor(() =>
+      expect(requests.find((r) => r.method === "PATCH")?.body).toEqual({
+        deploymentIds: [A],
+        templateIds: [C],
+      }),
+    );
+  });
   it("starts with token management, keeps details collapsed and opens creation on demand", async () => {
     rows = [token()];
     const user = userEvent.setup();
@@ -219,6 +273,7 @@ describe("developer token management", () => {
     expect(requests.find((r) => r.method === "POST")?.body).toEqual({
       permission: "READ_ONLY",
       deploymentIds: [A, B],
+      templateIds: [],
     });
   });
 
@@ -245,6 +300,7 @@ describe("developer token management", () => {
     expect(requests.find((r) => r.method === "POST")?.body).toEqual({
       label: "Campus backend",
       deploymentIds: [A, B],
+      templateIds: [],
       permission: "READ_OPERATE",
       expiresInDays: 90,
     });
@@ -321,6 +377,7 @@ describe("developer token management", () => {
     await waitFor(() =>
       expect(requests.find((r) => r.method === "PATCH")?.body).toEqual({
         deploymentIds: [A, C, B],
+        templateIds: [],
       }),
     );
     expect(requests.some((r) => r.url.endsWith(ID) && r.method === "GET")).toBe(true);
@@ -342,8 +399,11 @@ describe("developer token management", () => {
     await editor.findByText("Token has expired. Create a replacement.");
     mutationError = null;
     await user.click(editor.getByRole("button", { name: "Save selection" }));
-    await screen.findByText("Suspended (no deployments)");
-    expect(requests.find((r) => r.method === "PATCH")?.body).toEqual({ deploymentIds: [] });
+    await screen.findByText("Suspended (no resources)");
+    expect(requests.find((r) => r.method === "PATCH")?.body).toEqual({
+      deploymentIds: [],
+      templateIds: [],
+    });
   });
   it("confirms revocation and preserves metadata; failed revoke can retry", async () => {
     rows = [token()];
@@ -387,7 +447,7 @@ describe("developer token management", () => {
     await screen.findByText(/No eligible deployments/);
     await user.click(screen.getByRole("button", { name: "Refresh token list" }));
     await screen.findByText("No developer tokens yet.");
-    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: /Donations|Memberships/ })).toBeNull();
   });
   it("searches eligible deployments and keeps selections while navigating back", async () => {
     const user = userEvent.setup();
@@ -496,11 +556,7 @@ describe("developer token management", () => {
         release();
       });
       const state =
-        method === "POST"
-          ? "Active"
-          : method === "PATCH"
-            ? "Suspended (no deployments)"
-            : "Revoked";
+        method === "POST" ? "Active" : method === "PATCH" ? "Suspended (no resources)" : "Revoked";
       await screen.findByText(state, { selector: "span" });
       await waitFor(() => expect(refresh.matches(":disabled")).toBe(false));
       await user.click(refresh);

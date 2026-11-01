@@ -20,6 +20,12 @@ export default async function DeveloperPage() {
           ← Account / Developer API
         </a>
         <h1 className="font-display text-on-surface mt-2 text-4xl font-semibold">Developer API</h1>
+        <a
+          className="text-primary mt-3 inline-flex min-h-11 items-center underline"
+          href="/flow-templates"
+        >
+          Manage private templates and create instances
+        </a>
         <DeveloperTokenPanel />
       </main>
     </>
