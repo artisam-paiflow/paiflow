@@ -45,6 +45,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Security
 
+- Raise the `follow-redirects` override to >=1.16.2 and consolidate transitive `minimatch` versions on >=11.0.1 to address GHSA-mrwp-f3q8-3g9p and GHSA-g3hv-75wg-m249. Preserve the existing audit exception without adding new ignores.
+
 - Remove the obsolete stream-json audit exception because the lockfile resolves patched version 3.7.0; retain the separately accepted elliptic exception and all dependency versions (#1110, #753).
 
 - Request uncompressed tenant-relayer responses for subscription and payroll charging, rejecting other response encodings before JSON parsing or response-driven submission with safe errors. This protocol hardening complements the required patched Node runtime (#1109).
