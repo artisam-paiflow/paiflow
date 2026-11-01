@@ -287,8 +287,9 @@ reviewed manifest. Stored-update modes are not offered before that capability sh
 
 Private template persistence and owner-session management now save drafts and
 publish immutable versions with typed declared creation bindings and pinned
-artifact/ABI/network evidence. Binding previews create no deployment; exact
-instantiation and hosted creation remain later lanes. Publication requires a
+artifact/ABI/network evidence. Binding previews create no deployment.
+Developer-signed instance lifecycle now uses the backend API and SDK with explicit
+owned-template credentials; hosted creation UI remains #1166. Publication requires a
 configured deployable exemplar; required creation bindings never fall back to
 its values. See [private template versions](docs/flow-templates.md).
 

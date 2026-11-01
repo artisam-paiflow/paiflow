@@ -211,6 +211,11 @@ describe("GET /api/v1/openapi.json", () => {
     expect(await res.json()).toEqual(JSON.parse(JSON.stringify(openApiDocument)));
   });
 });
+it("keeps template grant metadata optional for existing deployment-only consumers", () => {
+  for (const name of ["DeveloperToken", "CreatedDeveloperToken"] as const)
+    expect(openApiDocument.components.schemas[name].required).not.toContain("templateIds");
+});
+
 describe("Postman collection", () => {
   const collection = JSON.parse(
     fs.readFileSync(path.join(root, "docs/api/paiflow-api-v1.postman_collection.json"), "utf8"),
@@ -238,7 +243,10 @@ describe("Postman collection", () => {
         const p = `/${request.url.path.join("/")}`
           .replace("{{deploymentId}}", "{id}")
           .replace("{{txHash}}", "{txHash}")
-          .replace("{{developerTokenId}}", "{tokenId}");
+          .replace("{{developerTokenId}}", "{tokenId}")
+          .replace("{{templateId}}", "{id}")
+          .replace("{{versionId}}", "{versionId}")
+          .replace("{{instanceId}}", "{instanceId}");
         return `${p} ${request.method.toLowerCase()}`;
       })
       .sort();

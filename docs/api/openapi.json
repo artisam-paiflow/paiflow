@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Paiflow API v1",
-    "version": "1.4.0",
-    "description": "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.\n\nEvery `/api/v1/deployments/{id}/…` call requires a Bearer credential: a deployment token (`pfk_…`) bound to one deployment, or a developer token (`pfd_…`) with explicit grants to selected existing deployments still owned by the token owner. GET /api/v1/deployments discovers only that credential's eligible deployments. Developer READ_ONLY permits reads, quotes and funding discovery; READ_OPERATE additionally permits preparation, submission, reconciliation and relayer release. See docs/api/developer-token-permissions.md for the complete matrix. No token grants flow/deployment creation or legacy dev access.\n\n**Execute deposits are signed by the caller.** `execute` returns an unsigned envelope; you sign it with the `from` key, which stays on your side, and post it to `execute/submit`. A leaked token can prepare and relay a deposit you signed. Webhook and early-release operations use the relayer.\n\nSuccessful responses are `{ \"data\": … }`. Errors are `{ \"error\": { code, message, fields?, details? } }`:\n\n| Code | HTTP status |\n| --- | --- |\n| `UNAUTHENTICATED` | 401 |\n| `INSUFFICIENT_FUNDS` | 402 |\n| `FORBIDDEN` | 403 |\n| `NOT_FOUND` | 404 |\n| `CONFLICT` | 409 |\n| `VALIDATION` | 422 |\n| `RATE_LIMITED` | 429 |\n| `INTERNAL` | 500 |\n| `UPSTREAM_RPC` | 502 |\n\nRate limits are per token and per endpoint (each operation lists its own). Allowances are shared across the selected deployments. A token that has been issued or has worked in the last 30 days is subject to nothing else. Any other token is limited per client address before it is looked up: 6000 lookups per 60 seconds, and, after 300 failed authentications in 600 seconds from the address, 60 per 60 seconds. A token refused in the last minute is refused again without a lookup. Refusal of a live developer credential for a missing grant is never negatively cached, so selection edits take effect immediately. So one caller's bad token does not lock out others on the same network.\n\n`POST /api/v1/demo-token` explicitly requests a short-lived token for an operator-configured shared demo deployment. Availability depends on environment configuration; it may be disabled. A demo token does not guarantee every operation is eligible.\n\nThe public instance runs on Stellar **testnet**. Guide: `docs/api/README.md`."
+    "version": "1.5.0",
+    "description": "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.\n\nEvery `/api/v1/deployments/{id}/…` call requires a Bearer credential: a deployment token (`pfk_…`) bound to one deployment, or a developer token (`pfd_…`) with explicit grants to selected existing deployments still owned by the token owner. GET /api/v1/deployments discovers only that credential's eligible deployments. Developer READ_ONLY permits reads, quotes and funding discovery; READ_OPERATE additionally permits preparation, submission, reconciliation and relayer release. See docs/api/developer-token-permissions.md for the complete matrix. Existing deployment grants do not authorize template instance creation. The separate /api/v1/flow-templates/{id}/... lifecycle requires explicit owned-template pfd_ grants; READ_OPERATE permits developer-signed instance preparation/submission/reconciliation and READ_ONLY permits list/status/events. No bearer grants template publication, editing, retirement or legacy dev access.\n\n**Execute deposits are signed by the caller.** `execute` returns an unsigned envelope; you sign it with the `from` key, which stays on your side, and post it to `execute/submit`. A leaked token can prepare and relay a deposit you signed. Webhook and early-release operations use the relayer.\n\nSuccessful responses are `{ \"data\": … }`. Errors are `{ \"error\": { code, message, fields?, details? } }`:\n\n| Code | HTTP status |\n| --- | --- |\n| `UNAUTHENTICATED` | 401 |\n| `INSUFFICIENT_FUNDS` | 402 |\n| `FORBIDDEN` | 403 |\n| `NOT_FOUND` | 404 |\n| `CONFLICT` | 409 |\n| `VALIDATION` | 422 |\n| `RATE_LIMITED` | 429 |\n| `INTERNAL` | 500 |\n| `UPSTREAM_RPC` | 502 |\n\nRate limits are per token and per endpoint (each operation lists its own). Allowances are shared across the selected deployments. A token that has been issued or has worked in the last 30 days is subject to nothing else. Any other token is limited per client address before it is looked up: 6000 lookups per 60 seconds, and, after 300 failed authentications in 600 seconds from the address, 60 per 60 seconds. A token refused in the last minute is refused again without a lookup. Refusal of a live developer credential for a missing grant is never negatively cached, so selection edits take effect immediately. So one caller's bad token does not lock out others on the same network.\n\n`POST /api/v1/demo-token` explicitly requests a short-lived token for an operator-configured shared demo deployment. Availability depends on environment configuration; it may be disabled. A demo token does not guarantee every operation is eligible.\n\nThe public instance runs on Stellar **testnet**. Guide: `docs/api/README.md`."
   },
   "servers": [
     {
@@ -50,6 +50,963 @@
     }
   ],
   "paths": {
+    "/api/v1/flow-templates/{id}/versions/{versionId}/instances/prepare": {
+      "post": {
+        "tags": ["Private template instances"],
+        "operationId": "prepareTemplateInstance",
+        "summary": "prepareTemplateInstance",
+        "description": "Requires an active pfd_ developer credential with an explicit owned-template grant. pfk_ and deployment-only pfd_ credentials are refused. READ_ONLY permits instance list/status/events; READ_OPERATE is required for preparation, submission and reconciliation. Template management remains owner-session only. Developer is signer, fee payer and owner/admin; credentials never replace the on-chain signature. Preparation pins the immutable version, resolved bindings, graph, policies, network, exact factory/artifacts and transaction. Reuse the same owner-wide idempotency key and payload; another template/version/source/binding conflicts. Preserve original identity across retirement, expiry, crashes and unknown finality; never blindly sign, resend or prepare a replacement. Per-owner quotas: 1000 active instances, 10 unresolved preparations, one pending deployment per source wallet within that owner. Preparation limit 10/minute per credential; submit 30; reads/reconcile 60, shared across selected templates. Existing deployment grants remain separate; these grants do not authorize deployment execute operations.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "versionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstancePrepare"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Original durable instance state; pending or submitted is not confirmation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/InstanceState"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/flow-templates/{id}/instances": {
+      "get": {
+        "tags": ["Private template instances"],
+        "operationId": "listTemplateInstances",
+        "summary": "listTemplateInstances",
+        "description": "Requires an active pfd_ developer credential with an explicit owned-template grant. pfk_ and deployment-only pfd_ credentials are refused. READ_ONLY permits instance list/status/events; READ_OPERATE is required for preparation, submission and reconciliation. Template management remains owner-session only. Developer is signer, fee payer and owner/admin; credentials never replace the on-chain signature. Preparation pins the immutable version, resolved bindings, graph, policies, network, exact factory/artifacts and transaction. Reuse the same owner-wide idempotency key and payload; another template/version/source/binding conflicts. Preserve original identity across retirement, expiry, crashes and unknown finality; never blindly sign, resend or prepare a replacement. Per-owner quotas: 1000 active instances, 10 unresolved preparations, one pending deployment per source wallet within that owner. Preparation limit 10/minute per credential; submit 30; reads/reconcile 60, shared across selected templates. Existing deployment grants remain separate; these grants do not authorize deployment execute operations.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Original durable instance state; pending or submitted is not confirmation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/InstanceList"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/flow-templates/{id}/instances/{instanceId}": {
+      "get": {
+        "tags": ["Private template instances"],
+        "operationId": "getTemplateInstance",
+        "summary": "getTemplateInstance",
+        "description": "Requires an active pfd_ developer credential with an explicit owned-template grant. pfk_ and deployment-only pfd_ credentials are refused. READ_ONLY permits instance list/status/events; READ_OPERATE is required for preparation, submission and reconciliation. Template management remains owner-session only. Developer is signer, fee payer and owner/admin; credentials never replace the on-chain signature. Preparation pins the immutable version, resolved bindings, graph, policies, network, exact factory/artifacts and transaction. Reuse the same owner-wide idempotency key and payload; another template/version/source/binding conflicts. Preserve original identity across retirement, expiry, crashes and unknown finality; never blindly sign, resend or prepare a replacement. Per-owner quotas: 1000 active instances, 10 unresolved preparations, one pending deployment per source wallet within that owner. Preparation limit 10/minute per credential; submit 30; reads/reconcile 60, shared across selected templates. Existing deployment grants remain separate; these grants do not authorize deployment execute operations.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "instanceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Original durable instance state; pending or submitted is not confirmation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/InstanceState"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/flow-templates/{id}/instances/{instanceId}/submit": {
+      "post": {
+        "tags": ["Private template instances"],
+        "operationId": "submitTemplateInstance",
+        "summary": "submitTemplateInstance",
+        "description": "Requires an active pfd_ developer credential with an explicit owned-template grant. pfk_ and deployment-only pfd_ credentials are refused. READ_ONLY permits instance list/status/events; READ_OPERATE is required for preparation, submission and reconciliation. Template management remains owner-session only. Developer is signer, fee payer and owner/admin; credentials never replace the on-chain signature. Preparation pins the immutable version, resolved bindings, graph, policies, network, exact factory/artifacts and transaction. Reuse the same owner-wide idempotency key and payload; another template/version/source/binding conflicts. Preserve original identity across retirement, expiry, crashes and unknown finality; never blindly sign, resend or prepare a replacement. Per-owner quotas: 1000 active instances, 10 unresolved preparations, one pending deployment per source wallet within that owner. Preparation limit 10/minute per credential; submit 30; reads/reconcile 60, shared across selected templates. Existing deployment grants remain separate; these grants do not authorize deployment execute operations.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "instanceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstanceSubmit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Original durable instance state; pending or submitted is not confirmation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/InstanceState"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/flow-templates/{id}/instances/{instanceId}/reconcile": {
+      "post": {
+        "tags": ["Private template instances"],
+        "operationId": "reconcileTemplateInstance",
+        "summary": "reconcileTemplateInstance",
+        "description": "Requires an active pfd_ developer credential with an explicit owned-template grant. pfk_ and deployment-only pfd_ credentials are refused. READ_ONLY permits instance list/status/events; READ_OPERATE is required for preparation, submission and reconciliation. Template management remains owner-session only. Developer is signer, fee payer and owner/admin; credentials never replace the on-chain signature. Preparation pins the immutable version, resolved bindings, graph, policies, network, exact factory/artifacts and transaction. Reuse the same owner-wide idempotency key and payload; another template/version/source/binding conflicts. Preserve original identity across retirement, expiry, crashes and unknown finality; never blindly sign, resend or prepare a replacement. Per-owner quotas: 1000 active instances, 10 unresolved preparations, one pending deployment per source wallet within that owner. Preparation limit 10/minute per credential; submit 30; reads/reconcile 60, shared across selected templates. Existing deployment grants remain separate; these grants do not authorize deployment execute operations.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "instanceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstanceReconcile"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Original durable instance state; pending or submitted is not confirmation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/InstanceState"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/flow-templates/{id}/instances/{instanceId}/events": {
+      "get": {
+        "tags": ["Private template instances"],
+        "operationId": "listTemplateInstanceEvents",
+        "summary": "listTemplateInstanceEvents",
+        "description": "Requires an active pfd_ developer credential with an explicit owned-template grant. pfk_ and deployment-only pfd_ credentials are refused. READ_ONLY permits instance list/status/events; READ_OPERATE is required for preparation, submission and reconciliation. Template management remains owner-session only. Developer is signer, fee payer and owner/admin; credentials never replace the on-chain signature. Preparation pins the immutable version, resolved bindings, graph, policies, network, exact factory/artifacts and transaction. Reuse the same owner-wide idempotency key and payload; another template/version/source/binding conflicts. Preserve original identity across retirement, expiry, crashes and unknown finality; never blindly sign, resend or prepare a replacement. Per-owner quotas: 1000 active instances, 10 unresolved preparations, one pending deployment per source wallet within that owner. Preparation limit 10/minute per credential; submit 30; reads/reconcile 60, shared across selected templates. Existing deployment grants remain separate; these grants do not authorize deployment execute operations.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "instanceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Original durable instance state; pending or submitted is not confirmation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ListEventsResponse"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/developer-tokens": {
       "get": {
         "tags": ["Token management (owner session)"],
@@ -583,7 +1540,7 @@
         "tags": ["Token management (owner session)"],
         "operationId": "updateDeveloperToken",
         "summary": "Atomically replace selected deployments",
-        "description": "Owner browser session only; bearer credentials cannot manage tokens. Sandbox sessions refused. Successful responses are no-store. Writes share 30 requests/minute per owner. Removing grants or revoking prevents subsequent authorization, never cancels submitted transactions or deletes financial history. Only deploymentIds can change. Empty selection suspends all access. Revoked or expired credentials cannot be edited. Replacement selection must contain only eligible owned deployments; remove retiring/retired grants.",
+        "description": "Owner browser session only; bearer credentials cannot manage tokens. Sandbox sessions refused. Successful responses are no-store. Writes share 30 requests/minute per owner. Removing grants or revoking prevents subsequent authorization, never cancels submitted transactions or deletes financial history. Only deploymentIds and explicit templateIds can change. Omitted templateIds preserves existing template grants. Empty selection suspends the selected resource access. Revoked or expired credentials cannot be edited. Replacement selection must contain only eligible owned deployments; remove retiring/retired grants.",
         "security": [
           {
             "cookieAuth": []
@@ -6566,6 +7523,465 @@
       }
     },
     "schemas": {
+      "InstancePrepare": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "sourceAccount": {
+            "type": "string"
+          },
+          "bindings": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "number",
+                "const": 1
+              },
+              "templateVersionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "values": {
+                "maxItems": 256,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "inputId": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                    },
+                    "value": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "wallet"
+                            },
+                            "value": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["type", "value"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "contract"
+                            },
+                            "value": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["type", "value"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "stroops"
+                            },
+                            "value": {
+                              "type": "string",
+                              "maxLength": 39,
+                              "pattern": "^[1-9]\\d*$"
+                            }
+                          },
+                          "required": ["type", "value"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "bps"
+                            },
+                            "value": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10000
+                            }
+                          },
+                          "required": ["type", "value"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "integer"
+                            },
+                            "value": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": ["type", "value"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "timestamp"
+                            },
+                            "value": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            }
+                          },
+                          "required": ["type", "value"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "boolean"
+                            },
+                            "value": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": ["type", "value"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "text"
+                            },
+                            "value": {
+                              "type": "string",
+                              "maxLength": 280
+                            }
+                          },
+                          "required": ["type", "value"],
+                          "additionalProperties": false
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["inputId", "value"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["version", "templateVersionId", "values"],
+            "additionalProperties": false
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        },
+        "required": ["sourceAccount", "bindings", "idempotencyKey"],
+        "additionalProperties": false
+      },
+      "InstanceSubmit": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "signedXdr": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 200000
+          }
+        },
+        "required": ["signedXdr"],
+        "additionalProperties": false
+      },
+      "InstanceReconcile": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "InstanceState": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "deploymentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "templateId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "templateVersionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "network": {
+            "type": "string",
+            "enum": ["testnet", "mainnet"]
+          },
+          "sourceAccount": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["DRAFT", "BUILDING", "PENDING_SIGNATURE", "SUBMITTED", "CONFIRMED", "FAILED"]
+          },
+          "serviceState": {
+            "type": "string",
+            "enum": ["ACTIVE", "RETIRING", "RETIRED"]
+          },
+          "txHash": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contractAddress": {
+            "type": ["string", "null"]
+          },
+          "pipeline": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "nodeId": {
+                  "type": "string"
+                },
+                "contractAddress": {
+                  "type": "string"
+                },
+                "templateKind": {
+                  "type": "string"
+                }
+              },
+              "required": ["nodeId", "contractAddress", "templateKind"],
+              "additionalProperties": false
+            }
+          },
+          "prepared": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "xdr": {
+                    "type": "string",
+                    "minLength": 10,
+                    "maxLength": 200000
+                  },
+                  "networkPassphrase": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "txHash": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "feeStroops": {
+                    "type": "string",
+                    "pattern": "^\\d+$"
+                  }
+                },
+                "required": ["xdr", "networkPassphrase", "txHash", "expiresAt", "feeStroops"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "deploymentId",
+          "templateId",
+          "templateVersionId",
+          "network",
+          "sourceAccount",
+          "status",
+          "serviceState",
+          "txHash",
+          "contractAddress",
+          "pipeline",
+          "prepared"
+        ],
+        "additionalProperties": false
+      },
+      "InstanceList": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "deploymentId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "templateId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "templateVersionId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "network": {
+                  "type": "string",
+                  "enum": ["testnet", "mainnet"]
+                },
+                "sourceAccount": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "DRAFT",
+                    "BUILDING",
+                    "PENDING_SIGNATURE",
+                    "SUBMITTED",
+                    "CONFIRMED",
+                    "FAILED"
+                  ]
+                },
+                "serviceState": {
+                  "type": "string",
+                  "enum": ["ACTIVE", "RETIRING", "RETIRED"]
+                },
+                "txHash": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "contractAddress": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "nodeId": {
+                        "type": "string"
+                      },
+                      "contractAddress": {
+                        "type": "string"
+                      },
+                      "templateKind": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["nodeId", "contractAddress", "templateKind"],
+                    "additionalProperties": false
+                  }
+                },
+                "prepared": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "xdr": {
+                          "type": "string",
+                          "minLength": 10,
+                          "maxLength": 200000
+                        },
+                        "networkPassphrase": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "txHash": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        "feeStroops": {
+                          "type": "string",
+                          "pattern": "^\\d+$"
+                        }
+                      },
+                      "required": ["xdr", "networkPassphrase", "txHash", "expiresAt", "feeStroops"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "deploymentId",
+                "templateId",
+                "templateVersionId",
+                "network",
+                "sourceAccount",
+                "status",
+                "serviceState",
+                "txHash",
+                "contractAddress",
+                "pipeline",
+                "prepared"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["items", "nextCursor"],
+        "additionalProperties": false
+      },
       "ExecutionDiscovery": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "oneOf": [
@@ -7211,6 +8627,16 @@
             "type": ["string", "null"],
             "format": "date-time"
           },
+          "templateIds": {
+            "type": "array",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Explicit owned-template grants for instance lifecycle only; never template management or automatic deployment access"
+          },
           "deploymentIds": {
             "type": "array",
             "maxItems": 100,
@@ -7268,6 +8694,16 @@
             "type": ["string", "null"],
             "format": "date-time"
           },
+          "templateIds": {
+            "type": "array",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Explicit owned-template grants for instance lifecycle only; never template management or automatic deployment access"
+          },
           "deploymentIds": {
             "type": "array",
             "maxItems": 100,
@@ -7288,6 +8724,24 @@
         "type": "object",
         "additionalProperties": false,
         "required": ["permission", "deploymentIds"],
+        "description": "Select at least one resource and no more than 100 combined deployment/template grants.",
+        "anyOf": [
+          {
+            "properties": {
+              "deploymentIds": {
+                "minItems": 1
+              }
+            }
+          },
+          {
+            "required": ["templateIds"],
+            "properties": {
+              "templateIds": {
+                "minItems": 1
+              }
+            }
+          }
+        ],
         "properties": {
           "label": {
             "type": "string",
@@ -7306,8 +8760,17 @@
             "items": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          "templateIds": {
+            "type": "array",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
             },
-            "minItems": 1
+            "description": "Explicit owned-template grants for instance lifecycle only; never template management or automatic deployment access"
           },
           "expiresInDays": {
             "type": "integer",
@@ -7329,6 +8792,16 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "templateIds": {
+            "type": "array",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Explicit owned-template grants for instance lifecycle only; never template management or automatic deployment access"
           }
         }
       },

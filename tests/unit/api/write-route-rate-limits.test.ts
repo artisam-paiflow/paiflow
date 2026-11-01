@@ -22,6 +22,7 @@ const LIMITERS = [
   /\benforceRateLimit\(/,
   /\brateLimit\(/,
   /\bdeploymentServiceRoute\(/, // durable admission wrapper includes an address-wide limiter
+  /\bv1TemplateRoute(?:<[^>]+>)?\(/, // same pre-auth/permission/token limiter as v1Route, explicit template grant
   /\bv1Route\(/, // lib/api/v1/handler.ts: per-token limit plus the pre-auth address guards
   /\brequireTemplateManager\(true\)/, // lib/flow-templates/service.ts: owner-wide write bucket; true is required
   /\brequireDeveloperTokenManager\(true\)/, // lib/developer-tokens/service.ts: owner-wide write bucket; true is required

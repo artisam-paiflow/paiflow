@@ -19,6 +19,8 @@ import {
   apiTokenKey,
   bearerDeploymentToken,
   requireDeploymentToken,
+  requireTemplateToken,
+  type DeveloperTokenAuth,
   DeploymentGrantRefusal,
   type ApiCredentialAuth,
   type DeploymentTokenAuth,
@@ -106,6 +108,19 @@ export function v1DiscoveryRoute(
   return createV1Route(
     { operation: "GET deployments", rateLimit: { limit: 60, windowSeconds: 60 } },
     (req) => requireDeploymentToken(req),
+    fn,
+  );
+}
+
+/** Private template lifecycle uses the same pre-auth, token limits, permissions
+ * and telemetry as deployment routes, with a distinct explicit grant lookup. */
+export function v1TemplateRoute<P extends V1Params>(
+  opts: V1RouteOptions,
+  fn: (ctx: DeveloperTokenAuth & { req: NextRequest; params: P }) => Promise<Response>,
+) {
+  return createV1Route(
+    { ...opts, rateLimitRoute: `/api/v1/${opts.operation.split(" ")[1]}` },
+    (req, params: P) => requireTemplateToken(req, params.id),
     fn,
   );
 }

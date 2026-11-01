@@ -59,6 +59,9 @@ describe("every /api/v1 handler is built by v1Route", () => {
             ? "deployments"
             : file
                 .replace("deployments/[id]/", "")
+                .replace("flow-templates/[id]/", "flow-templates/:id/")
+                .replace("[versionId]", ":versionId")
+                .replace("[instanceId]", ":instanceId")
                 .replace("/route.ts", "")
                 .replace("[txHash]", ":txHash");
         expect(v1RouteOperation(mod[method]), `${key} must declare its exact operation`).toBe(

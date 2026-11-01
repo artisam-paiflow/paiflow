@@ -35,7 +35,25 @@ const ENDPOINTS = [
   "release-early",
   "transactions/:txHash",
 ] as const;
+const TEMPLATE_ENDPOINTS = [
+  "/api/v1/flow-templates/:id/instances",
+  "/api/v1/flow-templates/:id/instances/:instanceId",
+  "/api/v1/flow-templates/:id/instances/:instanceId/events",
+  "/api/v1/flow-templates/:id/instances/:instanceId/submit",
+  "/api/v1/flow-templates/:id/instances/:instanceId/reconcile",
+  "/api/v1/flow-templates/:id/versions/:versionId/instances/prepare",
+] as const;
 export function requestEndpoint(path: string): string {
+  if (path.startsWith("/api/v1/flow-templates/")) {
+    const parts = path.split("/");
+    parts[4] = ":id";
+    if (parts[5] === "versions") parts[6] = ":versionId";
+    else if (parts[6]) parts[6] = ":instanceId";
+    const normalized = parts.join("/");
+    return TEMPLATE_ENDPOINTS.includes(normalized as (typeof TEMPLATE_ENDPOINTS)[number])
+      ? normalized
+      : "/api/v1/deployments/:id/:unknown";
+  }
   if (path === "/api/v1/deployments") return path;
   const suffix = path.split("/").slice(5).join("/");
   const normalized = suffix.startsWith("transactions/") ? "transactions/:txHash" : suffix;
@@ -62,6 +80,7 @@ export const ApiRequestRecordSchema = z
     method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]),
     endpoint: z.enum([
       "/api/v1/deployments",
+      ...TEMPLATE_ENDPOINTS,
       "/api/v1/deployments/:id/:unknown",
       ...ENDPOINTS.map((e) => `/api/v1/deployments/:id/${e}`),
     ]),

@@ -36,6 +36,12 @@ export const V1_PERMISSIONS = {
   "POST subscription/reactivate/reconcile": "operate",
   "POST subscription/reactivate/submit": "operate",
   "GET deployments": "read",
+  "GET flow-templates/:id/instances": "read",
+  "GET flow-templates/:id/instances/:instanceId": "read",
+  "GET flow-templates/:id/instances/:instanceId/events": "read",
+  "POST flow-templates/:id/versions/:versionId/instances/prepare": "operate",
+  "POST flow-templates/:id/instances/:instanceId/submit": "operate",
+  "POST flow-templates/:id/instances/:instanceId/reconcile": "operate",
 } as const;
 export type V1Operation = keyof typeof V1_PERMISSIONS;
 export function assertApiPermission(auth: ApiCredentialAuth, operation: V1Operation) {

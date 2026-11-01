@@ -40,3 +40,17 @@ For deployment operations, append the listed path to `/api/v1/deployments/{id}/`
 | `POST subscription/reactivate/reconcile` | `READ_OPERATE`     |
 | `POST subscription/reactivate/submit`    | `READ_OPERATE`     |
 | `GET deployments`                        | `READ_ONLY`        |
+
+Template instance operations require a separate explicit template grant. Existing
+deployment grants and `pfk_` tokens confer no template authority; token permissions
+remain immutable. These operations do not manage template definitions or grant
+access to the new deployment's ordinary execute/control API.
+
+| Operation                                                       | Minimum permission |
+| --------------------------------------------------------------- | ------------------ |
+| `GET flow-templates/:id/instances`                              | `READ_ONLY`        |
+| `GET flow-templates/:id/instances/:instanceId`                  | `READ_ONLY`        |
+| `GET flow-templates/:id/instances/:instanceId/events`           | `READ_ONLY`        |
+| `POST flow-templates/:id/versions/:versionId/instances/prepare` | `READ_OPERATE`     |
+| `POST flow-templates/:id/instances/:instanceId/submit`          | `READ_OPERATE`     |
+| `POST flow-templates/:id/instances/:instanceId/reconcile`       | `READ_OPERATE`     |

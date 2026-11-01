@@ -6,7 +6,7 @@ import { FlowTemplateListQuerySchema } from "./schema";
 export function templateResponse(data: unknown, status = 200) {
   return NextResponse.json({ data }, { status, headers: { "Cache-Control": "no-store" } });
 }
-export async function templateBody(req: NextRequest): Promise<unknown> {
+export async function templateBody(req: Request): Promise<unknown> {
   return req.json().catch(() => {
     throw new AppError("VALIDATION", "Request body must be valid JSON");
   });

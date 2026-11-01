@@ -5,6 +5,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Add explicit owned-template grants and developer-signed private-template instance prepare/sign/submit/reconcile/history support (#1165). Preserve uncertain RPC refusals under the original admission/hash, and bind canonical SDK receipts to the requested instance.
+
 - Add guarded admin-authorized stored Pay/Split updates for newly reviewed-artifact immediate paths, with atomic whole-path obligation admission, immutable policies and initial evidence, revision-bound payments, valid initial mutable rosters, and retained execution-only artifact compatibility (#1168). Mutation API/history and owner editing remain subsequent work; no live artifacts are activated.
 
 ### Added

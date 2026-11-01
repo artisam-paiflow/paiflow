@@ -669,3 +669,7 @@ SDK TypeScript configuration and avoid maintaining a custom type printer. The sc
 `minimatch@10>brace-expansion` override preserves the generator's compatible ESM
 dependency while leaving older consumers on their existing override. Neither tool
 is shipped in the npm SDK or added as a runtime dependency.
+
+### Private-template instances (source support)
+
+`client.flowTemplate(templateId).instances` exposes explicit versioned `prepare`, `list`, `get`, `sign`, `submit`, `reconcile` and `events`. Requires a `pfd_` token with an explicit owned-template grant; selected deployment grants do not imply template access. Prepare requires `{sourceAccount, idempotencyKey, bindings}`. Sign the original returned envelope with the developer source; call submit explicitly. Keep the owner-wide key and instance ID stable. Reconcile uncertain sends without creating a replacement. See [instance lifecycle](../../docs/api/template-instances.md) for schemas, retirement, quotas, runtime policy limits and publication availability.

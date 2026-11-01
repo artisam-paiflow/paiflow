@@ -121,3 +121,14 @@ export type {
   ReleaseEarlyInput,
   Released,
 } from "./webhook.js";
+
+export { PaiflowTemplate } from "./instances.js";
+export type {
+  CreationValue,
+  CreationBindings,
+  InstancePrepareInput,
+  InstanceState,
+  InstanceList,
+  InstanceListQuery,
+  InstanceEventsQuery,
+} from "./instances.js";

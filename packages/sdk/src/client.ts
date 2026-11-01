@@ -1,3 +1,4 @@
+import { PaiflowTemplate } from "./instances.js";
 import { webhookMethods, releaseEarlyMethod } from "./webhook.js";
 import { subscriptionMethods } from "./subscription.js";
 import { scheduleMethods } from "./schedule.js";
@@ -141,6 +142,13 @@ export class Paiflow {
     return new PaiflowDeployment(
       this.transport,
       input(() => uuid(deploymentId)),
+    );
+  }
+  /** Bind instance lifecycle to an explicitly granted private template. */
+  flowTemplate(templateId: string): PaiflowTemplate {
+    return new PaiflowTemplate(
+      this.transport,
+      input(() => uuid(templateId)),
     );
   }
   /** Read the public raw API specification without forwarding the token. */

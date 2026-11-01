@@ -5,7 +5,7 @@ export const MAX_DEVELOPER_TOKEN_GRANTS = 100;
 export const DEVELOPER_API_TOKEN_PATTERN = /^pfd_[0-9a-f]{64}$/;
 export const DeveloperTokenPermissionSchema = z.enum(["READ_ONLY", "READ_OPERATE"]);
 export type DeveloperTokenPermission = z.infer<typeof DeveloperTokenPermissionSchema>;
-const DeploymentIdsSchema = z
+const ResourceIdsSchema = z
   .array(
     z
       .string()
@@ -13,20 +13,34 @@ const DeploymentIdsSchema = z
       .transform((id) => id.toLowerCase()),
   )
   .max(MAX_DEVELOPER_TOKEN_GRANTS)
-  .refine((ids) => new Set(ids).size === ids.length, "Deployment IDs must be unique");
+  .refine((ids) => new Set(ids).size === ids.length, "Resource IDs must be unique");
 export const CreateDeveloperTokenSchema = z
   .object({
     label: z.string().trim().min(1).max(64).optional(),
     permission: DeveloperTokenPermissionSchema,
-    deploymentIds: DeploymentIdsSchema.refine(
-      (ids) => ids.length > 0,
-      "Select at least one deployment",
-    ),
+    deploymentIds: ResourceIdsSchema,
+    templateIds: ResourceIdsSchema.optional(),
     expiresInDays: z.number().int().min(1).max(365).optional(),
   })
-  .strict();
+  .strict()
+  .refine((input) => input.deploymentIds.length + (input.templateIds?.length ?? 0) > 0, {
+    message: "Select at least one deployment or template",
+    path: ["deploymentIds"],
+  })
+  .refine(
+    (input) =>
+      input.deploymentIds.length + (input.templateIds?.length ?? 0) <= MAX_DEVELOPER_TOKEN_GRANTS,
+    { message: "Too many selected resources", path: ["deploymentIds"] },
+  );
 export type CreateDeveloperToken = z.infer<typeof CreateDeveloperTokenSchema>;
-export const UpdateDeveloperTokenSchema = z.object({ deploymentIds: DeploymentIdsSchema }).strict();
+export const UpdateDeveloperTokenSchema = z
+  .object({ deploymentIds: ResourceIdsSchema, templateIds: ResourceIdsSchema.optional() })
+  .strict()
+  .refine(
+    (input) =>
+      input.deploymentIds.length + (input.templateIds?.length ?? 0) <= MAX_DEVELOPER_TOKEN_GRANTS,
+    { message: "Too many selected resources", path: ["deploymentIds"] },
+  );
 export type UpdateDeveloperToken = z.infer<typeof UpdateDeveloperTokenSchema>;
 export const DeveloperTokenListQuerySchema = z
   .object({
@@ -50,6 +64,7 @@ export const DeveloperTokenSchema = z
     expiresAt: z.string().datetime().nullable(),
     revokedAt: z.string().datetime().nullable(),
     deploymentIds: z.array(z.string().guid({ error: "Invalid uuid" })),
+    templateIds: z.array(z.string().guid({ error: "Invalid uuid" })).optional(),
   })
   .strict();
 export type DeveloperToken = z.infer<typeof DeveloperTokenSchema>;

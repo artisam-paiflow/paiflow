@@ -5,6 +5,8 @@ SDK versions are independent of the app and API. Follow the repository release
 
 ## [Unreleased]
 
+- Add explicit owned-template grants and developer-signed private-template instance prepare/sign/submit/reconcile/history support (#1165). Preserve uncertain RPC refusals under the original admission/hash, and bind canonical SDK receipts to the requested instance.
+
 - Accept server-verified mutation capability metadata when discovering new guarded
   Pay/Split artifacts, while retaining execution-only discovery with `mutation: false`
   (#1168). Older strict SDKs may require an update for the new artifact generation;

@@ -204,6 +204,16 @@ export async function observeServiceTransaction(
       txHash,
       state: "PENDING",
       ...(!force ? { work: { deploymentId: { in: deploymentIds } } } : {}),
+      // An RPC ingestion refusal cannot prove non-inclusion of a template
+      // instance hash broadcast by external signing infrastructure. Preserve its
+      // pending financial work until a ledger receipt or verified settlement.
+      ...(state === "REJECTED" && !force
+        ? {
+            NOT: {
+              work: { deployment: { templateVersionId: { not: null }, preparedTxHash: txHash } },
+            },
+          }
+        : {}),
     },
     data: { state, ...(ledger === undefined ? {} : { ledger }) },
   });

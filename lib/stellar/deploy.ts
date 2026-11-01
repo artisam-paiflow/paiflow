@@ -152,9 +152,10 @@ async function preparePipelineDeployTxFromPlan(
   /** Set for a relayer deploy: it then builds and signs the whole envelope. */
   channel?: RelayerChannel,
   deploymentId?: string,
+  pinned?: { factoryAddress: string; maxTime: number },
 ): Promise<PreparedPipelineDeploy> {
   const server = sorobanRpc();
-  const factoryAddress = await getFactoryAddress();
+  const factoryAddress = pinned?.factoryAddress ?? (await getFactoryAddress());
   if (!factoryAddress) {
     throw new AppError(
       "INTERNAL",
@@ -255,13 +256,18 @@ async function preparePipelineDeployTxFromPlan(
     .addOperation(op)
     .setTimeout(180)
     .build();
+  const boundedTx = pinned
+    ? TransactionBuilder.cloneFrom(tx, {
+        timebounds: { minTime: 0, maxTime: pinned.maxTime },
+      }).build()
+    : tx;
   const sim = await deploymentPreparationRead(
     "simulation",
-    () => server.simulateTransaction(tx),
+    () => server.simulateTransaction(boundedTx),
     deploymentId,
   );
   if (rpc.Api.isSimulationError(sim)) throw failure(sim.error);
-  const assembled = rpc.assembleTransaction(tx, sim).build();
+  const assembled = rpc.assembleTransaction(boundedTx, sim).build();
   return { xdr: assembled.toXDR(), pipeline };
 }
 /** Build & simulate a pipeline deployment tx via the on-chain factory. */
@@ -270,6 +276,7 @@ export async function preparePipelineDeployTx(opts: {
   sourceAccount: string;
   graph: FlowGraph;
   nodes: PipelineDeployNode[];
+  pinned?: { factoryAddress: string; maxTime: number };
 }): Promise<PreparedPipelineDeploy> {
   // The chokepoint behind every route's own check (#722): nothing builds a
   // deploy transaction for a switched-off surface, whoever the caller is.
@@ -278,7 +285,13 @@ export async function preparePipelineDeployTx(opts: {
     opts.nodes.map((n) => n.templateKind),
   );
   const plan = buildPipelinePlan(opts.sourceAccount, opts.graph, opts.nodes);
-  return preparePipelineDeployTxFromPlan(opts.sourceAccount, plan, undefined, opts.deploymentId);
+  return preparePipelineDeployTxFromPlan(
+    opts.sourceAccount,
+    plan,
+    undefined,
+    opts.deploymentId,
+    opts.pinned,
+  );
 }
 function computeContractAddress(sourceAccount: string, salt: Buffer): string {
   // Per CAP-46, contract IDs from address+salt are SHA256(networkId || preimage).
@@ -303,6 +316,7 @@ export type SubmitResult =
       status: "SUCCESS";
       txHash: string;
       contractAddress?: string;
+      pipelineAddresses?: string[];
       ledger?: number;
     }
   | {
@@ -322,17 +336,22 @@ type SubmittedDeployResult = {
   txHash: string;
 };
 /** Normal callers wait for finality; #808's scoped testnet rehearsal leaves it to cron. */
-export function submitDeployTx(signedXdr: string): Promise<SubmitResult>;
+export function submitDeployTx(
+  signedXdr: string,
+  options?: { preserveUncertainRejection?: boolean; confirmation?: undefined },
+): Promise<SubmitResult>;
 export function submitDeployTx(
   signedXdr: string,
   options: {
     confirmation: "reconcile";
+    preserveUncertainRejection?: boolean;
   },
 ): Promise<SubmitResult | SubmittedDeployResult>;
 export async function submitDeployTx(
   signedXdr: string,
   options?: {
-    confirmation: "reconcile";
+    confirmation?: "reconcile";
+    preserveUncertainRejection?: boolean;
   },
 ): Promise<SubmitResult | SubmittedDeployResult> {
   if (options?.confirmation === "reconcile" && env().STELLAR_NETWORK !== "testnet") {
@@ -356,6 +375,15 @@ export async function submitDeployTx(
     return unknownDeployFinality(txHash);
   }
   const sent = classifySend(send);
+  // Instance signing infrastructure may already have broadcast another envelope
+  // with the same body/hash. A refusal of this send is not ledger non-inclusion.
+  if (options?.preserveUncertainRejection && sent.outcome !== "QUEUED") {
+    await recordTransactionOutcome(txHash, "UNRESOLVED", {
+      failureCode: "FINALITY_UNKNOWN",
+      submissionAttempt,
+    });
+    return unknownDeployFinality(txHash);
+  }
   // Answered before the poll: the hash was never queued, so polling it would
   // spend the whole 30 s on NOT_FOUND, and a relayer deploy spends them holding
   // the relayer lock.
@@ -405,6 +433,7 @@ export async function submitDeployTx(
         status: "SUCCESS",
         txHash: send.hash,
         contractAddress: created ?? undefined,
+        pipelineAddresses: extractPipelineAddresses(got),
         ledger: got.ledger,
       };
     }
@@ -515,6 +544,18 @@ export async function deployPipelineByRelayer(opts: {
     }
     return { ...result, pipeline: prepared.pipeline };
   });
+}
+function extractPipelineAddresses(
+  tx: rpc.Api.GetSuccessfulTransactionResponse,
+): string[] | undefined {
+  try {
+    if (tx.returnValue?.switch().name !== "scvVec") return undefined;
+    return (tx.returnValue.vec() ?? []).map((value) =>
+      Address.fromScAddress(value.address()).toString(),
+    );
+  } catch {
+    return undefined;
+  }
 }
 export function extractCreatedContract(
   tx: rpc.Api.GetSuccessfulTransactionResponse,

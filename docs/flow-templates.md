@@ -2,9 +2,10 @@
 
 Flow templates are private reusable definitions, separate from `ContractTemplate`
 (the WASM registry). Their owner publishes immutable versions; each future instance
-will be a separate developer-owned deployment. This implements the persistence and
-binding lane of #1164. Deployment, SDK instantiation and hosted instance creation
-remain #1165/#1166; these endpoints do not deploy or submit transactions.
+is a separate developer-owned deployment. Publication and binding endpoints implement
+#1164; [developer-signed instance lifecycle and SDK](api/template-instances.md)
+implement #1165. Hosted instance UI remains #1166. Publication endpoints do not
+deploy or submit transactions.
 
 ## Owner API
 
@@ -131,8 +132,8 @@ Binding admission compares the exact pins with the environment's current DB
 registry/factory/ABI evidence. A changed, missing or incompatible entry fails
 closed with 409; publish a new version after reviewing the cutover. An old version
 is never silently rebound to a newer artifact. DB registry presence alone is not
-proof that a WASM/factory is available on chain: #1165 must check executable
-availability during normal deployment simulation and preserve failure/recovery
+proof that a WASM/factory is available on chain: instance preparation checks
+executable availability during normal deployment simulation and preserves failure/recovery
 evidence. The content hash covers definition, network, artifacts and publication
 expiry. Database triggers prohibit changing or deleting published contents and
 reversing retirement. Foreign-key restrictions retain owners and template evidence.
@@ -152,8 +153,9 @@ signer/admin/fee payer in that **same transaction**, and release before RPC or
 wallet interaction. The HTTP binding endpoint and `resolveTemplateForPreparation`
 are read-only previews; repeat admission instead of trusting a previous preview.
 The developer remains signer, fee payer and instance owner/admin. Explicit template
-credential grants, exact signing/submission and durable deployment workers belong
-to #1165; deployment-bound `pfk_` credentials gain no template access here.
+credential grants, exact signing/submission and durable deployment workers are
+implemented in [the instance lifecycle API and SDK](api/template-instances.md)
+(#1165); deployment-bound `pfk_` credentials gain no template access here.
 
 A version's optional `expiresAt` stops new admission. The instantiation transaction's
 validity must be bounded by the earlier of normal 180-second transaction validity

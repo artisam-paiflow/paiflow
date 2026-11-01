@@ -222,6 +222,7 @@ model DeveloperApiToken {
   revokedAt          DateTime?
   owner              User                     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   grants             DeveloperTokenGrant[]
+  templateGrants     DeveloperTemplateGrant[]
   signedTransactions SignedTransaction[]
 
   @@index([ownerId, id])
@@ -235,6 +236,16 @@ model DeveloperTokenGrant {
 
   @@id([tokenId, deploymentId])
   @@index([deploymentId])
+}
+
+model DeveloperTemplateGrant {
+  tokenId    String            @db.Uuid
+  templateId String            @db.Uuid
+  token      DeveloperApiToken @relation(fields: [tokenId], references: [id], onDelete: Restrict)
+  template   FlowTemplate      @relation(fields: [templateId], references: [id], onDelete: Restrict)
+
+  @@id([tokenId, templateId])
+  @@index([templateId])
 }
 
 model PasswordResetToken {
@@ -350,6 +361,10 @@ enum ServiceTransactionState {
 model Deployment {
   id                      String                 @id @default(uuid()) @db.Uuid
   flowId                  String                 @db.Uuid
+  templateVersionId       String?                @db.Uuid
+  instanceSnapshot        Json?
+  instanceRequestDigest   String?
+  preparedTxHash          String?
   ownerId                 String                 @db.Uuid
   network                 String
   contractAddress         String?                @unique
@@ -400,6 +415,7 @@ model Deployment {
   // Position within a large durable pipeline; each inventory reads one instance.
   ttlScanOffset           Int                    @default(0)
 
+  templateVersion       FlowTemplateVersion?  @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
   flow                  Flow                  @relation(fields: [flowId], references: [id], onDelete: Restrict)
   owner                 User                  @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   historicalEmployees   Employee[]            @ignore
@@ -413,6 +429,8 @@ model Deployment {
   webhookAttempts       WebhookAttempt[]
   walletControlIntents  WalletControlIntent[]
 
+  @@index([templateVersionId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([ownerId, sourceAccount, status])
   @@unique([ownerId, idempotencyKey])
   @@index([ownerId, status, serviceState, id])
   @@index([ownerId, createdAt(sort: Desc)])
@@ -980,6 +998,7 @@ model FlowTemplate {
   updatedAt     DateTime              @updatedAt
   owner         User                  @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   versions      FlowTemplateVersion[]
+  developerTokenGrants DeveloperTemplateGrant[]
 
   @@index([ownerId, createdAt(sort: Desc), id(sort: Desc)])
 }
@@ -997,6 +1016,7 @@ model FlowTemplateVersion {
   retiredAt   DateTime?
   createdAt   DateTime     @default(now())
   template    FlowTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  instances   Deployment[]
 
   @@unique([templateId, version])
   @@index([templateId, createdAt(sort: Desc), id(sort: Desc)])
