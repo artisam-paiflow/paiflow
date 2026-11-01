@@ -20,6 +20,7 @@ import { sorobanRpc } from "@/lib/stellar/client";
 import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 export const WalletControlActionSchema = z.enum([
   "payment.execute",
+  "configuration.mutate",
   "subscription.cancel",
   "subscription.reactivate",
   "schedule.pause",
@@ -36,6 +37,7 @@ export const WalletControlSubmitSchema = z
   })
   .strict();
 const actions = {
+  "configuration.mutate": { method: "mutate_v1", kinds: ["DEPOSIT_TRIGGER"] },
   "payment.execute": { method: "execute_v1", kinds: ["DEPOSIT_TRIGGER"] },
   "subscription.cancel": { method: "unsubscribe", kinds: ["SUBSCRIPTION"] },
   "subscription.reactivate": { method: "subscribe", kinds: ["SUBSCRIPTION"] },
@@ -101,6 +103,9 @@ export function assertControlTransaction(tx: Transaction, binding: ControlBindin
         args[2]!.switch().name !== "scvI128" ||
         BigInt(String(scValToNative(args[2]!))) <= 0n
       )
+        throw new Error();
+    } else if (action === "configuration.mutate") {
+      if (args.length !== 2 || args.some((arg) => arg.switch().name !== "scvVec"))
         throw new Error();
     } else if (action === "schedule.fund" || action === "webhook.fund") {
       if (

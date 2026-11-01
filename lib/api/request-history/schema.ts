@@ -4,6 +4,11 @@ import { AUDIENCES } from "@/lib/analytics/policy";
 export const API_HISTORY_VERSION = "api-requests-v1";
 const ENDPOINTS = [
   "capabilities",
+  "configuration",
+  "configuration/history",
+  "configuration/prepare",
+  "configuration/submit",
+  "configuration/reconcile",
   "balances",
   "funding",
   "funding/submit",

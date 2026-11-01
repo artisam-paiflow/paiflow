@@ -3,7 +3,7 @@
 [#1168](https://github.com/webnxt-2030/pinkraft/issues/1168) implements the contract,
 compiler, encoding and verified-read portion of stored Pay/Split updates. It is
 not artifact activation or live acceptance. Mutation API preparation/recovery and
-confirmed history are #1169; the deployed owner editor is #1170. The release order
+confirmed observed history are implemented by [#1169](api/configuration.md); the deployed owner editor is #1170. The release order
 remains execution, instances, then mutation. Existing deployments are not upgraded.
 Network selection follows [CLAUDE.md §7.5](../CLAUDE.md#75-networks).
 

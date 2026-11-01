@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { isGuardedMutationRoute } from "@/tests/helpers/mutation-route-coverage";
 import { isGuardedHostedRoute } from "@/tests/helpers/hosted-route-coverage";
 
 // #371: every mutating route handler must apply a rate limit, so a new route cannot skip it quietly.
@@ -99,6 +100,7 @@ describe("mutating API routes are rate limited (#371)", () => {
         if (ALLOWLIST[`${h.method} ${rel}`]) return;
         if (CRON_GUARD.test(h.body)) return;
         if (isGuardedHostedRoute(source, rel, h.method)) return;
+        if (isGuardedMutationRoute(source, rel, h.method)) return;
         expect(
           LIMITERS.some((re) => re.test(h.body)),
           `${h.method} ${rel} applies no rate limit: call enforceWriteRateLimit() (lib/api/write-rate-limit.ts)`,

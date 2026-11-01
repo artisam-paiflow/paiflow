@@ -94,6 +94,51 @@ beforeEach(() => {
   mocks.limit.mockResolvedValue({ ok: true, shared: true });
 });
 describe("persisted transaction notifications", () => {
+  it("never transfers constructor email metadata to a mutable recipient", async () => {
+    const split = graph.nodes.find((n) => n.type === "split");
+    if (split?.type !== "split") throw new Error("fixture");
+    split.config.recipients.forEach((row, index) => (row.rowId = `row-${index}`));
+    split.config.recipients[0]!.email = "former-recipient@example.com";
+    graph.fieldPolicies = {
+      version: 1,
+      nodes: [
+        {
+          kind: "split",
+          nodeId: split.id,
+          allocationMode: "percentage",
+          additionalRecipients: "constant",
+          rows: split.config.recipients.map((row, index) => ({
+            rowId: row.rowId!,
+            recipient: index === 0 ? "mutable" : "constant",
+            allocation: "constant",
+          })),
+        },
+      ],
+    };
+    rows = rows.filter((row) => row.eventId !== "2");
+    await dispatch();
+    expect(mocks.send).toHaveBeenCalledTimes(1);
+    expect(mocks.send.mock.calls[0]![0].to).toBe("owner@example.com");
+    expect(mocks.send.mock.calls[0]![0].text).toContain("Paid 40 USDC");
+  });
+  it("owner summaries use actual direct-chain payout amount/address", async () => {
+    const actual = "GDVEU3DD4KOFECV66VIHWEZOYX4ZKR3WV27L464SIIPOU2IUI3JCZA57";
+    rows = [
+      event(
+        "direct",
+        "PAYOUT",
+        { recipient: actual, payment: "123000000", asset: "USDC" },
+        "external",
+        "split",
+      ),
+    ];
+    await dispatch();
+    const mail = mocks.send.mock.calls[0]![0];
+    expect(mail.text).toContain("Paid 12.3 USDC");
+    expect(mail.text).toContain(`${actual.slice(0, 5)}…${actual.slice(-4)}`);
+    expect(mail.text).not.toContain("40 USDC");
+  });
+
   it("sends one owner summary for a multi-payout transaction", async () => {
     await dispatch();
     expect(mocks.send).toHaveBeenCalledTimes(1);

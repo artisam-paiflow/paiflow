@@ -18,7 +18,7 @@ Request options plus explicit server waiting policy; neither setting enables SDK
 
 > `optional` **idempotencyKey?**: `string`
 
-Execution prepare only: stable key. Reusing it never creates a replacement payment.
+Execute/configuration preparation only: stable original request key; never a replacement.
 
 #### Inherited from
 

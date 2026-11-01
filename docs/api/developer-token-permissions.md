@@ -11,6 +11,11 @@ For deployment operations, append the listed path to `/api/v1/deployments/{id}/`
 | `GET balances`                           | `READ_ONLY`        |
 | `GET capabilities`                       | `READ_ONLY`        |
 | `GET events`                             | `READ_ONLY`        |
+| `GET configuration`                      | `READ_ONLY`        |
+| `GET configuration/history`              | `READ_ONLY`        |
+| `POST configuration/prepare`             | `READ_OPERATE`     |
+| `POST configuration/submit`              | `READ_OPERATE`     |
+| `POST configuration/reconcile`           | `READ_OPERATE`     |
 | `GET execution`                          | `READ_ONLY`        |
 | `GET funding`                            | `READ_ONLY`        |
 | `GET schedule/state`                     | `READ_ONLY`        |
@@ -54,3 +59,5 @@ access to the new deployment's ordinary execute/control API.
 | `POST flow-templates/:id/versions/:versionId/instances/prepare` | `READ_OPERATE`     |
 | `POST flow-templates/:id/instances/:instanceId/submit`          | `READ_OPERATE`     |
 | `POST flow-templates/:id/instances/:instanceId/reconcile`       | `READ_OPERATE`     |
+
+Guarded configuration operations apply only to reviewed new-artifact Pay/Split immediate paths. Both deployment-bound `pfk_` and selected-deployment `pfd_` access retain their existing deployment scope; template grants confer no mutation access. Every stored update still requires the exact on-chain developer admin signature. See [configuration API](configuration.md).

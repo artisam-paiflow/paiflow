@@ -27,6 +27,8 @@ export async function submitControlIntent(input: {
   /** Omitted only by an explicitly authorized public wallet route. */
   tokenId?: string;
   tokenType?: ApiTokenType;
+  /** Set only by authenticated owner handlers, never inferred from missing token. */
+  ownerSessionId?: string;
   action: WalletControlAction;
   intent: string;
   signedXdr: string;
@@ -36,7 +38,11 @@ export async function submitControlIntent(input: {
   /** Extra visibility admission is serialized with owner opt-out before first send. */
   assertAdmission?: (client: Prisma.TransactionClient) => Promise<void>;
 }): Promise<TransactionStatus> {
-  if (!input.tokenId && input.action !== "payment.execute")
+  if (
+    !input.tokenId &&
+    input.action !== "payment.execute" &&
+    !(input.action === "configuration.mutate" && input.ownerSessionId === input.deployment.ownerId)
+  )
     throw new AppError("FORBIDDEN", "This wallet control requires an authenticated API credential");
   const intent = await readControlIntent(input.intent, input.deployment.id, input.action);
   const { tx, signer } = verifyControlTransaction(intent, input.signedXdr);
@@ -85,7 +91,7 @@ export async function submitControlIntent(input: {
                 ? "API_EXECUTE_SUBMITTED"
                 : "DEPLOY_TRIGGER"
               : "DEPLOY_INVOKE",
-          userId: null,
+          userId: input.action === "configuration.mutate" ? input.deployment.ownerId : null,
           ip: input.ip,
           metadata: {
             deploymentId: input.deployment.id,
@@ -95,7 +101,11 @@ export async function submitControlIntent(input: {
             method: input.action,
             signerAddress: intent.walletAddress,
             tokenId: input.tokenId,
-            tokenType: input.tokenId ? (input.tokenType ?? "deployment_token") : "public_wallet",
+            tokenType: input.tokenId
+              ? (input.tokenType ?? "deployment_token")
+              : input.ownerSessionId
+                ? "owner_session"
+                : "public_wallet",
           },
         },
       });

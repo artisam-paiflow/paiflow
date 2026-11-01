@@ -132,3 +132,16 @@ export type {
   InstanceListQuery,
   InstanceEventsQuery,
 } from "./instances.js";
+
+export type {
+  MutationChange,
+  MutationArguments,
+  MutationPrepareInput,
+  MutationSubmitInput,
+  MutationReconcileInput,
+  MutationPrepared,
+  MutationState,
+  MutationSubmitted,
+  ConfigurationHistory,
+  ConfigurationHistoryQuery,
+} from "./mutation.js";

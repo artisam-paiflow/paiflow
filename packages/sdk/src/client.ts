@@ -1,3 +1,4 @@
+import { mutationMethods } from "./mutation.js";
 import { PaiflowTemplate } from "./instances.js";
 import { webhookMethods, releaseEarlyMethod } from "./webhook.js";
 import { subscriptionMethods } from "./subscription.js";
@@ -193,6 +194,8 @@ export class PaiflowDeployment {
   readonly funding;
   /** Token-authenticated prepare and explicit submit; preserve the original envelope. */
   readonly execute;
+  /** Exact admin-signed stored updates and confirmed observed configuration history. */
+  readonly configuration;
   /** Anonymous payment helpers; public SUCCESS is global chain status, not an order receipt. */
   readonly publicPayment;
   /** Read supported/conditional operations; capability is not live execution readiness. */
@@ -223,6 +226,7 @@ export class PaiflowDeployment {
     this.funding = fundingMethods(transport, deploymentId);
     const payments = paymentMethods(transport, deploymentId);
     this.execute = payments.execute;
+    this.configuration = mutationMethods(transport, deploymentId);
     this.publicPayment = payments.publicPayment;
     const partner = `/api/v1/deployments/${deploymentId}`;
     const publicPath = `/api/deployments/${deploymentId}`;

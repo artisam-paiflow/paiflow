@@ -74,6 +74,122 @@ Read supported/conditional operations; capability is not live execution readines
 
 ---
 
+### configuration
+
+> `readonly` **configuration**: \{ `get`: (`options?`: [`RequestOptions`](../interfaces/RequestOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `admin`: `string`; `assetContract`: `string`; `configurations`: \{ `configuration`: \{ `additionalRecipients?`: `undefined`; `configuredRows?`: `undefined`; `kind`: `"pay"`; `payoutValue`: \{ `amountStroops`: ...; `kind`: ...; \} \| \{ `bps`: ...; `kind`: ...; \} \| \{ `kind`: ...; \}; `recipient?`: `string`; \} \| \{ `additionalRecipients`: [`ExecutionAdditionalRecipient`](../interfaces/ExecutionAdditionalRecipient.md)[]; `configuredRows`: \{ `allocation?`: ...; `recipient?`: ...; `rowId`: ...; \}[]; `kind`: `"split"`; \}; `confirmedLedger`: `number`; `contractAddress`: `string`; `nodeId`: `string`; `policy`: \{ `additionalRecipients?`: `undefined`; `allocationMode?`: `undefined`; `kind`: `"pay"`; `nodeId`: `string`; `payoutValue`: `"constant"` \| `"mutable"`; `recipient`: `"constant"` \| `"execution"` \| `"mutable"`; `rows?`: `undefined`; \} \| \{ `additionalRecipients`: `"constant"` \| `"execution"` \| `"mutable"`; `allocationMode`: `"fixed"` \| `"percentage"`; `kind`: `"split"`; `nodeId`: `string`; `payoutValue?`: `undefined`; `recipient?`: `undefined`; `rows`: \{ `allocation`: ...; `recipient`: ...; `rowId`: ...; \}[]; \}; `revision`: `string`; `version`: `1`; \}[]; `confirmedLedger`: `number`; `deploymentId`: `string`; `minAmountStroops`: `string`; `mutationSupported`: `true`; `network`: `"testnet"` \| `"mainnet"`; `nodes`: \{ `capabilities`: \{ `execution`: `true`; `executionAbi`: `1`; `immutablePolicies`: `true`; `mutation`: `boolean`; `policyVersion`: `1`; `revisionBinding`: `true`; `wasmHash`: `string`; \}; `contractAddress`: `string`; `expectedRevision`: `string`; `nodeId`: `string`; \}[]; `obligations`: \{ `nodeId`: `string`; `obligationsStroops`: `string`; \}[]; `policies`: \{ `nodes`: (\{ `additionalRecipients?`: `undefined`; `allocationMode?`: `undefined`; `kind`: `"pay"`; `nodeId`: `string`; `payoutValue`: `"constant"` \| `"mutable"`; `recipient`: `"constant"` \| `"execution"` \| `"mutable"`; `rows?`: `undefined`; \} \| \{ `additionalRecipients`: `"constant"` \| `"execution"` \| `"mutable"`; `allocationMode`: `"fixed"` \| `"percentage"`; `kind`: `"split"`; `nodeId`: `string`; `payoutValue?`: `undefined`; `recipient?`: `undefined`; `rows`: \{ `allocation`: ...; `recipient`: ...; `rowId`: ...; \}[]; \})[]; `version`: `1`; \}; `policyVersion`: `1`; `rootContract`: `string`; `supported`: `true`; \}\>\>; `history`: (`query?`: [`ConfigurationHistoryQuery`](../interfaces/ConfigurationHistoryQuery.md), `options?`: [`RequestOptions`](../interfaces/RequestOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `coverage`: `"observed-revisions-only"`; `deploymentId`: `string`; `historyComplete`: `false`; `items`: \{ `configuration`: \{ `configuration`: \{ `additionalRecipients?`: `undefined`; `configuredRows?`: `undefined`; `kind`: `"pay"`; `payoutValue`: ... \| ... \| ...; `recipient?`: ... \| ...; \} \| \{ `additionalRecipients`: ...[]; `configuredRows`: ...[]; `kind`: `"split"`; \}; `confirmedLedger`: `number`; `contractAddress`: `string`; `nodeId`: `string`; `policy`: \{ `additionalRecipients?`: `undefined`; `allocationMode?`: `undefined`; `kind`: `"pay"`; `nodeId`: `string`; `payoutValue`: ... \| ...; `recipient`: ... \| ... \| ...; `rows?`: `undefined`; \} \| \{ `additionalRecipients`: ... \| ... \| ...; `allocationMode`: ... \| ...; `kind`: `"split"`; `nodeId`: `string`; `payoutValue?`: `undefined`; `recipient?`: `undefined`; `rows`: ...[]; \}; `revision`: `string`; `version`: `1`; \}; `eventId`: `string` \| `null`; `eventLedger`: `number` \| `null`; `id`: `string`; `observedLedger`: `number`; `txHash`: `string` \| `null`; \}[]; `network`: `"testnet"` \| `"mainnet"`; `nextCursor`: `string` \| `null`; `revisionCoverage`: \{ `highestObservedRevision`: `string`; `missingRevisionCount`: `string`; `nodeId`: `string`; `observedRevisionCount`: `string`; \}[]; \}\>\>; `prepare`: (`body`: [`MutationPrepareInput`](../interfaces/MutationPrepareInput.md), `options?`: [`RequestOptions`](../interfaces/RequestOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `expiresAt`: `string`; `feeStroops`: `string`; `intent`: `string`; `mutation`: \{ `admin`: `string`; `arguments`: [`MutationArguments`](../interfaces/MutationArguments.md); `artifacts`: \{ `contractAddress`: `string`; `nodeId`: `string`; `wasmHash`: `string`; \}[]; `deploymentId`: `string`; `network`: `"testnet"` \| `"mainnet"`; `nodes`: \{ `contractAddress`: `string`; `expectedRevision`: `string`; `nodeId`: `string`; \}[]; `rootContract`: `string`; `version`: `1`; \}; `network`: `"testnet"` \| `"mainnet"`; `networkPassphrase`: `"Test SDF Network ; September 2015"` \| `"Public Global Stellar Network ; September 2015"`; `txHash`: `string`; `walletAddress`: `string`; `xdr`: `string`; \}\>\>; `reconcile`: (`body`: [`MutationReconcileInput`](../interfaces/MutationReconcileInput.md), `options?`: [`RequestOptions`](../interfaces/RequestOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `intent`: `string`; `state`: `"SUCCESS"` \| `"FAILED"` \| `"PREPARED"` \| `"SUBMITTING"` \| `"EXPIRED"`; `transaction`: \{ `error?`: \{ `code`: `string`; `message`: `string`; \}; `ledger?`: `number`; `network`: `"testnet"` \| `"mainnet"`; `status`: `"SUCCESS"` \| `"FAILED"` \| `"PENDING"` \| `"UNKNOWN"` \| `"REJECTED"`; `txHash`: `string`; \}; \}\>\>; `signPrepared`: (`preparation`: [`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `expiresAt`: `string`; `feeStroops`: `string`; `intent`: `string`; `mutation`: \{ `admin`: `string`; `arguments`: [`MutationArguments`](../interfaces/MutationArguments.md); `artifacts`: \{ `contractAddress`: `string`; `nodeId`: `string`; `wasmHash`: `string`; \}[]; `deploymentId`: `string`; `network`: `"testnet"` \| `"mainnet"`; `nodes`: \{ `contractAddress`: `string`; `expectedRevision`: `string`; `nodeId`: `string`; \}[]; `rootContract`: `string`; `version`: `1`; \}; `network`: `"testnet"` \| `"mainnet"`; `networkPassphrase`: `"Test SDF Network ; September 2015"` \| `"Public Global Stellar Network ; September 2015"`; `txHash`: `string`; `walletAddress`: `string`; `xdr`: `string`; \}\>, `signer`: [`SignTransaction`](../type-aliases/SignTransaction.md), `options`: [`SignOptions`](../interfaces/SignOptions.md)) => `Promise`\<\{ `preparation`: [`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `expiresAt`: `string`; `feeStroops`: `string`; `intent`: `string`; `mutation`: \{ `admin`: `string`; `arguments`: [`MutationArguments`](../interfaces/MutationArguments.md); `artifacts`: \{ `contractAddress`: `string`; `nodeId`: `string`; `wasmHash`: `string`; \}[]; `deploymentId`: `string`; `network`: `"testnet"` \| `"mainnet"`; `nodes`: \{ `contractAddress`: `string`; `expectedRevision`: `string`; `nodeId`: `string`; \}[]; `rootContract`: `string`; `version`: `1`; \}; `network`: `"testnet"` \| `"mainnet"`; `networkPassphrase`: `"Test SDF Network ; September 2015"` \| `"Public Global Stellar Network ; September 2015"`; `txHash`: `string`; `walletAddress`: `string`; `xdr`: `string`; \}\>; `submission`: \{ `intent`: `string`; `signedXdr`: `string`; \}; `submissionOptions`: [`RequestOptions`](../interfaces/RequestOptions.md); \}\>; `submit`: (`body`: [`MutationSubmitInput`](../interfaces/MutationSubmitInput.md), `options?`: [`RequestOptions`](../interfaces/RequestOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `error?`: \{ `code`: `string`; `message`: `string`; \}; `ledger?`: `number`; `network`: `"testnet"` \| `"mainnet"`; `status`: `"SUCCESS"` \| `"FAILED"` \| `"PENDING"` \| `"UNKNOWN"` \| `"REJECTED"`; `txHash`: `string`; \}\>\>; \}
+
+Exact admin-signed stored updates and confirmed observed configuration history.
+
+#### get
+
+> **get**: (`options?`: [`RequestOptions`](../interfaces/RequestOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `admin`: `string`; `assetContract`: `string`; `configurations`: \{ `configuration`: \{ `additionalRecipients?`: `undefined`; `configuredRows?`: `undefined`; `kind`: `"pay"`; `payoutValue`: \{ `amountStroops`: ...; `kind`: ...; \} \| \{ `bps`: ...; `kind`: ...; \} \| \{ `kind`: ...; \}; `recipient?`: `string`; \} \| \{ `additionalRecipients`: [`ExecutionAdditionalRecipient`](../interfaces/ExecutionAdditionalRecipient.md)[]; `configuredRows`: \{ `allocation?`: ...; `recipient?`: ...; `rowId`: ...; \}[]; `kind`: `"split"`; \}; `confirmedLedger`: `number`; `contractAddress`: `string`; `nodeId`: `string`; `policy`: \{ `additionalRecipients?`: `undefined`; `allocationMode?`: `undefined`; `kind`: `"pay"`; `nodeId`: `string`; `payoutValue`: `"constant"` \| `"mutable"`; `recipient`: `"constant"` \| `"execution"` \| `"mutable"`; `rows?`: `undefined`; \} \| \{ `additionalRecipients`: `"constant"` \| `"execution"` \| `"mutable"`; `allocationMode`: `"fixed"` \| `"percentage"`; `kind`: `"split"`; `nodeId`: `string`; `payoutValue?`: `undefined`; `recipient?`: `undefined`; `rows`: \{ `allocation`: ...; `recipient`: ...; `rowId`: ...; \}[]; \}; `revision`: `string`; `version`: `1`; \}[]; `confirmedLedger`: `number`; `deploymentId`: `string`; `minAmountStroops`: `string`; `mutationSupported`: `true`; `network`: `"testnet"` \| `"mainnet"`; `nodes`: \{ `capabilities`: \{ `execution`: `true`; `executionAbi`: `1`; `immutablePolicies`: `true`; `mutation`: `boolean`; `policyVersion`: `1`; `revisionBinding`: `true`; `wasmHash`: `string`; \}; `contractAddress`: `string`; `expectedRevision`: `string`; `nodeId`: `string`; \}[]; `obligations`: \{ `nodeId`: `string`; `obligationsStroops`: `string`; \}[]; `policies`: \{ `nodes`: (\{ `additionalRecipients?`: `undefined`; `allocationMode?`: `undefined`; `kind`: `"pay"`; `nodeId`: `string`; `payoutValue`: `"constant"` \| `"mutable"`; `recipient`: `"constant"` \| `"execution"` \| `"mutable"`; `rows?`: `undefined`; \} \| \{ `additionalRecipients`: `"constant"` \| `"execution"` \| `"mutable"`; `allocationMode`: `"fixed"` \| `"percentage"`; `kind`: `"split"`; `nodeId`: `string`; `payoutValue?`: `undefined`; `recipient?`: `undefined`; `rows`: \{ `allocation`: ...; `recipient`: ...; `rowId`: ...; \}[]; \})[]; `version`: `1`; \}; `policyVersion`: `1`; `rootContract`: `string`; `supported`: `true`; \}\>\>
+
+##### Parameters
+
+###### options?
+
+[`RequestOptions`](../interfaces/RequestOptions.md)
+
+##### Returns
+
+`Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `admin`: `string`; `assetContract`: `string`; `configurations`: \{ `configuration`: \{ `additionalRecipients?`: `undefined`; `configuredRows?`: `undefined`; `kind`: `"pay"`; `payoutValue`: \{ `amountStroops`: ...; `kind`: ...; \} \| \{ `bps`: ...; `kind`: ...; \} \| \{ `kind`: ...; \}; `recipient?`: `string`; \} \| \{ `additionalRecipients`: [`ExecutionAdditionalRecipient`](../interfaces/ExecutionAdditionalRecipient.md)[]; `configuredRows`: \{ `allocation?`: ...; `recipient?`: ...; `rowId`: ...; \}[]; `kind`: `"split"`; \}; `confirmedLedger`: `number`; `contractAddress`: `string`; `nodeId`: `string`; `policy`: \{ `additionalRecipients?`: `undefined`; `allocationMode?`: `undefined`; `kind`: `"pay"`; `nodeId`: `string`; `payoutValue`: `"constant"` \| `"mutable"`; `recipient`: `"constant"` \| `"execution"` \| `"mutable"`; `rows?`: `undefined`; \} \| \{ `additionalRecipients`: `"constant"` \| `"execution"` \| `"mutable"`; `allocationMode`: `"fixed"` \| `"percentage"`; `kind`: `"split"`; `nodeId`: `string`; `payoutValue?`: `undefined`; `recipient?`: `undefined`; `rows`: \{ `allocation`: ...; `recipient`: ...; `rowId`: ...; \}[]; \}; `revision`: `string`; `version`: `1`; \}[]; `confirmedLedger`: `number`; `deploymentId`: `string`; `minAmountStroops`: `string`; `mutationSupported`: `true`; `network`: `"testnet"` \| `"mainnet"`; `nodes`: \{ `capabilities`: \{ `execution`: `true`; `executionAbi`: `1`; `immutablePolicies`: `true`; `mutation`: `boolean`; `policyVersion`: `1`; `revisionBinding`: `true`; `wasmHash`: `string`; \}; `contractAddress`: `string`; `expectedRevision`: `string`; `nodeId`: `string`; \}[]; `obligations`: \{ `nodeId`: `string`; `obligationsStroops`: `string`; \}[]; `policies`: \{ `nodes`: (\{ `additionalRecipients?`: `undefined`; `allocationMode?`: `undefined`; `kind`: `"pay"`; `nodeId`: `string`; `payoutValue`: `"constant"` \| `"mutable"`; `recipient`: `"constant"` \| `"execution"` \| `"mutable"`; `rows?`: `undefined`; \} \| \{ `additionalRecipients`: `"constant"` \| `"execution"` \| `"mutable"`; `allocationMode`: `"fixed"` \| `"percentage"`; `kind`: `"split"`; `nodeId`: `string`; `payoutValue?`: `undefined`; `recipient?`: `undefined`; `rows`: \{ `allocation`: ...; `recipient`: ...; `rowId`: ...; \}[]; \})[]; `version`: `1`; \}; `policyVersion`: `1`; `rootContract`: `string`; `supported`: `true`; \}\>\>
+
+#### history
+
+> **history**: (`query?`: [`ConfigurationHistoryQuery`](../interfaces/ConfigurationHistoryQuery.md), `options?`: [`RequestOptions`](../interfaces/RequestOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `coverage`: `"observed-revisions-only"`; `deploymentId`: `string`; `historyComplete`: `false`; `items`: \{ `configuration`: \{ `configuration`: \{ `additionalRecipients?`: `undefined`; `configuredRows?`: `undefined`; `kind`: `"pay"`; `payoutValue`: ... \| ... \| ...; `recipient?`: ... \| ...; \} \| \{ `additionalRecipients`: ...[]; `configuredRows`: ...[]; `kind`: `"split"`; \}; `confirmedLedger`: `number`; `contractAddress`: `string`; `nodeId`: `string`; `policy`: \{ `additionalRecipients?`: `undefined`; `allocationMode?`: `undefined`; `kind`: `"pay"`; `nodeId`: `string`; `payoutValue`: ... \| ...; `recipient`: ... \| ... \| ...; `rows?`: `undefined`; \} \| \{ `additionalRecipients`: ... \| ... \| ...; `allocationMode`: ... \| ...; `kind`: `"split"`; `nodeId`: `string`; `payoutValue?`: `undefined`; `recipient?`: `undefined`; `rows`: ...[]; \}; `revision`: `string`; `version`: `1`; \}; `eventId`: `string` \| `null`; `eventLedger`: `number` \| `null`; `id`: `string`; `observedLedger`: `number`; `txHash`: `string` \| `null`; \}[]; `network`: `"testnet"` \| `"mainnet"`; `nextCursor`: `string` \| `null`; `revisionCoverage`: \{ `highestObservedRevision`: `string`; `missingRevisionCount`: `string`; `nodeId`: `string`; `observedRevisionCount`: `string`; \}[]; \}\>\>
+
+##### Parameters
+
+###### query?
+
+[`ConfigurationHistoryQuery`](../interfaces/ConfigurationHistoryQuery.md) = `{}`
+
+###### options?
+
+[`RequestOptions`](../interfaces/RequestOptions.md)
+
+##### Returns
+
+`Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `coverage`: `"observed-revisions-only"`; `deploymentId`: `string`; `historyComplete`: `false`; `items`: \{ `configuration`: \{ `configuration`: \{ `additionalRecipients?`: `undefined`; `configuredRows?`: `undefined`; `kind`: `"pay"`; `payoutValue`: ... \| ... \| ...; `recipient?`: ... \| ...; \} \| \{ `additionalRecipients`: ...[]; `configuredRows`: ...[]; `kind`: `"split"`; \}; `confirmedLedger`: `number`; `contractAddress`: `string`; `nodeId`: `string`; `policy`: \{ `additionalRecipients?`: `undefined`; `allocationMode?`: `undefined`; `kind`: `"pay"`; `nodeId`: `string`; `payoutValue`: ... \| ...; `recipient`: ... \| ... \| ...; `rows?`: `undefined`; \} \| \{ `additionalRecipients`: ... \| ... \| ...; `allocationMode`: ... \| ...; `kind`: `"split"`; `nodeId`: `string`; `payoutValue?`: `undefined`; `recipient?`: `undefined`; `rows`: ...[]; \}; `revision`: `string`; `version`: `1`; \}; `eventId`: `string` \| `null`; `eventLedger`: `number` \| `null`; `id`: `string`; `observedLedger`: `number`; `txHash`: `string` \| `null`; \}[]; `network`: `"testnet"` \| `"mainnet"`; `nextCursor`: `string` \| `null`; `revisionCoverage`: \{ `highestObservedRevision`: `string`; `missingRevisionCount`: `string`; `nodeId`: `string`; `observedRevisionCount`: `string`; \}[]; \}\>\>
+
+#### prepare
+
+> **prepare**: (`body`: [`MutationPrepareInput`](../interfaces/MutationPrepareInput.md), `options?`: [`RequestOptions`](../interfaces/RequestOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `expiresAt`: `string`; `feeStroops`: `string`; `intent`: `string`; `mutation`: \{ `admin`: `string`; `arguments`: [`MutationArguments`](../interfaces/MutationArguments.md); `artifacts`: \{ `contractAddress`: `string`; `nodeId`: `string`; `wasmHash`: `string`; \}[]; `deploymentId`: `string`; `network`: `"testnet"` \| `"mainnet"`; `nodes`: \{ `contractAddress`: `string`; `expectedRevision`: `string`; `nodeId`: `string`; \}[]; `rootContract`: `string`; `version`: `1`; \}; `network`: `"testnet"` \| `"mainnet"`; `networkPassphrase`: `"Test SDF Network ; September 2015"` \| `"Public Global Stellar Network ; September 2015"`; `txHash`: `string`; `walletAddress`: `string`; `xdr`: `string`; \}\>\>
+
+##### Parameters
+
+###### body
+
+[`MutationPrepareInput`](../interfaces/MutationPrepareInput.md)
+
+###### options?
+
+[`RequestOptions`](../interfaces/RequestOptions.md)
+
+##### Returns
+
+`Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `expiresAt`: `string`; `feeStroops`: `string`; `intent`: `string`; `mutation`: \{ `admin`: `string`; `arguments`: [`MutationArguments`](../interfaces/MutationArguments.md); `artifacts`: \{ `contractAddress`: `string`; `nodeId`: `string`; `wasmHash`: `string`; \}[]; `deploymentId`: `string`; `network`: `"testnet"` \| `"mainnet"`; `nodes`: \{ `contractAddress`: `string`; `expectedRevision`: `string`; `nodeId`: `string`; \}[]; `rootContract`: `string`; `version`: `1`; \}; `network`: `"testnet"` \| `"mainnet"`; `networkPassphrase`: `"Test SDF Network ; September 2015"` \| `"Public Global Stellar Network ; September 2015"`; `txHash`: `string`; `walletAddress`: `string`; `xdr`: `string`; \}\>\>
+
+#### reconcile
+
+> **reconcile**: (`body`: [`MutationReconcileInput`](../interfaces/MutationReconcileInput.md), `options?`: [`RequestOptions`](../interfaces/RequestOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `intent`: `string`; `state`: `"SUCCESS"` \| `"FAILED"` \| `"PREPARED"` \| `"SUBMITTING"` \| `"EXPIRED"`; `transaction`: \{ `error?`: \{ `code`: `string`; `message`: `string`; \}; `ledger?`: `number`; `network`: `"testnet"` \| `"mainnet"`; `status`: `"SUCCESS"` \| `"FAILED"` \| `"PENDING"` \| `"UNKNOWN"` \| `"REJECTED"`; `txHash`: `string`; \}; \}\>\>
+
+##### Parameters
+
+###### body
+
+[`MutationReconcileInput`](../interfaces/MutationReconcileInput.md)
+
+###### options?
+
+[`RequestOptions`](../interfaces/RequestOptions.md)
+
+##### Returns
+
+`Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `intent`: `string`; `state`: `"SUCCESS"` \| `"FAILED"` \| `"PREPARED"` \| `"SUBMITTING"` \| `"EXPIRED"`; `transaction`: \{ `error?`: \{ `code`: `string`; `message`: `string`; \}; `ledger?`: `number`; `network`: `"testnet"` \| `"mainnet"`; `status`: `"SUCCESS"` \| `"FAILED"` \| `"PENDING"` \| `"UNKNOWN"` \| `"REJECTED"`; `txHash`: `string`; \}; \}\>\>
+
+#### signPrepared
+
+> **signPrepared**: (`preparation`: [`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `expiresAt`: `string`; `feeStroops`: `string`; `intent`: `string`; `mutation`: \{ `admin`: `string`; `arguments`: [`MutationArguments`](../interfaces/MutationArguments.md); `artifacts`: \{ `contractAddress`: `string`; `nodeId`: `string`; `wasmHash`: `string`; \}[]; `deploymentId`: `string`; `network`: `"testnet"` \| `"mainnet"`; `nodes`: \{ `contractAddress`: `string`; `expectedRevision`: `string`; `nodeId`: `string`; \}[]; `rootContract`: `string`; `version`: `1`; \}; `network`: `"testnet"` \| `"mainnet"`; `networkPassphrase`: `"Test SDF Network ; September 2015"` \| `"Public Global Stellar Network ; September 2015"`; `txHash`: `string`; `walletAddress`: `string`; `xdr`: `string`; \}\>, `signer`: [`SignTransaction`](../type-aliases/SignTransaction.md), `options`: [`SignOptions`](../interfaces/SignOptions.md)) => `Promise`\<\{ `preparation`: [`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `expiresAt`: `string`; `feeStroops`: `string`; `intent`: `string`; `mutation`: \{ `admin`: `string`; `arguments`: [`MutationArguments`](../interfaces/MutationArguments.md); `artifacts`: \{ `contractAddress`: `string`; `nodeId`: `string`; `wasmHash`: `string`; \}[]; `deploymentId`: `string`; `network`: `"testnet"` \| `"mainnet"`; `nodes`: \{ `contractAddress`: `string`; `expectedRevision`: `string`; `nodeId`: `string`; \}[]; `rootContract`: `string`; `version`: `1`; \}; `network`: `"testnet"` \| `"mainnet"`; `networkPassphrase`: `"Test SDF Network ; September 2015"` \| `"Public Global Stellar Network ; September 2015"`; `txHash`: `string`; `walletAddress`: `string`; `xdr`: `string`; \}\>; `submission`: \{ `intent`: `string`; `signedXdr`: `string`; \}; `submissionOptions`: [`RequestOptions`](../interfaces/RequestOptions.md); \}\>
+
+##### Parameters
+
+###### preparation
+
+[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `expiresAt`: `string`; `feeStroops`: `string`; `intent`: `string`; `mutation`: \{ `admin`: `string`; `arguments`: [`MutationArguments`](../interfaces/MutationArguments.md); `artifacts`: \{ `contractAddress`: `string`; `nodeId`: `string`; `wasmHash`: `string`; \}[]; `deploymentId`: `string`; `network`: `"testnet"` \| `"mainnet"`; `nodes`: \{ `contractAddress`: `string`; `expectedRevision`: `string`; `nodeId`: `string`; \}[]; `rootContract`: `string`; `version`: `1`; \}; `network`: `"testnet"` \| `"mainnet"`; `networkPassphrase`: `"Test SDF Network ; September 2015"` \| `"Public Global Stellar Network ; September 2015"`; `txHash`: `string`; `walletAddress`: `string`; `xdr`: `string`; \}\>
+
+###### signer
+
+[`SignTransaction`](../type-aliases/SignTransaction.md)
+
+###### options
+
+[`SignOptions`](../interfaces/SignOptions.md)
+
+##### Returns
+
+`Promise`\<\{ `preparation`: [`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `expiresAt`: `string`; `feeStroops`: `string`; `intent`: `string`; `mutation`: \{ `admin`: `string`; `arguments`: [`MutationArguments`](../interfaces/MutationArguments.md); `artifacts`: \{ `contractAddress`: `string`; `nodeId`: `string`; `wasmHash`: `string`; \}[]; `deploymentId`: `string`; `network`: `"testnet"` \| `"mainnet"`; `nodes`: \{ `contractAddress`: `string`; `expectedRevision`: `string`; `nodeId`: `string`; \}[]; `rootContract`: `string`; `version`: `1`; \}; `network`: `"testnet"` \| `"mainnet"`; `networkPassphrase`: `"Test SDF Network ; September 2015"` \| `"Public Global Stellar Network ; September 2015"`; `txHash`: `string`; `walletAddress`: `string`; `xdr`: `string`; \}\>; `submission`: \{ `intent`: `string`; `signedXdr`: `string`; \}; `submissionOptions`: [`RequestOptions`](../interfaces/RequestOptions.md); \}\>
+
+#### submit
+
+> **submit**: (`body`: [`MutationSubmitInput`](../interfaces/MutationSubmitInput.md), `options?`: [`RequestOptions`](../interfaces/RequestOptions.md)) => `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `error?`: \{ `code`: `string`; `message`: `string`; \}; `ledger?`: `number`; `network`: `"testnet"` \| `"mainnet"`; `status`: `"SUCCESS"` \| `"FAILED"` \| `"PENDING"` \| `"UNKNOWN"` \| `"REJECTED"`; `txHash`: `string`; \}\>\>
+
+##### Parameters
+
+###### body
+
+[`MutationSubmitInput`](../interfaces/MutationSubmitInput.md)
+
+###### options?
+
+[`RequestOptions`](../interfaces/RequestOptions.md)
+
+##### Returns
+
+`Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `error?`: \{ `code`: `string`; `message`: `string`; \}; `ledger?`: `number`; `network`: `"testnet"` \| `"mainnet"`; `status`: `"SUCCESS"` \| `"FAILED"` \| `"PENDING"` \| `"UNKNOWN"` \| `"REJECTED"`; `txHash`: `string`; \}\>\>
+
+---
+
 ### deploymentId
 
 > `readonly` **deploymentId**: `string`

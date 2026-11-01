@@ -21,7 +21,7 @@ Per-request cancellation and correlation. No option enables automatic retries.
 
 > `optional` **idempotencyKey?**: `string`
 
-Execution prepare only: stable key. Reusing it never creates a replacement payment.
+Execute/configuration preparation only: stable original request key; never a replacement.
 
 ---
 

@@ -66,9 +66,9 @@ function instanceKey(contract: string) {
   );
 }
 
-/** Only values declared mutable may differ from original evidence. This phase
- * enables no mutable fields; execution fields are tagged absent, never defaults. */
-function assertOriginalConfiguration(graph: FlowGraph, current: ConfirmedNodeConfiguration) {
+/** Only declared mutable values may differ from original evidence. Execution
+ * fields are tagged absent, never configured fallback defaults. */
+export function assertOriginalConfiguration(graph: FlowGraph, current: ConfirmedNodeConfiguration) {
   const node = graph.nodes.find((node) => node.id === current.nodeId);
   if (node?.type === "pay" && current.configuration.kind === "pay") {
     const policy = executionPolicy(graph, node);

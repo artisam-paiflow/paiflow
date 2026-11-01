@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useReducer, useRef, useState } from "react";
+import { useConfirmedConfigurationGraph } from "@/lib/hooks/use-confirmed-configuration-graph";
 import { toast } from "sonner";
 import DeploymentCanvas from "./deployment-canvas";
 import { eventsReducer } from "./deployment-events";
@@ -25,7 +26,7 @@ export default function DeploymentView({
   status,
   qrUrl,
   initialEvents,
-  graph,
+  graph: initialGraph,
   pipeline,
   templateKind,
   errorMessage,
@@ -48,6 +49,11 @@ export default function DeploymentView({
     pulse: 0,
     balanceTick: 0,
   });
+  const { graph, configurationLedger, configurationUnavailable } = useConfirmedConfigurationGraph(
+    deploymentId,
+    initialGraph,
+    pulse,
+  );
   const [connectionStatus, setConnectionStatus] = useState<
     "live" | "reconnecting" | "disconnected"
   >("live");
@@ -296,6 +302,18 @@ export default function DeploymentView({
   }, [deploymentId, streamerNode?.contractAddress, network]);
   return (
     <div className="mt-md space-y-md">
+      {configurationUnavailable && (
+        <p role="status">
+          Current configuration could not be verified. Initial deployment terms are hidden until a
+          confirmed read succeeds.
+        </p>
+      )}
+      {configurationLedger !== null && (
+        <p className="text-label-sm text-on-surface-variant">
+          Configuration last confirmed at ledger {configurationLedger}. Rechecked every 15 seconds
+          and on activity.
+        </p>
+      )}
       {graph && (
         <section>
           <div className="mb-2 flex items-center justify-between">

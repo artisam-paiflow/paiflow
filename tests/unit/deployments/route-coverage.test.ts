@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
+import { isGuardedMutationRoute } from "@/tests/helpers/mutation-route-coverage";
 import { isGuardedHostedRoute } from "@/tests/helpers/hosted-route-coverage";
 
 function routeFiles(dir: string): string[] {
@@ -49,6 +50,11 @@ describe("deployment service admission coverage", () => {
               path.relative(process.cwd(), file),
               declaration.name.text,
             ) ||
+              isGuardedMutationRoute(
+                source,
+                path.relative(process.cwd(), file),
+                declaration.name.text,
+              ) ||
               (declaration.initializer &&
                 ts.isCallExpression(declaration.initializer) &&
                 declaration.initializer.expression.getText(ast) === "deploymentServiceRoute"),

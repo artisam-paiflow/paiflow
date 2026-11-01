@@ -2118,6 +2118,122 @@
         "description": "Requires an explicit owned-template pfd_ grant. Prepare/submit/reconcile requires READ_OPERATE. The developer signs and pays the exact preparation; never export signed envelopes."
       },
       "response": []
+    },
+    {
+      "name": "State stored configuration",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/configuration",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "configuration"]
+        },
+        "description": "Guarded admin-owned stored configuration. Retain original intent/key after uncertainty; no automatic replacement. See docs/api/configuration.md."
+      },
+      "response": []
+    },
+    {
+      "name": "History stored configuration",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/configuration/history",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "configuration", "history"]
+        },
+        "description": "Guarded admin-owned stored configuration. Retain original intent/key after uncertainty; no automatic replacement. See docs/api/configuration.md."
+      },
+      "response": []
+    },
+    {
+      "name": "Prepare stored configuration",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotencyKey}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/configuration/prepare",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "configuration", "prepare"]
+        },
+        "description": "Guarded admin-owned stored configuration. Retain original intent/key after uncertainty; no automatic replacement. See docs/api/configuration.md.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"admin\": \"{{walletAddress}}\",\n  \"arguments\": {\n    \"version\": 1,\n    \"changes\": [\n      {\n        \"kind\": \"pay\",\n        \"nodeId\": \"pay\",\n        \"expectedRevision\": \"0\",\n        \"recipient\": \"{{walletAddress}}\"\n      }\n    ]\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Submit stored configuration",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/configuration/submit",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "configuration", "submit"]
+        },
+        "description": "Guarded admin-owned stored configuration. Retain original intent/key after uncertainty; no automatic replacement. See docs/api/configuration.md.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"intent\": \"{{intent}}\",\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Reconcile stored configuration",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/configuration/reconcile",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "configuration", "reconcile"]
+        },
+        "description": "Guarded admin-owned stored configuration. Retain original intent/key after uncertainty; no automatic replacement. See docs/api/configuration.md.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"intent\": \"{{intent}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
     }
   ]
 }

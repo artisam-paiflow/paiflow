@@ -1,4 +1,14 @@
 import {
+  MutationPrepareSchema,
+  MutationSubmitSchema,
+  MutationReconcileSchema,
+  MutationIntentSchema,
+  MutationPreparedSchema,
+  MutationStateSchema,
+  ConfigurationHistorySchema,
+  MutationReconciledSchema,
+} from "@/lib/mutations/schema";
+import {
   InstancePrepareSchema,
   InstanceSubmitSchema,
   InstanceReconcileSchema,
@@ -852,7 +862,7 @@ export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: "Paiflow API v1",
-    version: "1.5.0",
+    version: "1.6.0",
     description: [
       "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.",
       "",
@@ -1179,6 +1189,105 @@ export const openApiDocument = {
       },
     },
     ...schedulePaths(),
+    ...Object.fromEntries(
+      (["state", "history", "prepare", "submit", "reconcile"] as const).map((action) => {
+        const method = action === "state" || action === "history" ? "get" : "post";
+        const suffix = action === "state" ? "" : `/${action}`;
+        const request =
+          action === "prepare"
+            ? MutationPrepareSchema
+            : action === "submit"
+              ? MutationSubmitSchema
+              : MutationReconcileSchema;
+        return [
+          `/api/v1/deployments/{id}/configuration${suffix}`,
+          {
+            [method]: {
+              tags: ["Configuration"],
+              operationId: `${action}Configuration`,
+              summary: `${action} guarded admin-owned stored configuration`,
+              description:
+                "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. " +
+                rate(
+                  action === "prepare"
+                    ? V1_RATE_LIMITS.schedulePrepare
+                    : action === "submit"
+                      ? V1_RATE_LIMITS.scheduleSubmit
+                      : action === "reconcile"
+                        ? V1_RATE_LIMITS.scheduleReconcile
+                        : V1_RATE_LIMITS.capabilities,
+                  "per token",
+                ),
+              security: [{ bearerAuth: [] }],
+              parameters: [
+                deploymentIdParam,
+                ...(action === "prepare"
+                  ? [
+                      {
+                        name: "Idempotency-Key",
+                        in: "header",
+                        required: true,
+                        schema: {
+                          type: "string",
+                          minLength: 1,
+                          maxLength: 128,
+                          pattern: "^[A-Za-z0-9._:-]+$",
+                        },
+                      },
+                    ]
+                  : []),
+                ...(action === "history"
+                  ? [
+                      {
+                        name: "limit",
+                        in: "query",
+                        schema: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+                      },
+                      { name: "cursor", in: "query", schema: { type: "string", format: "uuid" } },
+                    ]
+                  : []),
+              ],
+              ...(method === "post"
+                ? { requestBody: { required: true, content: json(z.toJSONSchema(request)) } }
+                : {}),
+              responses: {
+                "200": {
+                  description:
+                    "Confirmed state, original intent or observed history; inspect financial status",
+                  content: json({
+                    type: "object",
+                    required: ["data"],
+                    properties: {
+                      data:
+                        action === "submit"
+                          ? { $ref: "#/components/schemas/TransactionStatus" }
+                          : action === "prepare"
+                            ? { $ref: "#/components/schemas/MutationPrepared" }
+                            : action === "state"
+                              ? z.toJSONSchema(MutationStateSchema)
+                              : action === "history"
+                                ? z.toJSONSchema(ConfigurationHistorySchema)
+                                : z.toJSONSchema(MutationReconciledSchema),
+                    },
+                  }),
+                },
+                ...errors(
+                  "UNAUTHENTICATED",
+                  "FORBIDDEN",
+                  "NOT_FOUND",
+                  "VALIDATION",
+                  "CONFLICT",
+                  "RATE_LIMITED",
+                  "UPSTREAM_RPC",
+                  "INTERNAL",
+                ),
+              },
+            },
+          },
+        ];
+      }),
+    ),
+
     "/api/v1/deployments/{id}/execution": {
       get: {
         tags: ["Execute"],
@@ -2001,6 +2110,8 @@ export const openApiDocument = {
       },
     },
     schemas: {
+      MutationIntent: z.toJSONSchema(MutationIntentSchema),
+      MutationPrepared: z.toJSONSchema(MutationPreparedSchema),
       InstancePrepare: z.toJSONSchema(InstancePrepareSchema),
       InstanceSubmit: z.toJSONSchema(InstanceSubmitSchema),
       InstanceReconcile: z.toJSONSchema(InstanceReconcileSchema),

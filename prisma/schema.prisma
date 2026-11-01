@@ -428,6 +428,7 @@ model Deployment {
   timelockReleases      TimelockRelease[]
   webhookAttempts       WebhookAttempt[]
   walletControlIntents  WalletControlIntent[]
+  configurationHistory ConfigurationHistory[]
 
   @@index([templateVersionId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([ownerId, sourceAccount, status])
@@ -897,6 +898,7 @@ model WalletControlIntent {
   // Execution preparations retain unsigned intent only, never customer signatures.
   unsignedXdr        String?
   executionIntent    Json?
+  mutationIntent     Json?
   executionArtifacts Json?
   idempotencyKeyHash String?
   requestDigest      String?
@@ -1020,4 +1022,25 @@ model FlowTemplateVersion {
 
   @@unique([templateId, version])
   @@index([templateId, createdAt(sort: Desc), id(sort: Desc)])
+}
+
+/// Confirmed observed revisions only. Missing RPC history is never invented.
+model ConfigurationHistory {
+  id String @id @default(uuid()) @db.Uuid
+  deploymentId String @db.Uuid
+  deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
+  network String
+  nodeId String
+  contractAddress String
+  revision String
+  configuration Json
+  contentHash String
+  observedLedger Int
+  eventLedger Int?
+  eventId String? @unique
+  txHash String?
+  createdAt DateTime @default(now())
+
+  @@unique([deploymentId, network, nodeId, revision])
+  @@index([deploymentId, network, observedLedger, id])
 }

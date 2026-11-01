@@ -5,6 +5,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Add exact developer-admin signed Pay/Split configuration APIs and SDK, durable mutation recovery, confirmed current-config reads and immutable observed revision history with explicit gaps (#1169). Reconcile external updates, refresh current owner previews and preserve original snapshots/contact privacy; no artifacts or hosted services are activated.
+
 - Add an authenticated private-template workspace with finite typed creation inputs,
   immutable version selection, developer wallet fee/network review and exact
   instance signing/recovery (#1166). Add explicit private-template token selections
@@ -15,7 +17,7 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 - Add explicit owned-template grants and developer-signed private-template instance prepare/sign/submit/reconcile/history support (#1165). Preserve uncertain RPC refusals under the original admission/hash, and bind canonical SDK receipts to the requested instance.
 
-- Add guarded admin-authorized stored Pay/Split updates for newly reviewed-artifact immediate paths, with atomic whole-path obligation admission, immutable policies and initial evidence, revision-bound payments, valid initial mutable rosters, and retained execution-only artifact compatibility (#1168). Mutation API/history and owner editing remain subsequent work; no live artifacts are activated.
+- Add guarded admin-authorized stored Pay/Split updates for newly reviewed-artifact immediate paths, with atomic whole-path obligation admission, immutable policies and initial evidence, revision-bound payments, valid initial mutable rosters, and retained execution-only artifact compatibility (#1168). Owner editing remains subsequent work; no live artifacts are activated.
 
 ### Added
 

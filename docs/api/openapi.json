@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Paiflow API v1",
-    "version": "1.5.0",
+    "version": "1.6.0",
     "description": "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.\n\nEvery `/api/v1/deployments/{id}/…` call requires a Bearer credential: a deployment token (`pfk_…`) bound to one deployment, or a developer token (`pfd_…`) with explicit grants to selected existing deployments still owned by the token owner. GET /api/v1/deployments discovers only that credential's eligible deployments. Developer READ_ONLY permits reads, quotes and funding discovery; READ_OPERATE additionally permits preparation, submission, reconciliation and relayer release. See docs/api/developer-token-permissions.md for the complete matrix. Existing deployment grants do not authorize template instance creation. The separate /api/v1/flow-templates/{id}/... lifecycle requires explicit owned-template pfd_ grants; READ_OPERATE permits developer-signed instance preparation/submission/reconciliation and READ_ONLY permits list/status/events. No bearer grants template publication, editing, retirement or legacy dev access.\n\n**Execute deposits are signed by the caller.** `execute` returns an unsigned envelope; you sign it with the `from` key, which stays on your side, and post it to `execute/submit`. A leaked token can prepare and relay a deposit you signed. Webhook and early-release operations use the relayer.\n\nSuccessful responses are `{ \"data\": … }`. Errors are `{ \"error\": { code, message, fields?, details? } }`:\n\n| Code | HTTP status |\n| --- | --- |\n| `UNAUTHENTICATED` | 401 |\n| `INSUFFICIENT_FUNDS` | 402 |\n| `FORBIDDEN` | 403 |\n| `NOT_FOUND` | 404 |\n| `CONFLICT` | 409 |\n| `VALIDATION` | 422 |\n| `RATE_LIMITED` | 429 |\n| `INTERNAL` | 500 |\n| `UPSTREAM_RPC` | 502 |\n\nRate limits are per token and per endpoint (each operation lists its own). Allowances are shared across the selected deployments. A token that has been issued or has worked in the last 30 days is subject to nothing else. Any other token is limited per client address before it is looked up: 6000 lookups per 60 seconds, and, after 300 failed authentications in 600 seconds from the address, 60 per 60 seconds. A token refused in the last minute is refused again without a lookup. Refusal of a live developer credential for a missing grant is never negatively cached, so selection edits take effect immediately. So one caller's bad token does not lock out others on the same network.\n\n`POST /api/v1/demo-token` explicitly requests a short-lived token for an operator-configured shared demo deployment. Availability depends on environment configuration; it may be disabled. A demo token does not guarantee every operation is eligible.\n\nThe public instance runs on Stellar **testnet**. Guide: `docs/api/README.md`."
   },
   "servers": [
@@ -4088,6 +4088,2083 @@
         }
       }
     },
+    "/api/v1/deployments/{id}/configuration": {
+      "get": {
+        "tags": ["Configuration"],
+        "operationId": "stateConfiguration",
+        "summary": "state guarded admin-owned stored configuration",
+        "description": "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Rate limit: 60 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Confirmed state, original intent or observed history; inspect financial status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$schema": "https://json-schema.org/draft/2020-12/schema",
+                      "type": "object",
+                      "properties": {
+                        "supported": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "deploymentId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "network": {
+                          "type": "string",
+                          "enum": ["testnet", "mainnet"]
+                        },
+                        "policyVersion": {
+                          "type": "number",
+                          "const": 1
+                        },
+                        "confirmedLedger": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 4294967295
+                        },
+                        "rootContract": {
+                          "type": "string"
+                        },
+                        "assetContract": {
+                          "type": "string"
+                        },
+                        "minAmountStroops": {
+                          "type": "string",
+                          "pattern": "^(0|[1-9]\\d*)$"
+                        },
+                        "policies": {
+                          "type": "object",
+                          "properties": {
+                            "version": {
+                              "type": "number",
+                              "const": 1
+                            },
+                            "nodes": {
+                              "maxItems": 40,
+                              "type": "array",
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "nodeId": {
+                                        "type": "string",
+                                        "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                                      },
+                                      "kind": {
+                                        "type": "string",
+                                        "const": "pay"
+                                      },
+                                      "recipient": {
+                                        "default": "constant",
+                                        "type": "string",
+                                        "enum": ["constant", "execution", "mutable"]
+                                      },
+                                      "payoutValue": {
+                                        "default": "constant",
+                                        "type": "string",
+                                        "enum": ["constant", "mutable"]
+                                      }
+                                    },
+                                    "required": ["nodeId", "kind", "recipient", "payoutValue"],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "nodeId": {
+                                        "type": "string",
+                                        "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                                      },
+                                      "kind": {
+                                        "type": "string",
+                                        "const": "split"
+                                      },
+                                      "allocationMode": {
+                                        "type": "string",
+                                        "enum": ["percentage", "fixed"]
+                                      },
+                                      "rows": {
+                                        "maxItems": 20,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "rowId": {
+                                              "type": "string",
+                                              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                                            },
+                                            "recipient": {
+                                              "default": "constant",
+                                              "type": "string",
+                                              "enum": ["constant", "execution", "mutable"]
+                                            },
+                                            "allocation": {
+                                              "default": "constant",
+                                              "type": "string",
+                                              "enum": ["constant", "execution", "mutable"]
+                                            }
+                                          },
+                                          "required": ["rowId", "recipient", "allocation"],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "additionalRecipients": {
+                                        "default": "constant",
+                                        "type": "string",
+                                        "enum": ["constant", "execution", "mutable"]
+                                      }
+                                    },
+                                    "required": [
+                                      "nodeId",
+                                      "kind",
+                                      "allocationMode",
+                                      "rows",
+                                      "additionalRecipients"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                ]
+                              }
+                            }
+                          },
+                          "required": ["version", "nodes"],
+                          "additionalProperties": false
+                        },
+                        "nodes": {
+                          "minItems": 2,
+                          "maxItems": 40,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "nodeId": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                              },
+                              "contractAddress": {
+                                "type": "string"
+                              },
+                              "expectedRevision": {
+                                "type": "string",
+                                "maxLength": 20,
+                                "pattern": "^(0|[1-9]\\d*)$"
+                              },
+                              "capabilities": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "policyVersion": {
+                                        "type": "number",
+                                        "const": 0
+                                      },
+                                      "wasmHash": {
+                                        "type": "string",
+                                        "pattern": "^[a-f0-9]{64}$"
+                                      },
+                                      "execution": {
+                                        "type": "boolean",
+                                        "const": false
+                                      },
+                                      "mutation": {
+                                        "type": "boolean",
+                                        "const": false
+                                      }
+                                    },
+                                    "required": [
+                                      "policyVersion",
+                                      "wasmHash",
+                                      "execution",
+                                      "mutation"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "policyVersion": {
+                                        "type": "number",
+                                        "const": 1
+                                      },
+                                      "wasmHash": {
+                                        "type": "string",
+                                        "pattern": "^[a-f0-9]{64}$"
+                                      },
+                                      "execution": {
+                                        "type": "boolean"
+                                      },
+                                      "mutation": {
+                                        "type": "boolean"
+                                      },
+                                      "immutablePolicies": {
+                                        "type": "boolean",
+                                        "const": true
+                                      },
+                                      "revisionBinding": {
+                                        "type": "boolean",
+                                        "const": true
+                                      },
+                                      "executionAbi": {
+                                        "type": "number",
+                                        "const": 1
+                                      }
+                                    },
+                                    "required": [
+                                      "policyVersion",
+                                      "wasmHash",
+                                      "execution",
+                                      "mutation",
+                                      "immutablePolicies",
+                                      "revisionBinding",
+                                      "executionAbi"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "nodeId",
+                              "contractAddress",
+                              "expectedRevision",
+                              "capabilities"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "configurations": {
+                          "minItems": 1,
+                          "maxItems": 39,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "version": {
+                                "type": "number",
+                                "const": 1
+                              },
+                              "nodeId": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                              },
+                              "contractAddress": {
+                                "type": "string"
+                              },
+                              "confirmedLedger": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 4294967295
+                              },
+                              "revision": {
+                                "type": "string",
+                                "maxLength": 20,
+                                "pattern": "^(0|[1-9]\\d*)$"
+                              },
+                              "policy": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "nodeId": {
+                                        "type": "string",
+                                        "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                                      },
+                                      "kind": {
+                                        "type": "string",
+                                        "const": "pay"
+                                      },
+                                      "recipient": {
+                                        "default": "constant",
+                                        "type": "string",
+                                        "enum": ["constant", "execution", "mutable"]
+                                      },
+                                      "payoutValue": {
+                                        "default": "constant",
+                                        "type": "string",
+                                        "enum": ["constant", "mutable"]
+                                      }
+                                    },
+                                    "required": ["nodeId", "kind", "recipient", "payoutValue"],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "nodeId": {
+                                        "type": "string",
+                                        "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                                      },
+                                      "kind": {
+                                        "type": "string",
+                                        "const": "split"
+                                      },
+                                      "allocationMode": {
+                                        "type": "string",
+                                        "enum": ["percentage", "fixed"]
+                                      },
+                                      "rows": {
+                                        "maxItems": 20,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "rowId": {
+                                              "type": "string",
+                                              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                                            },
+                                            "recipient": {
+                                              "default": "constant",
+                                              "type": "string",
+                                              "enum": ["constant", "execution", "mutable"]
+                                            },
+                                            "allocation": {
+                                              "default": "constant",
+                                              "type": "string",
+                                              "enum": ["constant", "execution", "mutable"]
+                                            }
+                                          },
+                                          "required": ["rowId", "recipient", "allocation"],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "additionalRecipients": {
+                                        "default": "constant",
+                                        "type": "string",
+                                        "enum": ["constant", "execution", "mutable"]
+                                      }
+                                    },
+                                    "required": [
+                                      "nodeId",
+                                      "kind",
+                                      "allocationMode",
+                                      "rows",
+                                      "additionalRecipients"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                ]
+                              },
+                              "configuration": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "const": "pay"
+                                      },
+                                      "recipient": {
+                                        "type": "string"
+                                      },
+                                      "payoutValue": {
+                                        "anyOf": [
+                                          {
+                                            "oneOf": [
+                                              {
+                                                "type": "object",
+                                                "properties": {
+                                                  "kind": {
+                                                    "type": "string",
+                                                    "const": "percentage"
+                                                  },
+                                                  "bps": {
+                                                    "type": "integer",
+                                                    "minimum": 1,
+                                                    "maximum": 10000
+                                                  }
+                                                },
+                                                "required": ["kind", "bps"],
+                                                "additionalProperties": false
+                                              },
+                                              {
+                                                "type": "object",
+                                                "properties": {
+                                                  "kind": {
+                                                    "type": "string",
+                                                    "const": "fixed"
+                                                  },
+                                                  "amountStroops": {
+                                                    "type": "string",
+                                                    "maxLength": 39,
+                                                    "pattern": "^[1-9]\\d*$"
+                                                  }
+                                                },
+                                                "required": ["kind", "amountStroops"],
+                                                "additionalProperties": false
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "const": "full"
+                                              }
+                                            },
+                                            "required": ["kind"],
+                                            "additionalProperties": false
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": ["kind", "payoutValue"],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "const": "split"
+                                      },
+                                      "configuredRows": {
+                                        "maxItems": 20,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "rowId": {
+                                              "type": "string",
+                                              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                                            },
+                                            "recipient": {
+                                              "type": "string"
+                                            },
+                                            "allocation": {
+                                              "oneOf": [
+                                                {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "kind": {
+                                                      "type": "string",
+                                                      "const": "percentage"
+                                                    },
+                                                    "bps": {
+                                                      "type": "integer",
+                                                      "minimum": 1,
+                                                      "maximum": 10000
+                                                    }
+                                                  },
+                                                  "required": ["kind", "bps"],
+                                                  "additionalProperties": false
+                                                },
+                                                {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "kind": {
+                                                      "type": "string",
+                                                      "const": "fixed"
+                                                    },
+                                                    "amountStroops": {
+                                                      "type": "string",
+                                                      "maxLength": 39,
+                                                      "pattern": "^[1-9]\\d*$"
+                                                    }
+                                                  },
+                                                  "required": ["kind", "amountStroops"],
+                                                  "additionalProperties": false
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          "required": ["rowId"],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "additionalRecipients": {
+                                        "maxItems": 20,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "rowId": {
+                                              "type": "string",
+                                              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                                            },
+                                            "recipient": {
+                                              "type": "string"
+                                            },
+                                            "allocation": {
+                                              "oneOf": [
+                                                {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "kind": {
+                                                      "type": "string",
+                                                      "const": "percentage"
+                                                    },
+                                                    "bps": {
+                                                      "type": "integer",
+                                                      "minimum": 1,
+                                                      "maximum": 10000
+                                                    }
+                                                  },
+                                                  "required": ["kind", "bps"],
+                                                  "additionalProperties": false
+                                                },
+                                                {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "kind": {
+                                                      "type": "string",
+                                                      "const": "fixed"
+                                                    },
+                                                    "amountStroops": {
+                                                      "type": "string",
+                                                      "maxLength": 39,
+                                                      "pattern": "^[1-9]\\d*$"
+                                                    }
+                                                  },
+                                                  "required": ["kind", "amountStroops"],
+                                                  "additionalProperties": false
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          "required": ["rowId", "recipient", "allocation"],
+                                          "additionalProperties": false
+                                        }
+                                      }
+                                    },
+                                    "required": ["kind", "configuredRows", "additionalRecipients"],
+                                    "additionalProperties": false
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "version",
+                              "nodeId",
+                              "contractAddress",
+                              "confirmedLedger",
+                              "revision",
+                              "policy",
+                              "configuration"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "admin": {
+                          "type": "string"
+                        },
+                        "mutationSupported": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "obligations": {
+                          "maxItems": 39,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "nodeId": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                              },
+                              "obligationsStroops": {
+                                "type": "string",
+                                "pattern": "^(0|[1-9]\\d{0,38})$"
+                              }
+                            },
+                            "required": ["nodeId", "obligationsStroops"],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "supported",
+                        "deploymentId",
+                        "network",
+                        "policyVersion",
+                        "confirmedLedger",
+                        "rootContract",
+                        "assetContract",
+                        "minAmountStroops",
+                        "policies",
+                        "nodes",
+                        "configurations",
+                        "admin",
+                        "mutationSupported",
+                        "obligations"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/configuration/history": {
+      "get": {
+        "tags": ["Configuration"],
+        "operationId": "historyConfiguration",
+        "summary": "history guarded admin-owned stored configuration",
+        "description": "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Rate limit: 60 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Confirmed state, original intent or observed history; inspect financial status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$schema": "https://json-schema.org/draft/2020-12/schema",
+                      "type": "object",
+                      "properties": {
+                        "deploymentId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "network": {
+                          "type": "string",
+                          "enum": ["testnet", "mainnet"]
+                        },
+                        "coverage": {
+                          "type": "string",
+                          "const": "observed-revisions-only"
+                        },
+                        "historyComplete": {
+                          "type": "boolean",
+                          "const": false
+                        },
+                        "revisionCoverage": {
+                          "maxItems": 39,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "nodeId": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                              },
+                              "highestObservedRevision": {
+                                "type": "string",
+                                "maxLength": 20,
+                                "pattern": "^(0|[1-9]\\d*)$"
+                              },
+                              "observedRevisionCount": {
+                                "type": "string",
+                                "pattern": "^[1-9]\\d*$"
+                              },
+                              "missingRevisionCount": {
+                                "type": "string",
+                                "pattern": "^(0|[1-9]\\d*)$"
+                              }
+                            },
+                            "required": [
+                              "nodeId",
+                              "highestObservedRevision",
+                              "observedRevisionCount",
+                              "missingRevisionCount"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "items": {
+                          "maxItems": 100,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "configuration": {
+                                "type": "object",
+                                "properties": {
+                                  "version": {
+                                    "type": "number",
+                                    "const": 1
+                                  },
+                                  "nodeId": {
+                                    "type": "string",
+                                    "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                                  },
+                                  "contractAddress": {
+                                    "type": "string"
+                                  },
+                                  "confirmedLedger": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 4294967295
+                                  },
+                                  "revision": {
+                                    "type": "string",
+                                    "maxLength": 20,
+                                    "pattern": "^(0|[1-9]\\d*)$"
+                                  },
+                                  "policy": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "nodeId": {
+                                            "type": "string",
+                                            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                                          },
+                                          "kind": {
+                                            "type": "string",
+                                            "const": "pay"
+                                          },
+                                          "recipient": {
+                                            "default": "constant",
+                                            "type": "string",
+                                            "enum": ["constant", "execution", "mutable"]
+                                          },
+                                          "payoutValue": {
+                                            "default": "constant",
+                                            "type": "string",
+                                            "enum": ["constant", "mutable"]
+                                          }
+                                        },
+                                        "required": ["nodeId", "kind", "recipient", "payoutValue"],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "nodeId": {
+                                            "type": "string",
+                                            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                                          },
+                                          "kind": {
+                                            "type": "string",
+                                            "const": "split"
+                                          },
+                                          "allocationMode": {
+                                            "type": "string",
+                                            "enum": ["percentage", "fixed"]
+                                          },
+                                          "rows": {
+                                            "maxItems": 20,
+                                            "type": "array",
+                                            "items": {
+                                              "type": "object",
+                                              "properties": {
+                                                "rowId": {
+                                                  "type": "string",
+                                                  "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                                                },
+                                                "recipient": {
+                                                  "default": "constant",
+                                                  "type": "string",
+                                                  "enum": ["constant", "execution", "mutable"]
+                                                },
+                                                "allocation": {
+                                                  "default": "constant",
+                                                  "type": "string",
+                                                  "enum": ["constant", "execution", "mutable"]
+                                                }
+                                              },
+                                              "required": ["rowId", "recipient", "allocation"],
+                                              "additionalProperties": false
+                                            }
+                                          },
+                                          "additionalRecipients": {
+                                            "default": "constant",
+                                            "type": "string",
+                                            "enum": ["constant", "execution", "mutable"]
+                                          }
+                                        },
+                                        "required": [
+                                          "nodeId",
+                                          "kind",
+                                          "allocationMode",
+                                          "rows",
+                                          "additionalRecipients"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    ]
+                                  },
+                                  "configuration": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "const": "pay"
+                                          },
+                                          "recipient": {
+                                            "type": "string"
+                                          },
+                                          "payoutValue": {
+                                            "anyOf": [
+                                              {
+                                                "oneOf": [
+                                                  {
+                                                    "type": "object",
+                                                    "properties": {
+                                                      "kind": {
+                                                        "type": "string",
+                                                        "const": "percentage"
+                                                      },
+                                                      "bps": {
+                                                        "type": "integer",
+                                                        "minimum": 1,
+                                                        "maximum": 10000
+                                                      }
+                                                    },
+                                                    "required": ["kind", "bps"],
+                                                    "additionalProperties": false
+                                                  },
+                                                  {
+                                                    "type": "object",
+                                                    "properties": {
+                                                      "kind": {
+                                                        "type": "string",
+                                                        "const": "fixed"
+                                                      },
+                                                      "amountStroops": {
+                                                        "type": "string",
+                                                        "maxLength": 39,
+                                                        "pattern": "^[1-9]\\d*$"
+                                                      }
+                                                    },
+                                                    "required": ["kind", "amountStroops"],
+                                                    "additionalProperties": false
+                                                  }
+                                                ]
+                                              },
+                                              {
+                                                "type": "object",
+                                                "properties": {
+                                                  "kind": {
+                                                    "type": "string",
+                                                    "const": "full"
+                                                  }
+                                                },
+                                                "required": ["kind"],
+                                                "additionalProperties": false
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        "required": ["kind", "payoutValue"],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "const": "split"
+                                          },
+                                          "configuredRows": {
+                                            "maxItems": 20,
+                                            "type": "array",
+                                            "items": {
+                                              "type": "object",
+                                              "properties": {
+                                                "rowId": {
+                                                  "type": "string",
+                                                  "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                                                },
+                                                "recipient": {
+                                                  "type": "string"
+                                                },
+                                                "allocation": {
+                                                  "oneOf": [
+                                                    {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "kind": {
+                                                          "type": "string",
+                                                          "const": "percentage"
+                                                        },
+                                                        "bps": {
+                                                          "type": "integer",
+                                                          "minimum": 1,
+                                                          "maximum": 10000
+                                                        }
+                                                      },
+                                                      "required": ["kind", "bps"],
+                                                      "additionalProperties": false
+                                                    },
+                                                    {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "kind": {
+                                                          "type": "string",
+                                                          "const": "fixed"
+                                                        },
+                                                        "amountStroops": {
+                                                          "type": "string",
+                                                          "maxLength": 39,
+                                                          "pattern": "^[1-9]\\d*$"
+                                                        }
+                                                      },
+                                                      "required": ["kind", "amountStroops"],
+                                                      "additionalProperties": false
+                                                    }
+                                                  ]
+                                                }
+                                              },
+                                              "required": ["rowId"],
+                                              "additionalProperties": false
+                                            }
+                                          },
+                                          "additionalRecipients": {
+                                            "maxItems": 20,
+                                            "type": "array",
+                                            "items": {
+                                              "type": "object",
+                                              "properties": {
+                                                "rowId": {
+                                                  "type": "string",
+                                                  "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                                                },
+                                                "recipient": {
+                                                  "type": "string"
+                                                },
+                                                "allocation": {
+                                                  "oneOf": [
+                                                    {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "kind": {
+                                                          "type": "string",
+                                                          "const": "percentage"
+                                                        },
+                                                        "bps": {
+                                                          "type": "integer",
+                                                          "minimum": 1,
+                                                          "maximum": 10000
+                                                        }
+                                                      },
+                                                      "required": ["kind", "bps"],
+                                                      "additionalProperties": false
+                                                    },
+                                                    {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "kind": {
+                                                          "type": "string",
+                                                          "const": "fixed"
+                                                        },
+                                                        "amountStroops": {
+                                                          "type": "string",
+                                                          "maxLength": 39,
+                                                          "pattern": "^[1-9]\\d*$"
+                                                        }
+                                                      },
+                                                      "required": ["kind", "amountStroops"],
+                                                      "additionalProperties": false
+                                                    }
+                                                  ]
+                                                }
+                                              },
+                                              "required": ["rowId", "recipient", "allocation"],
+                                              "additionalProperties": false
+                                            }
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "configuredRows",
+                                          "additionalRecipients"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "version",
+                                  "nodeId",
+                                  "contractAddress",
+                                  "confirmedLedger",
+                                  "revision",
+                                  "policy",
+                                  "configuration"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "observedLedger": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "eventLedger": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "eventId": {
+                                "type": ["string", "null"]
+                              },
+                              "txHash": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{64}$"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "configuration",
+                              "observedLedger",
+                              "eventLedger",
+                              "eventId",
+                              "txHash"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "deploymentId",
+                        "network",
+                        "coverage",
+                        "historyComplete",
+                        "revisionCoverage",
+                        "items",
+                        "nextCursor"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/configuration/prepare": {
+      "post": {
+        "tags": ["Configuration"],
+        "operationId": "prepareConfiguration",
+        "summary": "prepare guarded admin-owned stored configuration",
+        "description": "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Rate limit: 10 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9._:-]+$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "admin": {
+                    "type": "string"
+                  },
+                  "arguments": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "type": "number",
+                        "const": 1
+                      },
+                      "changes": {
+                        "minItems": 1,
+                        "maxItems": 40,
+                        "type": "array",
+                        "items": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "const": "pay"
+                                },
+                                "nodeId": {
+                                  "type": "string",
+                                  "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                                },
+                                "expectedRevision": {
+                                  "type": "string",
+                                  "maxLength": 20,
+                                  "pattern": "^(0|[1-9]\\d*)$"
+                                },
+                                "recipient": {
+                                  "type": "string"
+                                },
+                                "payoutValue": {
+                                  "oneOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "kind": {
+                                          "type": "string",
+                                          "const": "percentage"
+                                        },
+                                        "bps": {
+                                          "type": "integer",
+                                          "minimum": 1,
+                                          "maximum": 10000
+                                        }
+                                      },
+                                      "required": ["kind", "bps"],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "kind": {
+                                          "type": "string",
+                                          "const": "fixed"
+                                        },
+                                        "amountStroops": {
+                                          "type": "string",
+                                          "maxLength": 39,
+                                          "pattern": "^[1-9]\\d*$"
+                                        }
+                                      },
+                                      "required": ["kind", "amountStroops"],
+                                      "additionalProperties": false
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": ["kind", "nodeId", "expectedRevision"],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "const": "split"
+                                },
+                                "nodeId": {
+                                  "type": "string",
+                                  "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                                },
+                                "expectedRevision": {
+                                  "type": "string",
+                                  "maxLength": 20,
+                                  "pattern": "^(0|[1-9]\\d*)$"
+                                },
+                                "rows": {
+                                  "maxItems": 20,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "rowId": {
+                                        "type": "string",
+                                        "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                                      },
+                                      "recipient": {
+                                        "type": "string"
+                                      },
+                                      "allocation": {
+                                        "oneOf": [
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "const": "percentage"
+                                              },
+                                              "bps": {
+                                                "type": "integer",
+                                                "minimum": 1,
+                                                "maximum": 10000
+                                              }
+                                            },
+                                            "required": ["kind", "bps"],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "const": "fixed"
+                                              },
+                                              "amountStroops": {
+                                                "type": "string",
+                                                "maxLength": 39,
+                                                "pattern": "^[1-9]\\d*$"
+                                              }
+                                            },
+                                            "required": ["kind", "amountStroops"],
+                                            "additionalProperties": false
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": ["rowId"],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "additionalRecipients": {
+                                  "maxItems": 20,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "rowId": {
+                                        "type": "string",
+                                        "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                                      },
+                                      "recipient": {
+                                        "type": "string"
+                                      },
+                                      "allocation": {
+                                        "oneOf": [
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "const": "percentage"
+                                              },
+                                              "bps": {
+                                                "type": "integer",
+                                                "minimum": 1,
+                                                "maximum": 10000
+                                              }
+                                            },
+                                            "required": ["kind", "bps"],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "const": "fixed"
+                                              },
+                                              "amountStroops": {
+                                                "type": "string",
+                                                "maxLength": 39,
+                                                "pattern": "^[1-9]\\d*$"
+                                              }
+                                            },
+                                            "required": ["kind", "amountStroops"],
+                                            "additionalProperties": false
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": ["rowId", "recipient", "allocation"],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "required": ["kind", "nodeId", "expectedRevision", "rows"],
+                              "additionalProperties": false
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "required": ["version", "changes"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["admin", "arguments"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Confirmed state, original intent or observed history; inspect financial status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/MutationPrepared"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/configuration/submit": {
+      "post": {
+        "tags": ["Configuration"],
+        "operationId": "submitConfiguration",
+        "summary": "submit guarded admin-owned stored configuration",
+        "description": "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Rate limit: 30 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "intent": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "signedXdr": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200000
+                  }
+                },
+                "required": ["intent", "signedXdr"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Confirmed state, original intent or observed history; inspect financial status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TransactionStatus"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/configuration/reconcile": {
+      "post": {
+        "tags": ["Configuration"],
+        "operationId": "reconcileConfiguration",
+        "summary": "reconcile guarded admin-owned stored configuration",
+        "description": "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Rate limit: 20 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "intent": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  }
+                },
+                "required": ["intent"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Confirmed state, original intent or observed history; inspect financial status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$schema": "https://json-schema.org/draft/2020-12/schema",
+                      "type": "object",
+                      "properties": {
+                        "intent": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": ["PREPARED", "SUBMITTING", "SUCCESS", "FAILED", "EXPIRED"]
+                        },
+                        "transaction": {
+                          "type": "object",
+                          "properties": {
+                            "txHash": {
+                              "type": "string",
+                              "pattern": "^[0-9a-f]{64}$"
+                            },
+                            "network": {
+                              "type": "string",
+                              "enum": ["testnet", "mainnet"]
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": ["SUCCESS", "FAILED", "PENDING", "UNKNOWN", "REJECTED"]
+                            },
+                            "ledger": {
+                              "type": "number",
+                              "exclusiveMinimum": 0
+                            },
+                            "error": {
+                              "type": "object",
+                              "properties": {
+                                "code": {
+                                  "type": "string"
+                                },
+                                "message": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["code", "message"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": ["txHash", "network", "status"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": ["intent", "state", "transaction"],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/deployments/{id}/execution": {
       "get": {
         "tags": ["Execute"],
@@ -7523,6 +9600,637 @@
       }
     },
     "schemas": {
+      "MutationIntent": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number",
+            "const": 1
+          },
+          "deploymentId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "network": {
+            "type": "string",
+            "enum": ["testnet", "mainnet"]
+          },
+          "admin": {
+            "type": "string"
+          },
+          "rootContract": {
+            "type": "string"
+          },
+          "nodes": {
+            "minItems": 2,
+            "maxItems": 40,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "nodeId": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                },
+                "contractAddress": {
+                  "type": "string"
+                },
+                "expectedRevision": {
+                  "type": "string",
+                  "maxLength": 20,
+                  "pattern": "^(0|[1-9]\\d*)$"
+                }
+              },
+              "required": ["nodeId", "contractAddress", "expectedRevision"],
+              "additionalProperties": false
+            }
+          },
+          "arguments": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "number",
+                "const": 1
+              },
+              "changes": {
+                "minItems": 1,
+                "maxItems": 40,
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "pay"
+                        },
+                        "nodeId": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                        },
+                        "expectedRevision": {
+                          "type": "string",
+                          "maxLength": 20,
+                          "pattern": "^(0|[1-9]\\d*)$"
+                        },
+                        "recipient": {
+                          "type": "string"
+                        },
+                        "payoutValue": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "const": "percentage"
+                                },
+                                "bps": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 10000
+                                }
+                              },
+                              "required": ["kind", "bps"],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "const": "fixed"
+                                },
+                                "amountStroops": {
+                                  "type": "string",
+                                  "maxLength": 39,
+                                  "pattern": "^[1-9]\\d*$"
+                                }
+                              },
+                              "required": ["kind", "amountStroops"],
+                              "additionalProperties": false
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["kind", "nodeId", "expectedRevision"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "split"
+                        },
+                        "nodeId": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                        },
+                        "expectedRevision": {
+                          "type": "string",
+                          "maxLength": 20,
+                          "pattern": "^(0|[1-9]\\d*)$"
+                        },
+                        "rows": {
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "rowId": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                              },
+                              "recipient": {
+                                "type": "string"
+                              },
+                              "allocation": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "const": "percentage"
+                                      },
+                                      "bps": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 10000
+                                      }
+                                    },
+                                    "required": ["kind", "bps"],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "const": "fixed"
+                                      },
+                                      "amountStroops": {
+                                        "type": "string",
+                                        "maxLength": 39,
+                                        "pattern": "^[1-9]\\d*$"
+                                      }
+                                    },
+                                    "required": ["kind", "amountStroops"],
+                                    "additionalProperties": false
+                                  }
+                                ]
+                              }
+                            },
+                            "required": ["rowId"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "additionalRecipients": {
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "rowId": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                              },
+                              "recipient": {
+                                "type": "string"
+                              },
+                              "allocation": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "const": "percentage"
+                                      },
+                                      "bps": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 10000
+                                      }
+                                    },
+                                    "required": ["kind", "bps"],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "const": "fixed"
+                                      },
+                                      "amountStroops": {
+                                        "type": "string",
+                                        "maxLength": 39,
+                                        "pattern": "^[1-9]\\d*$"
+                                      }
+                                    },
+                                    "required": ["kind", "amountStroops"],
+                                    "additionalProperties": false
+                                  }
+                                ]
+                              }
+                            },
+                            "required": ["rowId", "recipient", "allocation"],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": ["kind", "nodeId", "expectedRevision", "rows"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            },
+            "required": ["version", "changes"],
+            "additionalProperties": false
+          },
+          "artifacts": {
+            "minItems": 2,
+            "maxItems": 40,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "nodeId": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                },
+                "contractAddress": {
+                  "type": "string"
+                },
+                "wasmHash": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": ["nodeId", "contractAddress", "wasmHash"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "version",
+          "deploymentId",
+          "network",
+          "admin",
+          "rootContract",
+          "nodes",
+          "arguments",
+          "artifacts"
+        ],
+        "additionalProperties": false
+      },
+      "MutationPrepared": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "intent": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "txHash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "walletAddress": {
+            "type": "string"
+          },
+          "xdr": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200000
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "network": {
+            "type": "string",
+            "enum": ["testnet", "mainnet"]
+          },
+          "networkPassphrase": {
+            "type": "string",
+            "minLength": 1
+          },
+          "feeStroops": {
+            "type": "string",
+            "pattern": "^[1-9]\\d*$"
+          },
+          "mutation": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "number",
+                "const": 1
+              },
+              "deploymentId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "network": {
+                "type": "string",
+                "enum": ["testnet", "mainnet"]
+              },
+              "admin": {
+                "type": "string"
+              },
+              "rootContract": {
+                "type": "string"
+              },
+              "nodes": {
+                "minItems": 2,
+                "maxItems": 40,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "nodeId": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                    },
+                    "contractAddress": {
+                      "type": "string"
+                    },
+                    "expectedRevision": {
+                      "type": "string",
+                      "maxLength": 20,
+                      "pattern": "^(0|[1-9]\\d*)$"
+                    }
+                  },
+                  "required": ["nodeId", "contractAddress", "expectedRevision"],
+                  "additionalProperties": false
+                }
+              },
+              "arguments": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "changes": {
+                    "minItems": 1,
+                    "maxItems": 40,
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "pay"
+                            },
+                            "nodeId": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                            },
+                            "expectedRevision": {
+                              "type": "string",
+                              "maxLength": 20,
+                              "pattern": "^(0|[1-9]\\d*)$"
+                            },
+                            "recipient": {
+                              "type": "string"
+                            },
+                            "payoutValue": {
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "const": "percentage"
+                                    },
+                                    "bps": {
+                                      "type": "integer",
+                                      "minimum": 1,
+                                      "maximum": 10000
+                                    }
+                                  },
+                                  "required": ["kind", "bps"],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "const": "fixed"
+                                    },
+                                    "amountStroops": {
+                                      "type": "string",
+                                      "maxLength": 39,
+                                      "pattern": "^[1-9]\\d*$"
+                                    }
+                                  },
+                                  "required": ["kind", "amountStroops"],
+                                  "additionalProperties": false
+                                }
+                              ]
+                            }
+                          },
+                          "required": ["kind", "nodeId", "expectedRevision"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "split"
+                            },
+                            "nodeId": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                            },
+                            "expectedRevision": {
+                              "type": "string",
+                              "maxLength": 20,
+                              "pattern": "^(0|[1-9]\\d*)$"
+                            },
+                            "rows": {
+                              "maxItems": 20,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "rowId": {
+                                    "type": "string",
+                                    "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                                  },
+                                  "recipient": {
+                                    "type": "string"
+                                  },
+                                  "allocation": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "const": "percentage"
+                                          },
+                                          "bps": {
+                                            "type": "integer",
+                                            "minimum": 1,
+                                            "maximum": 10000
+                                          }
+                                        },
+                                        "required": ["kind", "bps"],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "const": "fixed"
+                                          },
+                                          "amountStroops": {
+                                            "type": "string",
+                                            "maxLength": 39,
+                                            "pattern": "^[1-9]\\d*$"
+                                          }
+                                        },
+                                        "required": ["kind", "amountStroops"],
+                                        "additionalProperties": false
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": ["rowId"],
+                                "additionalProperties": false
+                              }
+                            },
+                            "additionalRecipients": {
+                              "maxItems": 20,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "rowId": {
+                                    "type": "string",
+                                    "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                                  },
+                                  "recipient": {
+                                    "type": "string"
+                                  },
+                                  "allocation": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "const": "percentage"
+                                          },
+                                          "bps": {
+                                            "type": "integer",
+                                            "minimum": 1,
+                                            "maximum": 10000
+                                          }
+                                        },
+                                        "required": ["kind", "bps"],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "const": "fixed"
+                                          },
+                                          "amountStroops": {
+                                            "type": "string",
+                                            "maxLength": 39,
+                                            "pattern": "^[1-9]\\d*$"
+                                          }
+                                        },
+                                        "required": ["kind", "amountStroops"],
+                                        "additionalProperties": false
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": ["rowId", "recipient", "allocation"],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": ["kind", "nodeId", "expectedRevision", "rows"],
+                          "additionalProperties": false
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": ["version", "changes"],
+                "additionalProperties": false
+              },
+              "artifacts": {
+                "minItems": 2,
+                "maxItems": 40,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "nodeId": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                    },
+                    "contractAddress": {
+                      "type": "string"
+                    },
+                    "wasmHash": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": ["nodeId", "contractAddress", "wasmHash"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "version",
+              "deploymentId",
+              "network",
+              "admin",
+              "rootContract",
+              "nodes",
+              "arguments",
+              "artifacts"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "intent",
+          "txHash",
+          "walletAddress",
+          "xdr",
+          "expiresAt",
+          "network",
+          "networkPassphrase",
+          "feeStroops",
+          "mutation"
+        ],
+        "additionalProperties": false
+      },
       "InstancePrepare": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",

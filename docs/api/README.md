@@ -1403,3 +1403,5 @@ See [hosted verification](#hosted-testnet-verification) for dated evidence and f
 When requesting support, include the deployment UUID, transaction hash, error
 message and request ID when available. Keep tokens, wallet secrets and signed
 envelopes out of support messages.
+
+Stored Pay/Split update APIs and SDK workflows: [guarded configuration](configuration.md). Read confirmed current revisions; retain original mutation intent after uncertain finality.

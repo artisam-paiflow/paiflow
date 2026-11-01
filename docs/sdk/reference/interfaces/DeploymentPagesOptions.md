@@ -18,7 +18,7 @@ Discovery iterator options; each HTTP page has its own timeout.
 
 > `optional` **idempotencyKey?**: `string`
 
-Execution prepare only: stable key. Reusing it never creates a replacement payment.
+Execute/configuration preparation only: stable original request key; never a replacement.
 
 #### Inherited from
 

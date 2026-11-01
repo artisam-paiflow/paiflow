@@ -272,7 +272,7 @@ for every node; legacy and unknown hashes fail closed, including for all-constan
 tables. New fixed Pay calls refuse underfunding; terminal Pay returns that invocation's
 unused remainder to its payer. Execution-aware fixed Split calls require exact incoming
 funding, while constant-only fixed Split retains accounted accumulation. No path sweeps
-unsolicited holdings. Guarded Pay/Split stored mutation is implemented for new reviewed-artifact immediate paths with whole-path obligation admission and revision binding; mutation API/history and owner editing remain phased in #1169/#1170. See [mutation v1](docs/mutation-v1.md). Mode-less saved definitions keep existing configured behavior;
+unsolicited holdings. Guarded Pay/Split stored mutation is implemented for new reviewed-artifact immediate paths with whole-path obligation admission and revision binding; exact admin-signed mutation APIs/SDK and confirmed observed history are implemented in [#1169](docs/api/configuration.md); owner editing remains #1170. See [mutation v1](docs/mutation-v1.md). Mode-less saved definitions keep existing configured behavior;
 no new execution or mutation authority is inferred from an absent policy. Execution,
 instances and mutation ship in that order; schemas alone do not activate a phase.
 

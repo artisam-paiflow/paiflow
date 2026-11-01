@@ -327,3 +327,8 @@ export function parseExecutionDiscovery(value: unknown) {
 }
 /** Verified current configuration and exact required-input declarations, without contacts or labels. */
 export type ExecutionDiscovery = ReturnType<typeof parseExecutionDiscovery>;
+
+/** Internal shared wire readers for stored-mutation workflows. */
+export const parseExecutionAllocation = allocation;
+export const parseExecutionRevision = revision;
+export const parseStoredConfiguration = storedConfig;

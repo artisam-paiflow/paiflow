@@ -1,4 +1,5 @@
 import "server-only";
+import { projectConfigurationEvent } from "./configuration-events";
 import { Prisma } from "@prisma/client";
 import { TransactionBuilder, Address, StrKey, rpc, scValToNative, xdr } from "@stellar/stellar-sdk";
 import { runDeploymentWork } from "@/lib/deployments/service-work";
@@ -1036,10 +1037,12 @@ async function ingestEventPage(
         return null;
       }
     })();
-    const { kind, decodedData } = decodeEventByKind(topics, value, templateKind);
+    const decoded = decodeEventByKind(topics, value, templateKind);
+    const kind = topics[0] === "config_v1" ? EventKind.STATUS_CHANGE : decoded.kind;
+    const decodedData = decoded.decodedData;
     // One value feeds both the DB write and the Redis publish below, so a live
     // row and the same row after a reload can never disagree on the asset.
-    const resolvedData = stampInboundAsset({
+    let resolvedData = stampInboundAsset({
       kind,
       decodedData: resolveAssetSymbols(decodedData, symbolMap),
       graph,
@@ -1082,6 +1085,10 @@ async function ingestEventPage(
           return db.contractEvent.findUniqueOrThrow({ where: { eventId: ev.id } });
         });
       persisted = true;
+      if (topics[0] === "config_v1") {
+        const configuration = await projectConfigurationEvent(created);
+        if (configuration) resolvedData = convertBigInts({ configuration }) as DecodedData;
+      }
       if (fresh && changesDashboardBalance(kind))
         invalidateDashboardBalances(deploymentId, ev.txHash);
       if (fresh) written += 1;

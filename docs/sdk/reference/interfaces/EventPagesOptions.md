@@ -18,7 +18,7 @@ Bounded event iteration; retain the last cursor for explicit continuation.
 
 > `optional` **idempotencyKey?**: `string`
 
-Execution prepare only: stable key. Reusing it never creates a replacement payment.
+Execute/configuration preparation only: stable original request key; never a replacement.
 
 #### Inherited from
 
