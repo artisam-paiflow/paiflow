@@ -89,7 +89,20 @@ export async function createExecutionIntent(input: {
   preparationLedger: number;
   keyHash: string | null;
   requestDigest: string;
+  /** Optional public-hosted admission check, run under the deployment row lock. */
+  assertAdmission?: (client: Prisma.TransactionClient) => Promise<void>;
+  /** Server-derived public receipt evidence belongs to the same financial commit. */
+  hostedAccessHash?: string;
 }) {
+  const hostedAccessHash =
+    input.hostedAccessHash === undefined
+      ? undefined
+      : z
+          .string()
+          .regex(/^[a-f0-9]{64}$/)
+          .parse(input.hostedAccessHash);
+  if (hostedAccessHash !== undefined && (!input.keyHash || !input.assertAdmission))
+    throw new AppError("VALIDATION", "Hosted receipt requires scoped idempotency and admission");
   const execution = ExecutionIntentSchema.parse(input.execution);
   const artifacts = ExecutionArtifactsSchema.parse(input.artifacts);
   if (
@@ -154,6 +167,7 @@ export async function createExecutionIntent(input: {
     const service = await lockDeployment(client, input.deployment.id);
     if (service.serviceState !== "ACTIVE")
       throw new AppError("CONFLICT", "Deployment service is closed");
+    await input.assertAdmission?.(client);
     if (input.keyHash) {
       const previous = await client.walletControlIntent.findFirst({
         where: {
@@ -195,6 +209,7 @@ export async function createExecutionIntent(input: {
         executionArtifacts: artifacts as unknown as Prisma.InputJsonValue,
         idempotencyKeyHash: input.keyHash,
         requestDigest: input.requestDigest,
+        ...(hostedAccessHash === undefined ? {} : { hostedAccessHash }),
       },
     });
   });

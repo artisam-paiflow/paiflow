@@ -28,6 +28,8 @@ const PUBLIC_PATHS = [
   /^\/api\/deployments\/[^/]+\/subscription-allowance(\/(submit|status))?$/,
   /^\/api\/deployments\/[^/]+\/trigger$/,
   /^\/api\/deployments\/[^/]+\/submit-trigger$/,
+  // Public wallet routes enforce owner opt-in and receipt capability in their handlers.
+  /^\/api\/deployments\/[^/]+\/hosted-execution\/(state|ownership|prepare|submit|receipt)$/,
   /^\/api\/deployments\/[^/]+\/tx-status$/,
   /^\/api\/deployments\/[^/]+\/streamer-state$/,
   // Machine-auth endpoints handle their own secret-token auth inside the route.

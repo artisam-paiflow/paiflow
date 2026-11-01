@@ -7,6 +7,14 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Opt-in hosted payment forms for policy-v1 deployments (#1162). Wallet-only payers
+  review required execution inputs, fixed destinations, revisions, amounts, fees
+  and network before signing. Owner publishing is authenticated and audited;
+  receipt-scoped recovery preserves uncertain payments across reloads and opt-out.
+  A separate sign-only wallet ownership proof prevents anonymous callers from
+  reserving another payer before preparation; recovery needs no new proof.
+  Existing deployments remain disabled by default; no artifacts are activated.
+
 - Builder declarations for payer-supplied Pay recipients and Split recipients,
   allocations and additional rosters (#1161), with constant defaults and stable
   configured rows. Review the full immediate payment path and its exact constants

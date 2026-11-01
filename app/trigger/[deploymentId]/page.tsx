@@ -5,6 +5,9 @@ import { inboundRequirement } from "@/lib/flows/inbound-amount";
 import { payoutRecipients } from "@/lib/flows/payout-recipients";
 import { checkPayoutTrustlines } from "@/lib/stellar/trustline-check";
 import TriggerClient from "./trigger-client";
+import { hasExecutionPolicies } from "@/lib/api/v1/execution-schema";
+import { env } from "@/lib/env";
+import HostedPaymentForm from "@/components/deploy/hosted-payment-form";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +18,24 @@ export default async function TriggerPage({
 }) {
   const { deploymentId } = await params;
   const d = await db.deployment.findFirst({
-    where: { id: deploymentId, status: "CONFIRMED", serviceState: "ACTIVE" },
+    where: { id: deploymentId, status: "CONFIRMED" },
     include: {
       flow: { select: { name: true, templateKind: true } },
     },
   });
+  if (d && hasExecutionPolicies(d.graphSnapshot)) {
+    if (d.network !== env().STELLAR_NETWORK) notFound();
+    const enabled = d.hostedExecutionEnabled && d.serviceState === "ACTIVE";
+    return (
+      <HostedPaymentForm
+        key={d.id}
+        deploymentId={d.id}
+        flowName={enabled ? d.flow.name : "Payment receipt"}
+        network={env().STELLAR_NETWORK}
+        enabled={enabled}
+      />
+    );
+  }
   const pipeline = d?.pipelineSnapshot as Array<{
     nodeId: string;
     contractAddress: string;
@@ -32,6 +48,7 @@ export default async function TriggerPage({
 
   if (
     !d ||
+    d.serviceState !== "ACTIVE" ||
     (!isPipeline && !isWebhook && d.flow.templateKind !== "SPLITTER" && !isStreamer) ||
     !d.contractAddress
   )

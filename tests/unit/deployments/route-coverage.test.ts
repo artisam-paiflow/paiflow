@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
+import { isGuardedHostedRoute } from "@/tests/helpers/hosted-route-coverage";
 
 function routeFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -43,9 +44,14 @@ describe("deployment service admission coverage", () => {
           )
             continue;
           expect(
-            declaration.initializer &&
-              ts.isCallExpression(declaration.initializer) &&
-              declaration.initializer.expression.getText(ast) === "deploymentServiceRoute",
+            isGuardedHostedRoute(
+              source,
+              path.relative(process.cwd(), file),
+              declaration.name.text,
+            ) ||
+              (declaration.initializer &&
+                ts.isCallExpression(declaration.initializer) &&
+                declaration.initializer.expression.getText(ast) === "deploymentServiceRoute"),
           ).toBe(true);
           guarded++;
         }

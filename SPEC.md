@@ -244,6 +244,16 @@ Deferred configuration:
 
 ### 3.4.1 Reusable-flow field policies (phased delivery)
 
+Hosted forms for policy-aware deployments require explicit owner opt-in, defaulting
+off. A payer needs a wallet, not a Paiflow account, and reviews exact constants,
+declared inputs, amounts, fees, revisions and network before signing the payment.
+A separate sign-only, sequence-zero wallet ownership proof is required before a
+new hosted preparation can reserve a payer; receipt recovery uses its original
+capability and exact request without a fresh proof. Visibility
+does not restrict direct on-chain calls. Opt-out closes new hosted payments while
+retaining capability-scoped recovery of already prepared payments; unknown signing
+or finality never invites a replacement payment. See [hosted execution](docs/hosted-execution.md).
+
 New deployments will use one standard contract family with lifetime-fixed per-field
 modes: constant (default), declared per-execution inputs, or admin-mutable stored
 configuration. Pay execution inputs cover its recipient only; Split covers identified

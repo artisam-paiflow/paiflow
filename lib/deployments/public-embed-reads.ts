@@ -31,6 +31,7 @@ export async function publicEmbedDeployment(req: Request, id: string) {
       network: true,
       graphSnapshot: true,
       pipelineSnapshot: true,
+      hostedExecutionEnabled: true,
       flow: { select: { templateKind: true } },
     },
   });

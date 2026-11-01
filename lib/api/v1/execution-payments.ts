@@ -1,7 +1,7 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import type { Deployment } from "@prisma/client";
+import type { Deployment, Prisma } from "@prisma/client";
 import { stellarPassphrase } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import {
@@ -34,6 +34,9 @@ export async function prepareExecutionPayment(
   deployment: Deployment,
   input: ExecutePrepare,
   keyHash: string | null,
+  assertAdmission?: (client: Prisma.TransactionClient) => Promise<void>,
+  /** Hashed public receipt capability, persisted atomically with first admission. */
+  hostedAccessHash?: string,
 ) {
   const requestDigest = executionRequestDigest({
     deploymentId: deployment.id,
@@ -89,6 +92,8 @@ export async function prepareExecutionPayment(
     preparationLedger: current.confirmedLedger,
     keyHash,
     requestDigest,
+    assertAdmission,
+    hostedAccessHash,
   });
 }
 
@@ -137,6 +142,7 @@ export async function submitExecutionPayment(input: {
   intent?: string;
   wait: boolean;
   ip: string;
+  assertAdmission?: (client: Prisma.TransactionClient) => Promise<void>;
 }): Promise<TransactionStatus> {
   const saved = await readExecutionForSubmission(
     input.deployment.id,

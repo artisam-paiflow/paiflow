@@ -165,7 +165,13 @@ beforeEach(() => {
   mocks.expired.mockResolvedValue(false);
 });
 async function prepare(
-  options: { intent?: ExecutionIntent; keyHash?: string | null; digest?: string } = {},
+  options: {
+    intent?: ExecutionIntent;
+    keyHash?: string | null;
+    digest?: string;
+    assertAdmission?: Parameters<typeof createExecutionIntent>[0]["assertAdmission"];
+    hostedAccessHash?: string;
+  } = {},
 ) {
   const intent = options.intent ?? execution();
   return createExecutionIntent({
@@ -181,6 +187,8 @@ async function prepare(
     preparationLedger: 10,
     keyHash: options.keyHash ?? null,
     requestDigest: options.digest ?? "ef".repeat(32),
+    assertAdmission: options.assertAdmission,
+    hostedAccessHash: options.hostedAccessHash,
   });
 }
 function signed(
@@ -197,6 +205,30 @@ function signed(
 }
 
 describe("durable exact execution preparation", () => {
+  it("commits server-derived hosted capability with the reservation under admission", async () => {
+    const assertAdmission = vi.fn(async () => {
+      expect(rows).toHaveLength(0);
+    });
+    const hostedAccessHash = "ab".repeat(32);
+    await prepare({ keyHash: "cd".repeat(32), assertAdmission, hostedAccessHash });
+    expect(rows[0]!.hostedAccessHash).toBe(hostedAccessHash);
+    expect(assertAdmission).toHaveBeenCalledWith(mocks.db);
+    expect(mocks.db.walletControlIntent.updateMany).not.toHaveBeenCalled();
+  });
+  it("refuses hosted evidence without server admission and scoped idempotency", async () => {
+    await expect(prepare({ hostedAccessHash: "ab".repeat(32) })).rejects.toMatchObject({
+      code: "VALIDATION",
+    });
+    expect(rows).toHaveLength(0);
+  });
+  it("runs public visibility admission under the lock before creating a preparation", async () => {
+    const assertAdmission = vi.fn(async () => {
+      throw new Error("owner opted out");
+    });
+    await expect(prepare({ assertAdmission })).rejects.toThrow("owner opted out");
+    expect(assertAdmission).toHaveBeenCalledWith(mocks.db);
+    expect(rows).toHaveLength(0);
+  });
   it("persists unsigned evidence before signing and reuses key without generating a new payment", async () => {
     const first = await prepare({ keyHash: "12".repeat(32) });
     const second = await prepare({
@@ -314,6 +346,25 @@ describe("durable exact execution preparation", () => {
   );
 });
 describe("one-send wallet intent lifecycle for execution", () => {
+  it("fences public owner opt-out before durable send claim or signer writes", async () => {
+    const prepared = await prepare();
+    await expect(
+      submitControlIntent({
+        deployment,
+        intent: prepared.intent!,
+        action: "payment.execute",
+        signedXdr: signed(prepared),
+        ip: "ip",
+        assertEligible: async () => undefined,
+        assertAdmission: async () => {
+          throw new Error("owner opted out");
+        },
+      }),
+    ).rejects.toThrow("owner opted out");
+    expect(rows[0]!.state).toBe("PREPARED");
+    expect(mocks.rpc.sendTransaction).not.toHaveBeenCalled();
+    expect(mocks.db.auditLog.create).not.toHaveBeenCalled();
+  });
   const submit = (prepared: Awaited<ReturnType<typeof prepare>>) =>
     submitControlIntent({
       deployment,

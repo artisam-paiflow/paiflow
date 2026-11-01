@@ -374,6 +374,8 @@ model Deployment {
   sourceAccount           String?
   distributeAmountStroops String?
   webhookSecret           String?
+  // Explicit owner opt-in for the policy-aware public wallet payment form.
+  hostedExecutionEnabled  Boolean                @default(false)
   chargeRelayerMode       ChargeRelayerMode      @default(MANUAL)
   chargeRelayerUrl        String?
   chargeRelayerToken      String?
@@ -879,6 +881,8 @@ model WalletControlIntent {
   executionArtifacts Json?
   idempotencyKeyHash String?
   requestDigest      String?
+  // Hash of a random browser recovery capability. Never a wallet/API credential.
+  hostedAccessHash   String?
   // PREPARED -> SUBMITTING -> SUCCESS|FAILED|EXPIRED. Uncertainty never clears a reservation.
   state             WalletControlState @default(PREPARED)
   ledger            Int?
@@ -889,6 +893,7 @@ model WalletControlIntent {
   @@index([deploymentId, network, nodeId, state])
   @@index([deploymentId, network, action, walletAddress, state], map: "WalletControlIntent_execution_payer_state_idx")
   @@unique([deploymentId, network, idempotencyKeyHash])
+  @@index([deploymentId, network, hostedAccessHash])
 }
 
 /// Historical storage only: excluded from generated runtime CRUD.

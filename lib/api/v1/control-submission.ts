@@ -1,6 +1,6 @@
 import "server-only";
 import { signedTokenAttribution, type ApiTokenType } from "@/lib/api/v1/auth";
-import type { Deployment } from "@prisma/client";
+import type { Deployment, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { AppError } from "@/lib/errors";
@@ -33,6 +33,8 @@ export async function submitControlIntent(input: {
   ip: string;
   /** Check live controller/config/permissions. Token ownership is never wallet authorization. */
   assertEligible: () => Promise<void>;
+  /** Extra visibility admission is serialized with owner opt-out before first send. */
+  assertAdmission?: (client: Prisma.TransactionClient) => Promise<void>;
 }): Promise<TransactionStatus> {
   if (!input.tokenId && input.action !== "payment.execute")
     throw new AppError("FORBIDDEN", "This wallet control requires an authenticated API credential");
@@ -52,6 +54,7 @@ export async function submitControlIntent(input: {
       const service = await lockDeployment(client, input.deployment.id);
       if (service.serviceState !== "ACTIVE")
         throw new AppError("CONFLICT", "Deployment service is closed");
+      await input.assertAdmission?.(client);
       const { count } = await client.walletControlIntent.updateMany({
         where: { id: intent.id, state: "PREPARED" },
         data: { state: "SUBMITTING", submittedAt: new Date() },
