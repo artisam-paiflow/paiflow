@@ -7,6 +7,13 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Payer-bound execution input contracts and compiler support (#1159) for immediate
+  Receive → Pay → terminal Pay/Split paths. Preserve constant recipients/allocations,
+  enforce exact fixed execution splits, revisions and replay deadlines, and prevent
+  old entry points/routing setters from bypassing new policies. Deployment refuses
+  unknown/legacy artifacts and records reviewed hashes/capabilities; no artifacts are
+  uploaded or activated by this change. Existing mode-less deployments stay unchanged.
+
 - Shared versioned field-policy and input contracts for reusable flows (#1158):
   distinguish execution arguments, private template creation bindings and guarded
   stored updates. Preserve policies on draft save and reject explicit v1 deployment

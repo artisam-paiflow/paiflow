@@ -1,11 +1,17 @@
 #![no_std]
 #![allow(clippy::too_many_arguments)]
+#[path = "../../../execution-v1.rs"]
+pub mod execution_v1;
 #[path = "../../../payment-math.rs"]
 mod payment_math;
+use execution_v1::{
+    Capabilities, ExecutionContext, ExecutionError, FieldMode, NodeInput, PayConfig, PayState,
+    PayoutRule, PolicyKey, Target,
+};
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, token,
-    vec, Address, Env, IntoVal, String, Vec,
+    vec, Address, Env, IntoVal, String, TryFromVal, Val, Vec,
 };
 
 #[contracttype]
@@ -52,7 +58,7 @@ impl Payer {
         env: Env,
         admin: Address,
         asset: Address,
-        recipient: Address,
+        recipient: Val,
         amount: i128,
         percentage_bps: u32,
         next_steps: Vec<WorkflowTarget>,
@@ -61,6 +67,31 @@ impl Payer {
         if env.storage().instance().has(&Key::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
         }
+        let recipient = if let Ok(legacy) = Address::try_from_val(&env, &recipient) {
+            Some(legacy)
+        } else {
+            let config = PayConfig::try_from_val(&env, &recipient)
+                .unwrap_or_else(|_| execution_v1::fail(&env, ExecutionError::InvalidPolicy));
+            execution_v1::validate_pay(&env, &config);
+            execution_v1::require_contract(&env, &asset);
+            execution_v1::require(&env, next_steps.len() <= 1, ExecutionError::InvalidPolicy);
+            execution_v1::require_contract(&env, &parent);
+            for step in next_steps.iter() {
+                execution_v1::require_contract(&env, &step.address);
+                execution_v1::require(&env, step.data.is_empty(), ExecutionError::InvalidPolicy);
+            }
+            execution_v1::require(
+                &env,
+                match config.payout_rule {
+                    PayoutRule::Full => amount == 0 && percentage_bps == 10_000,
+                    PayoutRule::Percentage(bps) => amount == 0 && bps == percentage_bps,
+                    PayoutRule::Fixed(value) => amount == value && percentage_bps == 0,
+                },
+                ExecutionError::InvalidPolicy,
+            );
+            env.storage().instance().set(&PolicyKey::Pay, &config);
+            config.recipient
+        };
         if amount < 0 || (amount == 0 && percentage_bps == 0) {
             panic_with_error!(&env, Error::InvalidAmount);
         }
@@ -69,7 +100,9 @@ impl Payer {
         }
         env.storage().instance().set(&Key::Admin, &admin);
         env.storage().instance().set(&Key::Asset, &asset);
-        env.storage().instance().set(&Key::Recipient, &recipient);
+        if let Some(recipient) = recipient {
+            env.storage().instance().set(&Key::Recipient, &recipient);
+        }
         env.storage().instance().set(&Key::Amount, &amount);
         env.storage()
             .instance()
@@ -80,11 +113,13 @@ impl Payer {
     }
 
     pub fn execute_step(env: Env, asset: Address, amount: i128) {
+        execution_v1::require_legacy(&env);
         require_parent(&env, None);
         execute_payment(&env, &asset, amount);
     }
 
     pub fn cancel(env: Env) {
+        execution_v1::require_legacy(&env);
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
         admin.require_auth();
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
@@ -118,6 +153,7 @@ impl Payer {
     }
 
     pub fn set_next_steps(env: Env, next_steps: Vec<WorkflowTarget>) {
+        execution_v1::require_legacy(&env);
         Self::require_admin(&env);
         env.storage().instance().set(&Key::NextSteps, &next_steps);
     }
@@ -136,8 +172,120 @@ impl Payer {
         amount: i128,
         _next_steps: Vec<WorkflowTarget>,
     ) {
+        execution_v1::require_legacy(&env);
         require_parent(&env, Some(&_from));
         execute_payment(&env, &asset, amount);
+    }
+
+    pub fn execute_step_v1(env: Env, context: ExecutionContext, asset: Address, amount: i128) {
+        let config: PayConfig = env
+            .storage()
+            .instance()
+            .get(&PolicyKey::Pay)
+            .unwrap_or_else(|| execution_v1::fail(&env, ExecutionError::Unsupported));
+        let parent: Address = env.storage().instance().get(&Key::ParentNode).unwrap();
+        let stored_asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
+        execution_v1::require(&env, stored_asset == asset, ExecutionError::Unauthorized);
+        execution_v1::check_node(&env, &context, &config.node_id, &parent, &asset, amount);
+        let input = execution_v1::find_input(&env, &context, &config.node_id);
+        let recipient = match config.recipient_mode {
+            FieldMode::Constant => {
+                execution_v1::require(&env, input.is_none(), ExecutionError::InvalidInput);
+                config.recipient.unwrap()
+            }
+            FieldMode::Execution => match input {
+                Some(NodeInput::Pay(value)) => value.recipient,
+                _ => execution_v1::fail(&env, ExecutionError::InvalidInput),
+            },
+            FieldMode::Mutable => execution_v1::fail(&env, ExecutionError::Unsupported),
+        };
+        execution_v1::require_wallet(&env, &recipient);
+        let payment = match config.payout_rule {
+            PayoutRule::Full => amount,
+            PayoutRule::Fixed(value) => {
+                execution_v1::require(&env, amount >= value, ExecutionError::InvalidAmount);
+                value
+            }
+            PayoutRule::Percentage(bps) => payment_math::percentage_share(amount, bps)
+                .unwrap_or_else(|| execution_v1::fail(&env, ExecutionError::ArithmeticOverflow)),
+        };
+        let remaining = amount
+            .checked_sub(payment)
+            .unwrap_or_else(|| execution_v1::fail(&env, ExecutionError::ArithmeticOverflow));
+        let next: Vec<WorkflowTarget> = env.storage().instance().get(&Key::NextSteps).unwrap();
+        if let Some(step) = next.first() {
+            // A configured payout that exhausts this invocation cannot execute a downstream input.
+            execution_v1::require(&env, remaining > 0, ExecutionError::InvalidAmount);
+            execution_v1::require(
+                &env,
+                context.index + 1 < context.bindings.len(),
+                ExecutionError::InvalidInput,
+            );
+            if payment > 0 {
+                execution_v1::transfer_exact(
+                    &env,
+                    &asset,
+                    &env.current_contract_address(),
+                    &recipient,
+                    payment,
+                );
+            }
+            execution_v1::forward(&env, context, &step.address, remaining);
+        } else {
+            execution_v1::require(
+                &env,
+                context.index + 1 == context.bindings.len(),
+                ExecutionError::InvalidInput,
+            );
+            if payment > 0 {
+                execution_v1::transfer_exact(
+                    &env,
+                    &asset,
+                    &env.current_contract_address(),
+                    &recipient,
+                    payment,
+                );
+            }
+            // Only this invocation's unused budget returns to its payer; never sweep old holdings.
+            if remaining > 0 {
+                execution_v1::transfer_exact(
+                    &env,
+                    &asset,
+                    &env.current_contract_address(),
+                    &context.payer,
+                    remaining,
+                );
+            }
+        }
+        bump_ttl(&env);
+        #[allow(deprecated)]
+        env.events()
+            .publish((symbol_short!("pay"), recipient), (asset, payment));
+    }
+    pub fn capabilities(env: Env) -> Capabilities {
+        execution_v1::capabilities(&env)
+    }
+    pub fn config_revision(env: Env) -> u64 {
+        execution_v1::revision(&env)
+    }
+    pub fn field_policy(env: Env) -> PayConfig {
+        env.storage()
+            .instance()
+            .get(&PolicyKey::Pay)
+            .unwrap_or_else(|| execution_v1::fail(&env, ExecutionError::Unsupported))
+    }
+    pub fn current_config(env: Env) -> PayState {
+        let next: Vec<WorkflowTarget> = env.storage().instance().get(&Key::NextSteps).unwrap();
+        let next_val: Val = next.into_val(&env);
+        PayState {
+            policy: Self::field_policy(env.clone()),
+            revision: execution_v1::revision(&env),
+            asset: env.storage().instance().get(&Key::Asset).unwrap(),
+            parent: env.storage().instance().get(&Key::ParentNode).unwrap(),
+            next_steps: Vec::<Target>::try_from_val(&env, &next_val).unwrap(),
+            amount: env.storage().instance().get(&Key::Amount).unwrap(),
+            percentage_bps: env.storage().instance().get(&Key::PercentageBps).unwrap(),
+        }
     }
 }
 

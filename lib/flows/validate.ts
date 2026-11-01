@@ -422,19 +422,41 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
     };
   }
   const originalGraph = parsed.data;
-  if (originalGraph.fieldPolicies !== undefined)
-    return {
-      ok: false,
-      errors: [
-        {
-          path: "fieldPolicies",
-          code: "FIELD_POLICY_UNSUPPORTED",
-          message: "Versioned field policies are not supported by the current deployment artifacts",
-          friendlyMessage:
-            "This deployment requires field-policy support that is not available yet.",
-        },
-      ],
-    };
+  if (originalGraph.fieldPolicies !== undefined) {
+    try {
+      const compiled = flowToPipeline(originalGraph, undefined, { forValidation: true });
+      const emails = originalGraph.nodes.flatMap((node) =>
+        node.type === "pay"
+          ? [node.config.email]
+          : node.type === "split"
+            ? node.config.recipients.map((row) => row.email)
+            : [],
+      );
+      if (!ignoreOwnerEmail) emails.push(originalGraph.notify?.sendTo);
+      if (emails.some((email) => email && !isValidEmailAddress(email)))
+        throw new Error("Invalid notification email");
+      return {
+        ok: true,
+        templateKind: TemplateKind.SPLITTER,
+        pipeline: compiled.map((node) => node.templateKind),
+        graph: originalGraph,
+        pendingLabels: [],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unsupported field policy";
+      return {
+        ok: false,
+        errors: [
+          {
+            path: "fieldPolicies",
+            code: "FIELD_POLICY_UNSUPPORTED",
+            message,
+            friendlyMessage: message,
+          },
+        ],
+      };
+    }
+  }
   const outcomeIssues = terminalOutcomeIssues(originalGraph);
   if (outcomeIssues.length) return { ok: false, errors: outcomeIssues };
   let graph: FlowGraph;

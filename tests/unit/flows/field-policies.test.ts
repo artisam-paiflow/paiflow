@@ -67,16 +67,16 @@ describe("versioned lifetime field policies", () => {
     const constant = FlowGraphSchema.parse({ ...graph, fieldPolicies: payPolicies("constant") });
     expect(legacy.fieldPolicies).toBeUndefined();
     expect(validateFlow(legacy).ok).toBe(true);
-    expect(validateFlow(constant).ok).toBe(false);
+    expect(validateFlow(constant).ok).toBe(true);
     expect(flowToPipeline(legacy)).toHaveLength(2);
-    expect(() => flowToPipeline(constant)).toThrow("not supported");
+    expect(flowToPipeline(constant)[1]?.params).toHaveProperty("fieldPolicy");
     expect(
       FlowFieldPoliciesSchema.parse({ version: 1, nodes: [{ kind: "pay", nodeId: "pay" }] })
         .nodes[0],
     ).toMatchObject({ recipient: "constant", payoutValue: "constant" });
   });
   it.each(["execution", "mutable"])(
-    "saves %s policies intact but refuses validation and compiler deployment",
+    "preserves %s policies and only compiles implemented execution semantics",
     (mode) => {
       const saved = FlowSaveSchema.parse({
         name: "Draft",
@@ -84,12 +84,17 @@ describe("versioned lifetime field policies", () => {
       });
       expect(saved.graph.fieldPolicies?.nodes[0]).toMatchObject({ recipient: mode });
       const result = validateFlow(saved.graph);
-      expect(result.ok).toBe(false);
+      expect(result.ok).toBe(mode === "execution");
       if (!result.ok)
         expect(result.errors).toContainEqual(
           expect.objectContaining({ code: "FIELD_POLICY_UNSUPPORTED" }),
         );
-      expect(() => flowToPipeline(saved.graph)).toThrow("not supported");
+      if (mode === "mutable") expect(() => flowToPipeline(saved.graph)).toThrow("not implemented");
+      else
+        expect(flowToPipeline(saved.graph)[1]?.params).toHaveProperty(
+          "fieldPolicy.recipient",
+          "execution",
+        );
     },
   );
   it.each([

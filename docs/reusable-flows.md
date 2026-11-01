@@ -4,19 +4,21 @@ Foundation for [#1158](https://github.com/webnxt-2030/pinkraft/issues/1158), und
 [#848](https://github.com/webnxt-2030/pinkraft/issues/848). This is the shared handoff
 for execution parameters, private templates/isolated instances, then stored mutations.
 The schemas in `lib/flows/field-policies.ts` are the wire authority. No contract
-artifacts, runtime entry points, public endpoints or mutable configuration are
-activated by this foundation. Existing deployed contracts are unchanged.
+artifacts or public endpoints are activated by the foundation. #1159 implements
+the contract/compiler execution lane described in [execution-v1.md](execution-v1.md).
+Its local builds are not artifact activation. Existing deployed contracts are unchanged.
 
 ## Availability and compatibility
 
 An absent `graph.fieldPolicies` means the existing configured behavior: no execution
 inputs or new stored mutation authority. Do not retrofit legacy deployments or
 claim their old setter/routing semantics satisfy v1 lifetime guarantees. Explicit
-`fieldPolicies: { version: 1, nodes: [...] }` is preserved on save. At this phase
-**every explicit v1 table, including all-constant/empty tables, is refused by both
-validation and compilation**. Legacy artifacts cannot enforce that table. #1159
-may lift this guard only for pinned, verified policy-capable artifacts and supported
-paths; an env flag or graph declaration is insufficient. Unsupported phases must
+`fieldPolicies: { version: 1, nodes: [...] }` is preserved on save. Supported
+immediate-path tables can be validated and compiled; deployment requires the exact
+reviewed policy-capable hashes for every participating contract, including all-constant
+and empty tables. Legacy artifacts cannot enforce that table. #1159 implements this
+check against the pinned manifest; an env flag or graph declaration is insufficient.
+Unsupported paths and mutable phases must
 continue to fail closed. No existing contract is upgraded automatically.
 
 Unknown version, keys, modes, policy node kinds and input keys are errors; strict

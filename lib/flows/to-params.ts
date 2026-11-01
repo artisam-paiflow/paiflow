@@ -1,6 +1,7 @@
 import { StrKey } from "@stellar/stellar-sdk";
 import { TemplateKind } from "@prisma/client";
-import { assertFieldPoliciesDeployable } from "./field-policies";
+import type { PayFieldPolicy, SplitFieldPolicy } from "./field-policies";
+import { compileExecutionPipeline } from "./execution-v1";
 import { hasRetiredPayrollInput, PAYROLL_RETIRED_MESSAGE } from "./retired-payroll";
 import { DEPLOYING_WALLET, resolveOwnerReturns, terminalOutcomeIssues } from "./terminal-outcomes";
 import type {
@@ -30,6 +31,7 @@ import { inFlowOrder } from "./graph";
 import { directBinding, type PipelineImplementation } from "./implementation";
 import { conditionBranchTargets, routerPaths, timelockLists } from "./branches";
 export type PipelineRecipient = {
+  rowId?: string;
   address: string;
   bps: number;
   amount: string;
@@ -63,6 +65,8 @@ export type DepositTriggerNodeParams = {
   kind: "deposit_trigger";
   asset: Asset;
   nextStepNodeIds: string[];
+  executionNodeId?: string;
+  minAmountStroops?: string;
 };
 export type SplitterNodeParams = {
   kind: "splitter";
@@ -70,6 +74,7 @@ export type SplitterNodeParams = {
   recipients: PipelineRecipient[];
   minAmountStroops: string;
   nextStepNodeIds: string[];
+  fieldPolicy?: SplitFieldPolicy;
 };
 export type StreamerNodeParams = {
   kind: "streamer";
@@ -175,6 +180,8 @@ export type PayerNodeParams = {
   mode: "fixed" | "percentage";
   percentageBps?: number;
   nextStepNodeIds: string[];
+  fieldPolicy?: PayFieldPolicy;
+  fullAmount?: boolean;
 };
 export type PipelineNodeParams =
   | DepositTriggerNodeParams
@@ -465,7 +472,7 @@ export function flowToPipeline(
   } = {},
 ): CompiledPipelineNode[] {
   graph = FlowGraphSchema.parse(migrateFlowGraph(graph));
-  assertFieldPoliciesDeployable(graph.fieldPolicies);
+  if (graph.fieldPolicies !== undefined) return compileExecutionPipeline(graph);
   const outcomeIssues = terminalOutcomeIssues(graph);
   if (outcomeIssues.length) throw new Error(outcomeIssues[0]!.message);
   const ownerReturns = new Set(

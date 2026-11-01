@@ -89,15 +89,6 @@ export const FlowFieldPoliciesSchema = z
   });
 export type FlowFieldPolicies = z.infer<typeof FlowFieldPoliciesSchema>;
 
-/** Current artifacts have no v1 policy enforcement. A later compiler must remove
- * this gate only after verified artifact capability discovery, never by a flag. */
-export function assertFieldPoliciesDeployable(policies: FlowFieldPolicies | undefined): void {
-  if (policies !== undefined)
-    throw new Error(
-      "Versioned field policies are not supported by the current deployment artifacts",
-    );
-}
-
 const boundedDecimal = (max: string, positive: boolean) =>
   z
     .string()

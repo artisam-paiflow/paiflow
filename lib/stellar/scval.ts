@@ -2,6 +2,7 @@ import "server-only";
 import { Address, nativeToScVal, xdr } from "@stellar/stellar-sdk";
 import type { ContractParams, PipelineNodeParams } from "@/lib/flows/to-params";
 import { assetContractId } from "./assets";
+import { executionConstructorConfig } from "./execution-v1";
 function addr(a: string): xdr.ScVal {
   return new Address(a).toScVal();
 }
@@ -128,7 +129,9 @@ export function pipelineNodeConstructorArgs(
       return [
         addr(admin),
         addr(assetContractId(params.asset)),
-        workflowTargets(params.nextStepNodeIds, nodeAddresses),
+        params.executionNodeId
+          ? executionConstructorConfig(params, nodeAddresses)
+          : workflowTargets(params.nextStepNodeIds, nodeAddresses),
       ];
     }
     case "splitter": {
@@ -136,7 +139,9 @@ export function pipelineNodeConstructorArgs(
       return [
         addr(admin),
         addr(assetContractId(params.asset)),
-        recipientsVec(params.recipients, nodeAddresses),
+        params.fieldPolicy
+          ? executionConstructorConfig(params, nodeAddresses)
+          : recipientsVec(params.recipients, nodeAddresses),
         i128(params.minAmountStroops),
         addr(parentAddress),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
@@ -285,7 +290,9 @@ export function pipelineNodeConstructorArgs(
       return [
         addr(admin),
         addr(assetContractId(params.asset)),
-        addr(nodeAddresses[params.recipient] ?? params.recipient),
+        params.fieldPolicy
+          ? executionConstructorConfig(params, nodeAddresses)
+          : addr(nodeAddresses[params.recipient] ?? params.recipient),
         i128(params.amountStroops),
         u32(params.percentageBps ?? 0),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),

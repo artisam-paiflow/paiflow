@@ -14,14 +14,25 @@ export function isPendingAddress(addr: string): boolean {
 export function getPendingLabels(graph: FlowGraph): string[] {
   const labels = new Set<string>();
   for (const n of graph.nodes) {
+    const policy = graph.fieldPolicies?.nodes.find((p) => p.nodeId === n.id);
     if (n.type === "split") {
       for (const r of n.config.recipients) {
-        if (isPendingAddress(r.address)) {
+        if (
+          isPendingAddress(r.address) &&
+          !(
+            policy?.kind === "split" &&
+            policy.rows.find((row) => row.rowId === r.rowId)?.recipient === "execution"
+          )
+        ) {
           labels.add(r.label ?? "unnamed");
         }
       }
     }
-    if (n.type === "pay" && isPendingAddress(n.config.recipient)) {
+    if (
+      n.type === "pay" &&
+      isPendingAddress(n.config.recipient) &&
+      !(policy?.kind === "pay" && policy.recipient === "execution")
+    ) {
       labels.add(n.config.recipient.slice(PENDING_PREFIX.length) || "unnamed");
     }
     if (n.type === "webhook" && isPendingAddress(n.config.relayer)) {

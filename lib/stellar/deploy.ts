@@ -40,6 +40,8 @@ import { simulationFailure } from "./sim-error";
 import { loadPaymentAccount, MissingPaymentAccountError } from "./load-payment-account";
 import { deploymentPreparationRead } from "./deployment-preparation";
 import { contractKeyForTemplate, type ContractErrorKey } from "./soroban-errors";
+import { executionArtifactMetadata } from "./execution-artifacts";
+import type { ArtifactCapabilities } from "@/lib/flows/field-policies";
 // 2 XLM covers: 1 XLM base reserve + ~0.5 XLM Soroban storage entries + ~0.5 XLM tx fee buffer
 const MIN_DEPLOYMENT_XLM_STROOPS = 20000000n;
 export async function checkAccountFunding(
@@ -83,6 +85,8 @@ export type PreparedPipelineDeploy = {
     salt: Buffer;
     templateKind: string;
     implementation?: PipelineImplementation;
+    wasmHash?: string;
+    artifactCapabilities?: ArtifactCapabilities;
   }>;
 };
 type PipelinePlan = {
@@ -103,6 +107,24 @@ function buildPipelinePlan(
   graph: FlowGraph,
   nodes: PipelineDeployNode[],
 ): PipelinePlan {
+  if (graph.fieldPolicies !== undefined) {
+    for (const node of nodes) {
+      try {
+        executionArtifactMetadata(node.templateKind, node.wasmHash);
+      } catch {
+        throw new AppError(
+          "VALIDATION",
+          "The selected contract artifacts do not support this field policy",
+        );
+      }
+      const aware =
+        (node.params.kind === "deposit_trigger" && node.params.executionNodeId !== undefined) ||
+        ((node.params.kind === "payer" || node.params.kind === "splitter") &&
+          node.params.fieldPolicy !== undefined);
+      if (!aware)
+        throw new AppError("VALIDATION", "An execution path contains a legacy constructor");
+    }
+  }
   if (nodes.some((node) => node.implementation !== undefined)) {
     const issues = implementationIssues(graph, nodes);
     if (issues.length) throw new AppError("VALIDATION", issues[0]!.message);
@@ -184,6 +206,13 @@ async function preparePipelineDeployTxFromPlan(
     salt: p.salt,
     templateKind: p.templateKind,
     ...(p.implementation ? { implementation: p.implementation } : {}),
+    ...((p.params.kind === "deposit_trigger" && p.params.executionNodeId) ||
+    ((p.params.kind === "payer" || p.params.kind === "splitter") && p.params.fieldPolicy)
+      ? {
+          wasmHash: p.wasmHash,
+          artifactCapabilities: executionArtifactMetadata(p.templateKind, p.wasmHash),
+        }
+      : {}),
   }));
   // The diagnostic event log names the contract address that rejected —
   // map it back to the pipeline node's template for a precise message.
