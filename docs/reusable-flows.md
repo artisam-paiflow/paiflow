@@ -89,8 +89,12 @@ may replace the platform row, change assets/allocation mode, or change routing.
 
 ## Units, validation and payout order
 
-Limits: 40 policy/input nodes, 20 **combined** configured and additional recipients
-per Split; IDs match `[A-Za-z0-9_-]{1,64}`. Positive monetary values are canonical
+Structural ceilings: 40 policy/input nodes, 20 **combined** configured and additional recipients
+per Split; these are not a promise that every combination fits execution or deployment
+resources. Exact RPC simulation must pass before an unsigned transaction is returned.
+The [readiness evidence](execution-readiness.md#artifacts-resources-and-structural-bounds)
+includes a 40-node/20-recipient local memory refusal and distinguishes that bound from
+network-qualified layouts. IDs match `[A-Za-z0-9_-]{1,64}`. Positive monetary values are canonical
 decimal strings (`1` through signed i128 max), never JS numbers, signs, exponents,
 leading zeros, decimals or zero. Revisions are canonical decimal strings from `0`
 through u64 max; increment overflow fails. Bps are positive integers through 10,000.

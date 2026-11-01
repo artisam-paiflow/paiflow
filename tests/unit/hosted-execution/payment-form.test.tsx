@@ -54,7 +54,7 @@ beforeEach(() => {
     const saved = readHostedRecovery(key);
     const tx = TransactionBuilder.fromXDR(xdr, Networks.TESTNET) as Transaction;
     if (tx.sequence === "0") {
-      expect(saved?.phase).toBe("ownership");
+      expect(["ownership", "preparing"]).toContain(saved?.phase);
       expect(tx.operations[0]?.type).toBe("manageData");
     } else {
       expect(saved?.phase).toBe("signing");
@@ -124,16 +124,33 @@ function form(enabled = true) {
     />
   );
 }
-async function enter(recipient = alice) {
+async function enter(recipient = alice, waitForReview = true) {
   await screen.findByLabelText("Payment amount");
   fireEvent.change(screen.getByLabelText("Payment amount"), { target: { value: "0.00001" } });
   fireEvent.change(screen.getByLabelText("Payment recipient"), { target: { value: recipient } });
   fireEvent.click(screen.getByRole("button", { name: "Connect wallet" }));
   await screen.findByText(`Payer: ${payer.publicKey()}`);
   fireEvent.click(screen.getByRole("button", { name: "Prepare payment" }));
-  await screen.findByRole("region", { name: "Review payment" });
+  if (waitForReview) await screen.findByRole("region", { name: "Review payment" });
 }
 describe("wallet-only hosted execution fixture", () => {
+  it("rejects a confirmed immutable minimum shortfall before proof, persistence or preparation", async () => {
+    const originalFetch = fetcher.getMockImplementation()!;
+    fetcher.mockImplementation(async (url: string, options?: RequestInit) =>
+      url.endsWith("/state")
+        ? Response.json({ data: { ...hostedState, minAmountStroops: "200" } })
+        : originalFetch(url, options),
+    );
+    render(form());
+    await enter(alice, false);
+    expect((await screen.findByRole("alert")).textContent).toContain("minimum");
+    expect(readHostedRecovery(key)).toBeNull();
+    expect(wallet.sign).not.toHaveBeenCalled();
+    expect(
+      fetcher.mock.calls.some(([url]) => url.endsWith("/ownership") || url.endsWith("/prepare")),
+    ).toBe(false);
+    expect((screen.getByLabelText("Payment amount") as HTMLInputElement).disabled).toBe(false);
+  });
   it("never downgrades a restored in-flight financial preparation when a temporary missing row requests ownership", async () => {
     const recoveryKey = "ab".repeat(32);
     const request = {
@@ -144,25 +161,106 @@ describe("wallet-only hosted execution fixture", () => {
         inputs: [{ kind: "pay" as const, nodeId: "pay", recipient: alice }],
       },
     };
+    const originalFetch = fetcher.getMockImplementation()!;
+    fetcher.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (url.endsWith("/prepare") && current) {
+        const body = JSON.parse(String(options?.body));
+        expect(body.recoveryKey).toBe(recoveryKey);
+        expect(body.payment).toEqual(request);
+        return Response.json({ data: current });
+      }
+      return originalFetch(url, options);
+    });
+    const originalSign = wallet.sign.getMockImplementation()!;
+    wallet.sign.mockImplementationOnce(async (xdr: string) => {
+      expect(readHostedRecovery(key)).toEqual({ recoveryKey, phase: "preparing", request });
+      expect(screen.queryByRole("button", { name: "Edit payment inputs" })).toBeNull();
+      expect((TransactionBuilder.fromXDR(xdr, Networks.TESTNET) as Transaction).sequence).toBe("0");
+      // The original server request commits while the same-key proof dialog is open.
+      current = preparation(request);
+      return originalSign(xdr);
+    });
     localStorage.setItem(key, JSON.stringify({ recoveryKey, phase: "preparing", request }));
     render(form());
     await screen.findByLabelText("Payment amount");
     fireEvent.click(screen.getByRole("button", { name: "Connect wallet" }));
     await screen.findByText(`Payer: ${payer.publicKey()}`);
     fireEvent.click(screen.getByRole("button", { name: "Recover preparation" }));
-    await screen.findByRole("alert");
-    expect(current).toBeNull(); // Original authorized request may still be simulating.
-    expect(readHostedRecovery(key)).toEqual({ recoveryKey, phase: "preparing", request });
+    await screen.findByRole("region", { name: "Review payment" });
+    expect(readHostedRecovery(key)?.request).toEqual(request);
     expect(screen.queryByRole("button", { name: "Edit payment inputs" })).toBeNull();
-    expect(wallet.sign).not.toHaveBeenCalled();
-    expect(fetcher.mock.calls.filter(([url]) => url.endsWith("/ownership"))).toHaveLength(0);
-    // The original server request later commits; retry must recover its exact identity.
-    current = preparation(request);
+    expect(readHostedRecovery(key)?.recoveryKey).toBe(recoveryKey);
+    expect(readHostedRecovery(key)?.txHash).toBe(current!.prepared.txHash);
+    expect(wallet.sign).toHaveBeenCalledTimes(1); // Sign-only proof, never a payment.
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith("/ownership"))).toHaveLength(1);
+    expect(submissions).toHaveLength(0);
+  });
+
+  it("recovers the same non-editable request after its first simulation failed before any intent existed", async () => {
+    const originalFetch = fetcher.getMockImplementation()!;
+    let failed = false;
+    fetcher.mockImplementation(async (url: string, options?: RequestInit) => {
+      const body = options?.body ? JSON.parse(String(options.body)) : null;
+      if (url.endsWith("/prepare") && body?.ownershipProofXdr && !failed) {
+        failed = true;
+        return Response.json(
+          { error: { code: "UPSTREAM_RPC", message: "Simulation transport unavailable" } },
+          { status: 502 },
+        );
+      }
+      return originalFetch(url, options);
+    });
+    const view = render(form());
+    await enter(alice, false);
+    await screen.findByRole("alert");
+    const saved = readHostedRecovery(key)!;
+    expect(saved.phase).toBe("preparing");
+    expect(current).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit payment inputs" })).toBeNull();
+    view.unmount();
+    render(form());
+    fireEvent.click(await screen.findByRole("button", { name: "Connect wallet" }));
+    await screen.findByText(`Payer: ${payer.publicKey()}`);
     fireEvent.click(screen.getByRole("button", { name: "Recover preparation" }));
     await screen.findByRole("region", { name: "Review payment" });
-    expect(readHostedRecovery(key)?.recoveryKey).toBe(recoveryKey);
-    expect(wallet.sign).not.toHaveBeenCalled();
+    expect(readHostedRecovery(key)?.recoveryKey).toBe(saved.recoveryKey);
+    expect(readHostedRecovery(key)?.request).toEqual(saved.request);
+    expect(wallet.sign).toHaveBeenCalledTimes(2);
     expect(submissions).toHaveLength(0);
+    expect(
+      fetcher.mock.calls
+        .filter(([url]) => url.endsWith("/prepare"))
+        .map(([, options]) => JSON.parse(String(options?.body)).recoveryKey)
+        .every((key) => key === saved.recoveryKey),
+    ).toBe(true);
+  });
+  it("does not re-prove or discard a known intent/hash when its server receipt is unexpectedly unavailable", async () => {
+    const request = {
+      from: payer.publicKey(),
+      amount: "100",
+      arguments: {
+        version: 1 as const,
+        inputs: [{ kind: "pay" as const, nodeId: "pay", recipient: alice }],
+      },
+    };
+    const known = preparation(request).prepared;
+    const saved = {
+      recoveryKey: "ac".repeat(32),
+      request,
+      phase: "preparing" as const,
+      intent: known.intent,
+      txHash: known.txHash,
+    };
+    localStorage.setItem(key, JSON.stringify(saved));
+    render(form());
+    fireEvent.click(await screen.findByRole("button", { name: "Connect wallet" }));
+    await screen.findByText(`Payer: ${payer.publicKey()}`);
+    fireEvent.click(screen.getByRole("button", { name: "Recover preparation" }));
+    await screen.findByRole("alert");
+    expect(readHostedRecovery(key)).toEqual(saved);
+    expect(wallet.sign).not.toHaveBeenCalled();
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith("/ownership"))).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Edit payment inputs" })).toBeNull();
   });
   it("permits editing after sign-only proof interruption/reload without offering a missing payment receipt", async () => {
     wallet.sign.mockRejectedValueOnce(new Error("ownership interrupted"));

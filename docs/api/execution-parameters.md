@@ -63,13 +63,32 @@ wrong-key and wrong-network envelopes before relay (#550). Its historical submit
 semantics do not gain the policy-v1 exact-intent guarantee. The broader legacy public
 submission gap remains tracked in #851.
 
+The 40-node and 20-combined-recipient limits are **structural ceilings**, not a
+network execution guarantee for every combination. Every exact deployment/payment
+must pass RPC simulation before an unsigned envelope is returned. The
+[readiness/resource evidence](../execution-readiness.md) records representative
+local success, a 40-node memory refusal, dated public network settings and the
+remaining authorized network-simulation/activation gates.
+
+## SDK examples for reusable deployments
+
+[parameterized-execution.ts](../../packages/sdk/examples/parameterized-execution.ts)
+shows a Pay beneficiary and percentage/fixed additional worker rosters using the
+existing `deployment.execute` methods. Stored platform rows are not part of these
+input objects and cannot be overridden. Keep the deployment credential on your
+trusted server. Supply wallet consent through your application's existing signing
+boundary, retain the original preparation/hash/history metadata before signing,
+and submit it explicitly with its `intent`; neither the helper nor retrying an
+unknown outcome authorizes a new payment. These are unreleased source examples,
+not a claim that a new SDK package has been published.
+
 ## Hosted integration handoff
 
 Legacy public `/trigger`, `/submit-trigger` and `/submit-invoke` explicitly refuse
 policy-v1 deployments before signer/audit/relay writes. The opt-in hosted execution
-work (#1162) must reuse `prepareExecutionPayment`, `submitExecutionPayment` and the
-wallet-intent reconciliation/status services through its own public routes. It must
-check owner opt-in, bind the public request to its original payer/intent and expose
+work (#1162) reuses `prepareExecutionPayment`, `submitExecutionPayment` and the
+wallet-intent reconciliation/status services through its own public routes. It
+checks owner opt-in, binds the public request to its original payer/intent and exposes
 only safe receipt/status projections; knowing an intent never authorizes changes or
 another payment. No fake API credential or Paiflow payer account is needed.
 

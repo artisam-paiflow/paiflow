@@ -9,6 +9,12 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Cross-layer execution acceptance vectors join the production compiler, hosted/API
+  payment lifecycle and reviewed contract WASMs (#1163), including fixed 15% shares,
+  varied recipients, exact fixed rosters and resource-failure admission. Document
+  artifact compatibility, conditional activation/rollback and unperformed live gates;
+  no artifacts or hosted services are activated.
+
 - Private flow template drafts and immutable published versions with owner-only
   management APIs, declared typed creation bindings, retained retirement evidence
   and pinned network/factory/WASM/ABI compatibility checks (#1164). Binding previews
@@ -70,6 +76,15 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
   for migration guards and rollout limits.
 
 ### Changed
+
+- Recover a hosted first-preparation RPC failure by re-proving the same immutable
+  request/capability while retaining non-editable uncertainty. Concurrent original
+  and retry simulations preserve one intent; known receipts and uncertain payment
+  signatures never become replacement payments (#1163).
+
+- Replay the complete current migration chain after both historical payroll
+  preservation paths before schema comparison, retaining checksum and financial
+  evidence guards (#1163).
 
 - Add Aklan winners and the Blocktrain: Paiflow x Web3Iloilo showcase, include JRU’s fourth winning project Pundar, use champion/runner-up award labels throughout, and include the supplied Aklan and Iloilo winner/group photos.
 

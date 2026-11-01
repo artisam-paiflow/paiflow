@@ -80,9 +80,23 @@ lost acknowledgement cannot expose that safe-edit path. Legacy `preparing` recor
 remain conservative. A restored `preparing` record never downgrades to `ownership`
 on a missing server row or an ownership-required error: its original server
 request may still be simulating and can commit later. It retains the same key and
-request and retries only recovery, without requesting another proof. Reusing a key with changed inputs
+request. If no intent/hash has ever been learned and recovery requires ownership,
+the wallet may sign another sequence-zero proof **for that same immutable key and
+request**, while the browser stays `preparing` and non-editable. This recovers an
+RPC failure before admission without inventing a replacement identity; concurrent
+original/retry simulations serialize into one durable intent. It never signs or
+resends a payment automatically. A known intent/hash, payment-signing attempt or
+submitted state cannot use this fallback or discard its receipt. Reusing a key with changed inputs
 conflicts once an intent exists. Different recipients use separate completed payment
 intents, not a persistent last-recipient configuration.
+
+The client checks the confirmed immutable Receive minimum, required inputs and
+final Pay/Split totals before creating a recovery record or requesting ownership
+proof. A request already dispatched by an older/custom client still cannot be
+edited merely because it returns validation/resource failure or no receipt yet.
+Re-proof only retries its original inputs. A permanently invalid original request
+may therefore require owner/operator-assisted recovery; this change adds no
+cancel/tombstone protocol and makes no general safe-editing claim after dispatch.
 
 Before wallet access, public hash/intent/signing-attempt identity is saved and read
 back. The wallet must return the unchanged transaction for the original payer and

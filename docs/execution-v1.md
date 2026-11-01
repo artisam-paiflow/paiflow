@@ -186,6 +186,12 @@ inputs, unauthorized parents, stale revisions and replay without mock-all-auth.
 Network resource suitability remains a simulation and
 cross-layer acceptance concern in #1163. Actual activation requires separate approval.
 
+The [cross-layer acceptance and activation plan](execution-readiness.md) connects
+production-generated constructor/call XDR to HTTP/hosted flows and compiled WASMs,
+records the 20-recipient diagnostic and the 40-node memory refusal, and distinguishes
+dated public network settings from local SDK defaults. It is not an activation or
+funded-wallet acceptance record.
+
 ## Guarded mutation-capable artifact generation (#1168)
 
 The original execution-only hashes above remain trusted for existing pinned

@@ -3,6 +3,8 @@ import { z } from "zod";
 
 /** Wire version, not an app/API/SDK release number. See docs/reusable-flows.md. */
 export const FIELD_POLICY_VERSION = 1;
+/** Structural validation ceilings, not a guarantee that every combined layout
+ * fits network resources. Exact deployment/payment simulation remains required. */
 export const REUSABLE_LIMITS = {
   nodes: 40,
   recipients: 20,

@@ -207,8 +207,13 @@ export default function HostedPaymentForm({
         payment.arguments ?? { version: 1, inputs: [] },
         payment.amount,
       );
+      if (BigInt(payment.amount) < BigInt(state.minAmountStroops))
+        throw new Error(
+          `Enter at least ${formatStroops(state.minAmountStroops)} tokens to meet this flow’s minimum.`,
+        );
       const ownershipOnly = !previous || previous.phase === "ownership";
       const record: HostedBrowserRecovery = {
+        ...previous,
         recoveryKey: previous?.recoveryKey ?? randomRecoveryKey(),
         request: payment,
         phase: ownershipOnly ? "ownership" : "preparing",
@@ -218,7 +223,7 @@ export default function HostedPaymentForm({
       setPrepared(null);
       const request = { recoveryKey: record.recoveryKey, payment };
       let response: unknown;
-      if (ownershipOnly) {
+      const prepareWithProof = async () => {
         // A fresh/ownership-only record has never dispatched a signed proof.
         // A missing server row cannot establish this for a restored preparing record:
         // its original request may still be simulating and commit later.
@@ -227,7 +232,9 @@ export default function HostedPaymentForm({
         );
         assertHostedOwnershipChallenge(challenge, selected.address, network);
         setMessage(
-          "Verify wallet ownership in your wallet. This sign-only proof cannot move funds. You will review and sign the payment separately.",
+          ownershipOnly
+            ? "Verify wallet ownership in your wallet. This sign-only proof cannot move funds. You will review and sign the payment separately."
+            : "Verify ownership to recover this same preparation. Your inputs stay unchanged. This sign-only proof cannot move funds; payment review and signing remain separate.",
         );
         controller.current?.signal.throwIfAborted();
         if (connection.current !== selected) throw new Error("Wallet connection changed");
@@ -248,26 +255,36 @@ export default function HostedPaymentForm({
         // Persist uncertainty before the first request that can reserve the payer.
         save({ ...record, phase: "preparing" });
         // The proof stays in memory and is never sent to a transaction submission route.
-        response = await paymentRequest(`${base}/prepare`, {
+        return paymentRequest(`${base}/prepare`, {
           ...request,
           ownershipProofXdr: proof.signedTxXdr,
         });
+      };
+      if (ownershipOnly) {
+        response = await prepareWithProof();
       } else {
         try {
-          // Recover only the original exact preparation; do not sign another proof
-          // or downgrade uncertainty while a previous server request may be in flight.
+          // Recover only the original exact preparation. Missing rows never allow
+          // editing, clearing its capability, or creating another payment identity.
           response = await paymentRequest(`${base}/prepare`, request);
         } catch (err) {
-          if (err instanceof Error && "ownershipRequired" in err)
+          if (!(err instanceof Error) || !("ownershipRequired" in err)) throw err;
+          if (previous?.phase !== "preparing" || previous.intent || previous.txHash)
             throw new Error(
-              "The original preparation may still be in progress. Keep its recovery record and retry later; do not prepare a replacement payment.",
+              "Keep the original payment receipt and check its status; no replacement preparation is allowed.",
             );
-          throw err;
+          // An earlier simulation may have failed before admission, or may still
+          // commit. A new sign-only proof for the SAME immutable request/key is
+          // safe in either case: server admission serializes that identity into
+          // one intent. PREPARING remains non-editable throughout this retry.
+          response = await prepareWithProof();
         }
       }
       const result = HostedPreparedSchema.parse(response);
       if (
         result.prepared.network !== network ||
+        (record.intent !== undefined && result.prepared.intent !== record.intent) ||
+        (record.txHash !== undefined && result.prepared.txHash !== record.txHash) ||
         result.prepared.walletAddress !== payment.from ||
         result.prepared.execution.amountStroops !== payment.amount
       )
