@@ -7,6 +7,11 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Private flow template drafts and immutable published versions with owner-only
+  management APIs, declared typed creation bindings, retained retirement evidence
+  and pinned network/factory/WASM/ABI compatibility checks (#1164). Binding previews
+  validate all supported standard flow types without deploying instances.
+
 - Opt-in hosted payment forms for policy-v1 deployments (#1162). Wallet-only payers
   review required execution inputs, fixed destinations, revisions, amounts, fees
   and network before signing. Owner publishing is authenticated and audited;

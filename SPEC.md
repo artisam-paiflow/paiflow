@@ -285,6 +285,13 @@ Policy drafts may be saved before compatible artifacts are available, but their
 deployment controls remain unavailable until every participating artifact matches the
 reviewed manifest. Stored-update modes are not offered before that capability ships.
 
+Private template persistence and owner-session management now save drafts and
+publish immutable versions with typed declared creation bindings and pinned
+artifact/ABI/network evidence. Binding previews create no deployment; exact
+instantiation and hosted creation remain later lanes. Publication requires a
+configured deployable exemplar; required creation bindings never fall back to
+its values. See [private template versions](docs/flow-templates.md).
+
 ### 3.5 English Preview Pane
 
 `flowToEnglish(graph)` (`lib/flows/english.ts`) is a pure function rendering the canvas as prose, so

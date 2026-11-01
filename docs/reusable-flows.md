@@ -213,6 +213,10 @@ and must reuse these schemas; #1162 reuses the same execution/signature flow.
 
 ## Mutation, templates and persistence handoff
 
+The #1164 persistence/binding implementation and concrete field/lifecycle/API matrix
+are documented in [private template versions](flow-templates.md). It does not enable
+instantiation or broaden existing partner credential grants.
+
 `CreationBindings` names declared typed inputs of one immutable template version.
 #1164 owns concrete supported-field declarations, value-type matching, private
 version persistence and exact binding validation; #1165 pins the version/bindings/

@@ -147,6 +147,7 @@ model User {
 
   googleIdentities    GoogleIdentity[]
   googleLinkIntents   GoogleLinkIntent[]
+  flowTemplates       FlowTemplate[]
   flows               Flow[]
   deployments         Deployment[]
   passkeys            Passkey[]
@@ -963,4 +964,40 @@ model PayrollPayout {
   @@index([payrollRunId])
   @@index([employeeId])
   @@ignore
+}
+
+// Private reusable definitions; unrelated to the ContractTemplate WASM registry.
+model FlowTemplate {
+  id            String                @id @default(uuid()) @db.Uuid
+  ownerId       String                @db.Uuid
+  name          String
+  description   String?
+  draft         Json
+  draftRevision Int                   @default(1)
+  nextVersion   Int                   @default(1)
+  retiredAt     DateTime?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  owner         User                  @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  versions      FlowTemplateVersion[]
+
+  @@index([ownerId, createdAt(sort: Desc), id(sort: Desc)])
+}
+
+// Published contents never change, enforced by a migration trigger as well as APIs.
+model FlowTemplateVersion {
+  id          String       @id @default(uuid()) @db.Uuid
+  templateId  String       @db.Uuid
+  version     Int
+  definition  Json
+  network     String
+  artifacts   Json
+  contentHash String
+  expiresAt   DateTime?
+  retiredAt   DateTime?
+  createdAt   DateTime     @default(now())
+  template    FlowTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+
+  @@unique([templateId, version])
+  @@index([templateId, createdAt(sort: Desc), id(sort: Desc)])
 }

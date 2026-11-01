@@ -46,6 +46,9 @@ struct World {
 }
 impl World {
     fn terminal_pay(rule: pay::PayoutRule) -> Self {
+        Self::terminal_pay_with_minimum(rule, 1)
+    }
+    fn terminal_pay_with_minimum(rule: pay::PayoutRule, min_amount: i128) -> Self {
         let env = Env::default();
         env.mock_all_auths();
         env.ledger().set_sequence_number(10);
@@ -86,7 +89,7 @@ impl World {
         let config: Val = abi::RootConfig {
             version: 1,
             node_id: s(&env, "root"),
-            min_amount: 1,
+            min_amount,
             next_steps: vec![
                 &env,
                 abi::Target {
@@ -370,6 +373,40 @@ impl World {
     fn balance(&self, address: &Address) -> i128 {
         token::Client::new(&self.env, &self.asset).balance(address)
     }
+}
+
+// Template minimum declarations are supported only for this policy-aware
+// entrypoint, not by a legacy Splitter merely storing a constructor minimum.
+#[test]
+fn policy_root_minimum_rejects_below_threshold_before_any_funds_move() {
+    let w = World::terminal_pay_with_minimum(pay::PayoutRule::Full, 200);
+    let inputs = vec![
+        &w.env,
+        abi::NodeInput::Pay(abi::PayInput {
+            node_id: s(&w.env, "pay"),
+            recipient: w.worker.clone(),
+        }),
+    ];
+    let nonce = w.nonce(1);
+    let root = DepositTriggerClient::new(&w.env, &w.root);
+    w.authorize(199, &nonce, 100, &w.bindings, &inputs);
+    assert!(root
+        .try_execute_v1(&w.payer, &w.asset, &199, &nonce, &100, &w.bindings, &inputs)
+        .is_err());
+    assert_eq!(w.balance(&w.payer), 100_000);
+    assert_eq!(w.balance(&w.root), 0);
+    assert_eq!(w.balance(&w.split), 99);
+    assert_eq!(w.balance(&w.worker), 0);
+
+    // The failed call neither moved money nor consumed the payer's nonce. The
+    // same context, newly authorized at the exact minimum, pays the full amount.
+    w.authorize(200, &nonce, 100, &w.bindings, &inputs);
+    root.execute_v1(&w.payer, &w.asset, &200, &nonce, &100, &w.bindings, &inputs);
+    assert!(!w.env.auths().is_empty());
+    assert_eq!(w.balance(&w.payer), 99_800);
+    assert_eq!(w.balance(&w.root), 0);
+    assert_eq!(w.balance(&w.split), 99);
+    assert_eq!(w.balance(&w.worker), 200);
 }
 
 #[test]
