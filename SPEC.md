@@ -275,6 +275,10 @@ funding, while constant-only fixed Split retains accounted accumulation. No path
 unsolicited holdings. Guarded Pay/Split stored mutation is implemented for new reviewed-artifact immediate paths with whole-path obligation admission and revision binding; exact admin-signed mutation APIs/SDK and confirmed observed history are implemented in [#1169](docs/api/configuration.md); [owner editing and signing review](docs/owner-configuration.md) implements #1170. See [mutation v1](docs/mutation-v1.md). Mode-less saved definitions keep existing configured behavior;
 no new execution or mutation authority is inferred from an absent policy. Execution,
 instances and mutation ship in that order; schemas alone do not activate a phase.
+Local [mutation financial-safety evidence](docs/mutation-readiness.md) joins the
+actual constructor/call ABI, contract observations, API/SDK, immutable instance
+evidence, owner review and durable refusal recovery. It does not complete earlier
+instance compatibility blockers or authorize artifact activation/live rollout.
 
 The builder offers constant, eligible payer-supplied and admin-mutable stored sources
 for Pay/Split fields, including complete initial stored appended Split rosters. It keeps configured constant rows and

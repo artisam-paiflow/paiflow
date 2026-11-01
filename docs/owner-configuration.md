@@ -5,6 +5,9 @@ It consumes the [existing exact admin-signed lifecycle](api/configuration.md),
 not a relayer or a new signing engine. Source support does not activate artifacts,
 deploy services, publish an SDK or complete live wallet/device acceptance. Release
 order remains execution, instances, mutation; readiness is tracked by #1171.
+The [mutation readiness evidence](mutation-readiness.md) connects actual local
+guest getter/event bytes to the API, SDK, owner editor and refusal protocol, while
+preserving unperformed network/device and earlier-phase release gates.
 
 ## Authoring a new deployment
 

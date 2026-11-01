@@ -21,6 +21,14 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Added
 
+- Cross-layer stored-mutation safety evidence links production constructor, update
+  and payment packets with local contract execution, actual configuration events,
+  API/SDK admission and owner review (#1171). Cover zero-balance obligations,
+  immutable constants, stale signed terms, private-instance snapshots and durable
+  non-admission recovery. Document guarded-artifact compatibility and a phased
+  activation/rollback plan; earlier release blockers and live acceptance remain
+  open, with no artifacts or hosted services activated.
+
 - Owner review and exact admin signing for declared mutable Pay/Split values,
   current configuration and observed history (#1170). Add complete initial stored
   roster authoring and guarded-artifact deployment checks. Persist immutable,

@@ -5,6 +5,8 @@ compiler, encoding and verified-read portion of stored Pay/Split updates. It is
 not artifact activation or live acceptance. Mutation API preparation/recovery and
 confirmed observed history are implemented by [#1169](api/configuration.md); [the deployed owner editor](owner-configuration.md) implements #1170. The release order
 remains execution, instances, then mutation. Existing deployments are not upgraded.
+The [cross-layer financial-safety evidence and activation/rollback plan](mutation-readiness.md)
+track #1171, including the remaining earlier-phase and live release gates.
 Network selection follows [CLAUDE.md §7.5](../CLAUDE.md#75-networks).
 
 ## Supported path and authorization

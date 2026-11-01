@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "network": "testnet",
+  "contractSource": "98221d2e862e6b2551adb79f0e7928a3bd4cb67e",
+  "rust": "rustc 1.95.0 (59807616e 2026-04-14)",
+  "sorobanSdk": "26.0.1",
+  "evidenceKind": "local-guest-and-synthetic-rpc-only",
+  "sourceAuthorization": "exact-root-and-changed-child-source-credential-tree",
+  "debugAuthObservation": "disabled-for-bounded-guest-calls; authorization-enforced",
+  "noNetworkIO": true,
+  "cases": [
+    {
+      "name": "percentage-grouped-update",
+      "packetSha256": "74064dee5628038a8f5287fa91360a3f20026660ae3df1104f6d6b104772998a",
+      "wasmHashes": [
+        "2bd7fd8d6251092f49833513f50e3c04b9188f8da47a7cb73e5c84b521dc16ec",
+        "dcfc03ef0b4f608148313059c531e034ae43d3c2b6ae6149f9766e341c887318",
+        "589df78f21dfacceaefb59a2b66b019afb487090c3cd31beaf04d5f540768da9"
+      ],
+      "localResources": {
+        "instructions": 7593969,
+        "memoryBytes": 6449178,
+        "writeEntries": 2,
+        "eventBytes": 1744
+      },
+      "emittedConfigurationEvents": 2,
+      "zeroBalanceObligationProbe": null
+    },
+    {
+      "name": "fixed-accounted-obligations",
+      "packetSha256": "edffc691c08a1a65d9337f6b63788dce6500888a990337ec7bb4b686307577f7",
+      "wasmHashes": [
+        "2bd7fd8d6251092f49833513f50e3c04b9188f8da47a7cb73e5c84b521dc16ec",
+        "dcfc03ef0b4f608148313059c531e034ae43d3c2b6ae6149f9766e341c887318",
+        "589df78f21dfacceaefb59a2b66b019afb487090c3cd31beaf04d5f540768da9"
+      ],
+      "localResources": {
+        "instructions": 7579073,
+        "memoryBytes": 6446370,
+        "writeEntries": 2,
+        "eventBytes": 1756
+      },
+      "emittedConfigurationEvents": 2,
+      "zeroBalanceObligationProbe": {
+        "rawBalancesStroops": ["0", "0", "0"],
+        "accountedObligationsStroops": "50"
+      }
+    }
+  ]
+}
