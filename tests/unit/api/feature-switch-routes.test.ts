@@ -24,6 +24,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
+import { instanceDefinition } from "@/tests/fixtures/instance-acceptance";
 const { mockDb, mockAuth, mockGroq, mockDeploy, mockRelayer } = vi.hoisted(() => ({
   mockDb: {
     flow: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
@@ -225,6 +226,19 @@ describe("POST /api/deployments/prepare", () => {
     const { POST } = await import("@/app/api/deployments/prepare/route");
     return POST(jsonRequest({ flowId: ID, sourceAccount: SOURCE }) as never);
   }
+  it("refuses saved Multisig graphs through direct API calls with every switch on", async () => {
+    for (const name of SWITCHES) process.env[name] = "true";
+    vi.resetModules();
+    const response = await prepare(instanceDefinition("multisig").graph);
+    expect(response.status).toBe(422);
+    const body = await response.json();
+    expect(body.error.fields["nodes.condition"]).toEqual([
+      "Multisig is unavailable for new deployments and template instances.",
+    ]);
+    expect(mockDb.deployment.create).not.toHaveBeenCalled();
+    expect(mockDeploy.checkAccountFunding).not.toHaveBeenCalled();
+    expect(mockDeploy.preparePipelineDeployTx).not.toHaveBeenCalled();
+  });
   it("keeps a standard subscription/splitter deploy available with oracle conditions off", async () => {
     setSwitch("FEATURE_ORACLE_CONDITION_ENABLED", "false");
     const graph = {

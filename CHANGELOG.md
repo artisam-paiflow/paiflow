@@ -5,6 +5,12 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Disable new Multisig deployments, private-template publication and fresh instances
+  on the server, including saved graphs/direct API calls and submission of previously
+  prepared unsent deployments. Multisig remains outside this release pending its
+  constructor/forwarding repair (#1167); existing history and submitted/unknown
+  transaction recovery are preserved. No contract or artifact change is made.
+
 - Add exact developer-admin signed Pay/Split configuration APIs and SDK, durable mutation recovery, confirmed current-config reads and immutable observed revision history with explicit gaps (#1169). Reconcile external updates, refresh current owner previews and preserve original snapshots/contact privacy; no artifacts or hosted services are activated.
 
 - Add an authenticated private-template workspace with finite typed creation inputs,

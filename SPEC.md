@@ -146,7 +146,7 @@ An action decides **where** money goes. A flow must contain at least one.
 |     | Block             | Does                                                     | Notes that matter                                                                                                                                    |
 | --- | ----------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ●   | `hold`            | Strictly locks funds until a time condition deadline     | Terminal before-side marker; after side must have a destination. No early release.                                                                   |
-| ●   | `return_to_owner` | Returns the full incoming amount to the deploying wallet | Terminal after amount, time, or multisig conditions; refused after `oracle_gte`. Recipient resolves during preparation, fixed at deployment.         |
+| ●   | `return_to_owner` | Returns the full incoming amount to the deploying wallet | Terminal after amount or time conditions; refused after `oracle_gte`. Recipient resolves during preparation, fixed at deployment.                    |
 | ●   | `pay`             | Sends to one recipient                                   | Fixed amount, a percentage of what arrived, or the full amount, paid in crypto.                                                                      |
 | ●   | `split`           | Fans out to up to 20 recipients                          | Percentage mode (basis points) or fixed mode — never mixed. See the invariants below.                                                                |
 | ●   | `swap`            | Exchanges `assetIn` for `assetOut` on Soroswap           | A real DEX swap with a slippage bound; forwards the whole output to exactly one next step. See below.                                                |
@@ -183,6 +183,14 @@ forced off. Notification addresses are private and never appear on public surfac
 `amount_lt`, `oracle_gte`, `time_after`, `time_before`, or `multisig` (N-of-M signer approval).
 `multisig` is a condition kind, not a block of its own.
 
+Multisig is deferred from the current release. It remains hidden in the builder;
+server validation rejects new Multisig deployments, template publication and fresh
+instances, including saved definitions and direct API requests. Feature switches
+cannot enable it. Previously prepared unsent deployments are refused at submission.
+Existing deployment/history reads and already-submitted or unknown transaction
+recovery retain their original evidence. Constructor and forwarding protocol fixes
+remain future work under #1167; no contract or artifact upgrade is implied.
+
 An amount condition (`amount_gt`, `amount_lt`) has two outputs: **True** leads to the steps for a
 payment that meets the test, **False** to the steps for one that doesn't.
 
@@ -199,7 +207,7 @@ ledger time is refused, never redirected.
 
 A `hold` marker on the before side changes a time condition to a strict lock: neither the wallet nor the relayer can release early. At or after the deadline the full balance follows the after destination. Hold is absorbed into that condition and has no contract of its own.
 
-`return_to_owner` pays 100% of the incoming amount to the wallet signing deployment, never an address guessed when saving. Its recipient stays fixed at deployment. It can follow amount, time and multisig conditions, but not `oracle_gte`, whose fixed-amount release cannot express full-balance return. Both outcomes require exactly one incoming condition edge and no outgoing edges.
+`return_to_owner` pays 100% of the incoming amount to the wallet signing deployment, never an address guessed when saving. Its recipient stays fixed at deployment. It can follow amount and time conditions, but not `oracle_gte`, whose fixed-amount release cannot express full-balance return. Historical Multisig definitions remain readable but cannot create new deployments. Both outcomes require exactly one incoming condition edge and no outgoing edges.
 
 Every other kind has only the True output. An edge saved without a branch is the True branch.
 
@@ -301,9 +309,11 @@ configured deployable exemplar; required creation bindings never fall back to
 its values. See [private template versions](docs/flow-templates.md).
 
 Local same-version isolation and lifecycle evidence covers immediate, scheduled,
-subscription and time-condition instances. The standard Multisig path has confirmed
-constructor/forwarding incompatibilities and blocks complete instance readiness;
-publication eligibility does not prove runtime ABI compatibility. See
+subscription and time-condition instances. Multisig is explicitly excluded from
+this release because of confirmed constructor/forwarding incompatibilities; its
+repair is deferred. Readiness is assessed for enabled flow types and still requires
+actual artifact/network/hosted/wallet acceptance; publication eligibility does not
+prove runtime ABI compatibility. See
 [instance readiness and remaining release gates](docs/instance-readiness.md).
 
 ### 3.5 English Preview Pane

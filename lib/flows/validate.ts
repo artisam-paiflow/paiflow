@@ -385,8 +385,9 @@ function branchIssues(
 }
 export type ValidateFlowOptions = {
   /**
-   * The surfaces switched on for this server (#722). Omitted means every
-   * surface is on, which is right for saving a draft; anything that leads to a
+   * Deployment availability for this server (#722), including permanent release
+   * exclusions such as Multisig. Omitted checks only structural semantics, which
+   * keeps saved drafts and historical/compiler evidence readable; anything leading to a
    * deploy passes `serverFeatures()` (or, in the builder, the flags the page
    * handed down) so a hidden block is refused on its node.
    */

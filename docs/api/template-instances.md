@@ -1,7 +1,7 @@
 # Developer-signed private-template instances
 
 See [instance readiness](../instance-readiness.md) for local cross-layer evidence,
-deployment-cost and admission guidance, confirmed Multisig compatibility blockers
+deployment-cost and admission guidance, the explicit Multisig release exclusion
 and the remaining release acceptance. Source support is not a phase-release claim.
 
 API specification revision 1.5 adds instance lifecycle operations to private owned
@@ -36,6 +36,13 @@ paginated event shape and retained indexed history. No SSE endpoint is added.
 See [OpenAPI](openapi.json) and the [permission matrix](developer-token-permissions.md).
 
 ## Prepare, sign, submit, reconcile
+
+Multisig is excluded from this release. Fresh preparation from a Multisig version
+returns validation failure, including versions published before the exclusion.
+Previously prepared unsent Multisig instances cannot be newly submitted through
+Paiflow. Existing reads and recovery of submitted/unknown or externally broadcast
+exact transactions retain their original identity and evidence. Other enabled
+flow types keep their existing admission behavior; no WASM or ABI is changed.
 
 Prepare accepts only `{sourceAccount, idempotencyKey, bindings}`. Bindings use
 `{version:1, templateVersionId, values:[{inputId,value:{type,value}}]}` with declared

@@ -9,8 +9,9 @@ wallet funded or live transaction submitted for this work.
 Release order is **execution parameters → isolated instances → stored mutation**.
 [#1163](https://github.com/webnxt-2030/pinkraft/issues/1163) still requires its live
 release acceptance. The [instance gate](instance-readiness.md) remains open under
-#1167, including the independently reproduced Multisig constructor/forwarding
-incompatibilities. This work neither fixes nor silently excludes those blockers.
+#1167. Multisig is now explicitly excluded from this release, with new-use server
+guards; its independently reproduced constructor/forwarding defects remain deferred.
+The earlier gates still require live acceptance of enabled flow types.
 Stored-mutation activation cannot pass those earlier release gates by implication.
 
 ## Cross-layer evidence
@@ -161,9 +162,10 @@ any resource or RPC failure; a timeout is never an automatic replacement signal.
 
 ## Activation and rollback plan — not performed
 
-1. Complete the earlier execution and instance gates, including the Multisig
-   protocol/ABI blockers and explicitly authorized live signing, independent balance,
-   allowance/approval, recovery and device evidence. Keep parent trackers open.
+1. Complete the earlier execution and instance gates for enabled flow types,
+   retaining the Multisig exclusion. Obtain explicitly authorized live signing,
+   independent balance/allowance evidence where applicable, recovery and device
+   evidence. Keep parent trackers open.
 2. Select the reviewed app/API/SDK source and exact contract artifacts. First
    execution-phase activation still selects the retained execution-only artifacts
    from source `a60944c0551a9e1122b9f0ffca0e6a900169b733`, as specified by

@@ -2,8 +2,9 @@
 
 [#1167](https://github.com/webnxt-2030/pinkraft/issues/1167) is **open**. Local source
 acceptance covers the working immediate, scheduled, subscription and time-condition
-representatives below. The standard Multisig path has two confirmed, pre-existing
-compiler/contract incompatibilities. This is not an all-standard-flow release pass.
+representatives below. Multisig is explicitly deferred from the current release
+because of two confirmed, pre-existing compiler/contract incompatibilities.
+Readiness is assessed for enabled flow types; this is not a live release pass.
 No artifact upload, registry synchronization, hosted deployment, wallet funding,
 browser/device acceptance or live transaction was performed for this evidence.
 
@@ -39,13 +40,13 @@ These tests use real PostgreSQL transactions and developer envelope signatures,
 with synthetic account, simulation, send and ledger responses. They establish local
 admission, authorization and recovery behavior, not network deployment/finality.
 
-| Representative                              |       Deployed nodes per instance | Local guest isolation evidence                                                                                                                     | Result      |
-| ------------------------------------------- | --------------------------------: | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| Receive → full Pay                          |                                 2 | Paying A does not pay B or move B's unsolicited balance; B later pays its own recipient                                                            | Passed      |
-| Schedule → fixed Pay                        | 1, a Streamer carrying the payout | Different start/end windows; A's claim/pause does not alter B's claimed amount or pause state                                                      | Passed      |
-| Subscription → full Pay                     |                                 2 | Same subscriber grants two distinct spender allowances; charging/cancelling A leaves B's allowance, next-charge time and cancellation state intact | Passed      |
-| Receive → time condition → before/after Pay |                                 4 | A's release pays only A's held balance; B retains its later deadline and obligation until its own release                                          | Passed      |
-| Receive → Multisig → Pay                    |                        3 intended | Production constructor rejected; after test-only constructor adaptation, Receive forwarding also rejects and rolls back all token movement         | **Blocked** |
+| Representative                              |       Deployed nodes per instance | Local guest isolation evidence                                                                                                                     | Result                         |
+| ------------------------------------------- | --------------------------------: | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| Receive → full Pay                          |                                 2 | Paying A does not pay B or move B's unsolicited balance; B later pays its own recipient                                                            | Passed                         |
+| Schedule → fixed Pay                        | 1, a Streamer carrying the payout | Different start/end windows; A's claim/pause does not alter B's claimed amount or pause state                                                      | Passed                         |
+| Subscription → full Pay                     |                                 2 | Same subscriber grants two distinct spender allowances; charging/cancelling A leaves B's allowance, next-charge time and cancellation state intact | Passed                         |
+| Receive → time condition → before/after Pay |                                 4 | A's release pays only A's held balance; B retains its later deadline and obligation until its own release                                          | Passed                         |
+| Receive → Multisig → Pay                    |                        3 intended | Retained negative evidence: constructor rejected; after test-only adaptation, Receive forwarding rejects and rolls back all token movement         | **Deferred; new use disabled** |
 
 The guest runner invokes freshly compiled, unchanged WASM using exactly the packet
 constructor ScVals. Construction/fixture setup uses an unlimited local budget;
@@ -61,7 +62,21 @@ constructor and seeds its accounting in test code, then proves A's approvals and
 release do not populate or consume B's approvals/balance. It is not a supported
 funding path, an app fallback, or evidence that the production Multisig graph works.
 
-## Confirmed Multisig readiness blockers
+## Deferred Multisig defects and release exclusion
+
+The current release excludes Multisig explicitly. The builder continues to omit it;
+the shared server graph/pipeline guards reject new ordinary deployments, private
+template publication and fresh instances, including saved graphs and previously
+published versions. No feature switch can enable it. Unsent prepared deployments
+are refused before first submission, checking graph, pipeline and compiled-parameter
+snapshots even when a historical graph no longer parses. Historical schemas,
+compiler/binder support, reads, pinned artifacts and admitted transaction evidence
+remain intact. Same-hash submitted/confirmed responses and read-only reconciliation
+do not apply this new-use refusal or send a replacement transaction.
+
+These guards contain the defective path; they do not repair its ABI or upgrade a
+contract. The enabled-flow release gates below remain open. Multisig re-enablement
+requires a separately reviewed protocol/authorization/ABI and artifact-cutover fix.
 
 The [raw local artifact report](evidence/2026-11-01-instance-artifact-conformance.json)
 records the unchanged contract source commit, each WASM's SHA-256/size, constructor
@@ -82,8 +97,8 @@ trusted substitute; no application route or forwarding fallback was introduced.
 The checker intentionally exits **1** while any constructor or incoming-method
 mismatch exists. The automated Node test asserts that failure result for the
 recorded Multisig artifact; it does not suppress the exit and claim a green matrix.
-Do not fix this by changing a known artifact's ABI, silently excluding Multisig
-from the agreed scope, or re-encoding an admitted instance. A separately reviewed
+Do not change a known artifact's ABI or re-encode an admitted instance. The current
+release exclusion is explicit; the defects remain recorded as deferred work. A separately reviewed
 protocol/authorization/ABI and artifact-cutover fix is required. Existing pending
 and unknown instances retain their original identity and recovery evidence.
 
@@ -91,9 +106,10 @@ and unknown instances retain their original identity and recovery evidence.
 
 The complete finite creation-field/type matrix remains in
 [private flow templates](flow-templates.md#definitions-and-bindings). All ordinarily
-supported standard definitions remain eligible; publication eligibility is not
-proof of executable ABI compatibility. Multisig's eligibility currently exceeds
-its verified runtime compatibility, as documented above. Payroll, off-ramp and
+supported standard definitions remain eligible except the explicitly disabled
+Multisig condition; publication eligibility is not proof of executable ABI
+compatibility. Historical Multisig definitions remain readable and their negative
+compiler/guest probes remain reproducible. Payroll, off-ramp and
 retired Dev surfaces remain refused; sharing, galleries, developer webhooks,
 external-customer records and customer-owned signer/admin/fee payer are deferred.
 
@@ -101,7 +117,8 @@ external-customer records and customer-owned signer/admin/fee payer are deferred
 | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | Receive / Pay / Split                                                  | Reviewed minimum, recipients and applicable configured money/allocation leaves         | Runtime execution/mutation only on their separately verified immediate path and pinned reviewed artifacts |
 | Schedule / Subscription                                                | Applicable typed money, interval, duration, deadline, subscriber and permission leaves | Standard scheduled/allowance behavior; no new runtime input or stored-mutation authority                  |
-| Amount / time / oracle / Multisig conditions                           | Applicable thresholds, deadlines, signers and oracle leaves                            | Ordinary compiled semantics; Multisig remains blocked as above                                            |
+| Amount / time / oracle conditions                                      | Applicable thresholds, deadlines and oracle leaves                                     | Ordinary compiled semantics and existing feature gates                                                    |
+| Multisig condition (deferred)                                          | Historical signer/threshold schema support only                                        | New publication, preparation and unsent submission are refused                                            |
 | Classic webhook / HTTP webhook / Swap / Yield / Hold / Return to owner | Only the explicitly enumerated meaningful leaves; some have none                       | Existing standard semantics and availability; no revival or inferred runtime policy                       |
 
 Supported scalar tags are `wallet`, `contract`, `stroops`, `bps`, `integer`,
@@ -186,11 +203,12 @@ Ordinary test configuration is required even for no-I/O generators because the
 production imports validate environment configuration; use a synthetic local
 environment, never production secrets.
 
-Before release: resolve and independently verify both Multisig protocol/ABI
-blockers; complete #1163's execution release acceptance first; obtain explicit
+Before release: retain and verify the Multisig new-use exclusion; complete #1163's
+execution release acceptance first; obtain explicit
 artifact/network/hosted rollout authorization; re-read target network settings;
 review registry/factory/ABI pins and costs; then exercise two instances per agreed
-family with real developer signing, independent address/state/balance/allowance/
-approval and retirement evidence, including browser/device recovery. Record actual
+enabled family with real developer signing, independent address/state/balance/allowance
+and retirement evidence, including browser/device recovery. Multisig defects and
+approval acceptance remain deferred until a separately reviewed fix and re-enablement. Record actual
 artifact and service revisions, ledgers, fees, retained history and operational
 rollback. Keep #1167 and parent trackers open until that acceptance is satisfied.

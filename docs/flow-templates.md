@@ -3,7 +3,10 @@
 Local isolation evidence, standard-flow compatibility blockers, per-instance costs
 and the remaining phased release gate are recorded in
 [instance readiness](instance-readiness.md). Publication eligibility alone does not
-establish runtime ABI compatibility; the standard Multisig path remains blocked.
+establish runtime ABI compatibility. Multisig is explicitly excluded from this
+release: saved drafts/history remain readable, but publication and fresh instances
+are refused server-side even for previously published Multisig versions. Other
+enabled standard definitions retain their existing eligibility. No artifact is changed.
 
 Flow templates are private reusable definitions, separate from `ContractTemplate`
 (the WASM registry). Their owner publishes immutable versions; each future instance
@@ -142,7 +145,7 @@ values remain canonical decimal strings with the shared i128 bound.
 | Amount condition                    | `amountStroops` (`stroops`)                                                                                                                                                                                                                   |
 | Oracle condition                    | `oracle` (`wallet`), `oracleKey` (`text`, underlying key length limit applies), `threshold` (oracle decimal `text`)                                                                                                                           |
 | Time condition                      | `at` (`timestamp`)                                                                                                                                                                                                                            |
-| Multisig condition                  | `signer` (`wallet`) with an explicit immutable `target.index`; `threshold` (`integer`)                                                                                                                                                        |
+| Multisig condition (deferred)       | Historical schema/binding support only: `signer` (`wallet`) with an explicit immutable `target.index`; `threshold` (`integer`). New publication and fresh instances are refused.                                                              |
 | Swap                                | `slippageBps` (`bps`), `deadlineSecs` (`integer`)                                                                                                                                                                                             |
 | Yield                               | `vault` (`wallet`, matching the current standard address rule)                                                                                                                                                                                |
 | HTTP webhook, Hold, Return to owner | No configurable creation leaf; these standard blocks remain supported in valid templates                                                                                                                                                      |

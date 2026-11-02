@@ -2,6 +2,7 @@ import "server-only";
 import type { TemplateKind } from "@prisma/client";
 import { hasRetiredPayrollInput, PAYROLL_RETIRED_MESSAGE } from "@/lib/flows/retired-payroll";
 import { hasRetiredPayoutInput } from "@/lib/flows/retired-inputs";
+import { hasDisabledMultisigInput, MULTISIG_DISABLED_MESSAGE } from "@/lib/flows/disabled-multisig";
 import { env } from "@/lib/env";
 import { log } from "@/lib/log";
 import { AppError } from "@/lib/errors";
@@ -82,6 +83,8 @@ export function assertNoHiddenSurfaces(
   pipelineKinds: readonly string[],
   features: FeatureFlags = serverFeatures(),
 ): void {
+  if (hasDisabledMultisigInput(graph) || pipelineKinds.includes("MULTISIG"))
+    throw new AppError("VALIDATION", MULTISIG_DISABLED_MESSAGE);
   if (
     hasRetiredPayoutInput(graph) ||
     pipelineKinds.some((kind) => kind === "CASH_OUT" || kind === "CASH_OUT_DEV")
@@ -117,6 +120,8 @@ export function assertPreparedDeploymentAllowed(
   features: FeatureFlags = serverFeatures(),
   paramsSnapshot?: unknown,
 ): void {
+  if ([graphSnapshot, pipelineSnapshot, paramsSnapshot].some(hasDisabledMultisigInput))
+    throw new AppError("VALIDATION", MULTISIG_DISABLED_MESSAGE);
   if ([graphSnapshot, pipelineSnapshot, paramsSnapshot].some(hasRetiredPayrollInput))
     throw new AppError("VALIDATION", PAYROLL_RETIRED_MESSAGE);
   if (hasRetiredPayoutInput(graphSnapshot) || hasRetiredPayoutInput(pipelineSnapshot))
