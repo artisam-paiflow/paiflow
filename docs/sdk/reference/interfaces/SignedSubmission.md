@@ -10,6 +10,7 @@ Exact original wallet-signed envelope. Persist securely before explicit submissi
 
 ## Extended by
 
+- [`ExecuteSubmission`](ExecuteSubmission.md)
 - [`FundingSubmitInput`](FundingSubmitInput.md)
 - [`ScheduleSubmitInput`](ScheduleSubmitInput.md)
 - [`SubscriptionSubmitInput`](SubscriptionSubmitInput.md)

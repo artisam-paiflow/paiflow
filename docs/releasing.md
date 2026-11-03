@@ -6,12 +6,12 @@ release changes; [CLAUDE.md](../CLAUDE.md) describes the contribution workflow.
 
 ## Version ownership
 
-| Surface           | Source of truth                          | Meaning                                                                                                                                                            |
-| ----------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| App release       | Root `package.json` → `version`          | A release of the Paiflow application, including its UI, backend, and bundled code. Currently `0.1.0`.                                                              |
-| Public API major  | URL prefix, currently `/api/v1`          | The compatibility contract for API consumers.                                                                                                                      |
-| API specification | `lib/api/v1/openapi.ts` → `info.version` | A revision of the documented API contract. Currently `1.2.0`. `openapi: "3.1.0"` identifies the specification format, not the Paiflow API version.                 |
-| SDK release       | Each SDK package's own version metadata  | A release of that SDK. `packages/sdk` contains the published Node SDK beta `0.2.0`; see the [SDK release record](sdk/release-checklist.md) for publication status. |
+| Surface           | Source of truth                          | Meaning                                                                                                                                                                                          |
+| ----------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| App release       | Root `package.json` → `version`          | A release of the Paiflow application, including its UI, backend, and bundled code. Currently `0.1.0`.                                                                                            |
+| Public API major  | URL prefix, currently `/api/v1`          | The compatibility contract for API consumers.                                                                                                                                                    |
+| API specification | `lib/api/v1/openapi.ts` → `info.version` | A revision of the documented API contract. Currently `1.7.0`. `openapi: "3.1.0"` identifies the specification format, not the Paiflow API version.                                               |
+| SDK release       | Each SDK package's own version metadata  | A release of that SDK. `packages/sdk` prepares Node SDK beta `0.3.0`; published artifacts are tracked separately; see the [SDK release record](sdk/release-checklist.md) for publication status. |
 
 These versions advance independently. A dashboard feature can bump the app version
 without changing the API contract or SDK. An SDK fix can ship without an app release.
@@ -62,6 +62,26 @@ exception for the removed mutable-flow APIs, legacy dev credentials and affected
 existing-client compatibility for those surfaces is discontinued. Document their removal in
 Unreleased and named release notes. This exception does not relax compatibility requirements
 for the retained standard API or authorize removing historical financial evidence.
+
+The maintainer-approved [off-ramp retirement in #1141](offramp-retirement.md) also
+intentionally discontinues compatibility for the removed fiat payout/provider surfaces.
+It does not relax compatibility for retained crypto APIs. The targeted cleanup authorizes
+removing only verified blank legacy bank fields from graphs/snapshots and empty feature
+storage; preserve ordinary transaction, event and deployment evidence. Record the ABI and operational cutover requirements in release notes.
+
+The maintainer-approved [payroll retirement in #1144](payroll-retirement.md)
+intentionally discontinues payroll runtime, management APIs and affected public
+API/SDK payroll metadata. No replacement payroll API is provided. This is an
+explicit compatibility exception for payroll only; ordinary subscriptions, crypto
+payments and their API contracts remain supported. Runtime retirement preserves the historical payroll enum, ignored storage models,
+reviewed deployment/roster snapshots and financial/audit evidence. Destructive
+cleanup is deferred; the preservation migration permits only the fingerprint-bound
+reviewed cancelled fixture and refuses unexpected or unresolved obligations. The
+retirement procedure records the narrow pre-staging migration correction and the
+forward schema restoration for targets that completed the original empty cleanup. Retained archive databases
+remain untouched. Record this removal and its cutover requirements in Unreleased
+and named release notes. Source changes do not apply a live migration, stop an
+external scheduler, cancel an on-chain contract or revoke an allowance.
 
 ## SDK releases
 

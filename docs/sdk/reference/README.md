@@ -5,10 +5,10 @@
 # SDK method and type reference
 
 Generated from the public `@paiflow/sdk` entry point. Start with the
-[SDK README](https://github.com/artisam-paiflow/paiflow/blob/develop/packages/sdk/README.md) for installation, configuration,
+[SDK README](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/packages/sdk/README.md) for installation, configuration,
 credential permissions, typed errors and workflow/recovery rules. The
-[coverage matrix](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/sdk/contract.md#endpoint-matrix) maps methods to HTTP routes;
-[OpenAPI and Postman](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md) remain the direct HTTP references.
+[coverage matrix](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/sdk/contract.md#endpoint-matrix) maps methods to HTTP routes;
+[OpenAPI and Postman](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/api/README.md) remain the direct HTTP references.
 
 Use `Paiflow` to create a Node client, then `client.deployment(id)` to access
 `PaiflowDeployment` namespaces. Namespace properties below expand into individual
@@ -21,7 +21,9 @@ signed envelope before submission. No method retries automatically. Unknown fina
 local expiry and missing events never permit a replacement payment. See the README
 for each workflow's explicit reconciliation protocol and bounded testnet evidence.
 
-This reference describes the source tree; package versions and hosted capabilities
+The versioned public source tag must exist before SDK publication. Instance and
+guarded-configuration client exports do not establish their unfinished live
+acceptance gates. This reference describes the source tree; package versions and hosted capabilities
 advance separately. Regenerate with `pnpm sdk:docs`; CI runs the read-only
 `pnpm sdk:docs:check`. Do not edit generated files directly.
 
@@ -33,6 +35,7 @@ advance separately. Regenerate with `pnpm sdk:docs`; CI runs the read-only
 - [PaiflowDeployment](classes/PaiflowDeployment.md)
 - [PaiflowMalformedResponseError](classes/PaiflowMalformedResponseError.md)
 - [PaiflowSigningError](classes/PaiflowSigningError.md)
+- [PaiflowTemplate](classes/PaiflowTemplate.md)
 - [PaiflowTimeoutError](classes/PaiflowTimeoutError.md)
 - [PaiflowTransport](classes/PaiflowTransport.md)
 - [PaiflowTransportError](classes/PaiflowTransportError.md)
@@ -43,16 +46,32 @@ advance separately. Regenerate with `pnpm sdk:docs`; CI runs the read-only
 - [AllowanceStatusInput](interfaces/AllowanceStatusInput.md)
 - [AllowanceSubmitInput](interfaces/AllowanceSubmitInput.md)
 - [ApiResponse](interfaces/ApiResponse.md)
+- [ConfigurationHistoryQuery](interfaces/ConfigurationHistoryQuery.md)
+- [CreationBindings](interfaces/CreationBindings.md)
 - [DeploymentPagesOptions](interfaces/DeploymentPagesOptions.md)
 - [EventPagesOptions](interfaces/EventPagesOptions.md)
 - [ExecutePrepareInput](interfaces/ExecutePrepareInput.md)
+- [ExecuteSubmission](interfaces/ExecuteSubmission.md)
 - [ExecuteSubmitOptions](interfaces/ExecuteSubmitOptions.md)
+- [ExecutionAdditionalRecipient](interfaces/ExecutionAdditionalRecipient.md)
+- [ExecutionArguments](interfaces/ExecutionArguments.md)
+- [ExecutionIntent](interfaces/ExecutionIntent.md)
+- [ExecutionNodeBinding](interfaces/ExecutionNodeBinding.md)
+- [ExecutionRowInput](interfaces/ExecutionRowInput.md)
 - [FundingPrepareInput](interfaces/FundingPrepareInput.md)
 - [FundingReconcileInput](interfaces/FundingReconcileInput.md)
 - [FundingSubmitInput](interfaces/FundingSubmitInput.md)
+- [InstanceEventsQuery](interfaces/InstanceEventsQuery.md)
+- [InstanceList](interfaces/InstanceList.md)
+- [InstanceListQuery](interfaces/InstanceListQuery.md)
+- [InstancePrepareInput](interfaces/InstancePrepareInput.md)
 - [JsonRequest](interfaces/JsonRequest.md)
 - [ListDeploymentsQuery](interfaces/ListDeploymentsQuery.md)
 - [ListEventsQuery](interfaces/ListEventsQuery.md)
+- [MutationArguments](interfaces/MutationArguments.md)
+- [MutationPrepareInput](interfaces/MutationPrepareInput.md)
+- [MutationReconcileInput](interfaces/MutationReconcileInput.md)
+- [MutationSubmitInput](interfaces/MutationSubmitInput.md)
 - [PaiflowOptions](interfaces/PaiflowOptions.md)
 - [PaymentUrlOptions](interfaces/PaymentUrlOptions.md)
 - [PreparedEnvelope](interfaces/PreparedEnvelope.md)
@@ -82,20 +101,30 @@ advance separately. Regenerate with `pnpm sdk:docs`; CI runs the read-only
 - [AllowancePrepared](type-aliases/AllowancePrepared.md)
 - [AllowanceState](type-aliases/AllowanceState.md)
 - [AllowanceStatus](type-aliases/AllowanceStatus.md)
+- [ConfigurationHistory](type-aliases/ConfigurationHistory.md)
 - [ContractEventItem](type-aliases/ContractEventItem.md)
+- [CreationValue](type-aliases/CreationValue.md)
 - [DemoToken](type-aliases/DemoToken.md)
 - [DeploymentBalances](type-aliases/DeploymentBalances.md)
 - [DeploymentCapabilities](type-aliases/DeploymentCapabilities.md)
 - [DeploymentSummary](type-aliases/DeploymentSummary.md)
 - [ExecutePrepared](type-aliases/ExecutePrepared.md)
 - [ExecuteSubmitted](type-aliases/ExecuteSubmitted.md)
+- [ExecutionAllocation](type-aliases/ExecutionAllocation.md)
+- [ExecutionDiscovery](type-aliases/ExecutionDiscovery.md)
+- [ExecutionNodeInput](type-aliases/ExecutionNodeInput.md)
 - [FundingAction](type-aliases/FundingAction.md)
 - [FundingDiscovery](type-aliases/FundingDiscovery.md)
 - [FundingPrepared](type-aliases/FundingPrepared.md)
 - [FundingReconciled](type-aliases/FundingReconciled.md)
 - [FundingSubmitted](type-aliases/FundingSubmitted.md)
+- [InstanceState](type-aliases/InstanceState.md)
 - [ListDeploymentsResponse](type-aliases/ListDeploymentsResponse.md)
 - [ListEventsResponse](type-aliases/ListEventsResponse.md)
+- [MutationChange](type-aliases/MutationChange.md)
+- [MutationPrepared](type-aliases/MutationPrepared.md)
+- [MutationState](type-aliases/MutationState.md)
+- [MutationSubmitted](type-aliases/MutationSubmitted.md)
 - [OpenApiDocument](type-aliases/OpenApiDocument.md)
 - [PreparedSigner](type-aliases/PreparedSigner.md)
 - [PublicEmbedActivity](type-aliases/PublicEmbedActivity.md)

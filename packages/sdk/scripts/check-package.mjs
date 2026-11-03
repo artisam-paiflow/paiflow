@@ -101,6 +101,14 @@ await assert.rejects(import("@paiflow/sdk/dist/index.js"), { code: "ERR_PACKAGE_
   );
   process.stdout.write(run(process.execPath, ["--test", "deployments.test.mjs"], consumer));
   await writeFile(
+    join(consumer, "instances.test.mjs"),
+    (await readFile(join(packageRoot, "tests/instances.test.mjs"), "utf8")).replace(
+      '"../dist/index.js"',
+      '"@paiflow/sdk"',
+    ),
+  );
+  process.stdout.write(run(process.execPath, ["--test", "instances.test.mjs"], consumer));
+  await writeFile(
     join(consumer, "smoke.ts"),
     `
 import * as sdk from "@paiflow/sdk";
@@ -114,6 +122,14 @@ void result;
 const client = new sdk.Paiflow({baseUrl: "https://example.com", token: "pfk_test"});
 const deployment = client.deployment("11111111-1111-4111-8111-111111111111");
 const developer = new sdk.Paiflow({baseUrl: "https://example.com", token: "pfd_" + "a".repeat(64)});
+const template: sdk.PaiflowTemplate = developer.flowTemplate("11111111-1111-4111-8111-111111111111");
+const bindings: sdk.CreationBindings = {version: 1, templateVersionId: "22222222-2222-4222-8222-222222222222", values: [{inputId: "amount", value: {type: "stroops", value: "1"}}]};
+const instanceInput: sdk.InstancePrepareInput = {sourceAccount: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", idempotencyKey: "persistent-instance-key", bindings};
+const instancePreparation: Promise<sdk.ApiResponse<sdk.InstanceState>> = template.instances.prepare(bindings.templateVersionId, instanceInput);
+void instancePreparation;
+// @ts-expect-error Instance amounts must remain decimal strings.
+const unsafeCreationValue: sdk.CreationValue = {type: "stroops", value: 1};
+void unsafeCreationValue;
 const discoveryQuery: sdk.ListDeploymentsQuery = {limit: 20};
 const discoveryOptions: sdk.DeploymentPagesOptions = {maxPages: 10};
 const discovery: Promise<sdk.ApiResponse<sdk.ListDeploymentsResponse>> = developer.deployments.list(discoveryQuery);
@@ -336,6 +352,7 @@ assert.equal(calls, 1, "README first read makes exactly one explicit request");
       "examples/payment-server.ts",
       "examples/developer-server.ts",
       "examples/payment-browser.ts",
+      "examples/parameterized-execution.ts",
       "examples/workflows.ts",
     ],
     consumer,

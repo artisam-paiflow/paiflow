@@ -2,18 +2,25 @@
 
 Node SDK beta for existing Paiflow deployments: typed reads, payments, funding,
 Schedule and Subscription controls, public allowance consent, Webhook callbacks,
-early release and embed SSE. It does not create or deploy flows.
+early release and embed SSE, plus private-template instance and guarded configuration
+clients. It does not author flow graphs. Instance clients prepare and submit new
+deployments from existing private template versions, subject to server eligibility
+and the separate live acceptance limits below.
 
 ## Install and make your first request
 
-SDK **0.2.0 is published** under the npm `beta` tag. Pin the version below; the
-`latest` tag may point to an older release. Requires Node `>=22.22.2 <23`.
+This document describes SDK **0.3.0**. Check the [release record](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/sdk/release-checklist.md)
+for current publication status and the [exact npm version](https://www.npmjs.com/package/@paiflow/sdk/v/0.3.0)
+for registry availability before installing; a source checkout is not a published
+package. The planned npm dist-tag is `beta`; `latest` may identify an older release.
+Requires Node `>=22.22.2 <23`.
 Output is ESM with TypeScript declarations and no runtime dependencies. CommonJS
 consumers can use dynamic import. TypeScript consumers use `NodeNext` module and
 module-resolution settings.
 
 ```sh
-npm install @paiflow/sdk@0.2.0
+# After the release record confirms registry publication:
+npm install @paiflow/sdk@0.3.0
 ```
 
 Save this as `first-read.mjs` in your Node application. Configure
@@ -46,23 +53,37 @@ explicitly select your existing owned deployments. **Read only** permits discove
 and reads; **Read and operate** also permits preparation, submission, reconciliation
 and relayer operations. Tokens provide API access, never wallet consent. Existing
 `pfk_` tokens remain supported for their single bound deployment. See the
-[developer-token guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/developer-tokens.md)
-and [permission matrix](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/developer-token-permissions.md).
+[developer-token guide](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/api/developer-tokens.md)
+and [permission matrix](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/api/developer-token-permissions.md).
 Developer credentials and discovery require API specification revision `1.1.0` or
 a compatible later revision; verify the target environment's specification and
 capabilities. SDK, app and API versions advance independently.
 
 ## Find the right reference
 
-- [Generated method and type reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/sdk/reference/README.md): exported SDK classes, methods, parameters and return types.
-- [Workflow examples and HTTP migration](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/sdk/quickstart.md).
+- [Generated method and type reference](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/sdk/reference/README.md): exported SDK classes, methods, parameters and return types.
+- [Workflow examples and HTTP migration](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/sdk/quickstart.md).
 - [Minimal SDK starter](https://github.com/artisam-paiflow/paiflow-hackathon-starter): runnable native-XLM testnet payment app.
-- [Paiflow Guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/paiflow-guide.md): wallet setup, flow deployment and app integration.
-- [HTTP API README](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md): direct HTTP integration, OpenAPI and Postman.
-- [Endpoint coverage matrix](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/sdk/contract.md#endpoint-matrix): all 43 covered HTTP operations, including explicitly supported unversioned routes.
+- [Paiflow Guide](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/hackathon/paiflow-guide.md): wallet setup, flow deployment and app integration.
+- [HTTP API README](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/api/README.md): direct HTTP integration, OpenAPI and Postman.
+- [Endpoint coverage matrix](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/sdk/contract.md#endpoint-matrix): covered HTTP operations, including explicitly supported unversioned routes.
 
-GitHub links track the public `develop` documentation; the pinned npm version
-above identifies the installed artifact. Runtime/types are shipped in that package.
+GitHub documentation links are pinned to the planned `sdk-js-v0.3.0` public source
+tag; the evolving release-status link above intentionally follows `develop`.
+Matching technical source and the versioned tag must exist before publication. Runtime and types
+ship in the package; installation of the exact version identifies the artifact.
+
+| Workflow                                     | Backend compatibility and acceptance                                                                                                                                                                                                |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Retained reads, legacy payments and controls | Retain their documented API v1/public-route contracts; this release does not require every workflow to use the newest backend revision.                                                                                             |
+| Developer-token discovery                    | API specification revision `1.1.0` or compatible later, with explicit deployment grants.                                                                                                                                            |
+| Parameterized execution                      | API revision `1.4.0` or compatible later and reviewed policy-v1 artifacts. Bounded source-packed TESTNET execution passed; registry-package verification is separate.                                                               |
+| Private-template instances                   | API revision `1.5.0` or compatible later, explicit owned-template grants and compatible pinned artifacts. Client support is included; live instance acceptance is unfinished.                                                       |
+| Guarded stored configuration                 | API revision `1.6.0` or compatible later, declared mutable fields and reviewed guarded artifacts. Revision `1.7.0` adds durable non-admission refusal metadata. Client support is included; live mutation acceptance is unfinished. |
+
+SDK publication does not activate artifacts, upgrade contracts or complete the
+execution → instance → mutation release gates. Check the target backend
+capabilities and the linked readiness documents before exposing a workflow.
 
 ## Configuration and response metadata
 
@@ -196,7 +217,9 @@ existing preparation, submission, reconciliation and relayer workflows, subject 
 server enforcement and required wallet consent. Selection changes and revocation
 apply to subsequent requests, so discovery does not guarantee later access.
 Endpoint rate allowances are shared across the token's selected deployments.
-Tokens do not create flows/deployments or authorize separate webhook secrets.
+Deployment grants do not authorize flow creation or template access. An explicit
+owned-template grant permits the instance APIs, while a separate developer wallet
+signature authorizes each deployment. Webhook secrets remain separate.
 
 ## Deployment reads and public utilities
 
@@ -303,10 +326,12 @@ The callback receives `{xdr, networkPassphrase, walletAddress, signal}` and retu
 `{signedXdr}`. It must sign the original transaction without changing its source,
 sequence, operations or time bounds. The SDK validates string bounds, network and
 provided wallet metadata; it does **not** parse XDR, verify operations, or determine
-the signer from the envelope. Execute/public preparation contains no wallet field:
+the signer from the envelope. Legacy execute/public preparation contains no wallet field:
 pass the same address used in prepare; your wallet integration must check the source.
+Policy-v1 execution includes `walletAddress` and the server validates its exact prepared
+transaction and source signature before relay.
 Before submission, bind the returned signed envelope to your saved original
-preparation. The [payment example](https://github.com/artisam-paiflow/paiflow/blob/develop/packages/sdk/examples/payment-server.ts)
+preparation. The [payment example](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/packages/sdk/examples/payment-server.ts)
 compares transaction-body hashes using an optional application Stellar dependency.
 Existing execute envelope validation does not bind a payment to your application
 order price. Verify business receipt conditions before fulfilment.
@@ -336,6 +361,54 @@ lookup: SUCCESS does not prove this deployment executed, and NOT_FOUND appears a
 PENDING. It provides no receipt reconciliation or replacement-safety evidence.
 A public submit 502 may be uncertain; never automatically create a replacement.
 Amounts are positive integer stroop strings bounded to i128; never floating point.
+
+### Parameterized execution (0.3.0)
+
+Requires backend OpenAPI revision `1.4.0` and newly deployed, verified policy-v1
+artifacts. SDK `0.2.0` does not contain this workflow. Check `execute.state()` rather
+than inferring support from a graph; legacy definitions return `supported:false`.
+This phase supports only the immediate Pay-chain/terminal Split topology documented
+in [execution parameters](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/api/execution-parameters.md). No private labels,
+contact emails, mutation authority or artifact activation is implied by these types.
+
+```ts
+const current = await flow.execute.state();
+if (!current.data.supported) throw new Error(current.data.reason);
+// Example deployment declares pay-worker's recipient as an execution input.
+const prepared = await flow.execute.prepare(
+  {
+    amount: "10000000",
+    from: walletAddress,
+    arguments: {
+      version: 1,
+      inputs: [{ kind: "pay", nodeId: "pay-worker", recipient: workerWallet }],
+    },
+  },
+  { idempotencyKey: orderId },
+);
+// Persist prepared.data.intent, txHash and review data before the wallet callback.
+const signed = await signPrepared(prepared, signTransaction, { walletAddress });
+// signPrepared retains the original intent in signed.submission.
+const result = await flow.execute.submit(signed.submission, { wait: false });
+// If uncertain, retain the original identity; query without sending/signing again.
+const recovered = await flow.execute.reconcile({ intent: prepared.data.intent! });
+```
+
+Every declared input is required. Unknown/constant/mutable overrides are refused;
+Split row IDs and allocation modes remain fixed, and final fixed allocations must
+exactly equal the per-hop incoming amount. The server binds payer, amount, asset,
+inputs, complete node revisions and exact transaction body. The contracts reject
+stale revisions on chain; a new configuration requires fresh review/signing only
+after resolving the obsolete preparation.
+
+Reuse the same idempotency key and payload to recover a lost preparation response.
+A changed payload conflicts; the key never silently creates a new payment. A durable
+one-send claim prevents automatic rebroadcast after unknown submission. `UNKNOWN`,
+`REJECTED`, missing history and elapsed clocks never authorize replacement. Different
+payers remain independent; one payer must reconcile an unresolved intent before
+preparing another for the same deployment. Terminal Pay refunds only the current
+invocation's unspent remainder to the payer. Legacy public payment methods refuse
+policy-v1; the explicit-opt-in hosted flow is a separate delivery (#1162).
 
 ## Funding
 
@@ -401,8 +474,8 @@ stale envelope. There are no automatic retries, re-preparations, submissions or
 reconciliation calls. Retain receipts and explicitly query/reconcile after errors.
 Bounded testnet Schedule and Webhook funding/submission/reconciliation passed
 with separate balance/event evidence in the
-[live evidence report](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/testing/2026-10-14-sdk-live-verification.md).
-See the [funding API documentation](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/funding.md).
+[live evidence report](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/testing/2026-10-14-sdk-live-verification.md).
+See the [funding API documentation](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/api/funding.md).
 
 ### Schedule controls
 
@@ -424,9 +497,9 @@ through that action namespace and preserve `replacementAllowed` from the server.
 Local expiry, wallet denial, timeout, UNKNOWN or missing history never permits a
 replacement. No method automatically signs, submits, resends or prepares another
 intent. Bounded testnet funding, pause/resume/retrieve and original-intent
-reconciliation passed in the [live evidence report](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/testing/2026-10-14-sdk-live-verification.md).
+reconciliation passed in the [live evidence report](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/testing/2026-10-14-sdk-live-verification.md).
 This does not establish unattended scheduler availability or natural scheduled
-release. See [Schedule API controls](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/schedule-controls.md).
+release. See [Schedule API controls](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/api/schedule-controls.md).
 
 ## Subscription and public allowance consent
 
@@ -436,8 +509,9 @@ release. See [Schedule API controls](https://github.com/artisam-paiflow/paiflow/
 subscriber's `walletAddress`; the token supplies API access, never wallet consent.
 Cancellation revokes allowance. Reactivation grants no allowance and triggers no
 immediate charge. Neither action changes recipients or creates another customer
-subscription. Existing Dev variants work only where the API permits the operation;
-there are no SDK Dev setters or new deployment/configuration helpers.
+subscription. Retired Dev variants and payroll integrations are unsupported.
+Private-template instance creation and guarded Pay/Split configuration are
+separate namespaces with their own eligibility and signing requirements.
 
 ```ts
 const control = deployment.subscription.cancel;
@@ -504,7 +578,7 @@ approval; server-proven expired-without-confirmation is returned as FAILED.
 Bounded testnet allowance, charge/payout, cancellation and reactivation passed
 using the current deployed contract code; the final controlled fixture is cancelled
 with zero allowance. The charge used an authorized manual cron call, so unattended
-scheduling is not established. See the [live evidence report](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/testing/2026-10-14-sdk-live-verification.md)
+scheduling is not established. See the [live evidence report](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/testing/2026-10-14-sdk-live-verification.md)
 for exact revisions, receipts and historical fixture limitations.
 
 ## Webhook callbacks and early release
@@ -557,16 +631,26 @@ Native consent retained both the recorded source-account authorization and the
 wallet's bounded signed authorization. The original rejected attempt remains
 preserved; its definitive pre-submission failure was established before a fresh
 nonce/event was authorized. See the
-[live evidence report](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/testing/2026-10-14-sdk-live-verification.md) for
+[live evidence report](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/testing/2026-10-14-sdk-live-verification.md) for
 receipts, scope and remaining verification gates.
 
 JSON response bodies are limited to 4 MiB by default, including errors and payment/control receipts. Invalid or oversized successful responses produce a typed malformed response error; unreadable error responses retain HTTP status with a generic HTTP error. POST requests are never automatically repeated. Low-level `transport.request` callers may supply an explicit positive integer `maxResponseBytes`.
 
 ## Verification scope
 
+The 2026-11-03 Campaign 2 rerun verified bounded TESTNET execution, concurrency,
+hosted recovery and automatic bookkeeping against corrected staging source. A
+locally packed SDK from that source prepared and submitted an exact payment;
+this is not a registry-installed `0.3.0` result. Published-package execution remains
+unverified until the approved artifact is published, independently downloaded and
+retested. The retained campaign also leaves legacy public unsigned submission and
+40-node qualification unresolved. Instance and mutation live acceptance did not run.
+No production/mainnet, mobile-wallet, load or injected-fault coverage follows from
+these checks. The [release record](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/sdk/release-checklist.md) distinguishes local, historical live and registry evidence.
+
 Bounded testnet workflows have
-been verified in the [live evidence report](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/testing/2026-10-14-sdk-live-verification.md)
-and [real Swap execution report](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/testing/2026-10-15-sdk-swap-execution-982.md).
+been verified in the [live evidence report](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/testing/2026-10-14-sdk-live-verification.md)
+and [real Swap execution report](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/testing/2026-10-15-sdk-swap-execution-982.md).
 
 One authorized testnet Swap completed 0.1 XLM → 0.0106193 USDC to the controlled
 wallet, with independent finality and zero pipeline balances. Its net transaction
@@ -576,7 +660,7 @@ Testing demo-token minting is disabled, and unattended scheduling was not establ
 
 Developer credentials and discovery require a backend implementing OpenAPI revision
 `1.1.0`; verify its deployed specification and capabilities before use. The
-[hosted testing report](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/verification/developer-tokens-hosted-verification-2026-10-16.md)
+[hosted testing report](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/verification/developer-tokens-hosted-verification-2026-10-16.md)
 records bounded testnet evidence, not production/mainnet availability.
 
 ## Contributor checks and local artifacts
@@ -588,7 +672,7 @@ pnpm sdk:build
 mkdir -p /tmp/paiflow-sdk-artifacts
 npm pack ./packages/sdk --ignore-scripts --pack-destination /tmp/paiflow-sdk-artifacts
 # In your Node ESM consumer (use the actual emitted filename):
-npm install /tmp/paiflow-sdk-artifacts/paiflow-sdk-0.2.0.tgz
+npm install /tmp/paiflow-sdk-artifacts/paiflow-sdk-0.3.0.tgz
 ```
 
 From the repository root, after installing root development dependencies:
@@ -601,7 +685,7 @@ pnpm sdk:test:package
 ```
 
 The package uses the repository's existing TypeScript compiler without inheriting
-its Next.js configuration. No pnpm workspace is introduced. Artifact validation also compiles and runs the [consumer examples](https://github.com/artisam-paiflow/paiflow/tree/develop/packages/sdk/examples)
+its Next.js configuration. No pnpm workspace is introduced. Artifact validation also compiles and runs the [consumer examples](https://github.com/artisam-paiflow/paiflow/tree/sdk-js-v0.3.0/packages/sdk/examples)
 using the packed SDK. It packs into a temporary directory, installs that tarball into a clean consumer,
 checks ESM import and declarations, and rejects unexpected published files.
 Generated output and tarballs are ignored by Git. The package's `prepack` script
@@ -619,3 +703,14 @@ SDK TypeScript configuration and avoid maintaining a custom type printer. The sc
 `minimatch@10>brace-expansion` override preserves the generator's compatible ESM
 dependency while leaving older consumers on their existing override. Neither tool
 is shipped in the npm SDK or added as a runtime dependency.
+
+### Private-template instances and guarded configuration (0.3.0)
+
+`client.flowTemplate(templateId).instances` exposes explicit versioned `prepare`, `list`, `get`, `sign`, `submit`, `reconcile` and `events`. Requires a `pfd_` token with an explicit owned-template grant; selected deployment grants do not imply template access. Prepare requires `{sourceAccount, idempotencyKey, bindings}`. Sign the original returned envelope with the developer source; call submit explicitly. Keep the owner-wide key and instance ID stable. Reconcile uncertain sends without creating a replacement. See [instance lifecycle](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/api/template-instances.md) for schemas, retirement, quotas, runtime policy limits and publication availability.
+
+Guarded stored Pay/Split configuration is available through `deployment.configuration.get/history/prepare/signPrepared/submit/reconcile`; see the [configuration API and SDK guide](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/api/configuration.md). Prepare requires an explicit `idempotencyKey`. The caller signs as the deployment developer admin; credentials never substitute for on-chain consent. Preserve the original intent after UNKNOWN/REJECTED without replacement.
+
+These namespaces are client capabilities, not live release acceptance. Instance
+readiness and guarded-mutation readiness remain separate, unfinished gates; no
+guarded artifact activation is implied. See [instance readiness](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/instance-readiness.md)
+and [mutation readiness](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/mutation-readiness.md).

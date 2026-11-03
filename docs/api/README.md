@@ -1,5 +1,10 @@
 # Developer API
 
+For new policy-v1 execution inputs, exact payer-signed preparations and conservative
+recovery, see [execution parameters](execution-parameters.md). This is source-level
+OpenAPI `1.4.0` functionality; it requires verified new artifacts and does not imply
+activation on the hosted instance or changes to the published SDK.
+
 For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](developer-tokens.md). SDK `0.2.0` supports developer credentials and scoped discovery with a backend implementing OpenAPI revision `1.1.0`; SDK `0.1.0` does not include these additions. Existing deployment-only integrations remain supported. See the [SDK release record](../sdk/release-checklist.md) for registry availability.
 
 For typed Node integrations with existing deployments, use the [SDK README](../../packages/sdk/README.md) for the published `@paiflow/sdk@0.2.0` Node beta (October 16, 2026).
@@ -64,7 +69,7 @@ divides them, a condition routes them, a swapper exchanges them first). The step
 can't be called directly (they only accept calls from the step before them), so "executing a flow"
 means depositing into its trigger.
 
-Flows that start with anything else (a subscription, webhook, payroll, timelock or oracle trigger)
+Flows that start with anything else (a subscription, webhook, timelock or oracle trigger)
 run on their own schedule or callback, which a deposit can't start. Execute refuses them with a
 `422` naming the step the flow starts with. Configure every Pay and Split recipient before deploying the flow.
 
@@ -191,8 +196,7 @@ replace it. Only On Receive deployments show the deposit prepare/sign/submit exa
   created. Paiflow stores only a hash. Copy it into your secret store straight away.
 - **Expiry and revocation.** A token can be given an expiry of 1 to 365 days, or none. Revoking a
   token in the panel takes effect on the next request.
-- **Sending it.** `Authorization: Bearer pfk_…` is the only header accepted. Payroll's
-  `x-dev-api-secret` and `pkdev_…` developer tokens don't work on `/api/v1`.
+- **Sending it.** Use `Authorization: Bearer pfk_…` or a selected-deployment `pfd_…` credential. Retired `x-dev-api-secret` and `pkdev_…` credentials are not accepted.
 - **Refusals.** A missing, unknown, revoked or expired token, or a token for a different
   deployment, all get the same `401`, so a caller can't tell which it was.
 - **Sandbox.** The **Try the sandbox** identity on the login page can't mint tokens or call
@@ -236,7 +240,7 @@ when setup is complete. Cancelled subscriptions remain readable.
 
 `tokenContractAddress` identifies the deployed asset. `asset` is metadata from the
 original graph only when it matches that token; otherwise it is null and `assetLabel`
-is the token contract address. Payroll, unsupported or malformed deployments and
+is the token contract address. Retired, unsupported or malformed deployments and
 network mismatches are refused. Invalid/revoked/wrong-deployment tokens and inactive
 service are refused before live reads. RPC errors are reported, never substituted
 with zero or an active subscription. Responses are `no-store`; limit: **40/minute
@@ -823,7 +827,7 @@ contract's configured token balances are read: account balances, recipients,
 credentials and the private graph are not returned.
 
 Candidates include Schedule, Webhook, time conditions, oracle conditions, Pay,
-Split and Swap. Multisig, Payroll and other unsupported kinds are excluded;
+Split and Swap. Multisig and other unsupported kinds are excluded;
 when they coexist with supported nodes, their error entries make totals incomplete.
 An invalid or ambiguous pipeline, more than 64 candidate contracts, or no supported
 target returns 422. An unconfirmed deployment returns 404; network mismatch returns 422. Invalid, revoked, expired, wrong-deployment or retiring/retired tokens return
@@ -868,7 +872,7 @@ wallet supplies consent. Read `subscription/state` and check `subscriptionCancel
 `subscriptionReactivate` in capabilities first. These operations are conditional on
 live state and successful simulation. Ordinary subscriptions are supported by the
 implementation. Mutable dev-mode subscriptions have been removed in #1138.
-Payroll, unsupported variants and ambiguous snapshots are refused.
+Retired, unsupported variants and ambiguous snapshots are refused.
 Bounded hosted testnet cancellation/reactivation and zero-allowance checks passed;
 see the [verification summary](#hosted-testnet-verification) for dated evidence,
 the later fee-blocked charge test and target-environment limits.
@@ -1399,3 +1403,5 @@ See [hosted verification](#hosted-testnet-verification) for dated evidence and f
 When requesting support, include the deployment UUID, transaction hash, error
 message and request ID when available. Keep tokens, wallet secrets and signed
 envelopes out of support messages.
+
+Stored Pay/Split update APIs and SDK workflows: [guarded configuration](configuration.md). The [owner editor](../owner-configuration.md) adds exact wallet review and durable pre-admission refusal recovery. Read confirmed current revisions; retain original mutation intent after uncertain finality.

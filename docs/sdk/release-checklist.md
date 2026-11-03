@@ -1,5 +1,64 @@
 # SDK beta validation and release checklist
 
+## Beta 0.3.0 — preparation checkpoint, 2026-11-03
+
+Status: **local release preparation; not published**. The user requested work up
+to publishing. No commit, push, tag, GitHub release, npm upload, backend deployment
+or live financial action is part of this checkpoint. The historical sections below
+record earlier releases and do not authorize another publication.
+
+### Candidate and compatibility
+
+- Prepare `@paiflow/sdk@0.3.0` from verified `develop`
+  `a9acd6840a6bbba179cf38d63c0e5d9a7c603a8a`. The candidate is a local uncommitted
+  metadata/documentation diff; it does not have a release commit yet.
+- Beta minor selection follows [release policy](../releasing.md): new execution,
+  private-template instance and configuration clients plus the approved payroll
+  compatibility removal. Root app/API versions and dependencies do not change.
+- Keep ESM/declaration exports, Node `>=22.22.2 <23`, zero runtime dependencies,
+  and separate wallet signing. Local release checks use Node22.23.4/pnpm10.4.1.
+- Retained workflows keep their original contracts. Feature-specific minimum API
+  revisions are developer discovery1.1.0, execution1.4.0, instances1.5.0 and guarded
+  configuration1.6.0;1.7.0 adds durable non-admission refusal metadata. Eligibility,
+  reviewed artifacts, scopes and explicit wallet signatures are still required.
+- Bounded source-packed execution passed against corrected TESTNET staging in the
+  separately recorded Campaign2rerun. It does not verify registry-installed0.3.0,
+  instance/mutation live acceptance, legacy submission remediation, arbitrary
+  topology, device/load/injected-fault coverage or production/mainnet availability.
+- Planned publication is `--access public --tag beta`; preserve the existing
+  `latest` tag. Never overwrite/unpublish0.2.0 or move an existing release tag.
+
+The reviewable [preparation record](releases/0.3.0-preparation.md) records exact
+artifact/diff fingerprints, validation results and the remaining publication steps.
+Local raw logs and retained archive are deliberately excluded from publication.
+
+### Before any future publication
+
+1. Review the complete metadata/docs diff and retained archive; commit through a
+   separately authorized release PR to `develop`, run required exact-head Node/Rust
+   CI and postmerge checks. Recheck that the reviewed SDK bytes are unchanged.
+2. Synchronize the reviewed SDK and its linked public documentation to the public
+   source mirror `artisam-paiflow/paiflow`. At initial inspection its `develop`
+   commit was `f420e0fa25f2379a155a363c3a6bf57e758e25a9`, not the source above.
+   Never copy ignored/untracked campaign evidence, local fixtures or credentials.
+3. With separate authorization, create/push annotated `sdk-js-v0.3.0` on the
+   reviewed release source and publish the matching prerelease notes. Verify the
+   public mirror contains matching SDK/docs and the tag; packaged links require it.
+4. Verify normal npm publisher authentication and `@paiflow` scope ownership without
+   exposing credentials. Freshly verify0.3.0 is absent and record existing dist-tags.
+5. Publish the approved retained archive once with
+   `npm publish <approved-archive> --access public --tag beta --ignore-scripts`.
+   If any packaged bytes or release notes change, rebuild/revalidate/review the
+   resulting new archive before publishing; do not substitute an unreviewed rebuild.
+6. Independently download the published exact version, compare SHA-256/integrity
+   and all files, then run clean ESM/declaration/client smoke checks. Only then
+   claim registry compatibility. A funded SDK acceptance rerun additionally needs
+   legitimate account access or a newly approved account allowance: all three
+   campaign application accounts are used, with old temporary credentials gone.
+
+Tag/mirror publication, npm upload and live financial verification each remain
+separate from this preparation. No automatic promotion of `latest` is intended.
+
 ## Beta 0.2.0 — release preparation, 2026-10-16
 
 `@paiflow/sdk@0.2.0` is the current **release candidate**, pending independent
@@ -205,7 +264,7 @@ packed root export; signing and URL helpers add no extra HTTP surface.
 
 The [contract exclusions](contract.md#exclusions-openapi-gaps-and-hosted-verification)
 remain unchanged: owner session/token management, new deployments/flows, admin,
-cron, dev mutation/payroll/payout helpers, owner SSE/polling and owner QR routes
+cron, retired dev mutation/payout helpers, owner SSE/polling and owner QR routes
 are absent from deployment SDK namespaces. Hosted URL helpers only construct
 payment, allowance and embed URLs; eligibility remains the server's responsibility.
 

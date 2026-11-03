@@ -19,6 +19,8 @@ export interface RequestOptions {
   requestId?: string;
   /** Original preparation history UUID. Preserve it for explicit submit correlation. */
   preparationRequestId?: string;
+  /** Execute/configuration preparation only: stable original request key; never a replacement. */
+  idempotencyKey?: string;
 }
 /** HTTP diagnostics retained on responses and typed API errors. */
 export interface ResponseMetadata {
@@ -155,9 +157,15 @@ export class PaiflowTransport {
     if (
       request.auth.kind === "token" &&
       !(request.method === "GET" && request.path === "/api/v1/deployments") &&
-      !/^\/api\/v1\/deployments\/[A-Za-z0-9_-]+\//.test(request.path)
+      !/^\/api\/v1\/deployments\/[A-Za-z0-9_-]+\//.test(request.path) &&
+      !(
+        this.#token?.startsWith("pfd_") &&
+        /^\/api\/v1\/flow-templates\/[A-Za-z0-9_-]+\/(?:versions\/[A-Za-z0-9_-]+\/instances\/prepare|instances(?:\/[A-Za-z0-9_-]+(?:\/(?:submit|reconcile|events))?)?)$/.test(
+          request.path,
+        )
+      )
     )
-      throw new TypeError("Token authentication requires a partner deployment route");
+      throw new TypeError("Token authentication requires an explicitly supported partner route");
     if (request.auth.kind === "webhook" && !/^\/api\/webhooks\/[A-Za-z0-9_-]+$/.test(request.path))
       throw new TypeError("Webhook authentication requires a webhook route");
     const url = new URL(request.path, this.origin);
@@ -173,6 +181,18 @@ export class PaiflowTransport {
       url.searchParams.set(key, value);
     }
     const headers = new Headers({ Accept: "application/json", "Content-Type": "application/json" });
+    if (
+      options.idempotencyKey !== undefined &&
+      request.auth.kind === "token" &&
+      request.method === "POST" &&
+      /^\/api\/v1\/deployments\/[A-Za-z0-9_-]+\/(?:execute|configuration\/prepare)$/.test(
+        request.path,
+      )
+    ) {
+      if (!/^[A-Za-z0-9._:-]{1,128}$/.test(options.idempotencyKey))
+        throw new TypeError("Invalid idempotencyKey");
+      headers.set("Idempotency-Key", options.idempotencyKey);
+    }
     if (request.auth.kind === "token") {
       if (!this.#token) throw new TypeError("API token required");
       headers.set("Authorization", `Bearer ${this.#token}`);

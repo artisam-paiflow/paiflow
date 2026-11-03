@@ -42,9 +42,20 @@ export type {
 
 export { signPrepared, PaiflowSigningError } from "./payment.js";
 export type {
+  ExecutionAllocation,
+  ExecutionRowInput,
+  ExecutionAdditionalRecipient,
+  ExecutionNodeInput,
+  ExecutionArguments,
+  ExecutionNodeBinding,
+  ExecutionIntent,
+  ExecutionDiscovery,
+} from "./execution.js";
+export type {
   ExecutePrepareInput,
   PublicPaymentPrepareInput,
   SignedSubmission,
+  ExecuteSubmission,
   ExecuteSubmitOptions,
   ExecutePrepared,
   ExecuteSubmitted,
@@ -110,3 +121,27 @@ export type {
   ReleaseEarlyInput,
   Released,
 } from "./webhook.js";
+
+export { PaiflowTemplate } from "./instances.js";
+export type {
+  CreationValue,
+  CreationBindings,
+  InstancePrepareInput,
+  InstanceState,
+  InstanceList,
+  InstanceListQuery,
+  InstanceEventsQuery,
+} from "./instances.js";
+
+export type {
+  MutationChange,
+  MutationArguments,
+  MutationPrepareInput,
+  MutationSubmitInput,
+  MutationReconcileInput,
+  MutationPrepared,
+  MutationState,
+  MutationSubmitted,
+  ConfigurationHistory,
+  ConfigurationHistoryQuery,
+} from "./mutation.js";

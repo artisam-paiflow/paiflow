@@ -399,3 +399,53 @@ test("nested signed authorization arrays never leak through echoed error text", 
     },
   );
 });
+
+test("only explicit pfd template lifecycle routes receive bearer authentication", async () => {
+  const template = "/api/v1/flow-templates/11111111-1111-4111-8111-111111111111";
+  let count = 0;
+  const fetch = async () => {
+    count++;
+    return new Response(JSON.stringify({ data: true }));
+  };
+  const developer = new PaiflowTransport({
+    baseUrl: "https://example.com",
+    token: "pfd_" + "a".repeat(64),
+    fetch,
+  });
+  const legacy = new PaiflowTransport({ baseUrl: "https://example.com", token: "pfk_test", fetch });
+  for (const suffix of [
+    "instances",
+    "instances/id",
+    "instances/id/events",
+    "instances/id/submit",
+    "instances/id/reconcile",
+    "versions/version/instances/prepare",
+  ]) {
+    const req = {
+      path: template + "/" + suffix,
+      method: "GET",
+      auth: { kind: "token" },
+      parse: (value) => value,
+    };
+    await developer.request(req);
+    await assert.rejects(legacy.request(req), TypeError);
+  }
+  for (const suffix of [
+    "draft",
+    "versions",
+    "retire",
+    "instances/id/retire",
+    "instances/id/execute",
+    "versions/version/instances/submit",
+  ])
+    await assert.rejects(
+      developer.request({
+        path: template + "/" + suffix,
+        method: "POST",
+        auth: { kind: "token" },
+        parse: (value) => value,
+      }),
+      TypeError,
+    );
+  assert.equal(count, 6);
+});

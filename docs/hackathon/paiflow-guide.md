@@ -1,8 +1,8 @@
 # Paiflow Guide
 
-Updated Oct 17, 2026
+Updated Oct 30, 2026
 
-Build your first payment integration: a customer's XLM payment automatically splits 90% to a shop and 10% to a community fund. Start with a working flow, prove its payout, then connect your own app.
+Start with your user's problem; use [problem discovery](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/llms.md#first-action-understand-the-users-problem) if you need help choosing one. This guide's **90/10 Split exercise is optional**. The simplest payment exercise is **Receive → Pay one recipient**. Choose a flow that fits your app.
 
 ### Choose the right resource
 
@@ -47,7 +47,7 @@ The written steps below belong to **2.b**.
 
 ## Part 1 — Build and Test Your Payment Flow
 
-Complete the wallet, account and flow steps in Paiflow, then make a hosted-page test payment. You will use the same confirmed deployment in Part 2.
+Complete the wallet, account and flow steps in Paiflow, then make a hosted-page test payment. You will use the same confirmed deployment in Part 2. The detailed amounts, wallets and receipt checks below belong to the optional 90/10 exercise. If you choose Receive → Pay instead, configure Pay to send the full amount to one recipient and verify its 1 XLM payout, with the customer paying transaction fees separately. Adapt the exercise's two-recipient checks to that single recipient.
 
 ### Prepare your testnet wallets
 
@@ -85,6 +85,8 @@ The signup access code is different from the developer API token created in Part
 **Checkpoint:** you are signed in to your Paiflow account and can create a flow.
 
 ### Build a Receive → Split flow
+
+**Optional Split exercise.** Use it to learn the mechanics, then adapt the flow to your chosen problem. The video demonstrates this specific example.
 
 **Video walkthrough:** [Build a Receive → Split flow](https://youtu.be/0zqJMpyulZQ).
 
@@ -303,6 +305,8 @@ For detailed method shapes, SDK errors and advanced workflows, use the [SDK READ
 ##### Optional: start from a ready-made app
 
 The [SDK payment example](https://github.com/artisam-paiflow/paiflow-hackathon-starter) provides a runnable 1-XLM native-testnet payment with Freighter signing, original-transaction status and browser recovery. It accepts `pfd_` or `pfk_` credentials for one explicitly configured deployment. Follow its README; funding, Schedule, Subscription and activity panels are outside its minimal scope.
+
+Other optional app ideas include workshop ticketing or service booking with Receive → Pay, donation routing with an amount condition, or a shared savings lock with a time condition and Hold. Confirm support for conditions and release operations with organisers before choosing them. The team builds the app's ticketing, booking and other features; a deposit held for later release is not a verified payout. These examples are inspiration, not assigned challenges. See [previous hackathon winners](https://beta.paiflow.xyz/hackathons.html) for more ideas.
 
 [Campus Snacks](https://github.com/artisam-paiflow/paiflow-campus-snacks) is the sample for a server-priced USDC shop and 90/10 split. Follow its own asset and configuration instructions. Preserve the original-envelope recovery when adapting either example; neither supplies production authentication or order fulfilment.
 

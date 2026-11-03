@@ -1,3 +1,5 @@
+import { mutationMethods } from "./mutation.js";
+import { PaiflowTemplate } from "./instances.js";
 import { webhookMethods, releaseEarlyMethod } from "./webhook.js";
 import { subscriptionMethods } from "./subscription.js";
 import { scheduleMethods } from "./schedule.js";
@@ -143,6 +145,13 @@ export class Paiflow {
       input(() => uuid(deploymentId)),
     );
   }
+  /** Bind instance lifecycle to an explicitly granted private template. */
+  flowTemplate(templateId: string): PaiflowTemplate {
+    return new PaiflowTemplate(
+      this.transport,
+      input(() => uuid(templateId)),
+    );
+  }
   /** Read the public raw API specification without forwarding the token. */
   getOpenApi(options?: RequestOptions) {
     return this.transport.request(
@@ -185,6 +194,8 @@ export class PaiflowDeployment {
   readonly funding;
   /** Token-authenticated prepare and explicit submit; preserve the original envelope. */
   readonly execute;
+  /** Exact admin-signed stored updates and confirmed observed configuration history. */
+  readonly configuration;
   /** Anonymous payment helpers; public SUCCESS is global chain status, not an order receipt. */
   readonly publicPayment;
   /** Read supported/conditional operations; capability is not live execution readiness. */
@@ -215,6 +226,7 @@ export class PaiflowDeployment {
     this.funding = fundingMethods(transport, deploymentId);
     const payments = paymentMethods(transport, deploymentId);
     this.execute = payments.execute;
+    this.configuration = mutationMethods(transport, deploymentId);
     this.publicPayment = payments.publicPayment;
     const partner = `/api/v1/deployments/${deploymentId}`;
     const publicPath = `/api/deployments/${deploymentId}`;

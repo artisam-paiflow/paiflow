@@ -1,6 +1,6 @@
 # API v1 developer token permissions
 
-Developer credentials (`pfd_`) authorize only explicitly selected existing deployments that are still confirmed, active and owned by the active non-sandbox token owner. New deployments require explicit grants. Legacy deployment credentials (`pfk_`) keep their existing single-deployment behavior. Neither family authorizes owner-session payroll management or flow/deployment creation. Legacy `pkdev_` authentication was removed in #1138.
+Developer credentials (`pfd_`) authorize only explicitly selected existing deployments that are still confirmed, active and owned by the active non-sandbox token owner. New deployments require explicit grants. Legacy deployment credentials (`pfk_`) keep their existing single-deployment behavior. Neither family authorizes flow/deployment creation. Legacy `pkdev_` authentication was removed in #1138.
 
 `READ_ONLY` allows the reads below. `READ_OPERATE` allows every listed operation. An unlisted operation fails closed until explicitly classified. Wallet signatures, webhook secrets, deployment capability restrictions and retirement admission still apply. Reconciliation is an operate permission even though its response contains status; ordinary transaction-status reads are available to read-only credentials.
 
@@ -11,12 +11,19 @@ For deployment operations, append the listed path to `/api/v1/deployments/{id}/`
 | `GET balances`                           | `READ_ONLY`        |
 | `GET capabilities`                       | `READ_ONLY`        |
 | `GET events`                             | `READ_ONLY`        |
+| `GET configuration`                      | `READ_ONLY`        |
+| `GET configuration/history`              | `READ_ONLY`        |
+| `POST configuration/prepare`             | `READ_OPERATE`     |
+| `POST configuration/submit`              | `READ_OPERATE`     |
+| `POST configuration/reconcile`           | `READ_OPERATE`     |
+| `GET execution`                          | `READ_ONLY`        |
 | `GET funding`                            | `READ_ONLY`        |
 | `GET schedule/state`                     | `READ_ONLY`        |
 | `GET subscription/state`                 | `READ_ONLY`        |
 | `GET swap-quote`                         | `READ_ONLY`        |
 | `GET transactions/:txHash`               | `READ_ONLY`        |
 | `POST execute`                           | `READ_OPERATE`     |
+| `POST execute/reconcile`                 | `READ_OPERATE`     |
 | `POST execute/submit`                    | `READ_OPERATE`     |
 | `POST funding`                           | `READ_OPERATE`     |
 | `POST funding/reconcile`                 | `READ_OPERATE`     |
@@ -38,3 +45,19 @@ For deployment operations, append the listed path to `/api/v1/deployments/{id}/`
 | `POST subscription/reactivate/reconcile` | `READ_OPERATE`     |
 | `POST subscription/reactivate/submit`    | `READ_OPERATE`     |
 | `GET deployments`                        | `READ_ONLY`        |
+
+Template instance operations require a separate explicit template grant. Existing
+deployment grants and `pfk_` tokens confer no template authority; token permissions
+remain immutable. These operations do not manage template definitions or grant
+access to the new deployment's ordinary execute/control API.
+
+| Operation                                                       | Minimum permission |
+| --------------------------------------------------------------- | ------------------ |
+| `GET flow-templates/:id/instances`                              | `READ_ONLY`        |
+| `GET flow-templates/:id/instances/:instanceId`                  | `READ_ONLY`        |
+| `GET flow-templates/:id/instances/:instanceId/events`           | `READ_ONLY`        |
+| `POST flow-templates/:id/versions/:versionId/instances/prepare` | `READ_OPERATE`     |
+| `POST flow-templates/:id/instances/:instanceId/submit`          | `READ_OPERATE`     |
+| `POST flow-templates/:id/instances/:instanceId/reconcile`       | `READ_OPERATE`     |
+
+Guarded configuration operations apply only to reviewed new-artifact Pay/Split immediate paths. Both deployment-bound `pfk_` and selected-deployment `pfd_` access retain their existing deployment scope; template grants confer no mutation access. Every stored update still requires the exact on-chain developer admin signature. See [configuration API](configuration.md).
