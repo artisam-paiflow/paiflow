@@ -7,7 +7,7 @@ settings:
 overrides:
   protobufjs: ">=7.6.3 <8"
   axios: ">=1.18.0 <2"
-  follow-redirects: ">=1.16.1 <2"
+  follow-redirects: ">=1.16.2 <2"
   ws: ">=8.21.0 <9"
   form-data: ">=4.0.6 <5"
   ua-parser-js: ">=2.0.10 <3"
@@ -25,7 +25,7 @@ overrides:
   browserslist: ">=4.28.7 <5"
   baseline-browser-mapping: ">=2.11.22 <3"
   deepmerge-ts: ">=8.0.0 <9"
-  decode-uri-component: ">=0.5.0 <1"
+  decode-uri-component: ">=0.5.1 <0.6"
   sharp: ">=0.35.5 <0.36"
   "@auth/core": ">=0.41.3 <0.42"
   source-map-js: ">=1.2.2 <2"
@@ -34,7 +34,8 @@ overrides:
   stream-json: ">=3.6.0 <4"
   "@creit.tech/stellar-wallets-kit>@walletconnect/sign-client": 2.26.0
   "@creit.tech/stellar-wallets-kit>@walletconnect/modal": 2.7.0
-  minimatch@10>brace-expansion: ">=5.0.12 <6"
+  minimatch: ">=11.0.1 <12"
+  minimatch@11>brace-expansion: ">=5.0.12 <6"
 
 patchedDependencies:
   minio@8.0.7:
@@ -1119,6 +1120,12 @@ packages:
     resolution:
       {
         integrity: sha512-JH8ZL/ywcJyR9MmJ5BNqZllXNZQqQbnVZOqpPQqE1vHiFgAw4NHbvE0FOduNU8IX9babitBT46571OnPTT0Zcw==,
+      }
+
+  "@isaacs/nonrecursive-glob-match@1.0.3":
+    resolution:
+      {
+        integrity: sha512-SI7kyKHq4XXDRozw+r9GlRZkia1ZkFrpLW98r2IC2Bpr8YkFGE3fvjzmxCG0x78A++69HmDNrDvSMYBZmHGpKA==,
       }
 
   "@jridgewell/gen-mapping@0.3.13":
@@ -3533,12 +3540,6 @@ packages:
         integrity: sha512-r8aOh8j9cGKpgQAqpzrUHnSIc6a59Y3Xf/cv8sy1DrHCkZHzQGEuoq1tARk6qSyDdtQGSDgpb9kFlruzPvrgwg==,
       }
 
-  balanced-match@1.0.2:
-    resolution:
-      {
-        integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==,
-      }
-
   balanced-match@4.0.4:
     resolution:
       {
@@ -3716,12 +3717,6 @@ packages:
     resolution:
       {
         integrity: sha512-kc9+BgR3zz9+cjbwM8ODoUB4fs3X3I5A/HtX7LZKxCLaMrEeDFoBpnhZY//DTS1VZBSs6S5v46RZRbZjRFspEg==,
-      }
-
-  brace-expansion@1.1.21:
-    resolution:
-      {
-        integrity: sha512-9zeA+KLZNNzglF2TPKRQEDyx6Yby7daAkuy8MiPzpXPsYDWi/DRM8jmwUDxokQjYqBpv5DgPiwD4h4ZZSy1Ujw==,
       }
 
   brace-expansion@5.0.12:
@@ -4022,12 +4017,6 @@ packages:
         integrity: sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==,
       }
 
-  concat-map@0.0.1:
-    resolution:
-      {
-        integrity: sha512-/Srv4dswyQNBfohGpz9o6Yb3Gz3SrUDqBH5rTuhGR7ahtlbYKnVxw2bCFMRljaA7EXHaXZ8wsHdodFvbkhKmqg==,
-      }
-
   confbox@0.2.4:
     resolution:
       {
@@ -4218,10 +4207,10 @@ packages:
         integrity: sha512-YpgQiITW3JXGntzdUmyUR1V812Hn8T1YVXhCu+wO3OpS4eU9l4YdD3qjyiKdV6mvV29zapkMeD390UVEf2lkUg==,
       }
 
-  decode-uri-component@0.5.0:
+  decode-uri-component@0.5.1:
     resolution:
       {
-        integrity: sha512-1BiQVoK8C9gUbQU6NzAtO/tkz2qOFpEObMWpcFvhx4fYnj4Oc5yzaJN/LD36ihkVUdXyh5ZekzX+yM+ty/SrPg==,
+        integrity: sha512-vWHQkXgg2cE3BB4rR0c+PYw9BCQzLoNIRMI7AunIkZst74tw/vpPp7VLoYtsR/cy1f55g3XDWUslfeCZjiZJyA==,
       }
     engines: { node: ">=14.16" }
 
@@ -4781,10 +4770,10 @@ packages:
         integrity: sha512-PjDse7RzhcPkIJwy5t7KPWQSZ9cAbzQXcafsetQoD7sOJRQlGikNbx7yZp2OotDnJyrDcbyRq3Ttb18iYOqkxA==,
       }
 
-  follow-redirects@1.16.1:
+  follow-redirects@1.16.2:
     resolution:
       {
-        integrity: sha512-FNvFGzoMLWmE6Yj9spb/zjd7yiNCHiAW9/Tg9CXrQ8wuu32HtlJOwWO11OJafl5FfY3DxTdQ0vj42zU1kvv5jg==,
+        integrity: sha512-/kVP2U8z596Ia0gwFrwyIeo74ta5aVmSeU1FfAUMAmcEP5EP7zydmag3SLiN64NaRKef3lxsq7i/g7ltJQDGow==,
       }
     engines: { node: ">=4.0" }
     peerDependencies:
@@ -5687,18 +5676,12 @@ packages:
         integrity: sha512-JIYlbt6g8i5jKfJ3xz7rF0LXmv2TkDxBLUkiBeZ7bAx4GnnNMr8xFpGnOxn6GhTEHx3SjRrZEoU+j04prX1ktg==,
       }
 
-  minimatch@10.2.6:
+  minimatch@11.0.4:
     resolution:
       {
-        integrity: sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A==,
+        integrity: sha512-/UJ1dEoVQTjPNDh6SGlUo+ueLMmoHTas4q+8yaAR/5t6nLAIiBDJtoYUh20IYleix7ehiQkgczb84PE3uzHkxg==,
       }
-    engines: { node: 18 || 20 || >=22 }
-
-  minimatch@3.1.5:
-    resolution:
-      {
-        integrity: sha512-VgjWUsnnT6n+NUk6eZq77zeFdpW2LWDzP6zFGrCbHXiYNul5Dzqk2HHQ5uFH2DNW5Xbp8+jVzaeNt94ssEEl4w==,
-      }
+    engines: { node: 20 || >=22 }
 
   minimist@1.2.8:
     resolution:
@@ -8128,7 +8111,7 @@ snapshots:
     dependencies:
       "@eslint/object-schema": 2.1.7
       debug: 4.4.3
-      minimatch: 3.1.5
+      minimatch: 11.0.4
     transitivePeerDependencies:
       - supports-color
 
@@ -8149,7 +8132,7 @@ snapshots:
       ignore: 5.3.2
       import-fresh: 3.3.1
       js-yaml: 4.3.2
-      minimatch: 3.1.5
+      minimatch: 11.0.4
       strip-json-comments: 3.1.1
     transitivePeerDependencies:
       - supports-color
@@ -8360,6 +8343,8 @@ snapshots:
     optional: true
 
   "@ioredis/commands@1.5.1": {}
+
+  "@isaacs/nonrecursive-glob-match@1.0.3": {}
 
   "@jridgewell/gen-mapping@0.3.13":
     dependencies:
@@ -10380,15 +10365,13 @@ snapshots:
 
   axios@1.20.0:
     dependencies:
-      follow-redirects: 1.16.1
+      follow-redirects: 1.16.2
       form-data: 4.0.6
       https-proxy-agent: 5.0.1
       proxy-from-env: 2.1.0
     transitivePeerDependencies:
       - debug
       - supports-color
-
-  balanced-match@1.0.2: {}
 
   balanced-match@4.0.4: {}
 
@@ -10472,11 +10455,6 @@ snapshots:
   borsh@1.0.0: {}
 
   borsh@2.0.0: {}
-
-  brace-expansion@1.1.21:
-    dependencies:
-      balanced-match: 1.0.2
-      concat-map: 0.0.1
 
   brace-expansion@5.0.12:
     dependencies:
@@ -10648,8 +10626,6 @@ snapshots:
 
   commander@2.20.3: {}
 
-  concat-map@0.0.1: {}
-
   confbox@0.2.4: {}
 
   consola@3.4.2: {}
@@ -10757,7 +10733,7 @@ snapshots:
 
   decimal.js@10.6.0: {}
 
-  decode-uri-component@0.5.0: {}
+  decode-uri-component@0.5.1: {}
 
   deep-is@0.1.4: {}
 
@@ -10951,7 +10927,7 @@ snapshots:
       is-glob: 4.0.3
       json-stable-stringify-without-jsonify: 1.0.1
       lodash.merge: 4.6.2
-      minimatch: 3.1.5
+      minimatch: 11.0.4
       natural-compare: 1.4.0
       optionator: 0.9.4
     optionalDependencies:
@@ -11068,7 +11044,7 @@ snapshots:
 
   flatted@3.4.2: {}
 
-  follow-redirects@1.16.1: {}
+  follow-redirects@1.16.2: {}
 
   for-each@0.3.5:
     dependencies:
@@ -11590,13 +11566,10 @@ snapshots:
 
   minimalistic-crypto-utils@1.0.1: {}
 
-  minimatch@10.2.6:
+  minimatch@11.0.4:
     dependencies:
+      "@isaacs/nonrecursive-glob-match": 1.0.3
       brace-expansion: 5.0.12
-
-  minimatch@3.1.5:
-    dependencies:
-      brace-expansion: 1.1.21
 
   minimist@1.2.8: {}
 
@@ -12019,7 +11992,7 @@ snapshots:
 
   query-string@7.1.3:
     dependencies:
-      decode-uri-component: 0.5.0
+      decode-uri-component: 0.5.1
       filter-obj: 1.1.0
       split-on-first: 1.1.0
       strict-uri-encode: 2.0.0
@@ -12548,7 +12521,7 @@ snapshots:
       "@gerrit0/mini-shiki": 3.23.0
       lunr: 2.3.9
       markdown-it: 14.3.3
-      minimatch: 10.2.6
+      minimatch: 11.0.4
       typescript: 5.9.3
       yaml: 2.9.0
 
