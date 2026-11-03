@@ -1,29 +1,55 @@
 # Changelog
 
 SDK versions are independent of the app and API. Follow the repository release
-[release policy](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/releasing.md).
+[release policy](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/releasing.md).
 
 ## [Unreleased]
 
-- Add `deployment.configuration` verified state/history and explicit admin-signed prepare/sign/submit/reconcile workflows (#1169), requiring original idempotency and preserving unknown outcomes without automatic retries or replacements.
+## [0.3.0]
 
-- Add explicit owned-template grants and developer-signed private-template instance prepare/sign/submit/reconcile/history support (#1165). Preserve uncertain RPC refusals under the original admission/hash, and bind canonical SDK receipts to the requested instance.
+Prepared on 2026-11-03. This beta minor adds client APIs and records the approved
+compatibility removals below. The preparation date is not a publication claim; see
+the evolving [release record](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/sdk/release-checklist.md)
+for the publication date, registry availability and verification status.
 
-- Accept server-verified mutation capability metadata when discovering new guarded
-  Pay/Split artifacts, while retaining execution-only discovery with `mutation: false`
-  (#1168). Older strict SDKs may require an update for the new artifact generation;
-  existing execution-only deployment responses are unchanged. Mutation endpoints are available in source under #1169; owner editing remains subsequent work; no release is published by this change.
+### Added
 
-- Add execution input types, verified configuration reads, idempotent preparation,
-  exact-intent signing/submission and explicit reconciliation for policy-v1 backend
-  deployments (#1160, OpenAPI 1.4.0). UNKNOWN/REJECTED remain unresolved outcomes;
-  there are no automatic payment retries. Legacy execute input remains compatible.
+- Policy-v1 execution input types, verified configuration reads, idempotent
+  preparation, exact-intent signing/submission and explicit reconciliation (#1160).
+  Requires compatible API revision 1.4.0 and reviewed execution artifacts.
+- Private-template instance prepare/sign/submit/reconcile/history with explicit
+  owned-template grants and original admission recovery (#1165), requiring
+  compatible API revision 1.5.0. Live instance acceptance remains unfinished.
+- Guarded Pay/Split configuration state/history and exact admin-signed
+  prepare/sign/submit/reconcile workflows (#1169), requiring compatible API revision
+  1.6.0 and reviewed guarded artifacts. Live mutation acceptance remains unfinished.
+- Generated method/type reference, parameterized execution example and current
+  receipt/history correlation for existing controls. All signing remains in the
+  caller's wallet; credentials never substitute for wallet consent.
 
-- Remove the retired `payroll` capability trigger value (#1144). Payroll application and API support is intentionally discontinued; ordinary Subscription, Pay and Split integrations remain supported. Previously published packages are unchanged.
+### Changed
 
-- Point package repository metadata and the release-policy link to the public
-  source mirror. This applies to the next published SDK artifact; the existing
-  npm `0.2.0` artifact retains its original metadata.
+- Accept verified mutation capability metadata while preserving execution-only
+  discovery with `mutation: false` (#1168). Artifact activation and later phase
+  acceptance remain separate from package availability.
+- Point repository metadata and versioned documentation at the public source
+  mirror. Matching SDK source and tag must exist there before publication.
+
+### Removed
+
+- Remove the retired `payroll` capability trigger under the approved retirement
+  (#1144). Ordinary Subscription, Pay and Split integrations remain supported.
+  Release documentation also stops describing retired Dev backend variants as
+  supported (#1138); no SDK Dev setter removal or replacement is claimed. Existing
+  npm artifacts and retained supported API v1 contracts are unchanged.
+
+### Verification limits
+
+- Bounded source-packed TESTNET execution passed in Campaign 2; publishing this
+  candidate does not establish registry-installed execution, general topology,
+  legacy public submission remediation, instance/mutation acceptance or production
+  readiness. Unknown/rejected outcomes keep their original identities; there are
+  no automatic financial retries or replacements.
 
 ## [0.2.0] - 2026-10-16
 

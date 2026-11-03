@@ -42,7 +42,10 @@ vi.mock("@/lib/stellar/client", () => ({
   withRelayerLock: <T>(fn: () => Promise<T>) => fn(),
 }));
 vi.mock("@/lib/stellar/invoke", () => ({}));
-vi.mock("@/lib/auth", () => ({ getSessionUser: vi.fn(async () => null) }));
+vi.mock("@/lib/auth", () => ({
+  getSessionUser: vi.fn(async () => null),
+  requireSession: vi.fn(async () => ({ id: "owner" })),
+}));
 vi.mock("@/lib/rate-limit", () => ({
   enforceRateLimit: vi.fn(async () => undefined),
   clientIp: vi.fn(() => "203.0.113.9"),
@@ -51,12 +54,14 @@ vi.mock("@/lib/audit", () => ({
   audit: vi.fn(async () => undefined),
   needsSubmitRow: vi.fn(async (_d: string, _h: string, duplicate?: boolean) => !duplicate),
 }));
-vi.mock("@/lib/signed-tx", () => ({ recordSignedTransaction: vi.fn(async () => undefined) }));
+// Send classification is isolated from exact preparation admission; the dedicated
+// binding route/crypto/PostgreSQL suites exercise that boundary for real.
+vi.mock("@/lib/stellar/legacy-submission", () => ({ admitLegacySubmission: vi.fn() }));
 
 import { POST as submitTrigger } from "@/app/api/deployments/[id]/submit-trigger/route";
 import { POST as submitInvoke } from "@/app/api/deployments/[id]/submit-invoke/route";
 import { audit, needsSubmitRow } from "@/lib/audit";
-import { recordSignedTransaction } from "@/lib/signed-tx";
+import { admitLegacySubmission } from "@/lib/stellar/legacy-submission";
 import { SEND_NOT_ACCEPTED_MESSAGE } from "@/lib/stellar/send-status";
 import {
   DEPLOYMENT_ID,
@@ -77,8 +82,15 @@ const routes = [
 ] as const;
 
 beforeEach(() => {
-  vi.resetAllMocks();
+  vi.clearAllMocks();
   mockRpc.getTransaction.mockResolvedValue({ status: "NOT_FOUND" });
+  vi.mocked(admitLegacySubmission).mockImplementation(async ({ signedXdr }) => {
+    const { signerFromTransaction } = await import("@/lib/stellar/signer");
+    const tx = TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET) as Transaction;
+    const signer = signerFromTransaction(tx);
+    if (!signer.ok) throw new Error("Invalid signed test fixture");
+    return { tx, signer, replay: false };
+  });
   vi.mocked(needsSubmitRow).mockImplementation(async (_d, _h, duplicate) => !duplicate);
   mockDb.deployment.findFirst.mockResolvedValue({
     id: DEPLOYMENT_ID,
@@ -112,7 +124,7 @@ for (const [name, POST, action] of routes) {
       });
       expect(audit).not.toHaveBeenCalled();
       // The envelope was signed whether or not the network took it.
-      expect(recordSignedTransaction).toHaveBeenCalledTimes(1);
+      expect(admitLegacySubmission).toHaveBeenCalledTimes(1);
     });
 
     it("a DUPLICATE send (already in the queue) is PENDING and writes no second row", async () => {

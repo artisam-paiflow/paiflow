@@ -1,7 +1,7 @@
 {
   "name": "@paiflow/sdk",
-  "version": "0.2.0",
-  "description": "Node SDK for existing Paiflow deployments",
+  "version": "0.3.0",
+  "description": "Node SDK for Paiflow payments and template instances",
   "license": "MIT",
   "type": "module",
   "engines": {

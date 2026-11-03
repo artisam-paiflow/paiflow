@@ -425,6 +425,7 @@ model Deployment {
   streamerClaimJobs     StreamerClaimJob[]
   apiTokens             DeploymentApiToken[]
   signedTransactions    SignedTransaction[]
+  walletSubmissionPreparations WalletSubmissionPreparation[]
   timelockReleases      TimelockRelease[]
   webhookAttempts       WebhookAttempt[]
   walletControlIntents  WalletControlIntent[]
@@ -529,6 +530,27 @@ enum SignedTxKind {
   TRIGGER
   INVOKE
   API_EXECUTE
+}
+
+/// Exact simulated legacy wallet transactions approved before exposing unsigned XDR.
+/// Retained immutable evidence: no envelope, signatures, credential or expiry cleanup.
+model WalletSubmissionPreparation {
+  txHash          String       @id
+  deploymentId    String       @db.Uuid
+  network         String
+  kind            SignedTxKind
+  sourceAddress   String
+  contractAddress String
+  method          String
+  amountStroops   String?
+  maxTime         String
+  snapshotDigest  String
+  createdAt       DateTime     @default(now())
+
+  deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
+
+  @@index([deploymentId, createdAt])
+  @@index([network, createdAt])
 }
 
 model ContractEvent {

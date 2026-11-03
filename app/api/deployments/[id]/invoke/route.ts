@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { StrKey } from "@stellar/stellar-sdk";
 import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
+import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import {
   prepareStreamerPauseInvocation,
@@ -11,30 +10,28 @@ import {
 } from "@/lib/stellar/invoke";
 import { stellarPassphrase } from "@/lib/env";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
-import type { FlowGraph } from "@/lib/flows/schema";
-import { isTrigger } from "@/lib/flows/schema";
-
-const PostSchema = z.object({
-  method: z.enum(["pause", "unpause", "retrieve_unvested"]),
-  contractAddress: z.string().min(1),
-  userAddress: z.string().refine(StrKey.isValidEd25519PublicKey, "Invalid Stellar address"),
-});
+import { FlowGraphSchema, isTrigger } from "@/lib/flows/schema";
+import { LegacyInvokePrepareSchema } from "@/lib/legacy-submission/schema";
+import { registerLegacyPreparation } from "@/lib/stellar/legacy-submission";
 
 async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
+    await requireSession();
     const { id } = await ctx.params;
     const ip = clientIp(req);
     await enforceRateLimit({ key: `invoke:${id}:${ip}`, limit: 20, windowSeconds: 60 });
-    const body = PostSchema.parse(await req.json());
+    const body = LegacyInvokePrepareSchema.parse(await req.json());
 
     const d = await db.deployment.findFirst({
       where: { id, status: "CONFIRMED" },
-      include: { flow: { select: { templateKind: true, graph: true } } },
+      include: { flow: { select: { templateKind: true } } },
     });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found or not confirmed");
 
-    const flowGraph = d.flow.graph as FlowGraph | null;
-    const trigger = flowGraph?.nodes.find(isTrigger);
+    const flowGraph = FlowGraphSchema.safeParse(d.graphSnapshot);
+    if (!flowGraph.success)
+      throw new AppError("VALIDATION", "Deployment graph cannot authorize this control");
+    const trigger = flowGraph.data.nodes.find(isTrigger);
 
     if (body.method === "pause" || body.method === "unpause") {
       const pauseAllowed =
@@ -86,6 +83,15 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
         invokerAddress: body.userAddress,
       }));
     }
+
+    await registerLegacyPreparation({
+      deployment: d,
+      kind: "INVOKE",
+      unsignedXdr: xdr,
+      sourceAddress: body.userAddress,
+      contractAddress: streamerNode.contractAddress,
+      method: body.method,
+    });
 
     return NextResponse.json({
       data: {

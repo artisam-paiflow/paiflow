@@ -1,3 +1,8 @@
+vi.mock("@/lib/auth", () => ({ requireSession: vi.fn(async () => ({ id: "owner" })) }));
+// Exact preparation/admission is exercised separately with real envelopes and PostgreSQL.
+vi.mock("@/lib/stellar/legacy-submission", () => ({
+  registerLegacyPreparation: vi.fn(async () => undefined),
+}));
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Deployment } from "@prisma/client";
 import type { NextRequest } from "next/server";

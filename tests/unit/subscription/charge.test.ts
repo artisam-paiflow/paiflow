@@ -1,3 +1,7 @@
+// Exact preparation/admission is exercised separately with real envelopes and PostgreSQL.
+vi.mock("@/lib/stellar/legacy-submission", () => ({
+  registerLegacyPreparation: vi.fn(async () => undefined),
+}));
 // This suite isolates charge diagnostics; real admission is covered in retirement.test.ts.
 vi.mock("@/lib/deployments/service-route", () => ({
   deploymentServiceRoute: (handler: unknown) => handler,

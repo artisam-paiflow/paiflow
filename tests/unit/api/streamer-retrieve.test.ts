@@ -1,3 +1,8 @@
+vi.mock("@/lib/auth", () => ({ requireSession: vi.fn(async () => ({ id: "owner" })) }));
+// Exact preparation/admission is exercised separately with real envelopes and PostgreSQL.
+vi.mock("@/lib/stellar/legacy-submission", () => ({
+  registerLegacyPreparation: vi.fn(async () => undefined),
+}));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
 import { Keypair, SorobanDataBuilder, StrKey, TransactionBuilder, xdr } from "@stellar/stellar-sdk";
@@ -71,13 +76,33 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.findFirst.mockResolvedValue({
     pipelineSnapshot: [{ templateKind: "STREAMER", contractAddress: streamer }],
+    graphSnapshot: {
+      nodes: [
+        {
+          id: "schedule",
+          type: "on_schedule",
+          config: {
+            retrieveAllowed: true,
+            pauseAllowed: true,
+            intervalUnit: "day",
+            startsAt: "2026-11-01T00:00:00Z",
+          },
+        },
+      ],
+      edges: [],
+    },
     flow: {
       graph: {
         nodes: [
           {
             id: "schedule",
             type: "on_schedule",
-            config: { retrieveAllowed: true, pauseAllowed: true },
+            config: {
+              retrieveAllowed: true,
+              pauseAllowed: true,
+              intervalUnit: "day",
+              startsAt: "2026-11-01T00:00:00Z",
+            },
           },
         ],
         edges: [],
@@ -89,6 +114,19 @@ beforeEach(() => {
 });
 
 describe("Schedule retrieve preparation (#882)", () => {
+  it("refuses malformed historical graph evidence before simulation", async () => {
+    mocks.findFirst.mockResolvedValue({
+      graphSnapshot: {},
+      pipelineSnapshot: [{ templateKind: "STREAMER", contractAddress: streamer }],
+      flow: { templateKind: "STREAMER" },
+    });
+    const response = await call();
+    expect(response.status).toBe(422);
+    expect((await response.json()).error.message).toContain("cannot authorize");
+    expect(mocks.server.simulateTransaction).not.toHaveBeenCalled();
+    expect(mocks.server.sendTransaction).not.toHaveBeenCalled();
+  });
+
   it("serializes the target Streamer's unpaused refusal as 409 with details, without signing or submitting", async () => {
     mocks.server.simulateTransaction.mockResolvedValue(failure([frame(streamer), frame(streamer)]));
     const response = await call();

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { StrKey } from "@stellar/stellar-sdk";
+import { Address, StrKey } from "@stellar/stellar-sdk";
 import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
@@ -14,6 +14,7 @@ import { ChargeRelayerMode } from "@prisma/client";
 import { prepareSubscriptionSetRelayerInvocation } from "@/lib/stellar/invoke";
 import { readSubscriptionRelayer } from "@/lib/stellar/relayer";
 import { stellarPassphrase } from "@/lib/env";
+import { registerLegacyPreparation } from "@/lib/stellar/legacy-submission";
 
 const PostSchema = z.object({
   mode: z.enum(["PLATFORM", "USER", "MANUAL"]),
@@ -167,6 +168,15 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
         contractAddress: subscriptionNode.contractAddress,
         adminAddress: d.sourceAccount,
         newRelayerAddress,
+      });
+      await registerLegacyPreparation({
+        deployment: { ...d, chargeRelayerAddress: newRelayerAddress },
+        kind: "INVOKE",
+        unsignedXdr: xdr,
+        sourceAddress: d.sourceAccount,
+        contractAddress: subscriptionNode.contractAddress,
+        method: "set_relayer",
+        expectedArgs: [new Address(newRelayerAddress).toScVal()],
       });
       setRelayerXdr = xdr;
     }

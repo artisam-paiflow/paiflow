@@ -20,7 +20,14 @@ vi.mock("@/lib/stellar/trigger", () => ({
 }));
 vi.mock("@/lib/signed-tx", () => ({ recordSignedTransaction: mock.record }));
 vi.mock("@/lib/audit", () => ({ audit: mock.audit, needsSubmitRow: vi.fn() }));
-vi.mock("@/lib/auth", () => ({ getSessionUser: vi.fn() }));
+vi.mock("@/lib/auth", () => ({
+  getSessionUser: vi.fn(),
+  requireSession: vi.fn(async () => ({ id: "owner" })),
+}));
+vi.mock("@/lib/stellar/legacy-submission", () => ({
+  registerLegacyPreparation: vi.fn(),
+  admitLegacySubmission: mock.record,
+}));
 import { POST as prepare } from "@/app/api/deployments/[id]/trigger/route";
 import { POST as submit } from "@/app/api/deployments/[id]/submit-trigger/route";
 import { POST as invoke } from "@/app/api/deployments/[id]/submit-invoke/route";

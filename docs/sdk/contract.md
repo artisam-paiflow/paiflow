@@ -1,14 +1,15 @@
 # Node SDK contract and endpoint coverage
 
-The Node package implements the existing-deployment surface below. Beta `0.2.0` provides
-developer credentials and scoped deployment discovery; see the
+The Node package implements deployment workflows and private-template instance
+clients. SDK `0.3.0` adds parameterized execution and guarded configuration
+to the developer credentials/discovery introduced in `0.2.0`; see the
 [release record](release-checklist.md) for registry availability.
 Local SDK tests do not establish hosted availability. See the
 [quickstart and migration guide](quickstart.md) for compiled examples.
 
 ## Scope and packaging
 
-User decisions: TypeScript, Node first, existing deployments, a separate package
+The SDK is TypeScript, Node first, with a separate package
 in this repository named `@paiflow/sdk`. Release-preparation PRs target `develop`
 under the current workflow. The `@paiflow` npm scope exists; registry publishing,
 SDK tagging and backend promotion remain distinct release steps.
@@ -18,7 +19,7 @@ actual handlers. The original contract used `testing` baseline `e803520c`
 (2026-10-13); the current matrix includes developer-token work merged into `develop`.
 
 Use `packages/sdk`, with independent package metadata, declarations, exports,
-build configuration, changelog and tests. SDK beta `0.2.0` follows the
+build configuration, changelog and tests. SDK beta `0.3.0` follows the
 [release policy](../releasing.md); SDK versions do not match app versions. Declare
 compatibility with API v1 and the explicitly listed unversioned routes.
 
@@ -114,6 +115,37 @@ Read rates from [limits](../../lib/api/v1/limits.ts), auth/headers from
 [embed SSE](../../app/api/deployments/[id]/embed/events/route.ts), and
 [webhook](../../app/api/webhooks/[id]/route.ts). Demo access uses
 [DemoTokenSchema/handler](../../app/api/v1/demo-token/route.ts).
+
+## Additional 0.3.0 client routes
+
+The first matrix retains existing-deployment operations. These additional source
+APIs ship in the package; publication does not complete their separate live
+acceptance gates. `T` = `/api/v1/flow-templates/{id}`. Signing methods are local
+callbacks and add no HTTP endpoint. Detailed auth, rates and schemas remain in
+[execution parameters](../api/execution-parameters.md), [instance lifecycle](../api/template-instances.md)
+and [configuration](../api/configuration.md).
+
+| HTTP surface                                  | SDK method                                  | Required capability                                                |
+| --------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------ |
+| GET V/execution                               | `execute.state()`                           | Policy-aware discovery; returns unsupported for legacy definitions |
+| POST V/execute/reconcile                      | `execute.reconcile({intent})`               | Original execution intent, scoped deployment credential            |
+| POST T/versions/{versionId}/instances/prepare | `flowTemplate(id).instances.prepare(...)`   | Explicit owned-template operate grant; developer signs next        |
+| GET T/instances                               | `flowTemplate(id).instances.list(...)`      | Explicit owned-template read grant                                 |
+| GET T/instances/{instanceId}                  | `flowTemplate(id).instances.get(...)`       | Explicit owned-template read grant                                 |
+| POST T/instances/{instanceId}/submit          | `flowTemplate(id).instances.submit(...)`    | Operate grant and original developer-signed envelope               |
+| POST T/instances/{instanceId}/reconcile       | `flowTemplate(id).instances.reconcile(...)` | Operate grant; retain original instance identity                   |
+| GET T/instances/{instanceId}/events           | `flowTemplate(id).instances.events(...)`    | Explicit owned-template read grant                                 |
+| GET V/configuration                           | `configuration.get()`                       | Scoped deployment read credential and eligible reviewed path       |
+| GET V/configuration/history                   | `configuration.history(...)`                | Scoped deployment read credential                                  |
+| POST V/configuration/prepare                  | `configuration.prepare(...)`                | Operate credential, explicit key and declared mutable fields       |
+| POST V/configuration/submit                   | `configuration.submit(...)`                 | Operate credential and original admin-signed envelope              |
+| POST V/configuration/reconcile                | `configuration.reconcile(...)`              | Operate credential; original intent only                           |
+
+Execution requires compatible API revision `1.4.0`; instances `1.5.0`; guarded
+configuration `1.6.0`. Revision `1.7.0` adds durable non-admission refusal metadata.
+Retained older workflows keep their existing requirements. Instances and mutation
+have local client tests but unfinished live acceptance; inspect server capabilities
+and the phase readiness records rather than inferring availability from an export.
 
 ## Public API and types
 
@@ -294,7 +326,8 @@ SDK checks cannot replace or weaken server validation.
 ## Exclusions, OpenAPI gaps and hosted verification
 
 Exclude owner-session account/token management even though token routes appear in
-OpenAPI; flow creation/deployment; admin/cron. Payroll is retired (#1144). Mutable
+OpenAPI; arbitrary flow-graph creation/direct deployment; admin/cron. The explicit
+private-template instance routes below are the narrow deployment exception. Payroll is retired (#1144). Mutable
 dev APIs and v1 per-payment-recipient payouts have been removed in #1138; subscription
 allowance supports standard subscriptions. Owner-only `/events` SSE and
 `/poll-events` are excluded; public embed SSE is included.

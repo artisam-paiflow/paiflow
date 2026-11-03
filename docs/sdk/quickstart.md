@@ -2,8 +2,11 @@
 
 For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](../api/developer-tokens.md). SDK `0.2.0` supports developer credentials and scoped discovery with a backend implementing OpenAPI revision `1.1.0`; SDK `0.1.0` does not include these additions. Existing deployment-only integrations remain supported. See the [SDK release record](release-checklist.md) for registry availability.
 
-`@paiflow/sdk` is a Node SDK for existing Paiflow deployments. Beta `0.2.0`
-provides developer credentials and scoped deployment discovery. Supports Node `>=22.22.2 <23`, ESM and TypeScript declarations;
+`@paiflow/sdk` beta `0.3.0` provides parameterized execution, private-template
+instance and guarded configuration clients alongside existing deployment workflows.
+The npm artifact and clean consumer are verified; see the
+[publication record](releases/0.3.0-publication.md) for acceptance limits.
+Supports Node `>=22.22.2 <23`, ESM and TypeScript declarations;
 CommonJS consumers can use dynamic import. SDK versions are independent of the app
 and API under the [release policy](../releasing.md).
 
@@ -17,7 +20,10 @@ implemented, spanning API v1 and explicitly included unversioned user routes.
 Local source/fixture tests do not establish fresh hosted/on-chain availability.
 Some controls remain in the manual verification queue; see the linked
 [API docs](../api/README.md) and operator deployment capabilities before integration.
-This SDK does not create/deploy flows or manage dashboard sessions. Mutable dev-mode flows
+This SDK does not author flow graphs or manage dashboard sessions. Its private-template
+instance API prepares new deployments from existing immutable template versions,
+with separate grants, developer signing and unfinished live acceptance. Guarded
+configuration has a separate unfinished live acceptance gate. Mutable dev-mode flows
 and their API surfaces have been removed; see [the removal notes](../dev-mode-removal.md).
 
 The [SDK README](../../packages/sdk/README.md) is the main detailed SDK entry point;
@@ -26,10 +32,10 @@ this page provides supplementary quickstart and migration examples. The
 
 ## Install
 
-Install the published beta:
+Install the exact verified beta (`latest` remains `0.1.0`):
 
 ```sh
-npm install @paiflow/sdk@0.2.0
+npm install @paiflow/sdk@0.3.0
 ```
 
 Use the exact version for reproducible installation; `@beta` follows the moving
@@ -49,7 +55,7 @@ npm pack ./packages/sdk --ignore-scripts --pack-destination /tmp/paiflow-sdk-art
 In your own Node ESM app, install the actual emitted tarball filename:
 
 ```sh
-npm install /tmp/paiflow-sdk-artifacts/paiflow-sdk-0.2.0.tgz
+npm install /tmp/paiflow-sdk-artifacts/paiflow-sdk-0.3.0.tgz
 ```
 
 Set your consumer's `package.json` to `"type": "module"`. TypeScript consumers use
