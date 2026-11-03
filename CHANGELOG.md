@@ -5,10 +5,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
-- Prepare SDK beta `0.3.0` with parameterized execution, private-template instance
-  and guarded configuration clients, explicit compatibility/acceptance limits,
-  versioned public-source documentation and an audited package artifact. SDK
-  publication remains separate from backend deployment and live phase acceptance.
+- Publish SDK beta `0.3.0` with parameterized execution, private-template instance
+  and guarded configuration clients. Independently verify the npm artifact and
+  clean consumer; preserve `latest=0.1.0`. Funded registry-installed execution and
+  later live phase acceptance remain pending; no backend deployment is implied.
 
 - Automatically converge wallet-control intents and matching pending service
   transaction records from authoritative original-hash finality, including after

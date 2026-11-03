@@ -1,6 +1,21 @@
 # SDK beta validation and release checklist
 
-## Beta 0.3.0 — preparation checkpoint, 2026-11-03
+## Beta 0.3.0 — published 2026-11-03
+
+`@paiflow/sdk@0.3.0` is published and independently verified from the npm registry.
+The `beta` dist-tag selects `0.3.0`; `latest` remains `0.1.0`. Install the exact
+release with `npm install @paiflow/sdk@0.3.0`. See the
+[publication record](releases/0.3.0-publication.md) for source/tag/archive identity,
+registry consumer checks and acceptance limits.
+
+Registry artifact and consumer verification are separate from funded on-chain
+acceptance. A payment through the registry-installed package remains untested;
+instance and guarded-configuration live acceptance also remain unfinished. This
+package publication does not deploy a backend, activate artifacts or complete
+Campaign 2 acceptance. The preparation checkpoint below is historical and its
+pending publication statements are superseded by the publication record.
+
+## Beta 0.3.0 — historical preparation checkpoint, 2026-11-03
 
 Status: **local release preparation; not published**. The user requested work up
 to publishing. No commit, push, tag, GitHub release, npm upload, backend deployment
