@@ -20,6 +20,10 @@ Per-request cancellation and correlation. No option enables automatic retries.
 
 Caller-persisted logical event identity; reuse with the same effective arguments.
 
+#### Overrides
+
+[`WebhookUnkeyedOptions`](WebhookUnkeyedOptions.md).[`idempotencyKey`](WebhookUnkeyedOptions.md#idempotencykey)
+
 ---
 
 ### preparationRequestId?

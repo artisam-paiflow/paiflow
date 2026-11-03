@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { isGuardedMutationRoute } from "@/tests/helpers/mutation-route-coverage";
+import { isGuardedHostedRoute } from "@/tests/helpers/hosted-route-coverage";
 
 // #371: every mutating route handler must apply a rate limit, so a new route cannot skip it quietly.
 
@@ -21,7 +23,9 @@ const LIMITERS = [
   /\benforceRateLimit\(/,
   /\brateLimit\(/,
   /\bdeploymentServiceRoute\(/, // durable admission wrapper includes an address-wide limiter
+  /\bv1TemplateRoute(?:<[^>]+>)?\(/, // same pre-auth/permission/token limiter as v1Route, explicit template grant
   /\bv1Route\(/, // lib/api/v1/handler.ts: per-token limit plus the pre-auth address guards
+  /\brequireTemplateManager\(true\)/, // lib/flow-templates/service.ts: owner-wide write bucket; true is required
   /\brequireDeveloperTokenManager\(true\)/, // lib/developer-tokens/service.ts: owner-wide write bucket; true is required
   /\brequireTokenManager\(/, // lib/api/v1/tokens.ts enforces `api-tokens:<user>` before anything else
 ];
@@ -95,6 +99,8 @@ describe("mutating API routes are rate limited (#371)", () => {
       it(`${h.method} ${rel}`, () => {
         if (ALLOWLIST[`${h.method} ${rel}`]) return;
         if (CRON_GUARD.test(h.body)) return;
+        if (isGuardedHostedRoute(source, rel, h.method)) return;
+        if (isGuardedMutationRoute(source, rel, h.method)) return;
         expect(
           LIMITERS.some((re) => re.test(h.body)),
           `${h.method} ${rel} applies no rate limit: call enforceWriteRateLimit() (lib/api/write-rate-limit.ts)`,

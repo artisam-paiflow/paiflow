@@ -8,6 +8,8 @@ import { assertDepositEnvelope, resolveExecutablePipeline } from "@/lib/api/v1/e
 import { ExecuteSubmitQuerySchema, ExecuteSubmitSchema } from "@/lib/api/v1/schema";
 import { clientIp } from "@/lib/rate-limit";
 import { submitPreparedDeposit } from "@/lib/stellar/submit-deposit";
+import { submitExecutionPayment } from "@/lib/api/v1/execution-payments";
+import { hasExecutionPolicies } from "@/lib/api/v1/execution-schema";
 
 export const POST = v1Route(
   { operation: "POST execute/submit", rateLimit: V1_RATE_LIMITS.executeSubmit },
@@ -22,6 +24,23 @@ export const POST = v1Route(
         wait: new URL(req.url).searchParams.get("wait") ?? undefined,
       });
       const { nodes, triggerAddress } = resolveExecutablePipeline(deployment);
+      if (hasExecutionPolicies(deployment.graphSnapshot)) {
+        const data = await submitExecutionPayment({
+          deployment,
+          tokenId: token.id,
+          tokenType,
+          signedXdr: input.signedXdr,
+          intent: input.intent,
+          wait,
+          ip: clientIp(req),
+        });
+        return NextResponse.json({ data });
+      }
+      if (input.intent !== undefined)
+        throw new AppError(
+          "VALIDATION",
+          "Legacy deployments have no execution preparation identifier",
+        );
       const tx = assertDepositEnvelope(input.signedXdr, triggerAddress);
       linkApiTransaction(tx.hash().toString("hex"));
       const data = await submitPreparedDeposit({

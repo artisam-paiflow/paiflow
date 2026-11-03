@@ -2,6 +2,11 @@ import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
 import { integerNumber } from "@/lib/validation/number";
 import { formatStroops } from "@/lib/utils";
+import {
+  AdditionalRecipientSchema,
+  FlowFieldPoliciesSchema,
+  PolicyIdSchema,
+} from "./field-policies";
 import { hasRetiredPayoutInput } from "./retired-inputs";
 import { hasRetiredPayrollInput, PAYROLL_RETIRED_MESSAGE } from "./retired-payroll";
 import { bpsSchema, TOTAL_BPS } from "./primitives";
@@ -13,14 +18,25 @@ export function isPendingAddress(addr: string): boolean {
 export function getPendingLabels(graph: FlowGraph): string[] {
   const labels = new Set<string>();
   for (const n of graph.nodes) {
+    const policy = graph.fieldPolicies?.nodes.find((p) => p.nodeId === n.id);
     if (n.type === "split") {
       for (const r of n.config.recipients) {
-        if (isPendingAddress(r.address)) {
+        if (
+          isPendingAddress(r.address) &&
+          !(
+            policy?.kind === "split" &&
+            policy.rows.find((row) => row.rowId === r.rowId)?.recipient === "execution"
+          )
+        ) {
           labels.add(r.label ?? "unnamed");
         }
       }
     }
-    if (n.type === "pay" && isPendingAddress(n.config.recipient)) {
+    if (
+      n.type === "pay" &&
+      isPendingAddress(n.config.recipient) &&
+      !(policy?.kind === "pay" && policy.recipient === "execution")
+    ) {
       labels.add(n.config.recipient.slice(PENDING_PREFIX.length) || "unnamed");
     }
     if (n.type === "webhook" && isPendingAddress(n.config.relayer)) {
@@ -173,6 +189,8 @@ export const PayAction = z.object({
     }),
 });
 const SplitRecipientBase = z.object({
+  // Stable identity only for new policy-aware definitions; legacy rows stay unchanged.
+  rowId: PolicyIdSchema.optional(),
   address: splitRecipientAddress,
   email: z.string().max(254).optional(),
   label: z.string().max(64).optional(),
@@ -342,6 +360,8 @@ export const SplitAction = z.object({
   config: z.object({
     asset: AssetSchema,
     recipients: z.array(SplitRecipient).min(0).max(20),
+    // Initial stored mutable roster; never defaults for payer execution inputs.
+    additionalRecipients: z.array(AdditionalRecipientSchema).max(20).optional(),
     amountPerIntervalStroops: z
       .string()
       .regex(/^\d+$/, "Amount must be a positive integer string")
@@ -497,6 +517,7 @@ export const NotifySchema = z.object({
   sendTo: z.string().max(254),
 });
 const FlowGraphShape = z.object({
+  fieldPolicies: FlowFieldPoliciesSchema.optional(),
   nodes: z.array(FlowNodeSchema).max(40),
   edges: z.array(FlowEdgeSchema).max(80),
   notify: NotifySchema.optional(),
@@ -513,7 +534,63 @@ export const FlowGraphSchema = z
     message: "Fiat payouts and bank/KYC configuration have been retired.",
   })
   .refine((value) => !hasRetiredPayrollInput(value), { message: PAYROLL_RETIRED_MESSAGE })
-  .pipe(z.preprocess(migrateFlowGraph, FlowGraphShape));
+  .pipe(z.preprocess(migrateFlowGraph, FlowGraphShape))
+  .superRefine((graph, ctx) => {
+    const ids = graph.nodes.map((n) => n.id);
+    if (new Set(ids).size !== ids.length)
+      ctx.addIssue({ code: "custom", path: ["nodes"], message: "Duplicate node ID" });
+    graph.nodes.forEach((node, index) => {
+      if (node.type !== "split" || node.config.additionalRecipients === undefined) return;
+      const policy = graph.fieldPolicies?.nodes.find((policy) => policy.nodeId === node.id);
+      if (policy?.kind !== "split" || policy.additionalRecipients !== "mutable")
+        ctx.addIssue({
+          code: "custom",
+          path: ["nodes", index, "config", "additionalRecipients"],
+          message: "Initial stored roster requires an explicit mutable additional-recipient policy",
+        });
+    });
+    graph.fieldPolicies?.nodes.forEach((policy, index) => {
+      const path = ["fieldPolicies", "nodes", index];
+      const node = graph.nodes.find((n) => n.id === policy.nodeId);
+      if (!node || node.type !== policy.kind) {
+        ctx.addIssue({
+          code: "custom",
+          path,
+          message: "Policy must reference a matching Pay or Split node",
+        });
+        return;
+      }
+      if (policy.kind === "pay" && node.type === "pay") {
+        if (node.config.fullAmount && policy.payoutValue !== "constant")
+          ctx.addIssue({
+            code: "custom",
+            path,
+            message: "Full-amount Pay has no stored payout value",
+          });
+      }
+      if (policy.kind === "split" && node.type === "split") {
+        const rows = node.config.recipients;
+        const rowIds = rows.map((r) => r.rowId);
+        if (
+          rows.some((r) => !r.rowId) ||
+          new Set(rowIds).size !== rowIds.length ||
+          rows.length !== policy.rows.length ||
+          policy.rows.some((r, i) => r.rowId !== rows[i]?.rowId)
+        )
+          ctx.addIssue({
+            code: "custom",
+            path,
+            message: "Policy rows must match every configured row ID in order",
+          });
+        if (rows.some((r) => r.mode !== policy.allocationMode))
+          ctx.addIssue({
+            code: "custom",
+            path,
+            message: "Split allocation mode must match every configured row",
+          });
+      }
+    });
+  });
 export type FlowGraph = z.infer<typeof FlowGraphSchema>;
 export const FlowSaveSchema = z.object({
   name: z.string().min(1).max(80),

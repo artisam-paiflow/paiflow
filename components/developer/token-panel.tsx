@@ -13,6 +13,7 @@ import {
 } from "@/lib/developer-tokens/schema";
 import { inputClass, labelClass } from "@/components/builder/inputs/styles";
 import DeploymentPicker from "./deployment-picker";
+import TemplatePicker from "./template-picker";
 import { buttonClass, primaryClass, ManagementError, managementRequest } from "./api";
 
 const base = "/api/developer-tokens";
@@ -24,7 +25,9 @@ const date = (value: string | null, fallback: string) =>
 function status(token: DeveloperToken) {
   if (token.revokedAt) return "Revoked";
   if (token.expiresAt && Date.parse(token.expiresAt) <= Date.now()) return "Expired";
-  return token.deploymentIds.length ? "Active" : "Suspended (no deployments)";
+  return token.deploymentIds.length || token.templateIds?.length
+    ? "Active"
+    : "Suspended (no resources)";
 }
 const isLive = (token: DeveloperToken) =>
   !token.revokedAt && (!token.expiresAt || Date.parse(token.expiresAt) > Date.now());
@@ -45,12 +48,16 @@ function SelectionEditor({
   disabled: boolean;
 }) {
   const [selected, setSelected] = useState(token.deploymentIds);
+  const [templates, setTemplates] = useState(token.templateIds ?? []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fields, setFields] = useState<Fields>({});
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    const parsed = UpdateDeveloperTokenSchema.safeParse({ deploymentIds: selected });
+    const parsed = UpdateDeveloperTokenSchema.safeParse({
+      deploymentIds: selected,
+      templateIds: templates,
+    });
     if (!parsed.success) {
       setFields(parsed.error.flatten().fieldErrors);
       return;
@@ -66,7 +73,7 @@ function SelectionEditor({
         body: JSON.stringify(parsed.data),
       });
       onSaved(updated);
-      toast.success("Deployment selection updated.");
+      toast.success("Resource selection updated.");
     } catch (err) {
       setError(
         err instanceof ManagementError ? err.message : "Could not update selection. Try again.",
@@ -87,8 +94,8 @@ function SelectionEditor({
       <h3 className="font-semibold">Edit deployment selection</h3>
       <p className="text-on-surface-muted text-sm">
         Permission: {permissionName(token.permission)}. Permission, label and expiry are fixed;
-        create a replacement token to change them. Saving an empty selection suspends access. Remove
-        unavailable or retired deployments before saving.
+        create a replacement token to change them. Saving both selections empty suspends access.
+        Remove unavailable or retired deployments before saving.
       </p>
       <DeploymentPicker
         selected={selected}
@@ -96,7 +103,17 @@ function SelectionEditor({
         disabled={busy || disabled}
         error={fields.deploymentIds?.join(" ")}
       />
+      <TemplatePicker
+        selected={templates}
+        onChange={setTemplates}
+        disabled={busy || disabled}
+        otherCount={selected.length}
+        error={fields.templateIds?.join(" ")}
+      />
       {!selected.length ? <p role="status">This token will have no deployment access.</p> : null}
+      {!selected.length && !templates.length ? (
+        <p role="status">This token will have no resource access.</p>
+      ) : null}
       {error ? (
         <p role="alert" className="text-error">
           {error}
@@ -134,6 +151,7 @@ export default function DeveloperTokenPanel() {
   const [permission, setPermission] = useState<DeveloperTokenPermission>("READ_ONLY");
   const [expiry, setExpiry] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
+  const [templates, setTemplates] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [fields, setFields] = useState<Fields>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -227,6 +245,7 @@ export default function DeveloperTokenPanel() {
       ...(label.trim() ? { label: label.trim() } : {}),
       permission,
       deploymentIds: selected,
+      templateIds: templates,
       ...(expiry ? { expiresInDays: Number(expiry) } : {}),
     });
     setFormError(null);
@@ -257,6 +276,7 @@ export default function DeveloperTokenPanel() {
       setTokens((previous) => [metadata, ...previous]);
       setLabel("");
       setSelected([]);
+      setTemplates([]);
       setExpiry("");
       setPermission("READ_ONLY");
       toast.success(
@@ -460,8 +480,9 @@ export default function DeveloperTokenPanel() {
             repositories.
           </p>
           <p className="text-on-surface-muted mt-2 text-sm">
-            Up to 10 active tokens, with up to 100 selected deployments each. Permission, label and
-            expiry are fixed after creation; generate a replacement to change them.
+            Up to 10 active tokens, with up to 100 selected templates and deployments combined.
+            Permission, label and expiry are fixed after creation; generate a replacement to change
+            them.
           </p>
           <form
             className="mt-4 space-y-4"
@@ -559,6 +580,14 @@ export default function DeveloperTokenPanel() {
                 onChange={setSelected}
                 disabled={requestPending || !!revealed}
                 error={fields.deploymentIds?.join(" ")}
+              />
+              <h3 className="font-semibold">4. Private templates</h3>
+              <TemplatePicker
+                selected={templates}
+                onChange={setTemplates}
+                disabled={requestPending || !!revealed}
+                otherCount={selected.length}
+                error={fields.templateIds?.join(" ")}
               />
               <button type="submit" className={primaryClass}>
                 {busy ? "Creating…" : "Generate token"}
@@ -669,7 +698,7 @@ export default function DeveloperTokenPanel() {
                     </span>
                     <span className="flex items-center justify-between gap-2">
                       <span
-                        className={`rounded border px-2 py-1 text-xs ${isLive(token) && token.deploymentIds.length ? "border-secondary/30 bg-secondary/10 text-secondary" : "border-outline-variant/40 text-on-surface-variant"}`}
+                        className={`rounded border px-2 py-1 text-xs ${isLive(token) && (token.deploymentIds.length || token.templateIds?.length) ? "border-secondary/30 bg-secondary/10 text-secondary" : "border-outline-variant/40 text-on-surface-variant"}`}
                       >
                         {status(token)}
                       </span>
@@ -686,6 +715,10 @@ export default function DeveloperTokenPanel() {
                   </summary>
                   <div className="border-outline-variant/20 mx-4 border-t py-4">
                     <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                      <dt>Selected templates</dt>
+                      <dd className="font-mono text-xs break-all">
+                        {token.templateIds?.join(", ") || "No template access"}
+                      </dd>
                       <dt>Created</dt>
                       <dd className="font-mono break-words">{date(token.createdAt, "—")}</dd>
                       <dt>Last used</dt>

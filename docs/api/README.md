@@ -1,5 +1,10 @@
 # Developer API
 
+For new policy-v1 execution inputs, exact payer-signed preparations and conservative
+recovery, see [execution parameters](execution-parameters.md). This is source-level
+OpenAPI `1.4.0` functionality; it requires verified new artifacts and does not imply
+activation on the hosted instance or changes to the published SDK.
+
 For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](developer-tokens.md). SDK `0.2.0` supports developer credentials and scoped discovery with a backend implementing OpenAPI revision `1.1.0`; SDK `0.1.0` does not include these additions. Existing deployment-only integrations remain supported. See the [SDK release record](../sdk/release-checklist.md) for registry availability.
 
 For typed Node integrations with existing deployments, use the [SDK README](../../packages/sdk/README.md) for the published `@paiflow/sdk@0.2.0` Node beta (October 16, 2026).
@@ -1398,3 +1403,5 @@ See [hosted verification](#hosted-testnet-verification) for dated evidence and f
 When requesting support, include the deployment UUID, transaction hash, error
 message and request ID when available. Keep tokens, wallet secrets and signed
 envelopes out of support messages.
+
+Stored Pay/Split update APIs and SDK workflows: [guarded configuration](configuration.md). The [owner editor](../owner-configuration.md) adds exact wallet review and durable pre-admission refusal recovery. Read confirmed current revisions; retain original mutation intent after uncertain finality.

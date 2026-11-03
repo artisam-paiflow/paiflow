@@ -21,7 +21,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     const user = await requireDeveloperTokenManager(true);
     const id = tokenId((await ctx.params).tokenId);
     const input = UpdateDeveloperTokenSchema.parse(await tokenBody(req));
-    return tokenResponse(await updateDeveloperToken(user.id, id, input.deploymentIds, req));
+    return tokenResponse(
+      await updateDeveloperToken(user.id, id, input.deploymentIds, req, input.templateIds),
+    );
   });
 }
 export async function DELETE(req: NextRequest, ctx: Ctx) {

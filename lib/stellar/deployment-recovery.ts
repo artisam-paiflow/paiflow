@@ -23,12 +23,15 @@ type PreparedDeployment = {
 const blocked: PreparedRecovery = { status: "BLOCKED" };
 
 /** Server acceptance metadata only; the caller must independently prove safe signing history. */
-export async function preparedDeploymentRecovery(d: PreparedDeployment): Promise<PreparedRecovery> {
+export async function preparedDeploymentRecovery(
+  d: PreparedDeployment,
+  options?: { settlement?: boolean },
+): Promise<PreparedRecovery> {
   try {
     if (
       hasRetiredPayrollInput(d) ||
       d.status !== "PENDING_SIGNATURE" ||
-      d.serviceState !== "ACTIVE" ||
+      (d.serviceState !== "ACTIVE" && !(options?.settlement && d.serviceState === "RETIRING")) ||
       d.deployTxHash ||
       d.network !== env().STELLAR_NETWORK ||
       !d.unsignedXdr ||
@@ -58,6 +61,7 @@ export async function preparedDeploymentRecovery(d: PreparedDeployment): Promise
     };
     if (!(await safeToResume())) return blocked;
     if (BigInt(tx.timeBounds.maxTime) > BigInt(Math.floor(Date.now() / 1000))) {
+      if (d.serviceState !== "ACTIVE") return blocked;
       return {
         status: "RESUMABLE",
         unsignedXdr: d.unsignedXdr,
@@ -105,7 +109,7 @@ export async function preparedDeploymentRecovery(d: PreparedDeployment): Promise
       !current ||
       hasRetiredPayrollInput(current) ||
       current.status !== "PENDING_SIGNATURE" ||
-      current.serviceState !== "ACTIVE" ||
+      current.serviceState !== d.serviceState ||
       current.deployTxHash ||
       current.unsignedXdr !== d.unsignedXdr ||
       current.network !== d.network ||

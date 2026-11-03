@@ -163,6 +163,47 @@ describe("deployments/[id]/submit", () => {
       role: "USER",
     });
   });
+  it.each([
+    { graphSnapshot: { nodes: [{ type: "condition", config: { kind: "multisig" } }] } },
+    { pipelineSnapshot: [{ templateKind: "MULTISIG" }] },
+    {
+      graphSnapshot: null,
+      pipelineSnapshot: [],
+      paramsSnapshot: [{ params: { kind: "multisig" } }],
+    },
+  ])("refuses a previously prepared unsent Multisig deployment (%#)", async (snapshots) => {
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment(snapshots));
+    const response = await POST(
+      makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+      makeContext("dep-1"),
+    );
+    expect(response.status).toBe(422);
+    expect((await response.json()).error.message).toMatch(/Multisig.*unavailable/);
+    expect(mockDeploy.submitDeployTx).not.toHaveBeenCalled();
+    expect(mockDb.$transaction).not.toHaveBeenCalled();
+  });
+  it.each(["SUBMITTED", "CONFIRMED"])(
+    "retains the original %s Multisig result without broadcasting or rewriting evidence",
+    async (status) => {
+      mockDb.deployment.findFirst.mockResolvedValue(
+        makeDeployment({
+          status,
+          deployTxHash: TX_HASH,
+          graphSnapshot: { nodes: [{ type: "condition", config: { kind: "multisig" } }] },
+          pipelineSnapshot: [{ templateKind: "MULTISIG", contractAddress: "CABC" }],
+        }),
+      );
+      const response = await POST(
+        makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+        makeContext("dep-1"),
+      );
+      expect(response.status).toBe(200);
+      expect((await response.json()).data).toMatchObject({ status, txHash: TX_HASH });
+      expect(mockDeploy.submitDeployTx).not.toHaveBeenCalled();
+      expect(mockDb.$transaction).not.toHaveBeenCalled();
+      expect(mockDb.deployment.update).not.toHaveBeenCalled();
+    },
+  );
   it("returns the original pending result for a same-hash retry without broadcasting", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(
       makeDeployment({ status: "SUBMITTED", deployTxHash: TX_HASH }),

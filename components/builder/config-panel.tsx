@@ -17,6 +17,10 @@ import type { StellarNetwork } from "@/lib/stellar/explorer";
 import { computeAssetFlow, type ValidationIssue } from "@/lib/flows/validate";
 import { fieldErrorUnder, nodeIssues } from "@/lib/flows/issue-paths";
 import type { FeatureFlags } from "@/lib/feature-flags";
+import type { NodeFieldPolicy } from "@/lib/flows/field-policies";
+import { builderNodePolicy, executionEditingIssue } from "./field-policy.utils";
+import { FieldPolicyNotice } from "./field-policy-notice";
+import { PayRecipientEditor } from "./panels/pay-recipient-editor";
 import { AssetField, Field } from "./panels/asset-fields";
 import { IntervalField } from "./panels/interval-field";
 import SwapPanel from "./panels/swap-panel";
@@ -92,6 +96,8 @@ type Props = {
   /** The graph's validation issues, computed once by the builder and shared with this panel. */
   errors: ValidationIssue[];
   onChange: (n: FlowNode) => void;
+  onPolicyChange?: (policy: NodeFieldPolicy) => void;
+  executionAvailable?: boolean;
   onDelete: (id: string) => void;
   addressBook?: AddressEntry[];
   refreshAddressBook?: () => void;
@@ -121,6 +127,8 @@ export default function ConfigPanel({
   graph,
   errors,
   onChange,
+  onPolicyChange,
+  executionAvailable = false,
   onDelete,
   addressBook = [],
   refreshAddressBook,
@@ -152,6 +160,9 @@ export default function ConfigPanel({
   // Every AssetField edits `config.asset`; a Zod issue lands under it
   // (`asset.code`, `asset.issuer`), validateFlow's mismatch on it (#407).
   const assetError = fieldErrorUnder(nodeErrors.field, "asset");
+  const nodePolicy = node ? builderNodePolicy(node, graph.fieldPolicies) : undefined;
+  const splitPolicy = nodePolicy?.kind === "split" ? nodePolicy : undefined;
+  const executionIssue = executionEditingIssue(graph);
   if (!node) {
     return (
       <aside
@@ -449,7 +460,8 @@ export default function ConfigPanel({
 
       {node.type === "pay" && (
         <>
-          {!sandbox && (
+          {graph.fieldPolicies && <FieldPolicyNotice available={executionAvailable} />}
+          {!sandbox && nodePolicy?.kind === "pay" && nodePolicy.recipient === "constant" && (
             <RecipientEmailField
               shared
               value={node.config.email}
@@ -465,17 +477,35 @@ export default function ConfigPanel({
             expectedAsset={expectedAsset}
           />
 
-          <AddressPicker
-            label="Recipient (G… or PENDING:)"
-            error={fieldError("recipient")}
-            value={node.config.recipient}
-            onChange={(recipient) => onChange({ ...node, config: { ...node.config, recipient } })}
-            pending={isPendingAddress(node.config.recipient)}
-            addressBook={addressBook}
-            onAddressBookChange={refreshAddressBook}
-            addressBookLoading={addressBookLoading}
-            addressBookError={addressBookError}
-          />
+          {onPolicyChange && nodePolicy?.kind === "pay" ? (
+            <PayRecipientEditor
+              recipient={node.config.recipient}
+              policy={nodePolicy}
+              fullAmount={node.config.fullAmount}
+              executionIssue={executionIssue}
+              error={fieldError("recipient")}
+              onRecipientChange={(recipient) =>
+                onChange({ ...node, config: { ...node.config, recipient } })
+              }
+              onPolicyChange={onPolicyChange}
+              addressBook={addressBook}
+              refreshAddressBook={refreshAddressBook}
+              addressBookLoading={addressBookLoading}
+              addressBookError={addressBookError}
+            />
+          ) : (
+            <AddressPicker
+              label="Recipient (G… or PENDING:)"
+              error={fieldError("recipient")}
+              value={node.config.recipient}
+              onChange={(recipient) => onChange({ ...node, config: { ...node.config, recipient } })}
+              pending={isPendingAddress(node.config.recipient)}
+              addressBook={addressBook}
+              onAddressBookChange={refreshAddressBook}
+              addressBookLoading={addressBookLoading}
+              addressBookError={addressBookError}
+            />
+          )}
           {false}
 
           {triggerType === "on_schedule" ? (
@@ -602,6 +632,7 @@ export default function ConfigPanel({
 
       {node.type === "split" && (
         <>
+          {graph.fieldPolicies && <FieldPolicyNotice available={executionAvailable} />}
           <NodeAssetField
             asset={node.config.asset}
             error={assetError}
@@ -668,6 +699,12 @@ export default function ConfigPanel({
 
           {node.type === "split" && (
             <SplitRecipientsEditor
+              allocationMode={
+                graph.fieldPolicies && splitPolicy ? splitPolicy.allocationMode : undefined
+              }
+              policy={onPolicyChange ? splitPolicy : undefined}
+              onPolicyChange={onPolicyChange}
+              executionIssue={executionIssue}
               node={
                 node as Extract<
                   FlowNode,

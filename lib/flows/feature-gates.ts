@@ -7,6 +7,7 @@ import {
 } from "@/lib/feature-flags";
 import type { FlowGraph, FlowNode } from "./schema";
 import type { ValidationIssue } from "./issue";
+import { MULTISIG_DISABLED_MESSAGE } from "./disabled-multisig";
 function nodeSurfaces(n: FlowNode, off: readonly FeatureSurface[]): FeatureSurface[] {
   return off.filter((s) => {
     const gate = FEATURE_GATED_BLOCKS[s];
@@ -16,16 +17,26 @@ function nodeSurfaces(n: FlowNode, off: readonly FeatureSurface[]): FeatureSurfa
   });
 }
 /**
- * One issue per node that uses a surface switched off on this server (#722).
+ * One issue per node that uses a disabled surface or release exclusion (#722).
  * Kept apart from the structural rules in `validate.ts`: it only reads node
  * types and a few config values, so it never depends on the graph being
  * otherwise valid.
  */
 export function hiddenSurfaceIssues(graph: FlowGraph, features: FeatureFlags): ValidationIssue[] {
   const off = disabledSurfaces(features);
-  if (off.length === 0) return [];
   const issues: ValidationIssue[] = [];
   for (const n of graph.nodes) {
+    // This release exclusion cannot be enabled by surface switches. Structural
+    // validation without deployment features still reads historical definitions.
+    if (n.type === "condition" && n.config.kind === "multisig") {
+      issues.push({
+        path: `nodes.${n.id}`,
+        code: "FEATURE_DISABLED",
+        nodeId: n.id,
+        message: MULTISIG_DISABLED_MESSAGE,
+        friendlyMessage: MULTISIG_DISABLED_MESSAGE,
+      });
+    }
     for (const s of nodeSurfaces(n, off)) {
       issues.push({
         path: `nodes.${n.id}`,

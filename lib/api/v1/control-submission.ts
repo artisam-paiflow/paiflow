@@ -1,6 +1,6 @@
 import "server-only";
 import { signedTokenAttribution, type ApiTokenType } from "@/lib/api/v1/auth";
-import type { Deployment } from "@prisma/client";
+import type { Deployment, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { AppError } from "@/lib/errors";
@@ -24,15 +24,26 @@ import type { TransactionStatus } from "./schema";
 /** Domain routes authenticate with v1Route and supply an eligibility check for the selected action. */
 export async function submitControlIntent(input: {
   deployment: Deployment;
-  tokenId: string;
+  /** Omitted only by an explicitly authorized public wallet route. */
+  tokenId?: string;
   tokenType?: ApiTokenType;
+  /** Set only by authenticated owner handlers, never inferred from missing token. */
+  ownerSessionId?: string;
   action: WalletControlAction;
   intent: string;
   signedXdr: string;
   ip: string;
   /** Check live controller/config/permissions. Token ownership is never wallet authorization. */
   assertEligible: () => Promise<void>;
+  /** Extra visibility admission is serialized with owner opt-out before first send. */
+  assertAdmission?: (client: Prisma.TransactionClient) => Promise<void>;
 }): Promise<TransactionStatus> {
+  if (
+    !input.tokenId &&
+    input.action !== "payment.execute" &&
+    !(input.action === "configuration.mutate" && input.ownerSessionId === input.deployment.ownerId)
+  )
+    throw new AppError("FORBIDDEN", "This wallet control requires an authenticated API credential");
   const intent = await readControlIntent(input.intent, input.deployment.id, input.action);
   const { tx, signer } = verifyControlTransaction(intent, input.signedXdr);
   linkApiTransaction(intent.txHash);
@@ -49,6 +60,7 @@ export async function submitControlIntent(input: {
       const service = await lockDeployment(client, input.deployment.id);
       if (service.serviceState !== "ACTIVE")
         throw new AppError("CONFLICT", "Deployment service is closed");
+      await input.assertAdmission?.(client);
       const { count } = await client.walletControlIntent.updateMany({
         where: { id: intent.id, state: "PREPARED" },
         data: { state: "SUBMITTING", submittedAt: new Date() },
@@ -56,18 +68,30 @@ export async function submitControlIntent(input: {
       if (!count) return false;
       const row = signedTransactionRow({
         signer,
-        kind: "INVOKE",
+        kind:
+          input.action === "payment.execute"
+            ? input.tokenId
+              ? "API_EXECUTE"
+              : "TRIGGER"
+            : "INVOKE",
         network: env().STELLAR_NETWORK,
         deploymentId: input.deployment.id,
-        ...signedTokenAttribution(input),
+        ...(input.tokenId
+          ? signedTokenAttribution({ tokenId: input.tokenId, tokenType: input.tokenType })
+          : {}),
         ip: input.ip,
       });
       if (!row) throw new AppError("INTERNAL", "Cannot record wallet-control signer");
       await insertSignedTransaction(row, client);
       await client.auditLog.create({
         data: {
-          action: "DEPLOY_INVOKE",
-          userId: null,
+          action:
+            input.action === "payment.execute"
+              ? input.tokenId
+                ? "API_EXECUTE_SUBMITTED"
+                : "DEPLOY_TRIGGER"
+              : "DEPLOY_INVOKE",
+          userId: input.action === "configuration.mutate" ? input.deployment.ownerId : null,
           ip: input.ip,
           metadata: {
             deploymentId: input.deployment.id,
@@ -77,7 +101,11 @@ export async function submitControlIntent(input: {
             method: input.action,
             signerAddress: intent.walletAddress,
             tokenId: input.tokenId,
-            tokenType: input.tokenType ?? "deployment_token",
+            tokenType: input.tokenId
+              ? (input.tokenType ?? "deployment_token")
+              : input.ownerSessionId
+                ? "owner_session"
+                : "public_wallet",
           },
         },
       });

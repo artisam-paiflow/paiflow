@@ -7,6 +7,10 @@ import Topbar from "@/components/app/topbar";
 import RetirementPanel from "@/components/deploy/retirement-panel";
 import DeploymentView from "@/components/deploy/deployment-view";
 import ApiAccessPanel from "@/components/deploy/api-access-panel";
+import HostedExecutionPanel from "@/components/deploy/hosted-execution-panel";
+import ConfigurationPanel from "@/components/deploy/configuration-panel";
+import { hasMutablePolicies } from "@/lib/flows/execution-v1";
+import { hasExecutionPolicies } from "@/lib/api/v1/execution-schema";
 import { FlowGraphSchema, isTrigger } from "@/lib/flows/schema";
 import { NODE_TYPE_LABELS } from "@/lib/flows/node-labels";
 import {
@@ -227,6 +231,25 @@ export default async function DeploymentPage({
             occurredAt: e.occurredAt.toISOString(),
           }))}
         />
+
+        {d.status === "CONFIRMED" &&
+          user.role !== Role.SANDBOX &&
+          network &&
+          network === env().STELLAR_NETWORK &&
+          hasMutablePolicies(graph) && (
+            <ConfigurationPanel
+              ownerId={user.id}
+              deploymentId={d.id}
+              network={network}
+              initialGraph={graph}
+            />
+          )}
+
+        {d.status === "CONFIRMED" &&
+        user.role !== Role.SANDBOX &&
+        hasExecutionPolicies(d.graphSnapshot) ? (
+          <HostedExecutionPanel deploymentId={d.id} initialEnabled={d.hostedExecutionEnabled} />
+        ) : null}
 
         {d.status === "CONFIRMED" && user.role !== Role.SANDBOX ? (
           <ApiAccessPanel

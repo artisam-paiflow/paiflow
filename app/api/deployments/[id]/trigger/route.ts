@@ -12,6 +12,7 @@ import { buildPipelineErrorHint } from "@/lib/stellar/pipeline-error-hint";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 import { assertAmountMatchesFlow } from "@/lib/stellar/assert-inbound-amount";
 import { stroopsSchema } from "@/lib/flows/primitives";
+import { hasExecutionPolicies } from "@/lib/api/v1/execution-schema";
 
 const PostSchema = z.object({
   amount: stroopsSchema({ message: "Must be a positive whole number of stroops" }),
@@ -30,6 +31,11 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
       include: { flow: { select: { templateKind: true } } },
     });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found or not confirmed");
+    if (hasExecutionPolicies(d.graphSnapshot))
+      throw new AppError(
+        "VALIDATION",
+        "Policy-v1 payments require the exact execution preparation flow",
+      );
 
     const pipeline = d.pipelineSnapshot as Array<{
       nodeId: string;

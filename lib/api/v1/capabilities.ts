@@ -107,8 +107,12 @@ export function deploymentCapabilities(
     triggerType,
     inputAsset: asset?.success ? asset.data : null,
     operations: {
-      execute:
-        triggerType === "deposit"
+      execute: recordedGraph?.fieldPolicies
+        ? operation("conditional", [
+            "Read /execution for verified pinned-artifact capabilities, current configuration revisions and exact required inputs. Snapshot policy metadata alone never grants execution support.",
+            "Prepare with node-addressed arguments and Idempotency-Key, retain intent and txHash before wallet signing, then submit the unchanged envelope. Reconcile the original intent after uncertainty; no automatic resend or replacement.",
+          ])
+        : triggerType === "deposit"
           ? operation("supported", [
               EXECUTE_PREREQUISITES,
               "Prepare, sign with the paying wallet, then submit the same envelope. Simulation checks current configuration; conditions can hold funds instead of paying immediately.",

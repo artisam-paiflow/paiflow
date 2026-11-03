@@ -3,6 +3,10 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import { flowToPipeline } from "@/lib/flows/to-params";
 import { paymentAccountResponse } from "./payment-account-fixture";
+import {
+  EXECUTION_V1_WASM_HASHES,
+  MUTATION_V1_WASM_HASHES,
+} from "@/lib/stellar/execution-artifacts";
 
 const {
   getAccount,
@@ -112,6 +116,59 @@ it("rejects missing coverage before loading an account or simulating", async () 
   expect(simulate).not.toHaveBeenCalled();
 });
 
+function executionGraph() {
+  return FlowGraphSchema.parse({
+    nodes: [
+      { id: "root", type: "on_receive", config: { asset: { kind: "native" } } },
+      {
+        id: "pay",
+        type: "pay",
+        config: { asset: { kind: "native" }, recipient: "PENDING:worker", fullAmount: true },
+      },
+    ],
+    edges: [{ id: "edge", source: "root", target: "pay" }],
+    fieldPolicies: { version: 1, nodes: [{ kind: "pay", nodeId: "pay", recipient: "execution" }] },
+  });
+}
+it("refuses legacy or wrong-kind artifacts before RPC even when policies claim support", async () => {
+  const value = executionGraph();
+  const nodes = flowToPipeline(value).map((node) => ({ ...node, wasmHash: "a".repeat(64) }));
+  await expect(
+    preparePipelineDeployTx({ sourceAccount: ACCOUNT, graph: value, nodes }),
+  ).rejects.toThrow("artifacts");
+  expect(getAccount).not.toHaveBeenCalled();
+  expect(simulate).not.toHaveBeenCalled();
+  nodes[0]!.wasmHash = EXECUTION_V1_WASM_HASHES.PAYER;
+  nodes[1]!.wasmHash = EXECUTION_V1_WASM_HASHES.DEPOSIT_TRIGGER;
+  await expect(
+    preparePipelineDeployTx({ sourceAccount: ACCOUNT, graph: value, nodes }),
+  ).rejects.toThrow("artifacts");
+  expect(simulate).not.toHaveBeenCalled();
+});
+it("simulates changed constructors and pins reviewed hashes/capabilities beside durable node addresses", async () => {
+  const value = executionGraph();
+  const nodes = flowToPipeline(value).map((node) => ({
+    ...node,
+    wasmHash: EXECUTION_V1_WASM_HASHES[node.templateKind as keyof typeof EXECUTION_V1_WASM_HASHES],
+  }));
+  const result = await preparePipelineDeployTx({ sourceAccount: ACCOUNT, graph: value, nodes });
+  expect(simulate).toHaveBeenCalledTimes(1);
+  expect(assemble).toHaveBeenCalledTimes(1);
+  expect(result.pipeline).toHaveLength(2);
+  for (const node of result.pipeline) {
+    expect(node).toMatchObject({
+      wasmHash: nodes.find((n) => n.nodeId === node.nodeId)!.wasmHash,
+      artifactCapabilities: {
+        policyVersion: 1,
+        execution: true,
+        mutation: false,
+        immutablePolicies: true,
+        revisionBinding: true,
+      },
+    });
+  }
+});
+
 afterEach(() => {
   delete process.env.STELLAR_RELAYER_SECRET_KEY;
   delete process.env.STELLAR_RELAYER_ADDRESS;
@@ -208,3 +265,27 @@ it.each(["send-timeout", "read-timeout", "deadline"])(
     }
   },
 );
+
+it("requires guarded artifacts for every participating mutable path node before RPC", async () => {
+  const value = executionGraph();
+  const node = value.nodes[1];
+  const policy = value.fieldPolicies!.nodes[0];
+  if (node?.type !== "pay" || policy?.kind !== "pay") throw new Error();
+  node.config.recipient = ACCOUNT;
+  policy.recipient = "mutable";
+  const nodes = flowToPipeline(value).map((node) => ({
+    ...node,
+    wasmHash: EXECUTION_V1_WASM_HASHES[node.templateKind as keyof typeof EXECUTION_V1_WASM_HASHES],
+  }));
+  await expect(
+    preparePipelineDeployTx({ sourceAccount: ACCOUNT, graph: value, nodes }),
+  ).rejects.toThrow("artifacts");
+  expect(simulate).not.toHaveBeenCalled();
+  nodes.forEach((node) => {
+    node.wasmHash = MUTATION_V1_WASM_HASHES[
+      node.templateKind as keyof typeof MUTATION_V1_WASM_HASHES
+    ] as typeof node.wasmHash;
+  });
+  const result = await preparePipelineDeployTx({ sourceAccount: ACCOUNT, graph: value, nodes });
+  expect(result.pipeline.every((node) => node.artifactCapabilities?.mutation)).toBe(true);
+});

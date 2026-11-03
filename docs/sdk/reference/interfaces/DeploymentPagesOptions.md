@@ -14,6 +14,18 @@ Discovery iterator options; each HTTP page has its own timeout.
 
 ## Properties
 
+### idempotencyKey?
+
+> `optional` **idempotencyKey?**: `string`
+
+Execute/configuration preparation only: stable original request key; never a replacement.
+
+#### Inherited from
+
+[`RequestOptions`](RequestOptions.md).[`idempotencyKey`](RequestOptions.md#idempotencykey)
+
+---
+
 ### maxPages?
 
 > `optional` **maxPages?**: `number`

@@ -303,8 +303,10 @@ The callback receives `{xdr, networkPassphrase, walletAddress, signal}` and retu
 `{signedXdr}`. It must sign the original transaction without changing its source,
 sequence, operations or time bounds. The SDK validates string bounds, network and
 provided wallet metadata; it does **not** parse XDR, verify operations, or determine
-the signer from the envelope. Execute/public preparation contains no wallet field:
+the signer from the envelope. Legacy execute/public preparation contains no wallet field:
 pass the same address used in prepare; your wallet integration must check the source.
+Policy-v1 execution includes `walletAddress` and the server validates its exact prepared
+transaction and source signature before relay.
 Before submission, bind the returned signed envelope to your saved original
 preparation. The [payment example](https://github.com/artisam-paiflow/paiflow/blob/develop/packages/sdk/examples/payment-server.ts)
 compares transaction-body hashes using an optional application Stellar dependency.
@@ -336,6 +338,54 @@ lookup: SUCCESS does not prove this deployment executed, and NOT_FOUND appears a
 PENDING. It provides no receipt reconciliation or replacement-safety evidence.
 A public submit 502 may be uncertain; never automatically create a replacement.
 Amounts are positive integer stroop strings bounded to i128; never floating point.
+
+### Parameterized execution (unreleased source)
+
+Requires backend OpenAPI revision `1.4.0` and newly deployed, verified policy-v1
+artifacts. The published npm artifact is unchanged. Check `execute.state()` rather
+than inferring support from a graph; legacy definitions return `supported:false`.
+This phase supports only the immediate Pay-chain/terminal Split topology documented
+in [execution parameters](../../docs/api/execution-parameters.md). No private labels,
+contact emails, mutation authority or artifact activation is implied by these types.
+
+```ts
+const current = await flow.execute.state();
+if (!current.data.supported) throw new Error(current.data.reason);
+// Example deployment declares pay-worker's recipient as an execution input.
+const prepared = await flow.execute.prepare(
+  {
+    amount: "10000000",
+    from: walletAddress,
+    arguments: {
+      version: 1,
+      inputs: [{ kind: "pay", nodeId: "pay-worker", recipient: workerWallet }],
+    },
+  },
+  { idempotencyKey: orderId },
+);
+// Persist prepared.data.intent, txHash and review data before the wallet callback.
+const signed = await signPrepared(prepared, signTransaction, { walletAddress });
+// signPrepared retains the original intent in signed.submission.
+const result = await flow.execute.submit(signed.submission, { wait: false });
+// If uncertain, retain the original identity; query without sending/signing again.
+const recovered = await flow.execute.reconcile({ intent: prepared.data.intent! });
+```
+
+Every declared input is required. Unknown/constant/mutable overrides are refused;
+Split row IDs and allocation modes remain fixed, and final fixed allocations must
+exactly equal the per-hop incoming amount. The server binds payer, amount, asset,
+inputs, complete node revisions and exact transaction body. The contracts reject
+stale revisions on chain; a new configuration requires fresh review/signing only
+after resolving the obsolete preparation.
+
+Reuse the same idempotency key and payload to recover a lost preparation response.
+A changed payload conflicts; the key never silently creates a new payment. A durable
+one-send claim prevents automatic rebroadcast after unknown submission. `UNKNOWN`,
+`REJECTED`, missing history and elapsed clocks never authorize replacement. Different
+payers remain independent; one payer must reconcile an unresolved intent before
+preparing another for the same deployment. Terminal Pay refunds only the current
+invocation's unspent remainder to the payer. Legacy public payment methods refuse
+policy-v1; the explicit-opt-in hosted flow is a separate delivery (#1162).
 
 ## Funding
 
@@ -619,3 +669,9 @@ SDK TypeScript configuration and avoid maintaining a custom type printer. The sc
 `minimatch@10>brace-expansion` override preserves the generator's compatible ESM
 dependency while leaving older consumers on their existing override. Neither tool
 is shipped in the npm SDK or added as a runtime dependency.
+
+### Private-template instances (source support)
+
+`client.flowTemplate(templateId).instances` exposes explicit versioned `prepare`, `list`, `get`, `sign`, `submit`, `reconcile` and `events`. Requires a `pfd_` token with an explicit owned-template grant; selected deployment grants do not imply template access. Prepare requires `{sourceAccount, idempotencyKey, bindings}`. Sign the original returned envelope with the developer source; call submit explicitly. Keep the owner-wide key and instance ID stable. Reconcile uncertain sends without creating a replacement. See [instance lifecycle](../../docs/api/template-instances.md) for schemas, retirement, quotas, runtime policy limits and publication availability.
+
+Guarded stored Pay/Split configuration is available through `deployment.configuration.get/history/prepare/signPrepared/submit/reconcile`; see the [configuration API and SDK guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/configuration.md). Prepare requires an explicit `idempotencyKey`. The caller signs as the deployment developer admin; credentials never substitute for on-chain consent. Preserve the original intent after UNKNOWN/REJECTED without replacement.

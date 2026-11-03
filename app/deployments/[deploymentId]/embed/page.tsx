@@ -21,6 +21,7 @@ export default async function EmbedPage({ params }: { params: Promise<{ deployme
       network: true,
       graphSnapshot: true,
       pipelineSnapshot: true,
+      hostedExecutionEnabled: true,
       flow: { select: { templateKind: true } },
       events: {
         orderBy: [{ ledger: "desc" }, { eventId: "desc" }],

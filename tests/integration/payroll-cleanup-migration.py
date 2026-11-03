@@ -171,6 +171,21 @@ with tempfile.TemporaryDirectory(prefix='payroll-preservation-', dir=cache) as d
             required = checked(db, '''SELECT (to_regclass('"Employee"') IS NOT NULL AND to_regclass('"PayrollRun"') IS NOT NULL AND to_regclass('"PayrollPayout"') IS NOT NULL AND EXISTS (SELECT 1 FROM pg_enum WHERE enumtypid='"TemplateKind"'::regtype AND enumlabel='PAYROLL'))::text;''')
             if required != 'true':
                 raise RuntimeError('Historical schema not restored/preserved')
+        # The two historical paths above deliberately stop at restoration. Bring
+        # both forward through EVERY subsequent migration before comparing them
+        # with today's schema. Omitting this phase made any later schema addition
+        # look like a preservation failure despite a correct complete replay.
+        subsequent = [path for path in sorted((repo / 'prisma/migrations').iterdir())
+                      if path.is_dir() and path.name > restoration]
+        for path in subsequent:
+            shutil.copytree(path, migrations / path.name)
+        for db in [applied, fresh]:
+            deploy(db)
+            applied_names = checked(db, '''SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL ORDER BY migration_name;''').splitlines()
+            expected_names = [path.name for path in sorted((repo / 'prisma/migrations').iterdir()) if path.is_dir()]
+            if applied_names != expected_names:
+                raise RuntimeError('Historical path did not apply the complete current migration chain')
+        print(f'PASS both historical paths apply all {len(subsequent)} post-restoration migrations', flush=True)
         for db in [applied, fresh]:
             check = subprocess.run([str(repo / 'node_modules/.bin/prisma'), 'migrate', 'diff', '--from-url', urlunsplit(url._replace(path='/' + db)), '--to-schema-datamodel', str(repo / 'prisma/schema.prisma'), '--exit-code'], cwd=repo, env=os.environ, capture_output=True, text=True, timeout=120)
             if check.returncode:

@@ -147,6 +147,7 @@ model User {
 
   googleIdentities    GoogleIdentity[]
   googleLinkIntents   GoogleLinkIntent[]
+  flowTemplates       FlowTemplate[]
   flows               Flow[]
   deployments         Deployment[]
   passkeys            Passkey[]
@@ -221,6 +222,7 @@ model DeveloperApiToken {
   revokedAt          DateTime?
   owner              User                     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   grants             DeveloperTokenGrant[]
+  templateGrants     DeveloperTemplateGrant[]
   signedTransactions SignedTransaction[]
 
   @@index([ownerId, id])
@@ -234,6 +236,16 @@ model DeveloperTokenGrant {
 
   @@id([tokenId, deploymentId])
   @@index([deploymentId])
+}
+
+model DeveloperTemplateGrant {
+  tokenId    String            @db.Uuid
+  templateId String            @db.Uuid
+  token      DeveloperApiToken @relation(fields: [tokenId], references: [id], onDelete: Restrict)
+  template   FlowTemplate      @relation(fields: [templateId], references: [id], onDelete: Restrict)
+
+  @@id([tokenId, templateId])
+  @@index([templateId])
 }
 
 model PasswordResetToken {
@@ -349,6 +361,10 @@ enum ServiceTransactionState {
 model Deployment {
   id                      String                 @id @default(uuid()) @db.Uuid
   flowId                  String                 @db.Uuid
+  templateVersionId       String?                @db.Uuid
+  instanceSnapshot        Json?
+  instanceRequestDigest   String?
+  preparedTxHash          String?
   ownerId                 String                 @db.Uuid
   network                 String
   contractAddress         String?                @unique
@@ -374,6 +390,8 @@ model Deployment {
   sourceAccount           String?
   distributeAmountStroops String?
   webhookSecret           String?
+  // Explicit owner opt-in for the policy-aware public wallet payment form.
+  hostedExecutionEnabled  Boolean                @default(false)
   chargeRelayerMode       ChargeRelayerMode      @default(MANUAL)
   chargeRelayerUrl        String?
   chargeRelayerToken      String?
@@ -397,6 +415,7 @@ model Deployment {
   // Position within a large durable pipeline; each inventory reads one instance.
   ttlScanOffset           Int                    @default(0)
 
+  templateVersion       FlowTemplateVersion?  @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
   flow                  Flow                  @relation(fields: [flowId], references: [id], onDelete: Restrict)
   owner                 User                  @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   historicalEmployees   Employee[]            @ignore
@@ -409,7 +428,11 @@ model Deployment {
   timelockReleases      TimelockRelease[]
   webhookAttempts       WebhookAttempt[]
   walletControlIntents  WalletControlIntent[]
+  configurationHistory ConfigurationHistory[]
+  preparationRefusals MutationPreparationRefusal[]
 
+  @@index([templateVersionId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([ownerId, sourceAccount, status])
   @@unique([ownerId, idempotencyKey])
   @@index([ownerId, status, serviceState, id])
   @@index([ownerId, createdAt(sort: Desc)])
@@ -873,6 +896,15 @@ model WalletControlIntent {
   txHash            String             @unique
   maxTime           String
   preparationLedger Int
+  // Execution preparations retain unsigned intent only, never customer signatures.
+  unsignedXdr        String?
+  executionIntent    Json?
+  mutationIntent     Json?
+  executionArtifacts Json?
+  idempotencyKeyHash String?
+  requestDigest      String?
+  // Hash of a random browser recovery capability. Never a wallet/API credential.
+  hostedAccessHash   String?
   // PREPARED -> SUBMITTING -> SUCCESS|FAILED|EXPIRED. Uncertainty never clears a reservation.
   state             WalletControlState @default(PREPARED)
   ledger            Int?
@@ -881,6 +913,9 @@ model WalletControlIntent {
   completedAt       DateTime?
 
   @@index([deploymentId, network, nodeId, state])
+  @@index([deploymentId, network, action, walletAddress, state], map: "WalletControlIntent_execution_payer_state_idx")
+  @@unique([deploymentId, network, idempotencyKeyHash])
+  @@index([deploymentId, network, hostedAccessHash])
 }
 
 /// Historical storage only: excluded from generated runtime CRUD.
@@ -950,4 +985,79 @@ model PayrollPayout {
   @@index([payrollRunId])
   @@index([employeeId])
   @@ignore
+}
+
+// Private reusable definitions; unrelated to the ContractTemplate WASM registry.
+model FlowTemplate {
+  id            String                @id @default(uuid()) @db.Uuid
+  ownerId       String                @db.Uuid
+  name          String
+  description   String?
+  draft         Json
+  draftRevision Int                   @default(1)
+  nextVersion   Int                   @default(1)
+  retiredAt     DateTime?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  owner         User                  @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  versions      FlowTemplateVersion[]
+  developerTokenGrants DeveloperTemplateGrant[]
+
+  @@index([ownerId, createdAt(sort: Desc), id(sort: Desc)])
+}
+
+// Published contents never change, enforced by a migration trigger as well as APIs.
+model FlowTemplateVersion {
+  id          String       @id @default(uuid()) @db.Uuid
+  templateId  String       @db.Uuid
+  version     Int
+  definition  Json
+  network     String
+  artifacts   Json
+  contentHash String
+  expiresAt   DateTime?
+  retiredAt   DateTime?
+  createdAt   DateTime     @default(now())
+  template    FlowTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  instances   Deployment[]
+
+  @@unique([templateId, version])
+  @@index([templateId, createdAt(sort: Desc), id(sort: Desc)])
+}
+
+/// Confirmed observed revisions only. Missing RPC history is never invented.
+model ConfigurationHistory {
+  id String @id @default(uuid()) @db.Uuid
+  deploymentId String @db.Uuid
+  deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
+  network String
+  nodeId String
+  contractAddress String
+  revision String
+  configuration Json
+  contentHash String
+  observedLedger Int
+  eventLedger Int?
+  eventId String? @unique
+  txHash String?
+  createdAt DateTime @default(now())
+
+  @@unique([deploymentId, network, nodeId, revision])
+  @@index([deploymentId, network, observedLedger, id])
+}
+
+/// Immutable non-admission fence. A refused key can never later admit a transaction.
+model MutationPreparationRefusal {
+  id                 String     @id @default(uuid()) @db.Uuid
+  deploymentId       String     @db.Uuid
+  deployment         Deployment @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
+  network            String
+  idempotencyKeyHash String
+  requestDigest      String
+  admin              String
+  request            Json
+  reasonCode         String
+  createdAt          DateTime   @default(now())
+
+  @@unique([deploymentId, network, idempotencyKeyHash], map: "MutationPreparationRefusal_deploymentId_network_key_key")
 }

@@ -146,7 +146,7 @@ An action decides **where** money goes. A flow must contain at least one.
 |     | Block             | Does                                                     | Notes that matter                                                                                                                                    |
 | --- | ----------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ●   | `hold`            | Strictly locks funds until a time condition deadline     | Terminal before-side marker; after side must have a destination. No early release.                                                                   |
-| ●   | `return_to_owner` | Returns the full incoming amount to the deploying wallet | Terminal after amount, time, or multisig conditions; refused after `oracle_gte`. Recipient resolves during preparation, fixed at deployment.         |
+| ●   | `return_to_owner` | Returns the full incoming amount to the deploying wallet | Terminal after amount or time conditions; refused after `oracle_gte`. Recipient resolves during preparation, fixed at deployment.                    |
 | ●   | `pay`             | Sends to one recipient                                   | Fixed amount, a percentage of what arrived, or the full amount, paid in crypto.                                                                      |
 | ●   | `split`           | Fans out to up to 20 recipients                          | Percentage mode (basis points) or fixed mode — never mixed. See the invariants below.                                                                |
 | ●   | `swap`            | Exchanges `assetIn` for `assetOut` on Soroswap           | A real DEX swap with a slippage bound; forwards the whole output to exactly one next step. See below.                                                |
@@ -183,6 +183,14 @@ forced off. Notification addresses are private and never appear on public surfac
 `amount_lt`, `oracle_gte`, `time_after`, `time_before`, or `multisig` (N-of-M signer approval).
 `multisig` is a condition kind, not a block of its own.
 
+Multisig is deferred from the current release. It remains hidden in the builder;
+server validation rejects new Multisig deployments, template publication and fresh
+instances, including saved definitions and direct API requests. Feature switches
+cannot enable it. Previously prepared unsent deployments are refused at submission.
+Existing deployment/history reads and already-submitted or unknown transaction
+recovery retain their original evidence. Constructor and forwarding protocol fixes
+remain future work under #1167; no contract or artifact upgrade is implied.
+
 An amount condition (`amount_gt`, `amount_lt`) has two outputs: **True** leads to the steps for a
 payment that meets the test, **False** to the steps for one that doesn't.
 
@@ -199,7 +207,7 @@ ledger time is refused, never redirected.
 
 A `hold` marker on the before side changes a time condition to a strict lock: neither the wallet nor the relayer can release early. At or after the deadline the full balance follows the after destination. Hold is absorbed into that condition and has no contract of its own.
 
-`return_to_owner` pays 100% of the incoming amount to the wallet signing deployment, never an address guessed when saving. Its recipient stays fixed at deployment. It can follow amount, time and multisig conditions, but not `oracle_gte`, whose fixed-amount release cannot express full-balance return. Both outcomes require exactly one incoming condition edge and no outgoing edges.
+`return_to_owner` pays 100% of the incoming amount to the wallet signing deployment, never an address guessed when saving. Its recipient stays fixed at deployment. It can follow amount and time conditions, but not `oracle_gte`, whose fixed-amount release cannot express full-balance return. Historical Multisig definitions remain readable but cannot create new deployments. Both outcomes require exactly one incoming condition edge and no outgoing edges.
 
 Every other kind has only the True output. An edge saved without a branch is the True branch.
 
@@ -241,6 +249,72 @@ Deferred configuration:
   Post-deployment API-filled configuration and mutable dev-mode contracts have been removed
   ([#1138](https://github.com/webnxt-2030/pinkraft/issues/1138)). Incomplete drafts may still be
   saved, but cannot deploy until their required configuration is complete.
+
+### 3.4.1 Reusable-flow field policies (phased delivery)
+
+Hosted forms for policy-aware deployments require explicit owner opt-in, defaulting
+off. A payer needs a wallet, not a Paiflow account, and reviews exact constants,
+declared inputs, amounts, fees, revisions and network before signing the payment.
+A separate sign-only, sequence-zero wallet ownership proof is required before a
+new hosted preparation can reserve a payer; receipt recovery uses its original
+capability and exact request without a fresh proof. Visibility
+does not restrict direct on-chain calls. Opt-out closes new hosted payments while
+retaining capability-scoped recovery of already prepared payments; unknown signing
+or finality never invites a replacement payment. See [hosted execution](docs/hosted-execution.md).
+
+New deployments will use one standard contract family with lifetime-fixed per-field
+modes: constant (default), declared per-execution inputs, or admin-mutable stored
+configuration. Pay execution inputs cover its recipient only; Split covers identified
+recipients and percentage/fixed allocations, preserving constant rows. Mutable
+eligibility covers Pay/Split stored recipients and payout values, with on-chain
+revision binding and obligation-safe admission. Template creation bindings are a
+separate, private, immutable-version mechanism; the developer signs, pays for and
+owns each isolated instance. Existing deployments are not retrofitted.
+
+The supported-field matrix, strict v1 wire schemas, immediate execution path subset,
+rounding/conservation rules, immutable row/routing guarantees, phased capabilities
+and ABI/storage ownership are specified in [reusable-flows.md](docs/reusable-flows.md).
+Policy-aware immediate execution is implemented for Receive → zero or more Pay →
+terminal Pay/Split. Deployment requires the exact reviewed policy-capable artifact
+for every node; legacy and unknown hashes fail closed, including for all-constant
+tables. New fixed Pay calls refuse underfunding; terminal Pay returns that invocation's
+unused remainder to its payer. Execution-aware fixed Split calls require exact incoming
+funding, while constant-only fixed Split retains accounted accumulation. No path sweeps
+unsolicited holdings. Guarded Pay/Split stored mutation is implemented for new reviewed-artifact immediate paths with whole-path obligation admission and revision binding; exact admin-signed mutation APIs/SDK and confirmed observed history are implemented in [#1169](docs/api/configuration.md); [owner editing and signing review](docs/owner-configuration.md) implements #1170. See [mutation v1](docs/mutation-v1.md). Mode-less saved definitions keep existing configured behavior;
+no new execution or mutation authority is inferred from an absent policy. Execution,
+instances and mutation ship in that order; schemas alone do not activate a phase.
+Local [mutation financial-safety evidence](docs/mutation-readiness.md) joins the
+actual constructor/call ABI, contract observations, API/SDK, immutable instance
+evidence, owner review and durable refusal recovery. It does not complete earlier
+instance compatibility blockers or authorize artifact activation/live rollout.
+
+The builder offers constant, eligible payer-supplied and admin-mutable stored sources
+for Pay/Split fields, including complete initial stored appended Split rosters. It keeps configured constant rows and
+their ordering. Execution fields need no fallback destination/value at deployment;
+every declared input is supplied when paying. The full path is described in English,
+including constant values, runtime permissions, rounding and fixed-funding rules.
+Policy drafts may be saved before compatible artifacts are available, but their
+deployment controls remain unavailable until every participating artifact matches the
+reviewed manifest. Stored-update declarations require compatible guarded artifacts throughout the path
+before deployment; source authoring does not activate those artifacts.
+
+Private template persistence and owner-session management now save drafts and
+publish immutable versions with typed declared creation bindings and pinned
+artifact/ABI/network evidence. Binding previews create no deployment.
+Developer-signed instance lifecycle now uses the backend API and SDK with explicit
+owned-template credentials. The authenticated private-template UI provides typed
+creation declarations, immutable version selection, exact developer wallet review,
+signing and original-instance recovery. Publication requires a
+configured deployable exemplar; required creation bindings never fall back to
+its values. See [private template versions](docs/flow-templates.md).
+
+Local same-version isolation and lifecycle evidence covers immediate, scheduled,
+subscription and time-condition instances. Multisig is explicitly excluded from
+this release because of confirmed constructor/forwarding incompatibilities; its
+repair is deferred. Readiness is assessed for enabled flow types and still requires
+actual artifact/network/hosted/wallet acceptance; publication eligibility does not
+prove runtime ABI compatibility. See
+[instance readiness and remaining release gates](docs/instance-readiness.md).
 
 ### 3.5 English Preview Pane
 

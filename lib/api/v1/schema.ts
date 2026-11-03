@@ -2,6 +2,7 @@ import { StrKey } from "@stellar/stellar-sdk";
 import { z } from "zod";
 import { integerNumber } from "@/lib/validation/number";
 import { I128_MAX } from "@/lib/flows/primitives";
+import { ExecutionArgumentsSchema, ExecutionIntentSchema } from "@/lib/flows/field-policies";
 
 // Shared by the owner-session token routes and the "API access" panel. No
 // server-only import: the panel validates with the same schema before it posts.
@@ -50,12 +51,15 @@ export const ExecutePrepareSchema = z
         "Amount exceeds the contract i128 range",
       )
       .describe(
-        "Amount to deposit into the flow's deposit trigger, in stroops of the flow's input asset. A terminal chain of fixed Pay steps requires the exact total. Fixed Pay steps before a variable step require at least their total; fixed Split supports partial batch deposits and retained residuals.",
+        "Amount to deposit into the flow's deposit trigger, in stroops of the flow's input asset. Legacy fixed Split supports partial batch deposits and retained residuals; policy-v1 fixed execution allocations must exactly equal their entering amount. Policy-v1 Pay rejects fixed underfunding and refunds its invocation's unspent terminal remainder to the payer.",
       ),
     from: z
       .string()
       .refine(StrKey.isValidEd25519PublicKey, "Invalid Stellar address")
       .describe("G-address that deposits, pays the fee and signs the returned envelope."),
+    arguments: ExecutionArgumentsSchema.optional().describe(
+      "Required node-addressed inputs for a policy-v1 deployment. Every declared input is required; constant overrides and inputs on legacy deployments are refused.",
+    ),
   })
   .strict()
   .describe(`Prepare the deposit that executes a deposit-triggered flow. ${EXECUTE_PREREQUISITES}`);
@@ -68,20 +72,37 @@ export const ExecutePreparedSchema = z
     network: z.enum(["testnet", "mainnet"]),
     expiresAt: z
       .string()
-      .describe("ISO time after which the network refuses the envelope; prepare again."),
+      .describe(
+        "ISO time after which the network refuses the envelope. Policy-v1 must reconcile the original intent before considering replacement; elapsed time alone does not establish failure.",
+      ),
+    intent: z
+      .uuid()
+      .optional()
+      .describe("Durable policy-v1 preparation identifier. Retain it and the hash before signing."),
+    txHash: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
+    walletAddress: z.string().optional(),
+    execution: ExecutionIntentSchema.optional(),
   })
   .describe("An unsigned deposit that executes a deposit-triggered flow.");
 export type ExecutePrepared = z.infer<typeof ExecutePreparedSchema>;
 
 export const ExecuteSubmitSchema = z
   .object({
+    intent: z
+      .uuid()
+      .optional()
+      .describe(
+        "The original policy-v1 preparation. Never substitute a new preparation after an unknown outcome.",
+      ),
     signedXdr: z
       .string()
       .min(10)
       .max(200_000)
       .describe(
-        "The envelope returned by prepare, signed by `from`. Anything but a single `deposit` " +
-          "call on this flow's trigger contract is refused.",
+        "The unchanged envelope returned by prepare, signed by `from` on the deployment network. Legacy requires one deposit call; policy-v1 requires its exact persisted execute_v1 intent/body/auth/resources and payer signature.",
       ),
   })
   .strict()
@@ -96,14 +117,14 @@ export const ExecuteSubmitQuerySchema = z.object({
     .describe("`false` returns PENDING as soon as the network accepts the transaction."),
 });
 
-export const ExecuteStatusSchema = z.enum(["SUCCESS", "PENDING", "FAILED"]);
+export const ExecuteStatusSchema = z.enum(["SUCCESS", "PENDING", "FAILED", "UNKNOWN", "REJECTED"]);
 export type ExecuteStatus = z.infer<typeof ExecuteStatusSchema>;
 
 export const ExecuteSubmittedSchema = z
   .object({
     txHash: z.string().describe("Hash of the submitted transaction, hex."),
     status: ExecuteStatusSchema.describe(
-      "PENDING: accepted, not yet final; resubmit the same envelope to check again.",
+      "PENDING is accepted, not yet final. Policy-v1 UNKNOWN/REJECTED retain the original intent; reconcile or query its hash without another send. Legacy callers may resubmit the same envelope for status.",
     ),
     ledger: integerNumber().optional(),
     error: z.object({ code: z.string(), message: z.string() }).optional(),

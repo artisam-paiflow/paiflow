@@ -12,6 +12,10 @@ import { clientIp } from "@/lib/rate-limit";
 import { buildPipelineErrorHint } from "@/lib/stellar/pipeline-error-hint";
 import { prepareFailure } from "@/lib/api/v1/prepare-error";
 import { prepareTriggerTx } from "@/lib/stellar/trigger";
+import { prepareExecutionPayment } from "@/lib/api/v1/execution-payments";
+import { executionIdempotencyKey } from "@/lib/api/v1/execution-intent";
+import { linkApiTransaction } from "@/lib/api/request-history/context";
+import { hasExecutionPolicies } from "@/lib/api/v1/execution-schema";
 
 /**
  * Prepare the unsigned deposit that executes a deposit-triggered flow. The caller signs
@@ -27,6 +31,32 @@ export const POST = v1Route(
         }),
       );
       const { nodes, triggerAddress } = resolveExecutablePipeline(deployment);
+
+      if (hasExecutionPolicies(deployment.graphSnapshot)) {
+        const data = await prepareExecutionPayment(
+          deployment,
+          input,
+          executionIdempotencyKey(req.headers.get("idempotency-key")),
+        );
+        linkApiTransaction(data.txHash!);
+        await audit({
+          action: "API_EXECUTE_PREPARED",
+          userId: deployment.ownerId,
+          ip: clientIp(req),
+          metadata: {
+            deploymentId: params.id,
+            tokenId: token.id,
+            tokenType,
+            intent: data.intent,
+            txHash: data.txHash,
+          },
+        });
+        return NextResponse.json({ data });
+      }
+      if (input.arguments !== undefined)
+        throw new AppError("VALIDATION", "Legacy deployments do not accept execution arguments", {
+          arguments: ["This deployment has no execution input capability"],
+        });
 
       assertAmountMatchesFlow(deployment.id, deployment.graphSnapshot, input.amount, {
         fixedSplitBatching: true,

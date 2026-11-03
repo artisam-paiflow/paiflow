@@ -5,6 +5,20 @@ SDK versions are independent of the app and API. Follow the repository release
 
 ## [Unreleased]
 
+- Add `deployment.configuration` verified state/history and explicit admin-signed prepare/sign/submit/reconcile workflows (#1169), requiring original idempotency and preserving unknown outcomes without automatic retries or replacements.
+
+- Add explicit owned-template grants and developer-signed private-template instance prepare/sign/submit/reconcile/history support (#1165). Preserve uncertain RPC refusals under the original admission/hash, and bind canonical SDK receipts to the requested instance.
+
+- Accept server-verified mutation capability metadata when discovering new guarded
+  Pay/Split artifacts, while retaining execution-only discovery with `mutation: false`
+  (#1168). Older strict SDKs may require an update for the new artifact generation;
+  existing execution-only deployment responses are unchanged. Mutation endpoints are available in source under #1169; owner editing remains subsequent work; no release is published by this change.
+
+- Add execution input types, verified configuration reads, idempotent preparation,
+  exact-intent signing/submission and explicit reconciliation for policy-v1 backend
+  deployments (#1160, OpenAPI 1.4.0). UNKNOWN/REJECTED remain unresolved outcomes;
+  there are no automatic payment retries. Legacy execute input remains compatible.
+
 - Remove the retired `payroll` capability trigger value (#1144). Payroll application and API support is intentionally discontinued; ordinary Subscription, Pay and Split integrations remain supported. Previously published packages are unchanged.
 
 - Point package repository metadata and the release-policy link to the public

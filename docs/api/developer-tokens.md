@@ -1,4 +1,4 @@
-# One credential for selected existing deployments
+# One credential for explicitly selected resources
 
 SDK beta `0.2.0` supports developer credentials and scoped deployment discovery
 (#1028); SDK `0.1.0` does not include these additions. OpenAPI revision `1.1.0`
@@ -25,7 +25,7 @@ one-time secret reveal. Switching sections dismisses that secret permanently.
 Use a full owner account; sandbox sessions cannot manage tokens. Deploy your flows
 through the existing app/wallet workflow first. Choose a label, **Read only** or
 **Read and operate**, and 1–100 existing **CONFIRMED**, **ACTIVE** deployments you own.
-No future deployment inherits access. Tokens cannot create flows or deployments.
+No future deployment inherits deployment API access. Explicit template grants can separately authorize developer-signed instance creation; see [template instances](template-instances.md). Neither grant permits editing or publishing templates.
 
 Read only permits capabilities, balances, events, transaction status, quotes and
 supported funding, schedule and subscription discovery. Read and operate adds the
@@ -52,14 +52,14 @@ screenshots or repositories. No customer private key belongs in your application
 These routes require the owner's signed-in browser session, **not** a bearer token.
 The SDK intentionally does not wrap them. Successful responses are `no-store`.
 
-| Method and path                          | Contract                                                                                             |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `GET /api/developer-tokens`              | Paginated safe metadata, including revoked/expired history.                                          |
-| `POST /api/developer-tokens`             | `{label?, permission, deploymentIds, expiresInDays?}`; returns metadata plus one-time `token` (201). |
-| `GET /api/developer-tokens/deployments`  | Eligible owned deployment choices `{id, flowName, network}`.                                         |
-| `GET /api/developer-tokens/{tokenId}`    | Inspect safe metadata.                                                                               |
-| `PATCH /api/developer-tokens/{tokenId}`  | Only `{deploymentIds}`; atomically replace the whole selection, including `[]` to suspend access.    |
-| `DELETE /api/developer-tokens/{tokenId}` | Idempotently revoke; preserve metadata and financial history.                                        |
+| Method and path                          | Contract                                                                                                                |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/developer-tokens`              | Paginated safe metadata, including revoked/expired history.                                                             |
+| `POST /api/developer-tokens`             | `{label?, permission, deploymentIds, templateIds?, expiresInDays?}`; returns metadata plus one-time `token` (201).      |
+| `GET /api/developer-tokens/deployments`  | Eligible owned deployment choices `{id, flowName, network}`.                                                            |
+| `GET /api/developer-tokens/{tokenId}`    | Inspect safe metadata.                                                                                                  |
+| `PATCH /api/developer-tokens/{tokenId}`  | `{deploymentIds, templateIds?}`; atomically replace supplied selections. Omitted templateIds preserves template grants. |
+| `DELETE /api/developer-tokens/{tokenId}` | Idempotently revoke; preserve metadata and financial history.                                                           |
 
 List routes use UUID `cursor` and integer `limit` (default 20, maximum 100),
 returning `{data:{items,nextCursor}}`. The eligible-deployment list also accepts
@@ -69,7 +69,7 @@ pagination across all eligible owned deployments. Reset the cursor when changing
 search. It never expands ownership or eligibility; the token metadata list does
 not accept this parameter. Metadata contains only `id`, `tokenPrefix`,
 `label`, `permission`, `createdAt`, `lastUsedAt`, `expiresAt`, `revokedAt` and
-`deploymentIds`; no token hash or recoverable credential. PATCH cannot edit revoked
+`deploymentIds` and optional nonempty `templateIds`; no token hash or recoverable credential. PATCH cannot edit revoked
 or expired credentials. Every retained/new grant must still be eligible; explicitly
 remove retiring/retired deployments when replacing a selection. Management writes
 share one allowance of 30 requests/minute per owner. Invalid bodies (including attempts to PATCH label/permission/expiry) return 422,
@@ -132,3 +132,7 @@ Verify a final business receipt (deployment, hash, payer, token, amount and requ
 recipient payouts) before fulfilling an order; HTTP 200 or chain SUCCESS alone is
 insufficient. The SDK does not automatically retry writes. Public and webhook
 requests never inherit the configured bearer; webhooks require their separate secret.
+
+## Explicit template selections
+
+Owner-session management also accepts `templateIds` for active owned private templates. Create requires at least one selected deployment or template, with at most 100 combined grants. Existing tokens gain no grants automatically. PATCH must include deploymentIds; include templateIds to replace template grants, including [] to remove them. Template READ_ONLY permits instance list/status/events; READ_OPERATE adds prepare/submit/reconcile. Rates are shared per token and endpoint across all selected resources. The account developer panel offers explicit deployment and private-template selections (#1166), retaining chosen IDs across pages and failed picker reads. Empty deployment selections can coexist with active template grants; both selections must be empty to suspend all resource access. Grant removal/revocation stops access while retaining all instance financial and finality evidence.

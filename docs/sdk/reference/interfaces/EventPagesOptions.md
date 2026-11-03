@@ -14,6 +14,18 @@ Bounded event iteration; retain the last cursor for explicit continuation.
 
 ## Properties
 
+### idempotencyKey?
+
+> `optional` **idempotencyKey?**: `string`
+
+Execute/configuration preparation only: stable original request key; never a replacement.
+
+#### Inherited from
+
+[`RequestOptions`](RequestOptions.md).[`idempotencyKey`](RequestOptions.md#idempotencykey)
+
+---
+
 ### maxPages?
 
 > `optional` **maxPages?**: `number`

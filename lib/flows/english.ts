@@ -16,11 +16,13 @@ import {
   isTrigger,
   isPendingAddress,
   bpsToPct,
+  pctToBps,
   assetLabel,
   subscriptionAmountPerPeriodStroops,
 } from "./schema";
 import { inFlowOrder } from "./graph";
 import { formatScheduleStart } from "./format-time";
+import { executionPath, executionPolicy, hasMutablePolicies } from "./execution-v1";
 import {
   BRANCH_LABEL,
   branchAmountText,
@@ -154,12 +156,104 @@ function describeBranch(
   }
   return parts.length > 0 ? parts.join(" and ") : "nothing is paid out yet";
 }
+
+/** Policy-aware review describes every hop and never presents saved draft
+ * placeholders as destinations or allocations for the next payment. */
+function describeExecutionFlow(graph: FlowGraph): string {
+  let path: FlowNode[];
+  try {
+    path = executionPath(graph);
+  } catch {
+    return "This draft declares execution inputs, but its blocks are not a supported immediate On Receive → Pay → terminal Pay or Split path. Fix the path before deploying.";
+  }
+  const root = path[0];
+  if (root?.type !== "on_receive") return "(incomplete execution flow)";
+  const asset = assetLabel(root.config.asset);
+  const minimum = root.config.minAmountStroops;
+  const steps = path.slice(1).map((node, index) => {
+    const policy = executionPolicy(graph, node);
+    if (node.type === "pay" && policy?.kind === "pay") {
+      const recipient =
+        policy.recipient === "execution"
+          ? `the recipient supplied by the payer for ${node.id}`
+          : policy.recipient === "mutable"
+            ? `initial stored recipient ${node.config.recipient} (admin may update when obligations are clear)`
+            : needsAddress(node.config.recipient)
+              ? "a constant recipient (needs address)"
+              : `constant recipient ${node.config.recipient}`;
+      const valueSource = policy.payoutValue === "mutable" ? "initial stored" : "constant";
+      const amount = node.config.fullAmount
+        ? `the full incoming ${asset}`
+        : node.config.mode === "percentage"
+          ? `a ${valueSource} ${bpsToPct(pctToBps(node.config.percentage ?? 0))}% of this step’s incoming ${asset}`
+          : `a ${valueSource} ${formatStroops(node.config.amountStroops || "0")} ${asset}`;
+      const onward =
+        index < path.length - 2
+          ? "; forward only this payment’s remainder to the next step"
+          : "; return any unused amount from this payment to its payer";
+      return `pay ${amount} to ${recipient}${onward}`;
+    }
+    if (node.type === "split" && policy?.kind === "split") {
+      const rows = node.config.recipients.map((row, rowIndex) => {
+        const rowPolicy = policy.rows[rowIndex];
+        const identity = row.label
+          ? `${row.label} (${rowPolicy?.rowId ?? rowIndex + 1})`
+          : (rowPolicy?.rowId ?? `row ${rowIndex + 1}`);
+        const allocation =
+          rowPolicy?.allocation === "execution"
+            ? "the allocation supplied by the payer"
+            : rowPolicy?.allocation === "mutable"
+              ? `initial stored ${row.mode === "percentage" ? `${bpsToPct(row.bps)}%` : `${formatStroops(row.amountStroops)} ${asset}`} (admin mutable)`
+              : row.mode === "percentage"
+                ? `constant ${bpsToPct(row.bps)}%`
+                : `constant ${formatStroops(row.amountStroops)} ${asset}`;
+        const recipient =
+          rowPolicy?.recipient === "execution"
+            ? "a recipient supplied by the payer"
+            : rowPolicy?.recipient === "mutable"
+              ? `initial stored recipient ${row.address} (admin mutable)`
+              : needsAddress(row.address)
+                ? "a constant recipient (needs address)"
+                : `constant recipient ${row.address}`;
+        return `${identity}: ${allocation} to ${recipient}`;
+      });
+      if (policy.additionalRecipients === "execution")
+        rows.push(
+          "additional recipients and their allocations supplied by the payer, after the configured rows",
+        );
+      if (policy.additionalRecipients === "mutable") {
+        for (const row of node.config.additionalRecipients ?? [])
+          rows.push(
+            `${row.rowId}: initial stored ${row.allocation.kind === "percentage" ? `${bpsToPct(row.allocation.bps)}%` : `${formatStroops(row.allocation.amountStroops)} ${asset}`} to ${row.recipient}`,
+          );
+        rows.push(
+          "the admin may replace only this appended stored roster when accepted obligations are clear",
+        );
+      }
+      const execution =
+        policy.additionalRecipients === "execution" ||
+        policy.rows.some((row) => row.recipient === "execution" || row.allocation === "execution");
+      const rule =
+        policy.allocationMode === "percentage"
+          ? "All shares must total exactly 100%; the last row receives the rounding remainder"
+          : execution
+            ? "The final fixed amounts must exactly match this payment’s funds entering the Split; underfunding and excess are refused"
+            : hasMutablePolicies(graph)
+              ? "Stored fixed amounts accumulate until the configured total is reached; accepted accumulation blocks configuration changes"
+              : "Constant fixed amounts accumulate until the configured total is reached";
+      return `split ${asset} — ${rows.join("; ")}. ${rule}`;
+    }
+    return "an unsupported execution step";
+  });
+  return `For each immediate payment funded and signed by its payer${minimum && minimum !== "0" ? ` (minimum ${formatStroops(minimum)} ${asset})` : ""}, ${steps.join("; then ")}. Modes, constant values, asset and routing stay fixed for the deployment’s lifetime. Every declared input is required for each payment; saved draft values are not defaults. Template creation inputs and stored updates are separate.${hasMutablePolicies(graph) ? " Declared stored updates require admin authorization, clear accepted obligations and a new configuration revision; previously reviewed payments fail on chain after a relevant update." : ""}`;
+}
 export function flowToEnglish(graph: FlowGraph): string {
   try {
     graph = resolveOwnerReturns(graph, DEPLOYING_WALLET);
   } catch {
     return "(incomplete flow)";
   }
+  if (graph.fieldPolicies !== undefined) return describeExecutionFlow(graph);
   const trigger = graph.nodes.find(isTrigger);
   const action = inFlowOrder(graph, graph.nodes.filter(isContractAction))[0];
   const condition = graph.nodes.find(isLogic);

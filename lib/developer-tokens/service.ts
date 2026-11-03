@@ -10,7 +10,9 @@ import { markTokenKnown } from "@/lib/api/v1/pre-auth";
 import { AppError } from "@/lib/errors";
 import { clientIp, enforceRateLimit } from "@/lib/rate-limit";
 import {
+  CreateDeveloperTokenSchema,
   MAX_ACTIVE_DEVELOPER_TOKENS,
+  MAX_DEVELOPER_TOKEN_GRANTS,
   type CreateDeveloperToken,
   type DeveloperTokenListQuery,
   type DeveloperTokenDeploymentQuery,
@@ -24,14 +26,21 @@ export const DEVELOPER_TOKEN_SELECT = {
   lastUsedAt: true,
   expiresAt: true,
   revokedAt: true,
+  templateGrants: { select: { templateId: true }, orderBy: { templateId: "asc" as const } },
   grants: { select: { deploymentId: true }, orderBy: { deploymentId: "asc" as const } },
 } as const;
 type TokenRow = Prisma.DeveloperApiTokenGetPayload<{
   select: typeof DEVELOPER_TOKEN_SELECT;
 }>;
 export function developerTokenMetadata(row: TokenRow) {
-  const { grants, ...metadata } = row;
-  return { ...metadata, deploymentIds: grants.map((grant) => grant.deploymentId) };
+  const { grants, templateGrants, ...metadata } = row;
+  return {
+    ...metadata,
+    deploymentIds: grants.map((grant) => grant.deploymentId),
+    ...(templateGrants?.length
+      ? { templateIds: templateGrants.map((grant) => grant.templateId) }
+      : {}),
+  };
 }
 export async function requireDeveloperTokenManager(write = false) {
   const user = await requireSession();
@@ -67,6 +76,20 @@ async function validateSelection(tx: Prisma.TransactionClient, ownerId: string, 
       deploymentIds: ["One or more deployments are unavailable"],
     });
 }
+async function validateTemplateSelection(
+  tx: Prisma.TransactionClient,
+  ownerId: string,
+  ids: string[],
+) {
+  if (!ids.length) return;
+  const rows = await tx.$queryRaw<
+    { id: string }[]
+  >`SELECT id FROM "FlowTemplate" WHERE id IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))}) AND "ownerId" = ${ownerId}::uuid AND "retiredAt" IS NULL ORDER BY id FOR SHARE`;
+  if (rows.length !== ids.length)
+    throw new AppError("VALIDATION", "Select only your active private templates", {
+      templateIds: ["One or more templates are unavailable"],
+    });
+}
 async function ownedToken(tx: Prisma.TransactionClient, ownerId: string, id: string) {
   const token = await tx.developerApiToken.findFirst({
     where: { id, ownerId },
@@ -94,6 +117,7 @@ export async function createDeveloperToken(
   input: CreateDeveloperToken,
   req: NextRequest,
 ) {
+  input = CreateDeveloperTokenSchema.parse(input);
   const { plaintext, tokenHash, tokenPrefix } = generateDeveloperApiToken();
   const row = await db.$transaction(async (tx) => {
     await lockOwner(tx, ownerId);
@@ -104,6 +128,7 @@ export async function createDeveloperToken(
     if (count >= MAX_ACTIVE_DEVELOPER_TOKENS)
       throw new AppError("CONFLICT", "Revoke an active developer token before creating another");
     await validateSelection(tx, ownerId, input.deploymentIds);
+    await validateTemplateSelection(tx, ownerId, input.templateIds ?? []);
     const token = await tx.developerApiToken.create({
       data: {
         ownerId,
@@ -114,6 +139,7 @@ export async function createDeveloperToken(
         expiresAt: input.expiresInDays
           ? new Date(now.getTime() + input.expiresInDays * 86400000)
           : null,
+        templateGrants: { create: (input.templateIds ?? []).map((templateId) => ({ templateId })) },
         grants: { create: input.deploymentIds.map((deploymentId) => ({ deploymentId })) },
       },
       select: DEVELOPER_TOKEN_SELECT,
@@ -123,6 +149,7 @@ export async function createDeveloperToken(
         tokenId: token.id,
         permission: input.permission,
         deploymentIds: input.deploymentIds,
+        templateIds: input.templateIds ?? [],
       }),
     });
     return token;
@@ -138,13 +165,27 @@ export async function updateDeveloperToken(
   id: string,
   ids: string[],
   req: NextRequest,
+  templateIds?: string[],
 ) {
   return db.$transaction(async (tx) => {
     await lockOwner(tx, ownerId);
     const existing = await ownedToken(tx, ownerId, id);
     if (existing.revokedAt || (existing.expiresAt && existing.expiresAt <= new Date()))
       throw new AppError("CONFLICT", "Replace a revoked or expired token");
+    if (
+      ids.length +
+        (templateIds ?? existing.templateGrants?.map((grant) => grant.templateId) ?? []).length >
+      MAX_DEVELOPER_TOKEN_GRANTS
+    )
+      throw new AppError("VALIDATION", "Too many selected resources");
     await validateSelection(tx, ownerId, ids);
+    if (templateIds !== undefined) {
+      await validateTemplateSelection(tx, ownerId, templateIds);
+      await tx.developerTemplateGrant.deleteMany({ where: { tokenId: id } });
+      await tx.developerTemplateGrant.createMany({
+        data: templateIds.map((templateId) => ({ tokenId: id, templateId })),
+      });
+    }
     await tx.developerTokenGrant.deleteMany({ where: { tokenId: id } });
     await tx.developerTokenGrant.createMany({
       data: ids.map((deploymentId) => ({ tokenId: id, deploymentId })),
@@ -153,6 +194,7 @@ export async function updateDeveloperToken(
       data: auditData(req, ownerId, "DEVELOPER_TOKEN_SELECTION_UPDATED", {
         tokenId: id,
         deploymentIds: ids,
+        ...(templateIds === undefined ? {} : { templateIds }),
       }),
     });
     return developerTokenMetadata(await ownedToken(tx, ownerId, id));

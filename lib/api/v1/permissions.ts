@@ -7,6 +7,12 @@ export const V1_PERMISSIONS = {
   "GET balances": "read",
   "GET capabilities": "read",
   "GET events": "read",
+  "GET execution": "read",
+  "GET configuration": "read",
+  "GET configuration/history": "read",
+  "POST configuration/prepare": "operate",
+  "POST configuration/submit": "operate",
+  "POST configuration/reconcile": "operate",
   "GET funding": "read",
   "GET schedule/state": "read",
   "GET subscription/state": "read",
@@ -14,6 +20,7 @@ export const V1_PERMISSIONS = {
   "GET transactions/:txHash": "read",
   "POST execute": "operate",
   "POST execute/submit": "operate",
+  "POST execute/reconcile": "operate",
   "POST funding": "operate",
   "POST funding/reconcile": "operate",
   "POST funding/submit": "operate",
@@ -34,6 +41,12 @@ export const V1_PERMISSIONS = {
   "POST subscription/reactivate/reconcile": "operate",
   "POST subscription/reactivate/submit": "operate",
   "GET deployments": "read",
+  "GET flow-templates/:id/instances": "read",
+  "GET flow-templates/:id/instances/:instanceId": "read",
+  "GET flow-templates/:id/instances/:instanceId/events": "read",
+  "POST flow-templates/:id/versions/:versionId/instances/prepare": "operate",
+  "POST flow-templates/:id/instances/:instanceId/submit": "operate",
+  "POST flow-templates/:id/instances/:instanceId/reconcile": "operate",
 } as const;
 export type V1Operation = keyof typeof V1_PERMISSIONS;
 export function assertApiPermission(auth: ApiCredentialAuth, operation: V1Operation) {

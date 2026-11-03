@@ -11,6 +11,7 @@ import { signerFromSignedXdr } from "@/lib/stellar/signer";
 import { recordSignedTransaction } from "@/lib/signed-tx";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 import { audit, needsSubmitRow } from "@/lib/audit";
+import { hasExecutionPolicies } from "@/lib/api/v1/execution-schema";
 
 const SubmitSchema = z.object({ signedXdr: z.string().min(10).max(200_000) });
 
@@ -26,6 +27,11 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
       include: { flow: { select: { templateKind: true } } },
     });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found or not confirmed");
+    if (hasExecutionPolicies(d.graphSnapshot))
+      throw new AppError(
+        "VALIDATION",
+        "Policy-v1 payments require the exact execution preparation flow",
+      );
 
     // Recorded before the chain call, under the signer's own session if any;
     // `d.ownerId` is the owner, not necessarily the signer, and is never

@@ -6,6 +6,9 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 import { z } from "zod";
 import { audit } from "@/lib/audit";
+import { FlowGraphSchema } from "@/lib/flows/schema";
+import { hasMutablePolicies } from "@/lib/flows/execution-v1";
+import { readExecutionState } from "@/lib/stellar/execution-state";
 import { preparedDeploymentRecovery } from "@/lib/stellar/deployment-recovery";
 
 const PatchSchema = z.object({
@@ -35,8 +38,17 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
           retirementBlocker: deployment.retirementBlocker,
         },
       });
+    const graph = FlowGraphSchema.safeParse(deployment.graphSnapshot);
+    const currentConfiguration =
+      deployment.status === "CONFIRMED" && graph.success && hasMutablePolicies(graph.data)
+        ? await readExecutionState(deployment)
+        : null;
     return NextResponse.json({
-      data: { ...deployment, preparedRecovery: await preparedDeploymentRecovery(deployment) },
+      data: {
+        ...deployment,
+        currentConfiguration,
+        preparedRecovery: await preparedDeploymentRecovery(deployment),
+      },
     });
   });
 }

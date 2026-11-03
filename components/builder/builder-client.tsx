@@ -27,11 +27,24 @@ import { flowToEnglish } from "@/lib/flows/english";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import type { AddressEntry } from "@/lib/address-book.types";
+import type { NodeFieldPolicy } from "@/lib/flows/field-policies";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
 import { TriggerNode, ActionNode, LogicNode } from "@/components/nodes";
 import AnimatedStraightEdge from "@/components/nodes/animated-edge";
 import { NotificationSettingsDialog } from "./notification-settings";
 import { sendWithRateLimitRetry } from "./autosave-retry.utils";
+import {
+  executionDeploymentAvailable,
+  EXECUTION_ARTIFACTS_UNAVAILABLE,
+  updateBuilderPolicy,
+  type ExecutionArtifacts,
+} from "./field-policy.utils";
+import {
+  builderGraph,
+  editBuilderNodes,
+  removeBuilderNodes,
+  type BuilderDraft,
+} from "./graph-state.utils";
 import { createSaveCoordinator, type SaveOutcome } from "./save-outcome.utils";
 import CanvasConfigPanel from "./canvas-config-panel";
 import Palette from "./palette";
@@ -75,6 +88,7 @@ type BuilderProps = {
    * and makes the in-builder validation match the server's refusal.
    */
   features: FeatureFlags;
+  executionArtifacts?: ExecutionArtifacts;
 };
 function nodeToReactFlow(n: FlowNode, index: number, positions?: FlowGraph["positions"]): Node {
   if (n.type === "email_notify") throw new Error("Legacy graph must be migrated before rendering");
@@ -182,7 +196,7 @@ function toFlowEdge(e: Edge): FlowEdge {
 }
 export default function BuilderClient(props: BuilderProps) {
   return (
-    <ReactFlowProvider>
+    <ReactFlowProvider key={props.flowId}>
       <Builder {...props} />
     </ReactFlowProvider>
   );
@@ -196,9 +210,21 @@ function Builder({
   network,
   routerContractId,
   features,
+  executionArtifacts,
 }: BuilderProps) {
   const [name, setName] = useState(initialName);
-  const [flowNodes, setFlowNodes] = useState<FlowNode[]>(initialGraph.nodes);
+  const [draft, setDraft] = useState<BuilderDraft>({
+    nodes: initialGraph.nodes,
+    fieldPolicies: initialGraph.fieldPolicies,
+  });
+  const { nodes: flowNodes, fieldPolicies } = draft;
+  // Both keyboard and panel authoring mutate nodes/policies in one state update.
+  const setFlowNodes = useCallback((update: (nodes: FlowNode[]) => FlowNode[]) => {
+    setDraft((current) => editBuilderNodes(current, update(current.nodes)));
+  }, []);
+  const setFieldPolicy = useCallback((policy: NodeFieldPolicy) => {
+    setDraft((current) => updateBuilderPolicy(current, policy));
+  }, []);
   const [rfNodes, setRfNodes] = useState<Node[]>(
     initialGraph.nodes.map((n, i) => nodeToReactFlow(n, i, initialGraph.positions)),
   );
@@ -269,15 +295,14 @@ function Builder({
     setReady(true);
   }, []);
   const graph: FlowGraph = useMemo(
-    () => ({
-      nodes: flowNodes,
-      edges: rfEdges.map(toFlowEdge),
-      notify: sandbox ? { mode: "off", sendTo: "" } : notify,
-      // Persist canvas positions with the flow (autosave is debounced, so a
-      // drag saves once it settles rather than on every frame).
-      positions: Object.fromEntries(rfNodes.map((n) => [n.id, n.position])),
-    }),
-    [flowNodes, rfEdges, false, notify, sandbox, rfNodes],
+    () =>
+      builderGraph(flowNodes, rfEdges.map(toFlowEdge), {
+        fieldPolicies,
+        notify: sandbox ? { mode: "off", sendTo: "" } : notify,
+        // Persist canvas positions when the debounced autosave settles.
+        positions: Object.fromEntries(rfNodes.map((n) => [n.id, n.position])),
+      }),
+    [flowNodes, rfEdges, notify, sandbox, rfNodes, fieldPolicies],
   );
   // Snapshot of the live canvas positions — used as a fallback when a
   // server-returned graph (AI edit, address resolution) doesn't carry them.
@@ -489,7 +514,7 @@ function Builder({
         if (removed) track("node_removed", { node_type: removed.type, via: "keyboard" });
       }
       const removedSet = new Set(removedIds);
-      setFlowNodes((arr) => arr.filter((n) => !removedSet.has(n.id)));
+      setDraft((current) => removeBuilderNodes(current, removedSet));
       setRfEdges((eds) =>
         eds.filter((e) => !removedSet.has(e.source) && !removedSet.has(e.target)),
       );
@@ -574,7 +599,7 @@ function Builder({
   function deleteNode(id: string) {
     const removed = nodeLookupRef.current.get(id);
     if (removed) track("node_removed", { node_type: removed.type, via: "panel" });
-    setFlowNodes((arr) => arr.filter((n) => n.id !== id));
+    setDraft((current) => removeBuilderNodes(current, new Set([id])));
     setRfNodes((arr) => arr.filter((n) => n.id !== id));
     setRfEdges((arr) => arr.filter((e) => e.source !== id && e.target !== id));
     if (selectedId === id) setSelectedId(null);
@@ -631,7 +656,7 @@ function Builder({
       }
       if (applied && patchedGraph) {
         // Use server-normalized graph directly (Issue #6 fix)
-        setFlowNodes(patchedGraph.nodes);
+        setDraft({ nodes: patchedGraph.nodes, fieldPolicies: patchedGraph.fieldPolicies });
         if (patchedGraph.notify) setNotify(patchedGraph.notify);
         setRfNodes(
           patchedGraph.nodes.map((n, i) =>
@@ -684,7 +709,7 @@ function Builder({
         return;
       }
       const resolvedFlow = json.data.flow as FlowGraph;
-      setFlowNodes(resolvedFlow.nodes);
+      setDraft({ nodes: resolvedFlow.nodes, fieldPolicies: resolvedFlow.fieldPolicies });
       setRfNodes(
         resolvedFlow.nodes.map((n, i) =>
           nodeToReactFlow(n, i, resolvedFlow.positions ?? currentPositions()),
@@ -706,9 +731,24 @@ function Builder({
   function handleSkipAddresses() {
     setPendingAddresses([]);
   }
-  const isValid = validation.ok;
+  const executionAvailable = executionDeploymentAvailable(graph, executionArtifacts);
+  const isValid = validation.ok && executionAvailable;
   const pipeline = validation.ok ? validation.pipeline : undefined;
-  const errors = useMemo(() => (validation.ok ? [] : validation.errors), [validation]);
+  const errors = useMemo(
+    () => [
+      ...(validation.ok ? [] : validation.errors),
+      ...(!executionAvailable
+        ? [
+            {
+              path: "fieldPolicies",
+              message: EXECUTION_ARTIFACTS_UNAVAILABLE,
+              friendlyMessage: EXECUTION_ARTIFACTS_UNAVAILABLE,
+            },
+          ]
+        : []),
+    ],
+    [validation, executionAvailable],
+  );
   useValidationTracking(errors, flowNodes);
   // Close the validation-issues modal on Escape, or once all issues are fixed
   // while it's open.
@@ -814,6 +854,20 @@ function Builder({
               <div className="flex items-center gap-2">
                 {!sandbox && (
                   <button
+                    type="button"
+                    className="text-primary min-h-11 text-xs underline"
+                    onClick={() => {
+                      void saves.navigateAfterSave(saveGraph(graph, name, true), () => {
+                        if (!unmounted.current)
+                          window.location.href = `/flow-templates?flowId=${flowId}`;
+                      });
+                    }}
+                  >
+                    Create private template from saved flow
+                  </button>
+                )}
+                {!sandbox && (
+                  <button
                     id="notification-settings-button"
                     type="button"
                     aria-expanded={notificationsOpen}
@@ -917,6 +971,8 @@ function Builder({
                 features={features}
                 sandbox={sandbox}
                 onChange={updateNode}
+                onPolicyChange={setFieldPolicy}
+                executionAvailable={executionAvailable}
                 onDelete={deleteNode}
                 addressBook={addressBook}
                 refreshAddressBook={refreshAddressBook}

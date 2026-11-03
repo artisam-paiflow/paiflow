@@ -33,6 +33,13 @@
 !packages/sdk/
 !packages/sdk/**
 
+# Local acceptance tools import fixtures intentionally excluded from the image.
+# Keep other scripts available to the separate daily-report image's build context.
+scripts/check-instance-artifacts.ts
+scripts/generate-instance-acceptance.ts
+scripts/generate-execution-acceptance.ts
+scripts/generate-mutation-acceptance.ts
+
 # Reinstate exclusions inside the allowed source directories too.
 **/.env*
 **/.git

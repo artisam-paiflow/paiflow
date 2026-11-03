@@ -104,6 +104,20 @@ is supplied to the build, persisted as a default runtime value, or copied from a
 local `.env` file. `.dockerignore` allowlists required source and then excludes
 credential/private/generated paths within those source directories too.
 
+The four fixture-dependent acceptance generators/checkers are excluded from the
+build context. They remain in the repository for local validation; test fixtures
+stay excluded and TypeScript checks stay enabled. Other scripts remain available
+in the shared build context for the separate daily-report image, which needs its
+reporting scripts. Only the two startup scripts enter the final app image.
+
+The final stage copies the built `.next` output, public assets, installed modules,
+package/lock metadata, Next/TypeScript/Prisma configuration, the shared `lib/csp.ts`
+used by the runtime Next config, Prisma schema/migrations and the two startup scripts.
+Application/component source, other library source, seed scripts, build configuration
+and Next build cache/type/diagnostic files are omitted. Installed dependencies are
+retained: migration-first startup needs Prisma CLI/client, and loading `next.config.ts`
+needs TypeScript. Dependency pruning is not part of this packaging change.
+
 Strict engine checks and the dependency-free runtime/startup check remain. The
 Brotli error marker is API sanity only; the pinned official release supplies
 provenance. After an authorized rollout, verify the deployed commit and actual
@@ -123,7 +137,9 @@ canaries in its context, then runs [`scripts/container-smoke.mjs`](../scripts/co
 against disposable PostgreSQL/Redis services. It verifies canaries/private checkout
 paths are absent, Node/Brotli API/native argon2 and Prisma modules load, pnpm is
 available to the non-root user, a migration failure blocks startup, successful migration/startup exposes HTTP with the baked commit,
-DB/Redis reads work, owner routes remain guarded, and SIGTERM exits cleanly.
+DB/Redis reads work, built JavaScript/public assets are served, owner routes remain
+guarded, and SIGTERM exits cleanly. It also verifies the final image excludes build
+sources/local tools and retains the required runtime files.
 
 To run the same smoke on Linux, provide disposable local PostgreSQL with
 user/password/database `paiflow_image` and Redis (no hosted connection). Optional

@@ -28,6 +28,27 @@ async function load() {
 }
 
 describe("deploy chokepoint", () => {
+  it.each(["wallet", "relayer"])(
+    "refuses compiled MULTISIG before %s preparation touches RPC",
+    async (source) => {
+      const deploy = await load();
+      const input = {
+        graph: GRAPH as never,
+        nodes: [
+          { nodeId: "c", templateKind: "MULTISIG", wasmHash: "a".repeat(64), params: {} },
+        ] as never,
+      };
+      await expect(
+        source === "wallet"
+          ? deploy.preparePipelineDeployTx({
+              ...input,
+              sourceAccount: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+            })
+          : deploy.deployPipelineByRelayer(input),
+      ).rejects.toThrow(/Multisig.*unavailable/);
+      expect(rpc.getAccount).not.toHaveBeenCalled();
+    },
+  );
   it("preparePipelineDeployTx refuses a retired CASH_OUT node before RPC", async () => {
     const { preparePipelineDeployTx } = await load();
     await expect(

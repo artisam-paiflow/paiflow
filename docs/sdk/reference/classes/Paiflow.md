@@ -116,6 +116,24 @@ A deployment client sharing this transport.
 
 ---
 
+### flowTemplate()
+
+> **flowTemplate**(`templateId`: `string`): [`PaiflowTemplate`](PaiflowTemplate.md)
+
+Bind instance lifecycle to an explicitly granted private template.
+
+#### Parameters
+
+##### templateId
+
+`string`
+
+#### Returns
+
+[`PaiflowTemplate`](PaiflowTemplate.md)
+
+---
+
 ### getOpenApi()
 
 > **getOpenApi**(`options?`: [`RequestOptions`](../interfaces/RequestOptions.md)): `Promise`\<[`ApiResponse`](../interfaces/ApiResponse.md)\<\{ `info`: \{ `title`: `string`; `version`: `string`; \}; `openapi`: `string`; `paths`: `Record`\<`string`, `unknown`\>; \}\>\>

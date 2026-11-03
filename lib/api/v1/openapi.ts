@@ -1,4 +1,25 @@
+import {
+  MutationPrepareSchema,
+  MutationSubmitSchema,
+  MutationReconcileSchema,
+  MutationIntentSchema,
+  MutationPreparedSchema,
+  MutationStateSchema,
+  ConfigurationHistorySchema,
+  MutationReconciledSchema,
+  MutationPreparationRefusalSchema,
+} from "@/lib/mutations/schema";
+import {
+  InstancePrepareSchema,
+  InstanceSubmitSchema,
+  InstanceReconcileSchema,
+  InstanceStateSchema,
+  InstanceListSchema,
+} from "@/lib/flow-instances/schema";
 import { SwapQuoteSchema } from "./swap-quote-schema";
+import { z } from "zod";
+import { ExecutionArgumentsSchema, ExecutionIntentSchema } from "@/lib/flows/field-policies";
+import { ExecutionDiscoverySchema, ExecutionReconcileSchema } from "./execution-schema";
 import {
   DeploymentCapabilitiesSchema,
   SubscriptionStateSchema,
@@ -692,6 +713,14 @@ const developerMetadataProperties = {
       { type: ["string", "null"], format: "date-time" },
     ]),
   ),
+  templateIds: {
+    type: "array",
+    maxItems: 100,
+    uniqueItems: true,
+    items: { type: "string", format: "uuid" },
+    description:
+      "Explicit owned-template grants for instance lifecycle only; never template management or automatic deployment access",
+  },
   deploymentIds: {
     type: "array",
     maxItems: 100,
@@ -744,15 +773,101 @@ function developerManagementOperation(
   };
 }
 
+function instancePaths() {
+  const definitions = [
+    [
+      "versions/{versionId}/instances/prepare",
+      "post",
+      "prepareTemplateInstance",
+      "InstancePrepare",
+      "InstanceState",
+    ],
+    ["instances", "get", "listTemplateInstances", null, "InstanceList"],
+    ["instances/{instanceId}", "get", "getTemplateInstance", null, "InstanceState"],
+    [
+      "instances/{instanceId}/submit",
+      "post",
+      "submitTemplateInstance",
+      "InstanceSubmit",
+      "InstanceState",
+    ],
+    [
+      "instances/{instanceId}/reconcile",
+      "post",
+      "reconcileTemplateInstance",
+      "InstanceReconcile",
+      "InstanceState",
+    ],
+    [
+      "instances/{instanceId}/events",
+      "get",
+      "listTemplateInstanceEvents",
+      null,
+      "ListEventsResponse",
+    ],
+  ] as const;
+  return Object.fromEntries(
+    definitions.map(([suffix, method, operationId, request, result]) => {
+      const url = `/api/v1/flow-templates/{id}/${suffix}`;
+      const parameters = [...url.matchAll(/\{(\w+)\}/g)].map((match) => ({
+        name: match[1],
+        in: "path",
+        required: true,
+        schema: { type: "string", format: "uuid" },
+      }));
+      return [
+        url,
+        {
+          [method]: {
+            tags: ["Private template instances"],
+            operationId,
+            summary: operationId,
+            description:
+              "Requires an active pfd_ developer credential with an explicit owned-template grant. pfk_ and deployment-only pfd_ credentials are refused. READ_ONLY permits instance list/status/events; READ_OPERATE is required for preparation, submission and reconciliation. Template management remains owner-session only. Developer is signer, fee payer and owner/admin; credentials never replace the on-chain signature. Preparation pins the immutable version, resolved bindings, graph, policies, network, exact factory/artifacts and transaction. Reuse the same owner-wide idempotency key and payload; another template/version/source/binding conflicts. Preserve original identity across retirement, expiry, crashes and unknown finality; never blindly sign, resend or prepare a replacement. Per-owner quotas: 1000 active instances, 10 unresolved preparations, one pending deployment per source wallet within that owner. Preparation limit 10/minute per credential; submit 30; reads/reconcile 60, shared across selected templates. Existing deployment grants remain separate; these grants do not authorize deployment execute operations.",
+            security: [{ bearerAuth: [] }],
+            parameters,
+            ...(request
+              ? {
+                  requestBody: {
+                    required: true,
+                    content: json({ $ref: `#/components/schemas/${request}` }),
+                  },
+                }
+              : {}),
+            responses: {
+              "200": {
+                description:
+                  "Original durable instance state; pending or submitted is not confirmation",
+                content: json(dataEnvelope(`#/components/schemas/${result}`)),
+              },
+              ...errors(
+                "UNAUTHENTICATED",
+                "FORBIDDEN",
+                "NOT_FOUND",
+                "CONFLICT",
+                "VALIDATION",
+                "RATE_LIMITED",
+                "INSUFFICIENT_FUNDS",
+                "UPSTREAM_RPC",
+                "INTERNAL",
+              ),
+            },
+          },
+        },
+      ];
+    }),
+  );
+}
+
 export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: "Paiflow API v1",
-    version: "1.3.0",
+    version: "1.7.0",
     description: [
       "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.",
       "",
-      "Every `/api/v1/deployments/{id}/…` call requires a Bearer credential: a deployment token (`pfk_…`) bound to one deployment, or a developer token (`pfd_…`) with explicit grants to selected existing deployments still owned by the token owner. GET /api/v1/deployments discovers only that credential's eligible deployments. Developer READ_ONLY permits reads, quotes and funding discovery; READ_OPERATE additionally permits preparation, submission, reconciliation and relayer release. See docs/api/developer-token-permissions.md for the complete matrix. No token grants flow/deployment creation or legacy dev access.",
+      "Every `/api/v1/deployments/{id}/…` call requires a Bearer credential: a deployment token (`pfk_…`) bound to one deployment, or a developer token (`pfd_…`) with explicit grants to selected existing deployments still owned by the token owner. GET /api/v1/deployments discovers only that credential's eligible deployments. Developer READ_ONLY permits reads, quotes and funding discovery; READ_OPERATE additionally permits preparation, submission, reconciliation and relayer release. See docs/api/developer-token-permissions.md for the complete matrix. Existing deployment grants do not authorize template instance creation. The separate /api/v1/flow-templates/{id}/... lifecycle requires explicit owned-template pfd_ grants; READ_OPERATE permits developer-signed instance preparation/submission/reconciliation and READ_ONLY permits list/status/events. No bearer grants template publication, editing, retirement or legacy dev access.",
       "",
       "**Execute deposits are signed by the caller.** `execute` returns an unsigned envelope; you sign it with the " +
         "`from` key, which stays on your side, and post it to `execute/submit`. A leaked token can " +
@@ -824,6 +939,7 @@ export const openApiDocument = {
     },
   ],
   paths: {
+    ...instancePaths(),
     "/api/developer-tokens": {
       get: developerManagementOperation(
         "listDeveloperTokens",
@@ -877,7 +993,7 @@ export const openApiDocument = {
           item: true,
           request: "UpdateDeveloperTokenRequest",
           description:
-            "Only deploymentIds can change. Empty selection suspends all access. Revoked or expired credentials cannot be edited. Replacement selection must contain only eligible owned deployments; remove retiring/retired grants.",
+            "Only deploymentIds and explicit templateIds can change. Omitted templateIds preserves existing template grants. Empty selection suspends the selected resource access. Revoked or expired credentials cannot be edited. Replacement selection must contain only eligible owned deployments; remove retiring/retired grants.",
         },
       ),
       delete: developerManagementOperation(
@@ -1074,6 +1190,173 @@ export const openApiDocument = {
       },
     },
     ...schedulePaths(),
+    ...Object.fromEntries(
+      (["state", "history", "prepare", "submit", "reconcile"] as const).map((action) => {
+        const method = action === "state" || action === "history" ? "get" : "post";
+        const suffix = action === "state" ? "" : `/${action}`;
+        const request =
+          action === "prepare"
+            ? MutationPrepareSchema
+            : action === "submit"
+              ? MutationSubmitSchema
+              : MutationReconcileSchema;
+        return [
+          `/api/v1/deployments/{id}/configuration${suffix}`,
+          {
+            [method]: {
+              tags: ["Configuration"],
+              operationId: `${action}Configuration`,
+              summary: `${action} guarded admin-owned stored configuration`,
+              description:
+                "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Known pre-intent failures can add error.fields.preparationRefusal as one JSON string matching MutationPreparationRefusal. This immutable request/key/admin/network/deployment-bound non-admission fence blocks every late creator for that key. Original error codes and safe field messages are preserved. Re-fetch and validate exact proof before fresh review/new key; generic errors, timeout, missing rows and admitted uncertainty provide no such authority. " +
+                rate(
+                  action === "prepare"
+                    ? V1_RATE_LIMITS.schedulePrepare
+                    : action === "submit"
+                      ? V1_RATE_LIMITS.scheduleSubmit
+                      : action === "reconcile"
+                        ? V1_RATE_LIMITS.scheduleReconcile
+                        : V1_RATE_LIMITS.capabilities,
+                  "per token",
+                ),
+              security: [{ bearerAuth: [] }],
+              parameters: [
+                deploymentIdParam,
+                ...(action === "prepare"
+                  ? [
+                      {
+                        name: "Idempotency-Key",
+                        in: "header",
+                        required: true,
+                        schema: {
+                          type: "string",
+                          minLength: 1,
+                          maxLength: 128,
+                          pattern: "^[A-Za-z0-9._:-]+$",
+                        },
+                      },
+                    ]
+                  : []),
+                ...(action === "history"
+                  ? [
+                      {
+                        name: "limit",
+                        in: "query",
+                        schema: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+                      },
+                      { name: "cursor", in: "query", schema: { type: "string", format: "uuid" } },
+                    ]
+                  : []),
+              ],
+              ...(method === "post"
+                ? { requestBody: { required: true, content: json(z.toJSONSchema(request)) } }
+                : {}),
+              responses: {
+                "200": {
+                  description:
+                    "Confirmed state, original intent or observed history; inspect financial status",
+                  content: json({
+                    type: "object",
+                    required: ["data"],
+                    properties: {
+                      data:
+                        action === "submit"
+                          ? { $ref: "#/components/schemas/TransactionStatus" }
+                          : action === "prepare"
+                            ? { $ref: "#/components/schemas/MutationPrepared" }
+                            : action === "state"
+                              ? z.toJSONSchema(MutationStateSchema)
+                              : action === "history"
+                                ? z.toJSONSchema(ConfigurationHistorySchema)
+                                : z.toJSONSchema(MutationReconciledSchema),
+                    },
+                  }),
+                },
+                ...errors(
+                  "UNAUTHENTICATED",
+                  "FORBIDDEN",
+                  "NOT_FOUND",
+                  "VALIDATION",
+                  "CONFLICT",
+                  "RATE_LIMITED",
+                  "INSUFFICIENT_FUNDS",
+                  "UPSTREAM_RPC",
+                  "INTERNAL",
+                ),
+              },
+            },
+          },
+        ];
+      }),
+    ),
+
+    "/api/v1/deployments/{id}/execution": {
+      get: {
+        tags: ["Execute"],
+        operationId: "getExecutionState",
+        summary: "Read verified execution capabilities, current configuration and required inputs",
+        description:
+          "Legacy definitions return supported:false. Policy-v1 reads pin actual deployed WASM and immutable original configuration, with capabilities/current_config getters at one confirmed ledger. Missing, unknown, incompatible and unimplemented modes fail closed. No contact emails or labels are returned. " +
+          rate(V1_RATE_LIMITS.capabilities, "per token"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        responses: {
+          "200": {
+            description: "Verified execution state or explicit legacy unavailability",
+            content: json(dataEnvelope("#/components/schemas/ExecutionDiscovery")),
+          },
+          ...errors("UNAUTHENTICATED", "NOT_FOUND", "VALIDATION", "RATE_LIMITED", "UPSTREAM_RPC"),
+        },
+      },
+    },
+    "/api/v1/deployments/{id}/execute/reconcile": {
+      post: {
+        tags: ["Execute"],
+        operationId: "reconcileExecution",
+        summary: "Reconcile the original execution without sending another transaction",
+        description:
+          "Returns the original durable intent state and scoped transaction result. UNKNOWN or missing history never permits replacement. Expiry requires authoritative closing-ledger and complete RPC history evidence, never elapsed wall-clock time. " +
+          rate(V1_RATE_LIMITS.executeSubmit, "per token"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        requestBody: {
+          required: true,
+          content: json({ $ref: "#/components/schemas/ExecutionReconcileRequest" }),
+        },
+        responses: {
+          "200": {
+            description: "Original intent and transaction status",
+            content: json({
+              type: "object",
+              required: ["data"],
+              properties: {
+                data: {
+                  type: "object",
+                  required: ["intent", "state", "transaction"],
+                  properties: {
+                    intent: { type: "string", format: "uuid" },
+                    state: {
+                      type: "string",
+                      enum: ["PREPARED", "SUBMITTING", "SUCCESS", "FAILED", "EXPIRED"],
+                    },
+                    transaction: { $ref: "#/components/schemas/TransactionStatus" },
+                  },
+                },
+              },
+            }),
+          },
+          ...errors(
+            "UNAUTHENTICATED",
+            "FORBIDDEN",
+            "NOT_FOUND",
+            "VALIDATION",
+            "CONFLICT",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+          ),
+        },
+      },
+    },
     ...Object.fromEntries(
       (["cancel", "reactivate"] as const).flatMap((action) =>
         (["prepare", "submit", "reconcile"] as const).map((step) => {
@@ -1402,12 +1685,23 @@ export const openApiDocument = {
           "",
           "The flow runs through its deposit trigger; the next pipeline steps (pay, split, condition, swap) run as part of the same transaction. " +
             "Sign the returned `xdr` with the `from` key using `networkPassphrase`, before " +
-            "`expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook and other trigger-headed flows are refused with `VALIDATION`. Configure every Pay and Split recipient before deployment.",
+            "`expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook and other trigger-headed flows are refused with `VALIDATION`. Legacy recipients are configured before deployment. Policy-v1 supports only the verified immediate Pay chain/terminal Split subset returned by /execution. Supply every declared execution argument; no constant overrides or fallback recipients. Terminal Pay refunds only this invocation's unpaid remainder to its payer.",
+          "Policy-v1 preparations persist exact transaction, payer, amount, asset, inputs, node revisions, deployment and network. Idempotency-Key (1–128 letters/digits/._:-) returns the same preparation on an identical retry and 409 on a different payload. One unresolved payment per payer/deployment blocks replacement; different payers remain independent. Retain intent and txHash before signing. No key, signature or signed envelope is stored.",
           "",
           rate(V1_RATE_LIMITS.execute, "per token"),
         ].join("\n"),
         security: [{ bearerAuth: [] }],
-        parameters: [deploymentIdParam],
+        parameters: [
+          deploymentIdParam,
+          {
+            name: "Idempotency-Key",
+            in: "header",
+            required: false,
+            description:
+              "Stable policy-v1 preparation key; never reused for a different payment. Legacy preparations do not provide key-based deduplication.",
+            schema: { type: "string", minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9._:-]+$" },
+          },
+        ],
         requestBody: {
           required: true,
           content: json(
@@ -1445,7 +1739,8 @@ export const openApiDocument = {
           "",
           "The envelope must be the one `execute` returned, signed by `from`: anything but a single " +
             "`deposit` call on this flow's trigger contract is refused with `VALIDATION`, as is a " +
-            "fee-bump envelope.",
+            "fee-bump envelope. Unsigned, wrong-key and wrong-network envelopes are refused before relay. For policy-v1, the exact prepared body (operations, arguments, auth, resources, fee/source and expiry) and payer signature are required. Include its intent, or use the exact hash lookup supported by signedXdr-only submissions. Stale node revisions fail on chain even if a change races the submit preflight.",
+          "Policy-v1 uses an atomic durable send claim: retries never resend after a claimed/unknown submission. UNKNOWN and REJECTED are uncertainty/refusal states, not proof of failed payment; reconcile the original intent or query its hash. Finality remains discoverable after expiry. Legacy submission recovery retains its existing behavior.",
           "",
           "Idempotent on the envelope hash: submitting the same `signedXdr` again never sends a " +
             "second transaction, it reports the one already on the network. That is also how to " +
@@ -1817,16 +2112,29 @@ export const openApiDocument = {
       },
     },
     schemas: {
+      MutationIntent: z.toJSONSchema(MutationIntentSchema),
+      MutationPrepared: z.toJSONSchema(MutationPreparedSchema),
+      MutationPreparationRefusal: z.toJSONSchema(MutationPreparationRefusalSchema),
+      InstancePrepare: z.toJSONSchema(InstancePrepareSchema),
+      InstanceSubmit: z.toJSONSchema(InstanceSubmitSchema),
+      InstanceReconcile: z.toJSONSchema(InstanceReconcileSchema),
+      InstanceState: z.toJSONSchema(InstanceStateSchema),
+      InstanceList: z.toJSONSchema(InstanceListSchema),
+      ExecutionDiscovery: z.toJSONSchema(ExecutionDiscoverySchema),
+      ExecutionReconcileRequest: z.toJSONSchema(ExecutionReconcileSchema),
       DeveloperToken: {
         type: "object",
         additionalProperties: false,
-        required: Object.keys(developerMetadataProperties),
+        required: Object.keys(developerMetadataProperties).filter((key) => key !== "templateIds"),
         properties: developerMetadataProperties,
       },
       CreatedDeveloperToken: {
         type: "object",
         additionalProperties: false,
-        required: [...Object.keys(developerMetadataProperties), "token"],
+        required: [
+          ...Object.keys(developerMetadataProperties).filter((key) => key !== "templateIds"),
+          "token",
+        ],
         properties: {
           ...developerMetadataProperties,
           token: {
@@ -1840,6 +2148,12 @@ export const openApiDocument = {
         type: "object",
         additionalProperties: false,
         required: ["permission", "deploymentIds"],
+        description:
+          "Select at least one resource and no more than 100 combined deployment/template grants.",
+        anyOf: [
+          { properties: { deploymentIds: { minItems: 1 } } },
+          { required: ["templateIds"], properties: { templateIds: { minItems: 1 } } },
+        ],
         properties: {
           label: {
             type: "string",
@@ -1848,7 +2162,8 @@ export const openApiDocument = {
             description: "Trimmed before validation.",
           },
           permission: developerMetadataProperties.permission,
-          deploymentIds: { ...developerMetadataProperties.deploymentIds, minItems: 1 },
+          deploymentIds: developerMetadataProperties.deploymentIds,
+          templateIds: developerMetadataProperties.templateIds,
           expiresInDays: { type: "integer", minimum: 1, maximum: 365 },
         },
       },
@@ -1856,7 +2171,10 @@ export const openApiDocument = {
         type: "object",
         additionalProperties: false,
         required: ["deploymentIds"],
-        properties: { deploymentIds: developerMetadataProperties.deploymentIds },
+        properties: {
+          deploymentIds: developerMetadataProperties.deploymentIds,
+          templateIds: developerMetadataProperties.templateIds,
+        },
       },
       DeveloperTokenList: {
         type: "object",
@@ -2443,7 +2761,8 @@ export const openApiDocument = {
               fields: {
                 type: "object",
                 additionalProperties: { type: "array", items: { type: "string" } },
-                description: "Per-field validation messages, keyed by field path.",
+                description:
+                  "Per-field validation messages, keyed by field path. Configuration prepare may add preparationRefusal: a single JSON string matching MutationPreparationRefusal, proving durable non-admission only for its exact request/key/deployment/network/admin. Re-fetch and validate before replacing a refused preparation; generic errors and elapsed time are not proof.",
               },
               details: {
                 type: "string",
@@ -2459,6 +2778,7 @@ export const openApiDocument = {
         required: ["amount", "from"],
         description: EXECUTE_PREREQUISITES,
         properties: {
+          arguments: z.toJSONSchema(ExecutionArgumentsSchema),
           amount: {
             type: "string",
             pattern: "^\\d{1,39}$",
@@ -2476,6 +2796,10 @@ export const openApiDocument = {
         required: ["xdr", "networkPassphrase", "network", "expiresAt"],
         description: ExecutePreparedSchema.description,
         properties: {
+          intent: { type: "string", format: "uuid" },
+          txHash: { type: "string", pattern: "^[a-f0-9]{64}$" },
+          walletAddress: { type: "string", pattern: "^G[A-Z2-7]{55}$" },
+          execution: z.toJSONSchema(ExecutionIntentSchema),
           xdr: { type: "string", description: preparedShape.xdr.description },
           networkPassphrase: {
             type: "string",
@@ -2494,6 +2818,7 @@ export const openApiDocument = {
         additionalProperties: false,
         required: ["signedXdr"],
         properties: {
+          intent: { type: "string", format: "uuid" },
           signedXdr: {
             type: "string",
             minLength: 10,
@@ -2541,7 +2866,7 @@ export const openApiDocument = {
           txHash: { type: "string", description: submittedShape.txHash.description },
           status: {
             type: "string",
-            enum: ["SUCCESS", "PENDING", "FAILED"],
+            enum: ["SUCCESS", "PENDING", "FAILED", "UNKNOWN", "REJECTED"],
             description: submittedShape.status.description,
           },
           ledger: { type: "integer", description: "Ledger the transaction was final in." },

@@ -5,6 +5,101 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Fix deployment-image builds by excluding fixture-dependent local acceptance
+  scripts from the shared build context. Ship explicit app runtime files instead
+  of SDK/application sources, local tools and the whole build workspace; retain
+  migrations, Next configuration and installed runtime tooling. Image smoke
+  verifies source exclusion and served assets.
+
+- Disable new Multisig deployments, private-template publication and fresh instances
+  on the server, including saved graphs/direct API calls and submission of previously
+  prepared unsent deployments. Multisig remains outside this release pending its
+  constructor/forwarding repair (#1167); existing history and submitted/unknown
+  transaction recovery are preserved. No contract or artifact change is made.
+
+- Add exact developer-admin signed Pay/Split configuration APIs and SDK, durable mutation recovery, confirmed current-config reads and immutable observed revision history with explicit gaps (#1169). Reconcile external updates, refresh current owner previews and preserve original snapshots/contact privacy; no artifacts or hosted services are activated.
+
+- Add an authenticated private-template workspace with finite typed creation inputs,
+  immutable version selection, developer wallet fee/network review and exact
+  instance signing/recovery (#1166). Add explicit private-template token selections
+  and an owner-only read of original admission terms, including persisted compiled
+  agreement dates, full constant recipient addresses and final router/relayer
+  bindings verified against the saved envelope before signing. No artifacts or hosted
+  services are activated.
+
+- Add explicit owned-template grants and developer-signed private-template instance prepare/sign/submit/reconcile/history support (#1165). Preserve uncertain RPC refusals under the original admission/hash, and bind canonical SDK receipts to the requested instance.
+
+- Add guarded admin-authorized stored Pay/Split updates for newly reviewed-artifact immediate paths, with atomic whole-path obligation admission, immutable policies and initial evidence, revision-bound payments, valid initial mutable rosters, and retained execution-only artifact compatibility (#1168). Owner editing remains subsequent work; no live artifacts are activated.
+
+### Added
+
+- Cross-layer stored-mutation safety evidence links production constructor, update
+  and payment packets with local contract execution, actual configuration events,
+  API/SDK admission and owner review (#1171). Cover zero-balance obligations,
+  immutable constants, stale signed terms, private-instance snapshots and durable
+  non-admission recovery. Document guarded-artifact compatibility and a phased
+  activation/rollback plan; earlier release blockers and live acceptance remain
+  open, with no artifacts or hosted services activated.
+
+- Owner review and exact admin signing for declared mutable Pay/Split values,
+  current configuration and observed history (#1170). Add complete initial stored
+  roster authoring and guarded-artifact deployment checks. Persist immutable,
+  request-bound non-admission refusals so stale rejected preparations can be
+  reviewed again without allowing delayed or unknown transactions to be replaced.
+  Existing deployments, lifetime modes and constants remain unchanged; no artifacts
+  or hosted services are activated.
+
+- Private-instance cross-layer isolation evidence for immediate payments, schedules,
+  subscriptions and time conditions, with same-version signing/retirement checks,
+  unsigned production constructor vectors and local compiled-WASM probes (#1167).
+  Document confirmed pre-existing Multisig constructor/forwarding incompatibilities,
+  per-instance costs/admission and remaining release gates; readiness remains blocked
+  and no artifacts or hosted services are activated.
+
+- Cross-layer execution acceptance vectors join the production compiler, hosted/API
+  payment lifecycle and reviewed contract WASMs (#1163), including fixed 15% shares,
+  varied recipients, exact fixed rosters and resource-failure admission. Document
+  artifact compatibility, conditional activation/rollback and unperformed live gates;
+  no artifacts or hosted services are activated.
+
+- Private flow template drafts and immutable published versions with owner-only
+  management APIs, declared typed creation bindings, retained retirement evidence
+  and pinned network/factory/WASM/ABI compatibility checks (#1164). Binding previews
+  validate all supported standard flow types without deploying instances.
+
+- Opt-in hosted payment forms for policy-v1 deployments (#1162). Wallet-only payers
+  review required execution inputs, fixed destinations, revisions, amounts, fees
+  and network before signing. Owner publishing is authenticated and audited;
+  receipt-scoped recovery preserves uncertain payments across reloads and opt-out.
+  A separate sign-only wallet ownership proof prevents anonymous callers from
+  reserving another payer before preparation; recovery needs no new proof.
+  Existing deployments remain disabled by default; no artifacts are activated.
+
+- Builder declarations for payer-supplied Pay recipients and Split recipients,
+  allocations and additional rosters (#1161), with constant defaults and stable
+  configured rows. Review the full immediate payment path and its exact constants
+  before deployment; unsupported artifacts block deployment while allowing draft
+  authoring. Stored configuration updates remain unavailable. No artifacts are activated.
+
+- Exact payer-signed execution preparations for new policy-v1 deployments (#1160):
+  verified pinned artifacts/current revisions, required node inputs, idempotent
+  prepare receipts and one-send recovery through uncertain outcomes. API/SDK reads
+  and reconciliation preserve original evidence; legacy public submit paths refuse
+  policy-v1. No artifact activation or hosted opt-in is implied.
+
+- Payer-bound execution input contracts and compiler support (#1159) for immediate
+  Receive → Pay → terminal Pay/Split paths. Preserve constant recipients/allocations,
+  enforce exact fixed execution splits, revisions and replay deadlines, and prevent
+  old entry points/routing setters from bypassing new policies. Deployment refuses
+  unknown/legacy artifacts and records reviewed hashes/capabilities; no artifacts are
+  uploaded or activated by this change. Existing mode-less deployments stay unchanged.
+
+- Shared versioned field-policy and input contracts for reusable flows (#1158):
+  distinguish execution arguments, private template creation bindings and guarded
+  stored updates. Preserve policies on draft save and reject explicit v1 deployment
+  until compatible contracts enforce them. Existing deployments and mode-less flow
+  behavior remain unchanged; this foundation activates no runtime capability.
+
 ### Removed
 
 - Payroll trigger, owner management APIs, scheduled payroll charges, contract build target and payroll capability/SDK metadata (#1144). Preserve historical payroll storage and the reviewed cancelled TESTNET fixture while refusing new or resumed payroll work. See [payroll retirement](docs/payroll-retirement.md) for the corrective migration disposition, cutover requirements and intentional compatibility exception.
@@ -29,6 +124,15 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Changed
 
+- Recover a hosted first-preparation RPC failure by re-proving the same immutable
+  request/capability while retaining non-editable uncertainty. Concurrent original
+  and retry simulations preserve one intent; known receipts and uncertain payment
+  signatures never become replacement payments (#1163).
+
+- Replay the complete current migration chain after both historical payroll
+  preservation paths before schema comparison, retaining checksum and financial
+  evidence guards (#1163).
+
 - Add Aklan winners and the Blocktrain: Paiflow x Web3Iloilo showcase, include JRU’s fourth winning project Pundar, use champion/runner-up award labels throughout, and include the supplied Aklan and Iloilo winner/group photos.
 
 - Begin hackathon AI guidance with problem discovery, make Receive → Pay the simplest payment exercise, and label Split walkthroughs and sample apps as optional inspiration. Add varied flow examples, align shared context with retired mutable configuration and participant feature availability, and regenerate the Paiflow Guide PDF.
@@ -46,6 +150,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 - Reorganize Developer API around a compact token list, expandable details, dedicated creation panel and Quickstart. Search eligible deployments across pages while preserving explicit selections and one-time token reveal protections. Add the flow-name index migration; OpenAPI revision 1.2.0 documents the optional owner-session deployment search parameter.
 
 ### Security
+
+- Verify the paying source account's signature on the environment network before
+  relaying retained v1 execute submissions; unsigned, wrong-key and wrong-network
+  envelopes are refused before attribution or RPC submission (#550, #1160).
 
 - Raise the `follow-redirects` override to >=1.16.2 and consolidate transitive `minimatch` versions on >=11.0.1 to address GHSA-mrwp-f3q8-3g9p and GHSA-g3hv-75wg-m249. Preserve the existing audit exception without adding new ignores.
 

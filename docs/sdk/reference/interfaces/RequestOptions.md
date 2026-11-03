@@ -17,6 +17,14 @@ Per-request cancellation and correlation. No option enables automatic retries.
 
 ## Properties
 
+### idempotencyKey?
+
+> `optional` **idempotencyKey?**: `string`
+
+Execute/configuration preparation only: stable original request key; never a replacement.
+
+---
+
 ### preparationRequestId?
 
 > `optional` **preparationRequestId?**: `string`

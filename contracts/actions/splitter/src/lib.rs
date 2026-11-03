@@ -1,10 +1,17 @@
 #![no_std]
+#[path = "../../../execution-v1.rs"]
+pub mod execution_v1;
 #[path = "../../../payment-math.rs"]
 mod payment_math;
+use execution_v1::{
+    Allocation, AllocationMode, Capabilities, ExecutionContext, ExecutionError, FieldMode,
+    MaybeAllocation, MutationContext, MutationStatus, NodeMutation, PolicyKey, SplitConfig,
+    SplitState, StoredSplitConfig, Target,
+};
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, token,
-    vec, Address, Env, IntoVal, String, Vec,
+    vec, Address, Env, IntoVal, Map, String, Symbol, TryFromVal, Val, Vec,
 };
 
 #[contracttype]
@@ -64,7 +71,7 @@ impl Splitter {
         env: Env,
         admin: Address,
         asset: Address,
-        recipients: Vec<Recipient>,
+        recipients: Val,
         min_amount: i128,
         parent: Address,
         next_steps: Vec<WorkflowTarget>,
@@ -72,6 +79,88 @@ impl Splitter {
         if env.storage().instance().has(&Key::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
         }
+        let recipients = if let Ok(legacy) = Vec::<Recipient>::try_from_val(&env, &recipients) {
+            legacy
+        } else {
+            let map = Map::<Symbol, Val>::try_from_val(&env, &recipients)
+                .unwrap_or_else(|_| execution_v1::fail(&env, ExecutionError::InvalidPolicy));
+            let (config, additional) = if map.contains_key(Symbol::new(&env, "policy")) {
+                let stored = StoredSplitConfig::try_from_val(&env, &recipients)
+                    .unwrap_or_else(|_| execution_v1::fail(&env, ExecutionError::InvalidPolicy));
+                (stored.policy, stored.additional)
+            } else {
+                (
+                    SplitConfig::try_from_val(&env, &recipients).unwrap_or_else(|_| {
+                        execution_v1::fail(&env, ExecutionError::InvalidPolicy)
+                    }),
+                    Vec::new(&env),
+                )
+            };
+            execution_v1::validate_stored_split(&env, &config, &additional);
+            execution_v1::require_contract(&env, &asset);
+            execution_v1::require(
+                &env,
+                next_steps.is_empty() && min_amount >= 0,
+                ExecutionError::InvalidPolicy,
+            );
+            execution_v1::require_contract(&env, &parent);
+            let mut configured = Vec::new(&env);
+            let mut total_fixed = 0i128;
+            for row in config.rows.iter() {
+                if let (Some(address), MaybeAllocation::Present(allocation)) =
+                    (row.recipient, row.allocation)
+                {
+                    let (bps, amount) = match allocation {
+                        Allocation::Percentage(value) => (value, 0),
+                        Allocation::Fixed(value) => (0, value),
+                    };
+                    total_fixed = total_fixed.checked_add(amount).unwrap_or_else(|| {
+                        execution_v1::fail(&env, ExecutionError::ArithmeticOverflow)
+                    });
+                    configured.push_back(Recipient {
+                        address,
+                        bps,
+                        amount,
+                    });
+                }
+            }
+            for row in additional.iter() {
+                let (bps, amount) = match row.allocation {
+                    Allocation::Percentage(value) => (value, 0),
+                    Allocation::Fixed(value) => (0, value),
+                };
+                total_fixed = total_fixed.checked_add(amount).unwrap_or_else(|| {
+                    execution_v1::fail(&env, ExecutionError::ArithmeticOverflow)
+                });
+                configured.push_back(Recipient {
+                    address: row.recipient,
+                    bps,
+                    amount,
+                });
+            }
+            env.storage()
+                .instance()
+                .set(&PolicyKey::InitialAdditional, &additional);
+            env.storage()
+                .instance()
+                .set(&PolicyKey::Additional, &additional);
+            env.storage().instance().set(&PolicyKey::Split, &config);
+            env.storage().instance().set(&Key::Admin, &admin);
+            env.storage().instance().set(&Key::Asset, &asset);
+            env.storage().instance().set(&Key::Recipients, &configured);
+            env.storage().instance().set(&Key::MinAmount, &min_amount);
+            env.storage().instance().set(&Key::Paused, &false);
+            env.storage().instance().set(&Key::NextSteps, &next_steps);
+            env.storage().instance().set(&Key::ParentNode, &parent);
+            env.storage().instance().set(&Key::Version, &VERSION);
+            env.storage()
+                .instance()
+                .set(&Key::TotalFixedAmount, &total_fixed);
+            env.storage()
+                .instance()
+                .set(&Key::AccumulatedBalance, &0i128);
+            return;
+        };
         if recipients.is_empty() {
             panic_with_error!(&env, Error::NoRecipients);
         }
@@ -123,6 +212,7 @@ impl Splitter {
     }
 
     pub fn distribute(env: Env, from: Address, amount: i128) {
+        execution_v1::require_legacy(&env);
         from.require_auth();
         bump_ttl(&env);
         if amount <= 0 {
@@ -198,8 +288,221 @@ impl Splitter {
     }
 
     pub fn set_next_steps(env: Env, next_steps: Vec<WorkflowTarget>) {
+        execution_v1::require_legacy(&env);
         Self::require_admin(&env);
         env.storage().instance().set(&Key::NextSteps, &next_steps);
+    }
+
+    pub fn execute_step_v1(env: Env, context: ExecutionContext, asset: Address, amount: i128) {
+        let config = execution_v1::current_split(&env);
+        let parent: Address = env.storage().instance().get(&Key::ParentNode).unwrap();
+        let stored_asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
+        execution_v1::require(&env, stored_asset == asset, ExecutionError::Unauthorized);
+        execution_v1::check_node(&env, &context, &config.node_id, &parent, &asset, amount);
+        execution_v1::require(
+            &env,
+            context.index + 1 == context.bindings.len(),
+            ExecutionError::InvalidInput,
+        );
+        execution_v1::require(
+            &env,
+            !env.storage()
+                .instance()
+                .get::<_, bool>(&Key::Paused)
+                .unwrap_or(false),
+            ExecutionError::Unsupported,
+        );
+        let min_amount: i128 = env.storage().instance().get(&Key::MinAmount).unwrap();
+        execution_v1::require(&env, amount >= min_amount, ExecutionError::InvalidAmount);
+        let input = execution_v1::find_input(&env, &context, &config.node_id);
+        let execution = config.additional_mode == FieldMode::Execution
+            || config.rows.iter().any(|r| {
+                r.recipient_mode == FieldMode::Execution
+                    || r.allocation_mode == FieldMode::Execution
+            });
+        let rows = execution_v1::merged_split_with_stored(
+            &env,
+            &config,
+            input,
+            amount,
+            &execution_v1::stored_additional(&env),
+        );
+        let paid_out = if config.allocation_mode == AllocationMode::Fixed && !execution {
+            // Constant fixed Split retains its existing accounted accumulation semantics.
+            handle_fixed_deposit(&env, &asset, amount)
+        } else {
+            let mut paid = 0i128;
+            for (index, row) in rows.iter().enumerate() {
+                let payment = match row.allocation {
+                    Allocation::Fixed(value) => value,
+                    Allocation::Percentage(bps) => {
+                        if index + 1 == rows.len() as usize {
+                            amount.checked_sub(paid).unwrap_or_else(|| {
+                                execution_v1::fail(&env, ExecutionError::ArithmeticOverflow)
+                            })
+                        } else {
+                            payment_math::percentage_share(amount, bps).unwrap_or_else(|| {
+                                execution_v1::fail(&env, ExecutionError::ArithmeticOverflow)
+                            })
+                        }
+                    }
+                };
+                if payment > 0 {
+                    execution_v1::transfer_exact(
+                        &env,
+                        &asset,
+                        &env.current_contract_address(),
+                        &row.recipient,
+                        payment,
+                    );
+                }
+                paid = paid.checked_add(payment).unwrap_or_else(|| {
+                    execution_v1::fail(&env, ExecutionError::ArithmeticOverflow)
+                });
+            }
+            execution_v1::require(&env, paid == amount, ExecutionError::InvalidAmount);
+            true
+        };
+        bump_ttl(&env);
+        if paid_out {
+            // Preserve the existing event recipient shape for polling/notification consumers.
+            let mut recipients = Vec::new(&env);
+            for row in rows.iter() {
+                let (bps, amount) = match row.allocation {
+                    Allocation::Percentage(value) => (value, 0),
+                    Allocation::Fixed(value) => (0, value),
+                };
+                recipients.push_back(Recipient {
+                    address: row.recipient,
+                    bps,
+                    amount,
+                });
+            }
+            #[allow(deprecated)]
+            env.events()
+                .publish((symbol_short!("payout"), context.payer), recipients);
+        }
+    }
+    pub fn capabilities(env: Env) -> Capabilities {
+        execution_v1::capabilities(&env)
+    }
+    pub fn mutation_status(env: Env) -> MutationStatus {
+        let config = execution_v1::current_split(&env);
+        MutationStatus {
+            node_id: config.node_id,
+            admin: env.storage().instance().get(&Key::Admin).unwrap(),
+            asset: env.storage().instance().get(&Key::Asset).unwrap(),
+            parent: env.storage().instance().get(&Key::ParentNode).unwrap(),
+            next_steps: Vec::new(&env),
+            revision: execution_v1::revision(&env),
+            obligations: env
+                .storage()
+                .instance()
+                .get(&Key::AccumulatedBalance)
+                .unwrap_or(0),
+        }
+    }
+    pub fn mutate_step_v1(env: Env, context: MutationContext) {
+        let status = Self::mutation_status(env.clone());
+        execution_v1::check_mutation_node(&env, &context, &status);
+        if let Some(change) = execution_v1::find_mutation(&env, &context, &status.node_id) {
+            status.admin.require_auth();
+            let change = match change {
+                NodeMutation::Split(change) => change,
+                _ => execution_v1::fail(&env, ExecutionError::InvalidInput),
+            };
+            let stored = execution_v1::apply_split_mutation(
+                &env,
+                execution_v1::current_split(&env),
+                execution_v1::stored_additional(&env),
+                &change,
+            );
+            let mut configured = Vec::new(&env);
+            let mut total_fixed = 0i128;
+            for row in stored.policy.rows.iter() {
+                if let (Some(address), MaybeAllocation::Present(allocation)) =
+                    (row.recipient, row.allocation)
+                {
+                    let (bps, amount) = match allocation {
+                        Allocation::Percentage(value) => (value, 0),
+                        Allocation::Fixed(value) => (0, value),
+                    };
+                    total_fixed = total_fixed.checked_add(amount).unwrap_or_else(|| {
+                        execution_v1::fail(&env, ExecutionError::ArithmeticOverflow)
+                    });
+                    configured.push_back(Recipient {
+                        address,
+                        bps,
+                        amount,
+                    });
+                }
+            }
+            for row in stored.additional.iter() {
+                let (bps, amount) = match row.allocation {
+                    Allocation::Percentage(value) => (value, 0),
+                    Allocation::Fixed(value) => (0, value),
+                };
+                total_fixed = total_fixed.checked_add(amount).unwrap_or_else(|| {
+                    execution_v1::fail(&env, ExecutionError::ArithmeticOverflow)
+                });
+                configured.push_back(Recipient {
+                    address: row.recipient,
+                    bps,
+                    amount,
+                });
+            }
+            env.storage().instance().set(&Key::Recipients, &configured);
+            env.storage()
+                .instance()
+                .set(&Key::TotalFixedAmount, &total_fixed);
+            env.storage()
+                .instance()
+                .set(&PolicyKey::CurrentSplit, &stored.policy);
+            env.storage()
+                .instance()
+                .set(&PolicyKey::Additional, &stored.additional);
+            execution_v1::increment_revision(&env);
+            #[allow(deprecated)]
+            env.events().publish(
+                (symbol_short!("config_v1"), status.node_id),
+                Self::current_config(env.clone()),
+            );
+        }
+        bump_ttl(&env);
+        execution_v1::forward_mutation(&env, context, &Vec::<Target>::new(&env));
+    }
+    pub fn config_revision(env: Env) -> u64 {
+        execution_v1::revision(&env)
+    }
+    pub fn field_policy(env: Env) -> SplitConfig {
+        env.storage()
+            .instance()
+            .get(&PolicyKey::Split)
+            .unwrap_or_else(|| execution_v1::fail(&env, ExecutionError::Unsupported))
+    }
+    pub fn current_config(env: Env) -> SplitState {
+        SplitState {
+            policy: execution_v1::current_split(&env),
+            revision: execution_v1::revision(&env),
+            asset: env.storage().instance().get(&Key::Asset).unwrap(),
+            parent: env.storage().instance().get(&Key::ParentNode).unwrap(),
+            min_amount: env.storage().instance().get(&Key::MinAmount).unwrap(),
+            additional: execution_v1::stored_additional(&env),
+        }
+    }
+    pub fn initial_config(env: Env) -> SplitState {
+        SplitState {
+            policy: Self::field_policy(env.clone()),
+            revision: 0,
+            asset: env.storage().instance().get(&Key::Asset).unwrap(),
+            parent: env.storage().instance().get(&Key::ParentNode).unwrap(),
+            min_amount: env.storage().instance().get(&Key::MinAmount).unwrap(),
+            additional: env
+                .storage()
+                .instance()
+                .get(&PolicyKey::InitialAdditional)
+                .unwrap_or(Vec::new(&env)),
+        }
     }
 
     pub fn next_steps(env: Env) -> Vec<WorkflowTarget> {
@@ -210,6 +513,7 @@ impl Splitter {
     }
 
     pub fn execute_step(env: Env, asset: Address, amount: i128) {
+        execution_v1::require_legacy(&env);
         let parent = require_parent(&env, None);
         execute_split(&env, &asset, amount, &parent);
     }
@@ -223,6 +527,7 @@ impl Splitter {
         amount: i128,
         _next_steps: Vec<WorkflowTarget>,
     ) {
+        execution_v1::require_legacy(&env);
         let parent = require_parent(&env, Some(&from));
         execute_split(&env, &asset, amount, &parent);
     }
@@ -308,7 +613,17 @@ fn do_split_fixed(env: &Env, asset: &Address, recipients: &Vec<Recipient>) {
     let client = token::Client::new(env, asset);
     for r in recipients.iter() {
         if r.amount > 0 {
-            client.transfer(&env.current_contract_address(), &r.address, &r.amount);
+            if execution_v1::has_policy(env) {
+                execution_v1::transfer_exact(
+                    env,
+                    asset,
+                    &env.current_contract_address(),
+                    &r.address,
+                    r.amount,
+                );
+            } else {
+                client.transfer(&env.current_contract_address(), &r.address, &r.amount);
+            }
         }
     }
 }

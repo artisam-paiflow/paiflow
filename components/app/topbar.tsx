@@ -14,6 +14,7 @@ const accountItems: { href: string; label: string; icon: string }[] = [
   { href: "/account", label: "Profile", icon: "person" },
   { href: "/account/address-book", label: "Address Book", icon: "contacts" },
   { href: "/account/developer", label: "Developer API", icon: "key" },
+  { href: "/flow-templates", label: "Private templates", icon: "library_books" },
 ];
 
 export default function Topbar({ username }: { username: string }) {

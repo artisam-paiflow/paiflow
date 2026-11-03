@@ -3,6 +3,7 @@ import type { EventKind } from "@prisma/client";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import { toCanvasGraph, type CanvasGraph } from "@/lib/flows/canvas-graph";
 import { isStellarNetwork, type StellarNetwork } from "@/lib/stellar/explorer";
+import { hasExecutionPolicies } from "@/lib/api/v1/execution-schema";
 
 export type PublicEmbedEvent = {
   eventId: string;
@@ -29,6 +30,7 @@ type EmbedSource = {
   network: string | null;
   graphSnapshot: unknown;
   pipelineSnapshot?: unknown;
+  hostedExecutionEnabled?: boolean;
   flow?: { templateKind: string };
   events: Array<{
     eventId: string;
@@ -66,9 +68,11 @@ export function projectPublicEvent(event: PublicEventSource): PublicEmbedEvent {
 
 /** Match the existing public trigger page, without publishing its internal snapshot. */
 export function publicPayment(
-  source: Pick<EmbedSource, "id" | "pipelineSnapshot" | "flow" | "network">,
+  source: Pick<EmbedSource, "id" | "pipelineSnapshot" | "flow" | "network"> &
+    Partial<Pick<EmbedSource, "graphSnapshot" | "hostedExecutionEnabled">>,
 ): PublicEmbedData["payment"] {
   if (!isStellarNetwork(source.network)) return null;
+  if (hasExecutionPolicies(source.graphSnapshot) && !source.hostedExecutionEnabled) return null;
   const first: unknown = Array.isArray(source.pipelineSnapshot) ? source.pipelineSnapshot[0] : null;
   const kind =
     first && typeof first === "object" && "templateKind" in first ? first.templateKind : null;

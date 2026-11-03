@@ -5,6 +5,7 @@ import {
   type Deployment,
   type DeveloperApiToken,
   type DeploymentApiToken,
+  type Prisma,
 } from "@prisma/client";
 import { db } from "@/lib/db";
 import { hashApiToken, tokenUsageStamp } from "@/lib/auth/api-token";
@@ -186,4 +187,35 @@ export async function requireDeploymentToken(
     deployment: deploymentRow,
     analyticsAudience: audienceFor(_owner),
   };
+}
+
+/** Explicit private-template scope. Deployment grants never imply this authority. */
+export async function assertTemplateCredential(
+  tx: Prisma.TransactionClient,
+  credential: DeveloperTokenAuth,
+  templateId: string,
+  operate = false,
+) {
+  const row = await tx.developerApiToken.findFirst({
+    where: {
+      id: credential.token.id,
+      ownerId: credential.ownerId,
+      revokedAt: null,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      ...(operate ? { permission: "READ_OPERATE" as const } : {}),
+      owner: { isActive: true, role: { not: Role.SANDBOX } },
+      templateGrants: { some: { templateId, template: { ownerId: credential.ownerId } } },
+    },
+    select: { id: true },
+  });
+  if (!row) throw new DeploymentGrantRefusal(credential);
+}
+export async function requireTemplateToken(
+  req: NextRequest,
+  templateId: string,
+): Promise<DeveloperTokenAuth> {
+  const credential = await requireDeploymentToken(req);
+  if (credential.tokenType !== "developer_token") throw refused();
+  await assertTemplateCredential(db, credential, templateId);
+  return credential;
 }

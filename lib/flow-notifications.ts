@@ -1,4 +1,5 @@
 import "server-only";
+import { executionPolicy } from "@/lib/flows/execution-v1";
 import { sendEmail } from "@/lib/mail";
 import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
@@ -215,13 +216,18 @@ export async function sendEmailNotificationsForTransactions(params: {
   const parsed = FlowGraphSchema.safeParse(migrateFlowGraph(deployment.graphSnapshot));
   if (!parsed.success || !isStellarNetwork(deployment.network)) return;
   const graph = parsed.data;
-  const recipientRows = graph.nodes.flatMap<{ address: string; email?: string }>((n) =>
-    n.type === "pay"
-      ? [{ address: n.config.recipient, email: n.config.email }]
-      : n.type === "split"
-        ? n.config.recipients
-        : [],
-  );
+  const recipientRows = graph.nodes.flatMap<{ address: string; email?: string }>((node) => {
+    const policy = executionPolicy(graph, node);
+    if (node.type === "pay")
+      return policy?.kind === "pay" && policy.recipient !== "constant"
+        ? []
+        : [{ address: node.config.recipient, email: node.config.email }];
+    if (node.type === "split")
+      return node.config.recipients.filter(
+        (_, index) => policy?.kind !== "split" || policy.rows[index]?.recipient === "constant",
+      );
+    return [];
+  });
   const ownerEnabled =
     graph.notify?.mode !== "off" && isValidEmailAddress(graph.notify?.sendTo.trim() ?? "");
   if (!ownerEnabled && !recipientRows.some((r) => isValidEmailAddress(r.email?.trim() ?? "")))
@@ -309,7 +315,16 @@ export async function sendEmailNotificationsForTransactions(params: {
               : parentNode
                 ? []
                 : recipientRows;
-        const mapping = nodeRows.find((r) => r.address === data.recipient && r.email?.trim());
+        // Contact evidence is constructor-time metadata. Mutable recipients have
+        // no newly authorized email mapping; never notify the former recipient.
+        const policy = parentNode && executionPolicy(graph, parentNode);
+        const eligibleRows =
+          policy?.kind === "pay" && policy.recipient !== "constant"
+            ? []
+            : policy?.kind === "split"
+              ? nodeRows.filter((_, index) => policy.rows[index]?.recipient === "constant")
+              : nodeRows;
+        const mapping = eligibleRows.find((r) => r.address === data.recipient && r.email?.trim());
         if (mapping?.email && isValidEmailAddress(mapping.email.trim()))
           messages.push({
             kind: "recipient",

@@ -385,8 +385,9 @@ function branchIssues(
 }
 export type ValidateFlowOptions = {
   /**
-   * The surfaces switched on for this server (#722). Omitted means every
-   * surface is on, which is right for saving a draft; anything that leads to a
+   * Deployment availability for this server (#722), including permanent release
+   * exclusions such as Multisig. Omitted checks only structural semantics, which
+   * keeps saved drafts and historical/compiler evidence readable; anything leading to a
    * deploy passes `serverFeatures()` (or, in the builder, the flags the page
    * handed down) so a hidden block is refused on its node.
    */
@@ -422,6 +423,41 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
     };
   }
   const originalGraph = parsed.data;
+  if (originalGraph.fieldPolicies !== undefined) {
+    try {
+      const compiled = flowToPipeline(originalGraph, undefined, { forValidation: true });
+      const emails = originalGraph.nodes.flatMap((node) =>
+        node.type === "pay"
+          ? [node.config.email]
+          : node.type === "split"
+            ? node.config.recipients.map((row) => row.email)
+            : [],
+      );
+      if (!ignoreOwnerEmail) emails.push(originalGraph.notify?.sendTo);
+      if (emails.some((email) => email && !isValidEmailAddress(email)))
+        throw new Error("Invalid notification email");
+      return {
+        ok: true,
+        templateKind: TemplateKind.SPLITTER,
+        pipeline: compiled.map((node) => node.templateKind),
+        graph: originalGraph,
+        pendingLabels: [],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unsupported field policy";
+      return {
+        ok: false,
+        errors: [
+          {
+            path: "fieldPolicies",
+            code: "FIELD_POLICY_UNSUPPORTED",
+            message,
+            friendlyMessage: message,
+          },
+        ],
+      };
+    }
+  }
   const outcomeIssues = terminalOutcomeIssues(originalGraph);
   if (outcomeIssues.length) return { ok: false, errors: outcomeIssues };
   let graph: FlowGraph;
