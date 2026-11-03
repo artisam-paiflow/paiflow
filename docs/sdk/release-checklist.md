@@ -8,12 +8,18 @@ release with `npm install @paiflow/sdk@0.3.0`. See the
 [publication record](releases/0.3.0-publication.md) for source/tag/archive identity,
 registry consumer checks and acceptance limits.
 
-Registry artifact and consumer verification are separate from funded on-chain
-acceptance. A payment through the registry-installed package remains untested;
-instance and guarded-configuration live acceptance also remain unfinished. This
-package publication does not deploy a backend, activate artifacts or complete
-Campaign 2 acceptance. The preparation checkpoint below is historical and its
-pending publication statements are superseded by the publication record.
+The registry-installed package additionally passed a bounded TESTNET payment:
+genuine wallet signing paid `200` stroops as `30`/`170`, identical preparation retry
+retained the original identity, a finalized duplicate submission caused no second
+payment, and explicit original-intent reconciliation succeeded. Independent
+transaction, accounting and package-integrity checks passed. This establishes
+immediate execution and explicit recovery, without an automatic-only timing claim.
+
+Instance and guarded-configuration live acceptance remain unfinished; legacy public
+submission findings and 40-node qualification require separate disposition. Package
+publication does not deploy a backend, activate artifacts or complete Campaign 2
+acceptance. The preparation checkpoint below is historical and its pending
+publication statements are superseded by the publication record.
 
 ## Beta 0.3.0 — historical preparation checkpoint, 2026-11-03
 
