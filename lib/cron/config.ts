@@ -21,6 +21,7 @@
  */
 export const CRON_LIMITS = {
   reconcileTransactions: { budgetMs: 12_000, ttlMs: 60_000, batch: 50 },
+  reconcileControlIntents: { budgetMs: 2_000, batch: 50 },
   reconcileServiceTransactions: { budgetMs: 4_000, batch: 50 },
   analyticsDelivery: { budgetMs: 6_000, batch: 20 },
   pollEvents: { budgetMs: 20_000, ttlMs: 60_000, batch: 200, concurrency: 6 },

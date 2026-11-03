@@ -4,6 +4,7 @@ vi.mock("@/lib/deployments/service-route", () => ({
   deploymentServiceRoute: (handler: unknown) => handler,
 }));
 vi.mock("@/lib/deployments/service-work", () => ({
+  lockDeployment: vi.fn(async () => ({ serviceState: "ACTIVE" })),
   assertDeploymentService: vi.fn(async () => undefined),
   withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
   runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
@@ -41,16 +42,41 @@ const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
 }));
 vi.mock("@/lib/api/v1/events-freshness", () => ({ refreshEventsIfStale: mocks.refresh }));
-vi.mock("@/lib/db", () => ({
-  db: {
-    signedTransaction: { findFirst: mocks.signed },
-    walletControlIntent: { findFirst: mocks.control, updateMany: mocks.updateControl },
+vi.mock("@/lib/db", () => {
+  const control = async (args: unknown) => {
+    const value = await mocks.control(args);
+    return value
+      ? {
+          id: "control-id",
+          deploymentId: id,
+          txHash: hash,
+          network: "testnet",
+          walletAddress: "test-wallet",
+          action: "payment.execute",
+          ...value,
+        }
+      : value;
+  };
+  const client = {
+    signedTransaction: { findFirst: mocks.signed, findUnique: async () => null },
+    walletControlIntent: {
+      findFirst: control,
+      findUniqueOrThrow: control,
+      updateMany: mocks.updateControl,
+    },
+    serviceTransaction: {
+      findFirst: async () => null,
+      updateMany: vi.fn(async () => ({ count: 1 })),
+    },
     webhookAttempt: { findFirst: mocks.attempt, updateMany: mocks.updateAttempt },
     contractEvent: { findFirst: mocks.event },
     auditLog: { findFirst: mocks.audit },
     deploymentApiToken: { findUnique: mocks.token, update: mocks.updateToken },
-  },
-}));
+  };
+  return {
+    db: { ...client, $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(client) },
+  };
+});
 vi.mock("@/lib/redis", () => ({ redis: () => null }));
 vi.mock("@/lib/rate-limit", async (original) => ({
   ...(await original<typeof import("@/lib/rate-limit")>()),
@@ -185,7 +211,12 @@ describe("deployment transaction lookup", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
   it("retains FAILED with structured details without RPC", async () => {
-    mocks.signed.mockResolvedValue({ ...received, outcome: "FAILED", ledger: 12 });
+    mocks.signed.mockResolvedValue({
+      ...received,
+      outcome: "FAILED",
+      ledger: 12,
+      failureCode: "ONCHAIN_FAILED",
+    });
     expect(await getTransactionStatus(deployment, hash)).toMatchObject({
       status: "FAILED",
       ledger: 12,
@@ -452,7 +483,7 @@ describe("wallet-control status recovery", () => {
       mocks.rpc.mockResolvedValue({ status, ledger: 23 });
       expect((await getTransactionStatus(deployment, hash)).status).toBe(status);
       expect(mocks.updateControl).toHaveBeenCalledWith({
-        where: { deploymentId: id, txHash: hash, state: { in: ["PREPARED", "SUBMITTING"] } },
+        where: { id: "control-id", state: { in: ["PREPARED", "SUBMITTING"] } },
         data: { state: status, ledger: 23, completedAt: expect.any(Date) },
       });
     },

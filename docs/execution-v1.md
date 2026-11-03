@@ -230,3 +230,54 @@ throughout the path; existing execution-only graphs remain compatible with their
 old pinned hashes and strict execution semantics. The local verifier now defaults
 to the current guarded source build; use `--execution-only` when verifying a rebuild
 of the retained execution-only source. No artifact activation is implied.
+
+## Automatic payment bookkeeping recovery (#1193)
+
+After authoritative finality is recorded, wallet-control intent and matching
+pending service-transaction records converge without a browser, owner status call,
+or hosted visibility. The healthy-system acceptance target is **two eligible
+ordinary reconciliation cron ticks after authoritative finality is recorded**.
+Eligibility depends on due work fitting the bounded batch and time budget; this
+is a test target, not an unconditional production latency promise.
+
+The existing reconciliation cron runs a bounded, DB-only repair pass over exact
+original-hash signed proof. It requires the configured network, matching deployment
+and wallet-source attribution, a valid positive ledger and either CONFIRMED or
+FAILED with ONCHAIN_FAILED. Old tracking versions remain financial evidence when already terminal. A retained
+SUCCESS/FAILED intent with a positive ledger can also repair a current-policy
+nonterminal signed record after a crash in the opposite write order; it never
+rewrites an old analytics policy or treats EXPIRED as on-chain failure.
+The resolver also accepts deployment-scoped RPC service SUCCESS/FAILED receipts
+with a positive ledger and matching signed source attribution. The RPC wrapper or
+service worker may persist that receipt before either the intent or signed outcome
+is finalized. Automatic and explicit recovery consume it without requiring RPC
+history; conflicting receipts fail closed, and service REJECTED is never finality.
+Repairing service-backed intent finality does not rewrite obsolete signed analytics.
+Current-policy signed/outbox writes remain retryable if their projection fails,
+even when a service receipt already proves finality.
+Preparation/submission identity, capabilities and transaction bytes are retained.
+The repair pass never signs, resubmits, automatically expires or invents finality.
+A queue refusal, NOT_FOUND, age, missing history or provider timeout cannot release
+a reservation. Explicit recovery consumes the same durable proof before RPC.
+
+Each projection locks the deployment and atomically finalizes an unresolved intent
+and its deployment-scoped PENDING service rows. Terminal intents with incomplete
+service projection remain selectable after a crash. Contradictory terminal proof
+fails closed. Existing terminal service records, including queue REJECTED evidence,
+are preserved. Original OPEN/BLOCKED work remains unresolved: transaction finality
+does not prove all work in a crashed admission completed.
+
+The active-deployment repair queue filters proof, lifecycle and unfinished
+projections before LIMIT, and uses durable retry scheduling so failed repairs
+rotate behind other eligible work. RETIRING deployments retain the dedicated
+settlement path using shared projection; RETIRED deployments are excluded. Hosted
+opt-out or lost credentials do not invalidate recovery of an admitted payment.
+A new indexed retry column is additive; no historical financial row is deleted.
+The row limit bounds admitted processing, not the database scan itself. Settled
+history is excluded by the join/mismatch predicates but retains its due timestamp;
+query cost can therefore grow with history. The due index and existing unique hash
+indexes support selection; production query plans and latency still need monitoring.
+
+Local regression tests cover these guarantees. Live automatic-only acceptance on
+a corrected deployed candidate remains a separate campaign, without status,
+receipt, reconcile or SSE calls that would themselves trigger repair.

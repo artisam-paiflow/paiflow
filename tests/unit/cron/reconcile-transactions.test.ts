@@ -1,13 +1,17 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const { reconcile, serviceReconcile, deliver, lease } = vi.hoisted(() => ({
+const { reconcile, serviceReconcile, controlReconcile, deliver, lease } = vi.hoisted(() => ({
   reconcile: vi.fn(),
   serviceReconcile: vi.fn(),
+  controlReconcile: vi.fn(),
   deliver: vi.fn(),
   lease: vi.fn(),
 }));
 vi.mock("@/lib/stellar/reconcile-transactions", () => ({ reconcileTransactions: reconcile }));
+vi.mock("@/lib/stellar/reconcile-control-intents", () => ({
+  reconcileControlIntents: controlReconcile,
+}));
 vi.mock("@/lib/stellar/reconcile-service-transactions", () => ({
   reconcileServiceTransactions: serviceReconcile,
 }));
@@ -24,6 +28,7 @@ beforeEach(() => {
   vi.stubEnv("NODE_ENV", "production");
   vi.stubEnv("CRON_SECRET", secret);
   reconcile.mockResolvedValue({ checked: 1, confirmed: 1, failed: 0, unresolved: 0 });
+  controlReconcile.mockResolvedValue({ checked: 1, repaired: 1, failed: 0 });
   serviceReconcile.mockResolvedValue({ checked: 1, confirmed: 1, failed: 0, unresolved: 0 });
   deliver.mockResolvedValue({ delivered: 1 });
   lease.mockImplementation(async (_name: string, _ttl: number, run: () => Promise<unknown>) => ({
@@ -48,6 +53,7 @@ describe("transaction reconciliation cron boundary", () => {
     expect(lease).not.toHaveBeenCalled();
     expect(reconcile).not.toHaveBeenCalled();
     expect(serviceReconcile).not.toHaveBeenCalled();
+    expect(controlReconcile).not.toHaveBeenCalled();
     expect(deliver).not.toHaveBeenCalled();
   });
 
@@ -72,6 +78,7 @@ describe("transaction reconciliation cron boundary", () => {
     expect((await response.json()).data).toMatchObject({ checked: 0, leaseHeld: true });
     expect(reconcile).not.toHaveBeenCalled();
     expect(serviceReconcile).not.toHaveBeenCalled();
+    expect(controlReconcile).not.toHaveBeenCalled();
     expect(deliver).not.toHaveBeenCalled();
   });
 

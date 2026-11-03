@@ -12,7 +12,8 @@ import { db } from "@/lib/db";
 import { recordTransactionOutcome } from "@/lib/analytics/outcomes";
 import { env, stellarPassphrase } from "@/lib/env";
 import { AppError } from "@/lib/errors";
-import { lockDeployment, observeServiceTransaction } from "@/lib/deployments/service-work";
+import { lockDeployment } from "@/lib/deployments/service-work";
+import { projectControlFinality, storedControlFinality } from "@/lib/deployments/control-finality";
 import { pipelineNodesOfKind } from "@/lib/pipeline-snapshot";
 import { signerFromTransaction } from "@/lib/stellar/signer";
 import { allowanceHasExpired } from "@/lib/stellar/allowance-status";
@@ -230,6 +231,11 @@ export async function reconcileControlIntent(
     await repairControlAdmission(intent);
     return intent;
   }
+  const durable = await storedControlFinality(intent);
+  if (durable) {
+    await recordControlFinality(deploymentId, intent.txHash, durable.state, durable.ledger);
+    return readControlIntent(id, deploymentId, action);
+  }
   let result;
   try {
     result = await sorobanRpc().getTransaction(intent.txHash);
@@ -240,6 +246,10 @@ export async function reconcileControlIntent(
   if (result.status === "SUCCESS" || result.status === "FAILED") state = result.status;
   else if (await allowanceHasExpired(intent)) state = "EXPIRED";
   else return intent;
+  if (state !== "EXPIRED" && result.status !== "NOT_FOUND") {
+    await recordControlFinality(deploymentId, intent.txHash, state, result.ledger);
+    return readControlIntent(id, deploymentId, action);
+  }
   // Deployment row lock also fences submission claiming against expiry reconciliation.
   await db.$transaction(async (client) => {
     await lockDeployment(client, deploymentId);
@@ -265,16 +275,11 @@ export async function recordControlFinality(
   state: "SUCCESS" | "FAILED",
   ledger?: number,
 ) {
-  await db.walletControlIntent.updateMany({
-    where: { deploymentId, txHash, state: { in: ["PREPARED", "SUBMITTING"] } },
-    data: { state, ledger, completedAt: new Date() },
-  });
-  const intent = await db.walletControlIntent.findFirst({
-    where: { deploymentId, txHash, network: env().STELLAR_NETWORK },
-  });
+  const intent = await projectControlFinality(deploymentId, txHash, { state, ledger: ledger ?? 0 });
   if (intent) await repairControlAdmission(intent);
-  if (state === "SUCCESS") invalidateDashboardBalances(deploymentId, txHash);
+  if (intent && state === "SUCCESS") invalidateDashboardBalances(deploymentId, txHash);
 }
+
 /** Repair a crash between durable finality and admission bookkeeping, without RPC history. */
 export async function repairControlAdmission(
   intent: Pick<
@@ -283,6 +288,29 @@ export async function repairControlAdmission(
   >,
 ) {
   if (intent.network !== env().STELLAR_NETWORK) return;
+  if (intent.state === "SUCCESS" || intent.state === "FAILED") {
+    const projected = await projectControlFinality(intent.deploymentId, intent.txHash, {
+      state: intent.state,
+      ledger: intent.ledger ?? 0,
+    });
+    if (!projected) return;
+  }
+  if (intent.state === "EXPIRED") {
+    const admitted = await db.$transaction(async (client) => {
+      const deployment = await lockDeployment(client, intent.deploymentId);
+      if (deployment.serviceState === "RETIRED") return false;
+      await client.serviceTransaction.updateMany({
+        where: {
+          txHash: intent.txHash,
+          state: "PENDING",
+          work: { deploymentId: intent.deploymentId },
+        },
+        data: { state: "REJECTED" },
+      });
+      return true;
+    });
+    if (!admitted) return;
+  }
   if (intent.state === "SUCCESS" || intent.state === "FAILED" || intent.state === "EXPIRED") {
     await recordTransactionOutcome(
       intent.txHash,
@@ -298,12 +326,6 @@ export async function repairControlAdmission(
             ? { failureCode: "CONTROL_EXPIRED" as const }
             : {}),
       },
-    );
-    await observeServiceTransaction(
-      intent.txHash,
-      intent.state === "EXPIRED" ? "REJECTED" : intent.state,
-      intent.ledger ?? undefined,
-      true,
     );
   }
 }

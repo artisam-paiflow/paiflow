@@ -5,6 +5,13 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Automatically converge wallet-control intents and matching pending service
+  transaction records from authoritative original-hash finality, including after
+  a crash or provider history expiry. Retained RPC service receipts also repair
+  interrupted intent/signed-record finalization. Keep unknown outcomes, conflicting
+  evidence and original work blockers; recover explicit receipts from durable proof
+  before RPC ([#1193](https://github.com/webnxt-2030/pinkraft/issues/1193)).
+
 - Fix policy-aware payment and stored-configuration verification failing across
   ordinary ledger closes. Verify unchanged whole-path contract instance versions
   around configuration and obligation reads while retaining code, authority and
