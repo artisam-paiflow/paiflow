@@ -26,6 +26,7 @@ vi.mock("@/lib/db", () => ({
   db: {
     deployment: { findFirst: m.deployment },
     walletControlIntent: { findFirst: m.intent, updateMany: m.update },
+    signedTransaction: { findFirst: vi.fn(async () => null) },
     $transaction: async (work: (client: unknown) => Promise<unknown>) =>
       work({ walletControlIntent: { updateMany: m.update }, auditLog: { create: m.audit } }),
   },
