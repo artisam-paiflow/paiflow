@@ -5,6 +5,12 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Bind legacy public payment and authenticated wallet-control submissions to the
+  exact server-prepared transaction. Refuse unsigned, wrong-network and unrelated
+  envelopes locally, preserve legitimate Subscription/streamer controls, and
+  recover recorded originals without resending unknown transactions. Requires an
+  additive preparation-evidence migration; no SDK or contract update. See [#851](https://github.com/webnxt-2030/pinkraft/issues/851).
+
 - Publish SDK beta `0.3.0` with parameterized execution, private-template instance
   and guarded configuration clients. Independently verify the npm artifact and
   clean consumer; preserve `latest=0.1.0`. Verify a bounded registry-installed

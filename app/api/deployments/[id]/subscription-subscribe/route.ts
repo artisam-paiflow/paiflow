@@ -1,21 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { StrKey } from "@stellar/stellar-sdk";
 import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
+import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { prepareSubscriptionSubscribeInvocation } from "@/lib/stellar/invoke";
 import { stellarPassphrase } from "@/lib/env";
+import { LegacyWalletPrepareSchema } from "@/lib/legacy-submission/schema";
+import { registerLegacyPreparation } from "@/lib/stellar/legacy-submission";
 import { withInteractiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 import { FlowGraphSchema, isTrigger } from "@/lib/flows/schema";
 
-const PostSchema = z.object({
-  userAddress: z.string().refine(StrKey.isValidEd25519PublicKey, "Invalid Stellar address"),
-});
-
 async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
+    await requireSession();
     const { id } = await ctx.params;
     const ip = clientIp(req);
     await enforceRateLimit({
@@ -23,7 +21,7 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
       limit: 20,
       windowSeconds: 60,
     });
-    const body = PostSchema.parse(await req.json());
+    const body = LegacyWalletPrepareSchema.parse(await req.json());
 
     const d = await db.deployment.findFirst({
       where: { id, status: "CONFIRMED" },
@@ -63,6 +61,15 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
         subscriberAddress: body.userAddress,
       }),
     );
+
+    await registerLegacyPreparation({
+      deployment: d,
+      kind: "INVOKE",
+      unsignedXdr: xdr,
+      sourceAddress: body.userAddress,
+      contractAddress: subscriptionNode.contractAddress,
+      method: "subscribe",
+    });
 
     return NextResponse.json({
       data: { xdr, networkPassphrase: stellarPassphrase() },

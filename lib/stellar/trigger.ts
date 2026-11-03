@@ -71,7 +71,7 @@ export type SubmitTriggerResult = {
 
 export async function submitTriggerTx(
   signedXdr: string,
-  opts: { recoverFinality?: boolean } = {},
+  opts: { recoverFinality?: boolean; recoveryOnly?: boolean } = {},
 ): Promise<SubmitTriggerResult> {
   const server = sorobanRpc();
   const tx = TransactionBuilder.fromXDR(signedXdr, stellarPassphrase());
@@ -89,6 +89,11 @@ export async function submitTriggerTx(
       );
     });
     if (existing.status !== "SUCCESS" && existing.status !== "FAILED") return undefined;
+    if (!Number.isSafeInteger(existing.ledger) || existing.ledger <= 0)
+      throw new AppError(
+        "UPSTREAM_RPC",
+        "Transaction finality has no valid ledger proof; retain the original hash and check its status",
+      );
     await recordTransactionOutcome(txHash, existing.status === "SUCCESS" ? "CONFIRMED" : "FAILED", {
       ledger: existing.ledger,
       ...(existing.status === "FAILED" ? { failureCode: "ONCHAIN_FAILED" as const } : {}),
@@ -100,9 +105,14 @@ export async function submitTriggerTx(
       ...(existing.status === "FAILED" ? { errorMessage: "Transaction failed on-chain" } : {}),
     };
   };
-  if (opts.recoverFinality) {
+  if (opts.recoverFinality || opts.recoveryOnly) {
     const existing = await existingResult();
     if (existing) return existing;
+  }
+  if (opts.recoveryOnly) {
+    // A durable journal proves this original attempt already entered admission.
+    // Missing provider history is uncertainty, never permission to resend it.
+    return { status: "PENDING", txHash, signer, duplicate: true };
   }
   const submissionAttempt = await beginTransactionSubmission(txHash);
   let send;

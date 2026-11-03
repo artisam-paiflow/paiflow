@@ -1,3 +1,7 @@
+// Exact preparation/admission is exercised separately with real envelopes and PostgreSQL.
+vi.mock("@/lib/stellar/legacy-submission", () => ({
+  registerLegacyPreparation: vi.fn(async () => undefined),
+}));
 // Admission/retirement is exercised with real PostgreSQL in retirement.test.ts.
 // This suite isolates its existing domain behavior from that service boundary.
 vi.mock("@/lib/deployments/service-route", () => ({

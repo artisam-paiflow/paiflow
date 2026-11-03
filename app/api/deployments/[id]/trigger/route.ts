@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { StrKey } from "@stellar/stellar-sdk";
 import { withInteractiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
 import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
@@ -11,20 +9,16 @@ import { stellarPassphrase } from "@/lib/env";
 import { buildPipelineErrorHint } from "@/lib/stellar/pipeline-error-hint";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 import { assertAmountMatchesFlow } from "@/lib/stellar/assert-inbound-amount";
-import { stroopsSchema } from "@/lib/flows/primitives";
+import { LegacyTriggerPrepareSchema } from "@/lib/legacy-submission/schema";
+import { registerLegacyPreparation } from "@/lib/stellar/legacy-submission";
 import { hasExecutionPolicies } from "@/lib/api/v1/execution-schema";
-
-const PostSchema = z.object({
-  amount: stroopsSchema({ message: "Must be a positive whole number of stroops" }),
-  userAddress: z.string().refine(StrKey.isValidEd25519PublicKey, "Invalid Stellar address"),
-});
 
 async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { id } = await ctx.params;
     const ip = clientIp(req);
     await enforceRateLimit({ key: `trigger:${id}:${ip}`, limit: 20, windowSeconds: 60 });
-    const body = PostSchema.parse(await req.json());
+    const body = LegacyTriggerPrepareSchema.parse(await req.json());
 
     const d = await db.deployment.findFirst({
       where: { id, status: "CONFIRMED" },
@@ -90,6 +84,16 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
       });
       xdr = result.xdr;
     }
+
+    await registerLegacyPreparation({
+      deployment: d,
+      kind: "TRIGGER",
+      unsignedXdr: xdr,
+      sourceAddress: body.userAddress,
+      contractAddress: d.contractAddress,
+      method: isWebhook ? "deposit" : isStreamer ? "top_up" : isPipeline ? "deposit" : "distribute",
+      amount: body.amount,
+    });
 
     return NextResponse.json({
       data: {

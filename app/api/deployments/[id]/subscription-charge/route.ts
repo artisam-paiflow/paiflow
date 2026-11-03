@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { StrKey } from "@stellar/stellar-sdk";
 import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { prepareSubscriptionChargeInvocation } from "@/lib/stellar/invoke";
 import { stellarPassphrase } from "@/lib/env";
+import { LegacyWalletPrepareSchema } from "@/lib/legacy-submission/schema";
+import { registerLegacyPreparation } from "@/lib/stellar/legacy-submission";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 import { audit } from "@/lib/audit";
-
-const PostSchema = z.object({
-  userAddress: z.string().refine(StrKey.isValidEd25519PublicKey, "Invalid Stellar address"),
-});
 
 async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
@@ -24,7 +20,7 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
       limit: 20,
       windowSeconds: 60,
     });
-    const body = PostSchema.parse(await req.json());
+    const body = LegacyWalletPrepareSchema.parse(await req.json());
 
     const d = await db.deployment.findFirst({
       where: { id, ownerId: user.id, status: "CONFIRMED" },
@@ -53,6 +49,15 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
       contractAddress: subscriptionNode.contractAddress,
       adminAddress: body.userAddress,
       classifyInsufficientAllowance: true,
+    });
+
+    await registerLegacyPreparation({
+      deployment: d,
+      kind: "INVOKE",
+      unsignedXdr: xdr,
+      sourceAddress: body.userAddress,
+      contractAddress: subscriptionNode.contractAddress,
+      method: "charge",
     });
 
     await audit({
