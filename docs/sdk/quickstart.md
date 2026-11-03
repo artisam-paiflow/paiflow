@@ -2,9 +2,11 @@
 
 For one server credential across explicitly selected existing owned deployments, see the [developer-token guide](../api/developer-tokens.md). SDK `0.2.0` supports developer credentials and scoped discovery with a backend implementing OpenAPI revision `1.1.0`; SDK `0.1.0` does not include these additions. Existing deployment-only integrations remain supported. See the [SDK release record](release-checklist.md) for registry availability.
 
-`@paiflow/sdk` beta `0.3.0` prepares parameterized execution, private-template
+`@paiflow/sdk` beta `0.3.0` provides parameterized execution, private-template
 instance and guarded configuration clients alongside existing deployment workflows.
-Publication is pending; see the release record. Supports Node `>=22.22.2 <23`, ESM and TypeScript declarations;
+The npm artifact and clean consumer are verified; see the
+[publication record](releases/0.3.0-publication.md) for acceptance limits.
+Supports Node `>=22.22.2 <23`, ESM and TypeScript declarations;
 CommonJS consumers can use dynamic import. SDK versions are independent of the app
 and API under the [release policy](../releasing.md).
 
@@ -30,7 +32,7 @@ this page provides supplementary quickstart and migration examples. The
 
 ## Install
 
-After the release record confirms publication, install the exact beta:
+Install the exact verified beta (`latest` remains `0.1.0`):
 
 ```sh
 npm install @paiflow/sdk@0.3.0

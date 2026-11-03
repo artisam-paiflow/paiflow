@@ -1,7 +1,7 @@
 # Node SDK contract and endpoint coverage
 
 The Node package implements deployment workflows and private-template instance
-clients. Candidate `0.3.0` adds parameterized execution and guarded configuration
+clients. SDK `0.3.0` adds parameterized execution and guarded configuration
 to the developer credentials/discovery introduced in `0.2.0`; see the
 [release record](release-checklist.md) for registry availability.
 Local SDK tests do not establish hosted availability. See the
@@ -19,7 +19,7 @@ actual handlers. The original contract used `testing` baseline `e803520c`
 (2026-10-13); the current matrix includes developer-token work merged into `develop`.
 
 Use `packages/sdk`, with independent package metadata, declarations, exports,
-build configuration, changelog and tests. Candidate SDK beta `0.3.0` follows the
+build configuration, changelog and tests. SDK beta `0.3.0` follows the
 [release policy](../releasing.md); SDK versions do not match app versions. Declare
 compatibility with API v1 and the explicitly listed unversioned routes.
 
@@ -119,7 +119,7 @@ Read rates from [limits](../../lib/api/v1/limits.ts), auth/headers from
 ## Additional 0.3.0 client routes
 
 The first matrix retains existing-deployment operations. These additional source
-APIs ship in the candidate; publication does not complete their separate live
+APIs ship in the package; publication does not complete their separate live
 acceptance gates. `T` = `/api/v1/flow-templates/{id}`. Signing methods are local
 callbacks and add no HTTP endpoint. Detailed auth, rates and schemas remain in
 [execution parameters](../api/execution-parameters.md), [instance lifecycle](../api/template-instances.md)
