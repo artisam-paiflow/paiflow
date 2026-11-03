@@ -205,6 +205,8 @@ beforeEach(() => {
       const node = constructors(currentScenario).find((node) => node.address === address)!;
       return {
         key: key.toXDR("base64"),
+        lastModifiedLedgerSeq: 5,
+        liveUntilLedgerSeq: 10000,
         xdr: xdr.LedgerEntryData.contractData(
           new xdr.ContractDataEntry({
             ext: new xdr.ExtensionPoint(0),

@@ -124,6 +124,32 @@ configuration envelope, with runtime fields absent, plus immutable asset/routing
 The API reader must verify it against original deployment evidence at a consistent
 confirmed ledger and validate the actual executable hash, not trust getter labels.
 
+## Verified execution reads
+
+The server brackets all capability/configuration getters with two complete batches
+of contract-instance ledger entries. For reviewed execution and guarded artifacts,
+these getters derive their state from instance storage. Each batch must contain
+exactly the expected live entries with matching keys, contract addresses and pinned
+WASM hashes. Every getter must succeed without restoration and report a ledger
+within the two batch ledgers. Both instance XDR values and last-modified ledgers
+must match, including when a value changed and then reverted. A bounded retry
+restarts the complete observation after a detected change or inconsistent response.
+
+Ledger advancement alone does not invalidate unchanged state. Returned configuration
+observations use the final batch's common confirmed ledger. Guarded mutation reads
+run their authority/revision/obligation getters inside this same window and persist
+history only after successful verification. Revisions alone cannot fence obligations:
+accepted Split accumulation can change without a configuration update.
+
+This relies on the configured RPC serving consistent ledger snapshots and accurate
+[entry modification metadata](https://developers.stellar.org/docs/data/apis/rpc/api-reference/methods/getLedgerEntries).
+Actual concurrent instance writes can still require a retry; this is not throughput
+qualification. The reviewed getters do not depend on ledger time or external storage;
+new artifact support must recheck that dependency before using this fence. Contract
+revision and obligation checks continue to protect the later read/send race. A late
+hosted review failure after durable preparation retains its original capability,
+request and intent/hash for recovery; an HTTP 502 is not proof of non-admission.
+
 Deployment accepts v1 only when **every** selected template/hash matches
 `EXECUTION_V1_WASM_HASHES` in `lib/stellar/execution-artifacts.ts`. Old/missing/
 unknown/wrong-kind artifacts fail before RPC. The prepared `pipelineSnapshot`
@@ -204,3 +230,54 @@ throughout the path; existing execution-only graphs remain compatible with their
 old pinned hashes and strict execution semantics. The local verifier now defaults
 to the current guarded source build; use `--execution-only` when verifying a rebuild
 of the retained execution-only source. No artifact activation is implied.
+
+## Automatic payment bookkeeping recovery (#1193)
+
+After authoritative finality is recorded, wallet-control intent and matching
+pending service-transaction records converge without a browser, owner status call,
+or hosted visibility. The healthy-system acceptance target is **two eligible
+ordinary reconciliation cron ticks after authoritative finality is recorded**.
+Eligibility depends on due work fitting the bounded batch and time budget; this
+is a test target, not an unconditional production latency promise.
+
+The existing reconciliation cron runs a bounded, DB-only repair pass over exact
+original-hash signed proof. It requires the configured network, matching deployment
+and wallet-source attribution, a valid positive ledger and either CONFIRMED or
+FAILED with ONCHAIN_FAILED. Old tracking versions remain financial evidence when already terminal. A retained
+SUCCESS/FAILED intent with a positive ledger can also repair a current-policy
+nonterminal signed record after a crash in the opposite write order; it never
+rewrites an old analytics policy or treats EXPIRED as on-chain failure.
+The resolver also accepts deployment-scoped RPC service SUCCESS/FAILED receipts
+with a positive ledger and matching signed source attribution. The RPC wrapper or
+service worker may persist that receipt before either the intent or signed outcome
+is finalized. Automatic and explicit recovery consume it without requiring RPC
+history; conflicting receipts fail closed, and service REJECTED is never finality.
+Repairing service-backed intent finality does not rewrite obsolete signed analytics.
+Current-policy signed/outbox writes remain retryable if their projection fails,
+even when a service receipt already proves finality.
+Preparation/submission identity, capabilities and transaction bytes are retained.
+The repair pass never signs, resubmits, automatically expires or invents finality.
+A queue refusal, NOT_FOUND, age, missing history or provider timeout cannot release
+a reservation. Explicit recovery consumes the same durable proof before RPC.
+
+Each projection locks the deployment and atomically finalizes an unresolved intent
+and its deployment-scoped PENDING service rows. Terminal intents with incomplete
+service projection remain selectable after a crash. Contradictory terminal proof
+fails closed. Existing terminal service records, including queue REJECTED evidence,
+are preserved. Original OPEN/BLOCKED work remains unresolved: transaction finality
+does not prove all work in a crashed admission completed.
+
+The active-deployment repair queue filters proof, lifecycle and unfinished
+projections before LIMIT, and uses durable retry scheduling so failed repairs
+rotate behind other eligible work. RETIRING deployments retain the dedicated
+settlement path using shared projection; RETIRED deployments are excluded. Hosted
+opt-out or lost credentials do not invalidate recovery of an admitted payment.
+A new indexed retry column is additive; no historical financial row is deleted.
+The row limit bounds admitted processing, not the database scan itself. Settled
+history is excluded by the join/mismatch predicates but retains its due timestamp;
+query cost can therefore grow with history. The due index and existing unique hash
+indexes support selection; production query plans and latency still need monitoring.
+
+Local regression tests cover these guarantees. Live automatic-only acceptance on
+a corrected deployed candidate remains a separate campaign, without status,
+receipt, reconcile or SSE calls that would themselves trigger repair.

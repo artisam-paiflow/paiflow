@@ -4,6 +4,7 @@ import { withErrorHandler } from "@/lib/errors";
 import { CRON_LIMITS } from "@/lib/cron/config";
 import { withCronLease } from "@/lib/cron/lease";
 import { reconcileTransactions } from "@/lib/stellar/reconcile-transactions";
+import { reconcileControlIntents } from "@/lib/stellar/reconcile-control-intents";
 import { reconcileServiceTransactions } from "@/lib/stellar/reconcile-service-transactions";
 import { log } from "@/lib/log";
 import { drainApiRequests } from "@/lib/api/request-history/delivery";
@@ -18,6 +19,7 @@ export async function POST(req: NextRequest) {
       CRON_LIMITS.reconcileTransactions.ttlMs,
       async () => {
         const outcomes = await reconcileTransactions();
+        const controlIntents = await reconcileControlIntents();
         const serviceTransactions = await reconcileServiceTransactions();
         const analytics = await deliverOutbox(CRON_LIMITS.analyticsDelivery);
         let requests: Awaited<ReturnType<typeof drainApiRequests>> | { unavailable: true };
@@ -39,6 +41,7 @@ export async function POST(req: NextRequest) {
         return {
           ...outcomes,
           serviceTransactions,
+          controlIntents,
           analytics,
           requests,
           requestAnalytics,

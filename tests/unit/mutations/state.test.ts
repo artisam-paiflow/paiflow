@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Account, nativeToScVal, xdr } from "@stellar/stellar-sdk";
+import { Account, nativeToScVal, scValToNative, xdr } from "@stellar/stellar-sdk";
 import type { Deployment } from "@prisma/client";
 const mock = vi.hoisted(() => ({
   current: vi.fn(),
@@ -37,7 +37,15 @@ function abi(value: unknown): xdr.ScVal {
 let status: Record<string, unknown>;
 beforeEach(() => {
   vi.clearAllMocks();
-  mock.current.mockResolvedValue(current(deployment));
+  mock.current.mockImplementation(async (_deployment, inspect) => {
+    const state = current(deployment);
+    await inspect(state, async () => {
+      const sim = await mock.simulate();
+      if (!sim.result) throw new Error("simulation unavailable");
+      return scValToNative(sim.result.retval);
+    });
+    return state;
+  });
   mock.account.mockResolvedValue(new Account(admin.publicKey(), "10"));
   mock.latest.mockResolvedValue({ sequence: 100 });
   mock.observe.mockResolvedValue(undefined);
@@ -83,7 +91,7 @@ describe("verified mutation state", () => {
     status.obligations = 200n;
     expect((await readMutationState(deployment)).obligations[0]!.obligationsStroops).toBe("200");
   });
-  it("refuses unsupported artifacts, RPC failures and changing ledgers without saving stale config", async () => {
+  it("refuses unsupported artifacts, RPC failures without saving stale config", async () => {
     mock.current.mockResolvedValue({
       ...current(deployment),
       nodes: current(deployment).nodes.map((n) => ({
@@ -92,11 +100,8 @@ describe("verified mutation state", () => {
       })),
     });
     await expect(readMutationState(deployment)).rejects.toMatchObject({ code: "VALIDATION" });
-    mock.current.mockResolvedValue(current(deployment));
-    mock.latest.mockResolvedValue({ sequence: 101 });
-    await expect(readMutationState(deployment)).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
+    mock.current.mockRejectedValue(new Error("offline"));
+    await expect(readMutationState(deployment)).rejects.toThrow("offline");
     expect(mock.observe).not.toHaveBeenCalled();
-    mock.simulate.mockResolvedValue({ error: "offline", latestLedger: 100 });
-    await expect(readMutationState(deployment)).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
   });
 });

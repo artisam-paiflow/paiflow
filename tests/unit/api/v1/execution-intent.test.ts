@@ -17,9 +17,19 @@ import { EXECUTION_V1_WASM_HASHES } from "@/lib/stellar/execution-artifacts";
 
 const mocks = vi.hoisted(() => ({
   db: {
-    walletControlIntent: { findFirst: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
+    walletControlIntent: {
+      findFirst: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
+      create: vi.fn(),
+      updateMany: vi.fn(),
+    },
     mutationPreparationRefusal: { findUnique: vi.fn(async () => null) },
     auditLog: { create: vi.fn() },
+    signedTransaction: { findFirst: vi.fn(async () => null), findUnique: vi.fn(async () => null) },
+    serviceTransaction: {
+      findFirst: vi.fn(async () => null),
+      updateMany: vi.fn(async () => ({ count: 1 })),
+    },
     $transaction: vi.fn(),
   },
   rpc: { sendTransaction: vi.fn(), getTransaction: vi.fn() },
@@ -127,6 +137,13 @@ beforeEach(() => {
   mocks.db.walletControlIntent.findFirst.mockImplementation(
     async ({ where }: { where: Record<string, unknown> }) =>
       rows.find((row) => matches(row, where)) ?? null,
+  );
+  mocks.db.walletControlIntent.findUniqueOrThrow.mockImplementation(
+    async ({ where }: { where: Record<string, unknown> }) => {
+      const row = rows.find((row) => matches(row, where));
+      if (!row) throw new Error("Intent not found");
+      return { ...row };
+    },
   );
   mocks.db.walletControlIntent.create.mockImplementation(
     async ({ data }: { data: Partial<WalletControlIntent> }) => {

@@ -5,6 +5,20 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Automatically converge wallet-control intents and matching pending service
+  transaction records from authoritative original-hash finality, including after
+  a crash or provider history expiry. Retained RPC service receipts also repair
+  interrupted intent/signed-record finalization. Keep unknown outcomes, conflicting
+  evidence and original work blockers; recover explicit receipts from durable proof
+  before RPC ([#1193](https://github.com/webnxt-2030/pinkraft/issues/1193)).
+
+- Fix policy-aware payment and stored-configuration verification failing across
+  ordinary ledger closes. Verify unchanged whole-path contract instance versions
+  around configuration and obligation reads while retaining code, authority and
+  revision checks; preserve original hosted-payment recovery after a late review
+  failure ([#1192](https://github.com/webnxt-2030/pinkraft/issues/1192)). No contract
+  artifacts or hosted services are changed.
+
 - Fix deployment-image builds by excluding fixture-dependent local acceptance
   scripts from the shared build context. Ship explicit app runtime files instead
   of SDK/application sources, local tools and the whole build workspace; retain

@@ -905,6 +905,8 @@ model WalletControlIntent {
   requestDigest      String?
   // Hash of a random browser recovery capability. Never a wallet/API credential.
   hostedAccessHash   String?
+  // Durable retry scheduling only; never financial expiry.
+  finalityNextCheckAt DateTime @default(now())
   // PREPARED -> SUBMITTING -> SUCCESS|FAILED|EXPIRED. Uncertainty never clears a reservation.
   state             WalletControlState @default(PREPARED)
   ledger            Int?
@@ -912,6 +914,7 @@ model WalletControlIntent {
   submittedAt       DateTime?
   completedAt       DateTime?
 
+  @@index([network, finalityNextCheckAt, id])
   @@index([deploymentId, network, nodeId, state])
   @@index([deploymentId, network, action, walletAddress, state], map: "WalletControlIntent_execution_payer_state_idx")
   @@unique([deploymentId, network, idempotencyKeyHash])

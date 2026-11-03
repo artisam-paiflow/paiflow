@@ -37,12 +37,16 @@ vi.mock("@/lib/db", () => ({
       fn({
         walletControlIntent: {
           findFirst: mocks.find,
+          findUniqueOrThrow: mocks.find,
           create: mocks.create,
           updateMany: mocks.update,
         },
         auditLog: { create: mocks.audit },
+        signedTransaction: { findFirst: async () => null, findUnique: async () => null },
+        serviceTransaction: { findFirst: async () => null, updateMany: mocks.observe },
       }),
     walletControlIntent: { findFirst: mocks.find, updateMany: mocks.update },
+    signedTransaction: { findFirst: async () => null },
   },
 }));
 vi.mock("@/lib/deployments/service-work", () => ({
@@ -431,7 +435,12 @@ describe("single claimed submission and recovery", () => {
     expect(mocks.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ state, ledger: 101 }) }),
     );
-    expect(mocks.observe).toHaveBeenCalledWith(expect.any(String), state, 101, true);
+    expect(mocks.observe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { txHash: expect.any(String), state: "PENDING", work: { deploymentId } },
+        data: { state, ledger: 101 },
+      }),
+    );
   });
   it("unavailable history preserves unknown finality, even after wall-clock expiry", async () => {
     mocks.find.mockResolvedValue({ ...binding(), maxTime: "1", state: "SUBMITTING" });
@@ -451,6 +460,11 @@ describe("single claimed submission and recovery", () => {
     expect(mocks.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ state: "EXPIRED" }) }),
     );
-    expect(mocks.observe).toHaveBeenCalledWith(expect.any(String), "REJECTED", undefined, true);
+    expect(mocks.observe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { txHash: expect.any(String), state: "PENDING", work: { deploymentId } },
+        data: { state: "REJECTED" },
+      }),
+    );
   });
 });

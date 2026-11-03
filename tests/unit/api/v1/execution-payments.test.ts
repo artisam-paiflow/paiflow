@@ -137,6 +137,21 @@ describe("reviewed runtime payment preparation", () => {
     });
     expect(mock.prepare).not.toHaveBeenCalled();
   });
+  it("allows first-send eligibility at a later verified ledger when reviewed revisions and artifacts are unchanged", async () => {
+    await prepareExecutionPayment(deployment, input(), "original-key");
+    const saved = mock.save.mock.calls[0]![0];
+    mock.control.mockResolvedValue({
+      executionIntent: saved.execution,
+      executionArtifacts: saved.artifacts,
+    });
+    if (!current.supported) throw new Error();
+    current.confirmedLedger = 15;
+    current.configurations[0]!.confirmedLedger = 15;
+    await expect(assertExecutionEligible(deployment, "original-intent")).resolves.toBeUndefined();
+    expect(mock.state).toHaveBeenCalledTimes(2);
+    expect(mock.save).toHaveBeenCalledTimes(1);
+    expect(mock.control).toHaveBeenCalledWith("original-intent", deployment.id, "payment.execute");
+  });
   it.each(["revision", "artifact"])(
     "first-submit rejects changed %s; on-chain revision checks still cover the read/send race",
     async (field) => {

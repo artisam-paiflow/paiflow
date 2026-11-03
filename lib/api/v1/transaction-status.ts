@@ -2,6 +2,7 @@ import "server-only";
 import type { Deployment } from "@prisma/client";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
+import { storedControlFinality, validFinalityLedger } from "@/lib/deployments/control-finality";
 import { AppError } from "@/lib/errors";
 import { log } from "@/lib/log";
 import { recordTransactionOutcome } from "@/lib/analytics/outcomes";
@@ -34,7 +35,13 @@ function terminal(
   row: Stored | null,
   base: Pick<TransactionStatus, "txHash" | "network">,
 ): TransactionStatus | null {
-  if (row?.outcome !== "CONFIRMED" && row?.outcome !== "FAILED") return null;
+  if (
+    !row ||
+    !validFinalityLedger(row.ledger) ||
+    (row.outcome !== "CONFIRMED" &&
+      !(row.outcome === "FAILED" && row.failureCode === "ONCHAIN_FAILED"))
+  )
+    return null;
   return {
     ...base,
     status: row.outcome === "CONFIRMED" ? "SUCCESS" : "FAILED",
@@ -125,7 +132,19 @@ export async function getTransactionStatus(
   const durableAttempt = attemptFinal(attempt);
   if (durableAttempt) return withEvents(durableAttempt);
   const row = await readSigned();
-  const saved = terminal(row, base);
+  const durableProof = control ? await storedControlFinality(control) : null;
+  const saved = control
+    ? durableProof
+      ? ({
+          ...base,
+          status: durableProof.state,
+          ledger: durableProof.ledger,
+          ...(durableProof.state === "FAILED"
+            ? { error: { code: "ONCHAIN_FAILED", message: "Transaction failed on the network" } }
+            : {}),
+        } satisfies TransactionStatus)
+      : null
+    : terminal(row, base);
   if (saved) {
     if (control)
       await recordControlFinality(
@@ -172,7 +191,7 @@ export async function getTransactionStatus(
   } catch {
     const latest =
       (await controlResult(await readControl())) ??
-      terminal(await readSigned(), base) ??
+      (control ? null : terminal(await readSigned(), base)) ??
       attemptFinal(await readAttempt());
     if (latest) return withEvents(latest);
     throw new AppError(
@@ -219,7 +238,7 @@ export async function getTransactionStatus(
   const latestAttempt = await readAttempt();
   const final =
     (await controlResult(await readControl())) ??
-    terminal(latest, base) ??
+    (control ? null : terminal(latest, base)) ??
     attemptFinal(latestAttempt);
   if (final) return withEvents(final);
   const current = latest ?? row;
