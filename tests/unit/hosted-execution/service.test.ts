@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Deployment, WalletControlIntent } from "@prisma/client";
+import { AppError } from "@/lib/errors";
 const mocks = vi.hoisted(() => ({
   db: {
     deployment: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
@@ -206,6 +207,55 @@ describe("public payment admission and receipts", () => {
       prepareHostedPayment(deployment, { recoveryKey: key, payment }),
     ).rejects.toMatchObject({ code: "CONFLICT" });
     expect(mocks.submit).not.toHaveBeenCalled();
+  });
+  it("recovers the original durable preparation after a late review 502 and owner opt-out", async () => {
+    // First admission is not visible until the shared prepare commits its original row.
+    mocks.db.walletControlIntent.findFirst.mockResolvedValueOnce(null);
+    const challenge = createHostedOwnershipChallenge(deploymentId, { recoveryKey: key, payment });
+    const proof = TransactionBuilder.fromXDR(challenge.xdr, Networks.TESTNET) as Transaction;
+    proof.sign(Keypair.fromRawEd25519Seed(Buffer.alloc(32, 7)));
+    let persisted = false;
+    mocks.prepare.mockImplementation(async () => {
+      persisted = true;
+      return preparation(payment).prepared;
+    });
+    mocks.state.mockImplementation(async () => {
+      expect(persisted).toBe(true);
+      throw new AppError("UPSTREAM_RPC", "Current configuration could not be verified");
+    });
+    await expect(
+      prepareHostedPayment(deployment, {
+        recoveryKey: key,
+        payment,
+        ownershipProofXdr: proof.toXDR(),
+      }),
+    ).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
+    expect(mocks.prepare).toHaveBeenCalledTimes(1);
+    const original = {
+      id: row.id,
+      txHash: row.txHash,
+      requestDigest: row.requestDigest,
+      idempotencyKeyHash: row.idempotencyKeyHash,
+    };
+    deployment.hostedExecutionEnabled = false;
+    expect(await readHostedReceipt(deploymentId, key)).toMatchObject(original);
+    // Only authoritative reconciliation supplies the terminal result, never age or 502.
+    mocks.reconcile.mockImplementation(async (id) => {
+      expect(id).toBe(original.id);
+      return { ...row, state: "EXPIRED" };
+    });
+    await expect(reconcileHostedPayment(deployment, key)).resolves.toMatchObject({
+      intent: original.id,
+      txHash: original.txHash,
+      state: "EXPIRED",
+    });
+    expect(mocks.submit).not.toHaveBeenCalled();
+    expect(mocks.prepare).toHaveBeenCalledTimes(1);
+    expect(mocks.db.walletControlIntent.updateMany).not.toHaveBeenCalled();
+    expect(row).toMatchObject(original);
+    await expect(readHostedReceipt(deploymentId, "cd".repeat(32))).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
   });
   it("requires matching receipt for submit, omits fake API credentials and limits response", async () => {
     const input = { recoveryKey: key, intent: intentId, signedXdr: "signedfixture" };

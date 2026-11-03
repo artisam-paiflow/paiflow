@@ -174,6 +174,8 @@ beforeEach(() => {
       )!;
       return {
         key: key.toXDR("base64"),
+        lastModifiedLedgerSeq: 5,
+        liveUntilLedgerSeq: 10000,
         xdr: xdr.LedgerEntryData.contractData(
           new xdr.ContractDataEntry({
             ext: new xdr.ExtensionPoint(0),

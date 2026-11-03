@@ -124,6 +124,32 @@ configuration envelope, with runtime fields absent, plus immutable asset/routing
 The API reader must verify it against original deployment evidence at a consistent
 confirmed ledger and validate the actual executable hash, not trust getter labels.
 
+## Verified execution reads
+
+The server brackets all capability/configuration getters with two complete batches
+of contract-instance ledger entries. For reviewed execution and guarded artifacts,
+these getters derive their state from instance storage. Each batch must contain
+exactly the expected live entries with matching keys, contract addresses and pinned
+WASM hashes. Every getter must succeed without restoration and report a ledger
+within the two batch ledgers. Both instance XDR values and last-modified ledgers
+must match, including when a value changed and then reverted. A bounded retry
+restarts the complete observation after a detected change or inconsistent response.
+
+Ledger advancement alone does not invalidate unchanged state. Returned configuration
+observations use the final batch's common confirmed ledger. Guarded mutation reads
+run their authority/revision/obligation getters inside this same window and persist
+history only after successful verification. Revisions alone cannot fence obligations:
+accepted Split accumulation can change without a configuration update.
+
+This relies on the configured RPC serving consistent ledger snapshots and accurate
+[entry modification metadata](https://developers.stellar.org/docs/data/apis/rpc/api-reference/methods/getLedgerEntries).
+Actual concurrent instance writes can still require a retry; this is not throughput
+qualification. The reviewed getters do not depend on ledger time or external storage;
+new artifact support must recheck that dependency before using this fence. Contract
+revision and obligation checks continue to protect the later read/send race. A late
+hosted review failure after durable preparation retains its original capability,
+request and intent/hash for recovery; an HTTP 502 is not proof of non-admission.
+
 Deployment accepts v1 only when **every** selected template/hash matches
 `EXECUTION_V1_WASM_HASHES` in `lib/stellar/execution-artifacts.ts`. Old/missing/
 unknown/wrong-kind artifacts fail before RPC. The prepared `pipelineSnapshot`

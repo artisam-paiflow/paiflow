@@ -57,8 +57,11 @@ The final group must satisfy allocation conservation, recipient uniqueness and
 resource/recipient bounds. Empty/no-op/unknown/constant/execution overrides fail
 before signing and on chain. Money and revisions are canonical bounded strings.
 
-The server checks pinned actual WASM and complete same-ledger `current_config`
-getters, then `mutation_status` for every child. Nonzero accounted obligations
+The server checks pinned actual WASM and complete `current_config` getters, then
+`mutation_status` for every child, inside one whole-path instance-version read
+window. Ordinary ledger advancement is allowed only when all instance values and
+last-modified ledgers remain unchanged; configuration and obligations must describe
+the same verified state. See [verified execution reads](../execution-v1.md#verified-execution-reads). Nonzero accounted obligations
 anywhere in the path block every update, even when its raw token balance is zero.
 Raw balance is not used as an admission shortcut. Full-path bindings and expected
 revisions enter the root `mutate_v1` call. Simulation discovers every required

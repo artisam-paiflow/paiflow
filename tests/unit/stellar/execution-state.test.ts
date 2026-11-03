@@ -19,9 +19,12 @@ import {
 const mock = vi.hoisted(() => ({
   rpc: { getLatestLedger: vi.fn(), _getLedgerEntries: vi.fn(), simulateTransaction: vi.fn() },
   account: vi.fn(),
+  observe: vi.fn(),
 }));
 vi.mock("@/lib/stellar/client", () => ({ sorobanRpc: () => mock.rpc }));
 vi.mock("@/lib/stellar/load-payment-account", () => ({ loadPaymentAccount: mock.account }));
+vi.mock("@/lib/mutations/history", () => ({ recordConfigurationObservation: mock.observe }));
+import { readMutationState } from "@/lib/stellar/mutation-state";
 import { readExecutionState } from "@/lib/stellar/execution-state";
 
 const owner = Keypair.random().publicKey();
@@ -132,6 +135,8 @@ beforeEach(() => {
     latestLedger: 10,
     entries: keys.map((key, index) => ({
       key: key.toXDR("base64"),
+      lastModifiedLedgerSeq: 5,
+      liveUntilLedgerSeq: 1000,
       xdr: xdr.LedgerEntryData.contractData(
         new xdr.ContractDataEntry({
           ext: new xdr.ExtensionPoint(0),
@@ -361,4 +366,259 @@ it("refuses mutable declarations on retained execution-only artifacts before RPC
   Object.assign(graph.fieldPolicies.nodes[0]!, { recipient: "mutable" });
   await expect(readExecutionState(deployment)).rejects.toThrow();
   expect(mock.rpc._getLedgerEntries).not.toHaveBeenCalled();
+});
+
+/** Model RPC snapshots independently of getter results, including writes that do
+ * not change decoded revisions (e.g. accumulation or change-then-revert). */
+function bracket(options: {
+  before?: number;
+  after?: number;
+  changed?: "metadata" | "storage" | "code";
+  firstAttemptOnly?: boolean;
+}) {
+  const original = mock.rpc._getLedgerEntries.getMockImplementation()!;
+  let calls = 0;
+  mock.rpc._getLedgerEntries.mockImplementation(async (...keys: xdr.LedgerKey[]) => {
+    const result = await original(...keys);
+    calls++;
+    const closing = calls % 2 === 0;
+    result.latestLedger = closing ? (options.after ?? 12) : (options.before ?? 10);
+    if (closing && (!options.firstAttemptOnly || calls === 2)) {
+      if (options.changed === "metadata") result.entries[1].lastModifiedLedgerSeq = 11;
+      if (options.changed === "storage" || options.changed === "code") {
+        const data = xdr.LedgerEntryData.fromXDR(result.entries[1].xdr, "base64");
+        const instance = data.contractData().val().instance();
+        if (options.changed === "code")
+          instance.executable(xdr.ContractExecutable.contractExecutableWasm(Buffer.alloc(32, 9)));
+        else
+          instance.storage([new xdr.ScMapEntry({ key: abiValue("balance"), val: abiValue(1n) })]);
+        result.entries[1].xdr = data.toXDR("base64");
+      }
+    }
+    return result;
+  });
+}
+
+it("accepts unchanged two-node state across multiple ledger closes and labels the common final snapshot", async () => {
+  bracket({ after: 13 });
+  const simulate = mock.rpc.simulateTransaction.getMockImplementation()!;
+  let calls = 0;
+  mock.rpc.simulateTransaction.mockImplementation(async (tx: Transaction) => ({
+    ...(await simulate(tx)),
+    latestLedger: 10 + Math.floor(calls++ / 2),
+  }));
+  const state = await readExecutionState(deployment);
+  expect(state.supported && state.confirmedLedger).toBe(13);
+  expect(state.supported && state.configurations[0]!.confirmedLedger).toBe(13);
+  expect(mock.rpc._getLedgerEntries).toHaveBeenCalledTimes(2);
+  expect(mock.rpc.getLatestLedger).not.toHaveBeenCalled();
+});
+
+it("accepts a three-node path whose successive getter batches cross ledgers", async () => {
+  const middle = StrKey.encodeContract(Buffer.alloc(32, 3));
+  const graph = deployment.graphSnapshot as unknown as {
+    nodes: Array<{ id: string; type: string; config: Record<string, unknown> }>;
+    edges: Array<{ id: string; source: string; target: string }>;
+  };
+  graph.nodes.splice(1, 0, {
+    id: "fee",
+    type: "pay",
+    config: {
+      mode: "percentage",
+      percentage: 15,
+      recipient,
+      asset: { kind: "native" },
+      fullAmount: false,
+    },
+  });
+  graph.edges = [
+    { id: "a", source: "root", target: "fee" },
+    { id: "b", source: "fee", target: "pay" },
+  ];
+  const snapshot = deployment.pipelineSnapshot as Array<Record<string, unknown>>;
+  snapshot.splice(1, 0, { ...snapshot[1], nodeId: "fee", contractAddress: middle });
+  rawRoot.policy = { ...(rawRoot.policy as object), next_steps: [{ address: middle, data: "" }] };
+  rawPay.parent = middle;
+  const fee = {
+    ...rawPay,
+    parent: root,
+    percentage_bps: 1500,
+    next_steps: [{ address: pay, data: "" }],
+    policy: {
+      version: 1,
+      node_id: "fee",
+      recipient_mode: ["Constant"],
+      payout_value_mode: ["Constant"],
+      recipient,
+      payout_rule: ["Percentage", 1500],
+    },
+  };
+  bracket({ after: 12 });
+  const original = mock.rpc.simulateTransaction.getMockImplementation()!;
+  let calls = 0;
+  mock.rpc.simulateTransaction.mockImplementation(async (tx: Transaction) => {
+    const result = await original(tx);
+    const op = tx.operations[0]!;
+    if (op.type !== "invokeHostFunction") throw new Error();
+    const call = op.func.invokeContract();
+    if (
+      Address.fromScAddress(call.contractAddress()).toString() === middle &&
+      call.functionName().toString() === "current_config"
+    )
+      result.result.retval = abiValue(fee);
+    return { ...result, latestLedger: 10 + Math.floor(calls++ / 2) };
+  });
+  const state = await readExecutionState(deployment);
+  expect(state.supported && state.nodes).toHaveLength(3);
+  expect(state.supported && state.confirmedLedger).toBe(12);
+  expect(mock.rpc.simulateTransaction).toHaveBeenCalledTimes(6);
+});
+
+it.each(["metadata", "storage", "code"] as const)(
+  "refuses %s changes during the read even if getter revisions agree",
+  async (changed) => {
+    bracket({ changed });
+    await expect(readExecutionState(deployment)).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
+    expect(mock.rpc._getLedgerEntries).toHaveBeenCalledTimes(4);
+  },
+);
+
+it("restarts all getters after a detected write and accepts only the stable retry", async () => {
+  bracket({ changed: "metadata", firstAttemptOnly: true });
+  expect((await readExecutionState(deployment)).supported).toBe(true);
+  expect(mock.rpc.simulateTransaction).toHaveBeenCalledTimes(8);
+});
+
+it.each([
+  { lastModifiedLedgerSeq: undefined },
+  { lastModifiedLedgerSeq: 0 },
+  { lastModifiedLedgerSeq: 11 },
+  { lastModifiedLedgerSeq: 1.5 },
+  { liveUntilLedgerSeq: undefined },
+  { liveUntilLedgerSeq: 9 },
+])("refuses incomplete, malformed or expired instance metadata %j", async (metadata) => {
+  const original = mock.rpc._getLedgerEntries.getMockImplementation()!;
+  mock.rpc._getLedgerEntries.mockImplementation(async (...keys: xdr.LedgerKey[]) => {
+    const result = await original(...keys);
+    Object.assign(result.entries[0], metadata);
+    return result;
+  });
+  await expect(readExecutionState(deployment)).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
+  expect(mock.rpc.simulateTransaction).not.toHaveBeenCalled();
+});
+
+it("rejects a regressing final batch", async () => {
+  bracket({ after: 9 });
+  await expect(readExecutionState(deployment)).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
+});
+
+it.each([9, 13])("rejects a getter outside the bracket at ledger %i", async (latestLedger) => {
+  bracket({ after: 12 });
+  const original = mock.rpc.simulateTransaction.getMockImplementation()!;
+  mock.rpc.simulateTransaction.mockImplementation(async (tx: Transaction) => ({
+    ...(await original(tx)),
+    latestLedger,
+  }));
+  await expect(readExecutionState(deployment)).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
+});
+
+it("refuses getters needing archived-entry restoration", async () => {
+  const original = mock.rpc.simulateTransaction.getMockImplementation()!;
+  mock.rpc.simulateTransaction.mockImplementation(async (tx: Transaction) => ({
+    ...(await original(tx)),
+    restorePreamble: { transactionData: {}, minResourceFee: "100" },
+  }));
+  await expect(readExecutionState(deployment)).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
+});
+
+function mutationGetters(obligations = 0n) {
+  useGuardedArtifacts();
+  const original = mock.rpc.simulateTransaction.getMockImplementation()!;
+  mock.rpc.simulateTransaction.mockImplementation(async (tx: Transaction) => {
+    const op = tx.operations[0]!;
+    if (op.type !== "invokeHostFunction") throw new Error();
+    if (op.func.invokeContract().functionName().toString() === "mutation_status")
+      return {
+        transactionData: {},
+        latestLedger: 12,
+        result: {
+          retval: abiValue({
+            node_id: "pay",
+            admin: owner,
+            asset,
+            parent: root,
+            next_steps: [],
+            revision: 0n,
+            obligations,
+          }),
+        },
+      };
+    return original(tx);
+  });
+}
+
+it("reads mutation authority and obligations inside the configuration fence across ledger closes", async () => {
+  mutationGetters(200n);
+  bracket({ after: 12 });
+  const state = await readMutationState(deployment);
+  expect(state.confirmedLedger).toBe(12);
+  expect(state.obligations).toEqual([{ nodeId: "pay", obligationsStroops: "200" }]);
+  expect(mock.observe).toHaveBeenCalledWith(
+    deployment.id,
+    expect.objectContaining({ confirmedLedger: 12 }),
+  );
+});
+
+it("rejects obligation writes after configuration getters even with unchanged revision and never records stale history", async () => {
+  mutationGetters(0n);
+  bracket({ after: 12, changed: "storage" });
+  await expect(readMutationState(deployment)).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
+  expect(mock.rpc.simulateTransaction).toHaveBeenCalledTimes(10);
+  expect(mock.observe).not.toHaveBeenCalled();
+});
+
+it.each(["missing", "duplicate", "metadata"])(
+  "refuses a malformed final batch (%s)",
+  async (fault) => {
+    const original = mock.rpc._getLedgerEntries.getMockImplementation()!;
+    let calls = 0;
+    mock.rpc._getLedgerEntries.mockImplementation(async (...keys: xdr.LedgerKey[]) => {
+      const result = await original(...keys);
+      if (++calls % 2 === 0) {
+        if (fault === "missing") result.entries.pop();
+        else if (fault === "duplicate") result.entries[1] = result.entries[0];
+        else result.entries[0].lastModifiedLedgerSeq = undefined;
+      }
+      return result;
+    });
+    await expect(readExecutionState(deployment)).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
+  },
+);
+
+it("retries the complete mutation observation and publishes only the latest obligations", async () => {
+  mutationGetters();
+  bracket({ after: 12, changed: "metadata", firstAttemptOnly: true });
+  const original = mock.rpc.simulateTransaction.getMockImplementation()!;
+  let statuses = 0;
+  mock.rpc.simulateTransaction.mockImplementation(async (tx: Transaction) => {
+    const result = await original(tx);
+    const op = tx.operations[0]!;
+    if (op.type !== "invokeHostFunction") throw new Error();
+    if (op.func.invokeContract().functionName().toString() === "mutation_status") {
+      result.result.retval = abiValue({
+        node_id: "pay",
+        admin: owner,
+        asset,
+        parent: root,
+        next_steps: [],
+        revision: 0n,
+        obligations: BigInt(++statuses),
+      });
+    }
+    return result;
+  });
+  const state = await readMutationState(deployment);
+  expect(state.obligations).toEqual([{ nodeId: "pay", obligationsStroops: "2" }]);
+  expect(mock.rpc.simulateTransaction).toHaveBeenCalledTimes(10);
+  expect(mock.observe).toHaveBeenCalledTimes(1);
 });

@@ -53,7 +53,7 @@ const SnapshotSchema = z
 const unavailable = () =>
   new AppError(
     "UPSTREAM_RPC",
-    "Execution capabilities and current configuration could not be verified; no payment was prepared",
+    "Execution capabilities and current configuration could not be verified",
   );
 
 function instanceKey(contract: string) {
@@ -64,6 +64,58 @@ function instanceKey(contract: string) {
       durability: xdr.ContractDataDurability.persistent(),
     }),
   );
+}
+
+type SupportedExecutionState = Extract<ExecutionDiscovery, { supported: true }>;
+export type ExecutionStateGetter = (
+  contract: string,
+  method: "capabilities" | "current_config" | "mutation_status",
+) => Promise<unknown>;
+
+const LedgerSchema = z.number().int().positive().max(0xffff_ffff);
+
+/** The reviewed getters read only instance storage. Fence the whole read with
+ * instance versions, not wall-clock ledger equality. lastModified catches writes
+ * followed by a return to the same value; TTL is checked but is not configuration.
+ * RPC must serve each batch from its reported ledger's consistent snapshot.
+ * https://developers.stellar.org/docs/data/apis/rpc/api-reference/methods/getLedgerEntries
+ */
+async function readInstances(
+  server: ReturnType<typeof sorobanRpc>,
+  snapshot: z.infer<typeof SnapshotSchema>,
+) {
+  const keys = snapshot.map((node) => instanceKey(node.contractAddress));
+  const response = await server._getLedgerEntries(...keys);
+  const ledger = LedgerSchema.parse(response.latestLedger);
+  if (!Array.isArray(response.entries) || response.entries.length !== keys.length)
+    throw unavailable();
+  const entries = response.entries;
+  const versions = keys.map((key, index) => {
+    const matches = entries.filter((entry) => entry.key === key.toXDR("base64"));
+    if (matches.length !== 1) throw unavailable();
+    const value = matches[0]!;
+    const modified = LedgerSchema.parse(value.lastModifiedLedgerSeq);
+    const liveUntil = LedgerSchema.parse(value.liveUntilLedgerSeq);
+    if (modified > ledger || liveUntil < ledger) throw unavailable();
+    const data = xdr.LedgerEntryData.fromXDR(value.xdr, "base64");
+    if (data.switch().name !== "contractData") throw unavailable();
+    const entry = data.contractData();
+    if (
+      !entry.contract().toXDR().equals(key.contractData().contract().toXDR()) ||
+      !entry.key().toXDR().equals(key.contractData().key().toXDR()) ||
+      entry.durability().name !== "persistent" ||
+      entry.val().switch().name !== "scvContractInstance"
+    )
+      throw unavailable();
+    const executable = entry.val().instance().executable();
+    if (
+      executable.switch().name !== "contractExecutableWasm" ||
+      executable.wasmHash().toString("hex") !== snapshot[index]!.wasmHash
+    )
+      throw unavailable();
+    return { xdr: data.toXDR("base64"), modified };
+  });
+  return { ledger, versions };
 }
 
 /** Only declared mutable values may differ from original evidence. Execution
@@ -127,6 +179,9 @@ export function assertOriginalConfiguration(graph: FlowGraph, current: Confirmed
 /** No latest-registry lookup: discovery uses the exact artifacts pinned by deployment. */
 export async function readExecutionState(
   deployment: ExecutionDeployment,
+  /** Read-only additional getters inside the SAME instance fence (e.g. mutation
+   * obligations). May run again on retry; never persist observations here. */
+  inspect?: (current: SupportedExecutionState, getter: ExecutionStateGetter) => Promise<void>,
 ): Promise<ExecutionDiscovery> {
   if (deployment.status !== "CONFIRMED" || deployment.network !== env().STELLAR_NETWORK)
     throw new AppError("NOT_FOUND", "Deployment unavailable on this network");
@@ -180,38 +235,14 @@ export async function readExecutionState(
   const account = await loadPaymentAccount(server, source).catch(() => {
     throw unavailable();
   });
-  const keys = snapshot.map((node) => instanceKey(node.contractAddress));
-  // One bounded retry can obtain a stable ledger if a close races the first read.
+  // Retry the complete observation once on actual writes or inconsistent RPC evidence.
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const before = await server.getLatestLedger();
-      const ledger = z.number().int().positive().max(0xffff_ffff).parse(before.sequence);
-      const entries = await server._getLedgerEntries(...keys);
-      if (
-        entries.latestLedger !== ledger ||
-        !Array.isArray(entries.entries) ||
-        entries.entries.length !== keys.length
-      )
-        throw unavailable();
-      for (const [index, key] of keys.entries()) {
-        const matches = entries.entries.filter((entry) => entry.key === key.toXDR("base64"));
-        if (matches.length !== 1) throw unavailable();
-        const entry = xdr.LedgerEntryData.fromXDR(matches[0]!.xdr, "base64").contractData();
-        if (
-          !entry.contract().toXDR().equals(key.contractData().contract().toXDR()) ||
-          !entry.key().toXDR().equals(key.contractData().key().toXDR()) ||
-          entry.durability().name !== "persistent" ||
-          entry.val().switch().name !== "scvContractInstance"
-        )
-          throw unavailable();
-        const executable = entry.val().instance().executable();
-        if (
-          executable.switch().name !== "contractExecutableWasm" ||
-          executable.wasmHash().toString("hex") !== snapshot[index]!.wasmHash
-        )
-          throw unavailable();
-      }
-      const getter = async (contract: string, method: string): Promise<unknown> => {
+      const before = await readInstances(server, snapshot);
+      const ledger = before.ledger;
+      const getterLedgers: number[] = [];
+      const getter: ExecutionStateGetter = async (contract, method) => {
+        if (!snapshot.some((node) => node.contractAddress === contract)) throw unavailable();
         const tx = new TransactionBuilder(
           new Account(account.accountId(), account.sequenceNumber()),
           { fee: BASE_FEE, networkPassphrase: stellarPassphrase() },
@@ -220,8 +251,15 @@ export async function readExecutionState(
           .setTimeout(30)
           .build();
         const sim = await server.simulateTransaction(tx);
-        if (!rpc.Api.isSimulationSuccess(sim) || sim.latestLedger !== ledger || !sim.result?.retval)
+        if (
+          !rpc.Api.isSimulationSuccess(sim) ||
+          ("restorePreamble" in sim && sim.restorePreamble) ||
+          !sim.result?.retval
+        )
           throw unavailable();
+        const observed = LedgerSchema.parse(sim.latestLedger);
+        if (observed < ledger) throw unavailable();
+        getterLedgers.push(observed);
         return scValToNative(sim.result.retval);
       };
       const values: Array<{
@@ -257,8 +295,6 @@ export async function readExecutionState(
           )),
         );
       }
-      const after = await server.getLatestLedger();
-      if (after.sequence !== ledger) throw unavailable();
       const root = values[0]!.state;
       if (
         root.kind !== "on_receive" ||
@@ -287,7 +323,7 @@ export async function readExecutionState(
         assertOriginalConfiguration(graph, state.configuration);
         configurations.push(state.configuration);
       }
-      return ExecutionDiscoverySchema.parse({
+      const current = ExecutionDiscoverySchema.parse({
         supported: true,
         policyVersion: 1,
         deploymentId: deployment.id,
@@ -305,6 +341,25 @@ export async function readExecutionState(
           capabilities: values[index]!.capabilities,
         })),
       });
+      if (!current.supported) throw unavailable();
+      await inspect?.(current, getter);
+      const after = await readInstances(server, snapshot);
+      if (
+        after.ledger < before.ledger ||
+        getterLedgers.some((observed) => observed > after.ledger) ||
+        !isDeepStrictEqual(before.versions, after.versions)
+      )
+        throw unavailable();
+      // Every getter's instance dependencies were unchanged throughout the bracket,
+      // so their decoded values also describe the final common snapshot.
+      return {
+        ...current,
+        confirmedLedger: after.ledger,
+        configurations: current.configurations.map((configuration) => ({
+          ...configuration,
+          confirmedLedger: after.ledger,
+        })),
+      };
     } catch {
       if (attempt === 1) throw unavailable();
     }
