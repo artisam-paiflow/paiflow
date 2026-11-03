@@ -34,13 +34,21 @@ ARG NEXT_PUBLIC_SPLITTER_USDC_MAX=110
 RUN AUTH_SECRET=container-build-only-placeholder-at-least-32-characters \
     DATABASE_URL=postgresql://build:build@127.0.0.1:1/build?schema=public \
     pnpm build \
-    && rm -rf .next/cache
+    && rm -rf .next/cache .next/types .next/diagnostics .next/trace
 
 FROM base AS runtime
 ENV NODE_ENV=production
-# Retain the installed Prisma CLI and generated client used by the existing
-# migration-first startup script. No standalone-server or shutdown behavior change.
-COPY --from=build --chown=node:node /app /app
+# Keep the installed Prisma CLI/generated client and TypeScript needed to load
+# next.config.ts. Copy runtime files explicitly instead of shipping build sources.
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/.next ./.next
+COPY --from=build --chown=node:node /app/public ./public
+COPY --from=build --chown=node:node /app/package.json /app/pnpm-lock.yaml /app/next.config.ts /app/tsconfig.json /app/prisma.config.ts ./
+# The runtime Next config imports the shared framing policy.
+COPY --from=build --chown=node:node /app/lib/csp.ts ./lib/csp.ts
+COPY --from=build --chown=node:node /app/prisma/schema.prisma ./prisma/schema.prisma
+COPY --from=build --chown=node:node /app/prisma/migrations ./prisma/migrations
+COPY --from=build --chown=node:node /app/scripts/check-node-version.cjs /app/scripts/start-railway.sh ./scripts/
 USER node
 EXPOSE 3000
 CMD ["sh", "scripts/start-railway.sh"]

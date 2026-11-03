@@ -65,8 +65,13 @@ assert.equal(process.getuid(), 1000);
 assert.equal(zlib.constants.BROTLI_DECODER_ERROR_FORMAT_BLOCK_SWITCH, -17);
 const input = Buffer.from('benign runtime smoke');
 assert.deepEqual(zlib.brotliDecompressSync(zlib.brotliCompressSync(input)), input);
-for (const name of ['.env.container-smoke', 'lib/.env.container-smoke', '.worktrees/container-smoke-canary', '.git', '.aws', '.codex']) {
+for (const name of ['.env.container-smoke', 'lib/.env.container-smoke', '.worktrees/container-smoke-canary', '.git', '.aws', '.codex', 'app', 'components', 'tests', 'packages', 'Dockerfile', '.dockerignore', 'postcss.config.mjs', 'prisma/seed.ts', '.next/cache', '.next/types', '.next/diagnostics', '.next/trace']) {
   assert.equal(fs.existsSync('/app/' + name), false, name + ' leaked into image');
+}
+assert.deepEqual(fs.readdirSync('/app/scripts').sort(), ['check-node-version.cjs', 'start-railway.sh']);
+assert.deepEqual(fs.readdirSync('/app/lib'), ['csp.ts']);
+for (const name of ['next.config.ts', 'tsconfig.json', 'prisma.config.ts', 'prisma/schema.prisma', 'prisma/migrations', '.next/server', '.next/static', 'public/logo.png']) {
+  assert.equal(fs.existsSync('/app/' + name), true, name + ' missing from runtime image');
 }
 require('@prisma/client');
 require('argon2').hash('synthetic-smoke-password').then(async hash => {
@@ -130,6 +135,16 @@ require('argon2').hash('synthetic-smoke-password').then(async hash => {
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
   assert.equal(ready, true, "Application did not become ready");
+  const login = await request("/login");
+  const html = await login.text();
+  const script = html.match(/src="(\/_next\/static\/[^"\s]+\.js(?:\?[^"\s]*)?)"/);
+  assert.ok(script, "Login did not reference a built JavaScript asset");
+  const javascript = await request(script[1]);
+  assert.equal(javascript.status, 200, "Built JavaScript asset is unavailable");
+  assert.match(javascript.headers.get("content-type") ?? "", /javascript/);
+  const logo = await request("/logo.png");
+  assert.equal(logo.status, 200, "Public asset is unavailable");
+  assert.match(logo.headers.get("content-type") ?? "", /image\/png/);
   // The first health request creates ioredis with its offline queue disabled;
   // HTTP readiness can precede that connection's ready event. Bound dependency
   // readiness separately, retain the initial observation, and require final OK.
@@ -166,7 +181,7 @@ require('argon2').hash('synthetic-smoke-password').then(async hash => {
   const exit = output(["wait", app], { timeout: 15_000 }).trim();
   assert.equal(exit, "0", "SIGTERM did not reach Next.js for a graceful exit");
   process.stdout.write(
-    "App image smoke passed: non-root runtime/native modules, context isolation, migration gate, HTTP/identity, DB/Redis, SIGTERM. RPC deliberately unavailable.\n",
+    "App image smoke passed: non-root runtime/native modules, minimal runtime files, context isolation, migration gate, HTTP/assets/identity, DB/Redis, SIGTERM. RPC deliberately unavailable.\n",
   );
 } finally {
   for (const name of [app, rejected]) {

@@ -5,6 +5,12 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Fix deployment-image builds by excluding fixture-dependent local acceptance
+  scripts from the shared build context. Ship explicit app runtime files instead
+  of SDK/application sources, local tools and the whole build workspace; retain
+  migrations, Next configuration and installed runtime tooling. Image smoke
+  verifies source exclusion and served assets.
+
 - Disable new Multisig deployments, private-template publication and fresh instances
   on the server, including saved graphs/direct API calls and submission of previously
   prepared unsent deployments. Multisig remains outside this release pending its
