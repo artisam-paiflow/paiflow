@@ -5,6 +5,12 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Upgrade the Stellar SDK to decode Protocol 30 ledger headers and metadata,
+  restoring Subscription allowance preparation and ledger-time finality reads
+  without weakening unknown-transaction protection. Cover both millisecond
+  close-time variants and retain Protocol 29 compatibility
+  ([#792](https://github.com/webnxt-2030/pinkraft/issues/792)).
+
 - Bind legacy public payment and authenticated wallet-control submissions to the
   exact server-prepared transaction. Refuse unsigned, wrong-network and unrelated
   envelopes locally, preserve legitimate Subscription/streamer controls, and

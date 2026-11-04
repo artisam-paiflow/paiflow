@@ -9,11 +9,39 @@ import {
 
 export const LEDGER_SEQUENCE = 42;
 export const LEDGER_CLOSE_TIME = "1001";
+export const LEDGER_CLOSE_TIME_MS = "1001999";
 export const LEDGER_ACCOUNT = Address.account(Buffer.alloc(32, 1)).toString();
 export const LEDGER_CONTRACT = Address.contract(Buffer.alloc(32, 2)).toString();
 
-/** Synthetic, unsigned data: no keys, signatures, or captured network metadata. */
-export function ledgerFixture() {
+/** Encode CAP-88 explicitly so older SDKs reach the decoder, not a missing constructor. */
+function protocol30Extension(kind: 3 | 4): Buffer {
+  const tag = Buffer.alloc(4);
+  tag.writeInt32BE(kind);
+  const signature = new xdr.LedgerCloseValueSignature({
+    nodeId: xdr.PublicKey.publicKeyTypeEd25519(Buffer.alloc(32, 3)),
+    signature: Buffer.alloc(64),
+  }).toXDR();
+  const previousLedgerVersion = Buffer.alloc(4);
+  previousLedgerVersion.writeUInt32BE(30);
+  // SIGNED_MS carries time + signature; EMPTY_TX_SET_MS also carries proposed hashes/version.
+  return Buffer.concat([
+    tag,
+    xdr.Uint64.fromString(LEDGER_CLOSE_TIME_MS).toXDR(),
+    ...(kind === 4 ? [Buffer.alloc(32), Buffer.alloc(32), previousLedgerVersion] : []),
+    signature,
+  ]);
+}
+
+function replaceOnce(bytes: Buffer, before: Buffer, after: Buffer): Buffer {
+  const offset = bytes.indexOf(before);
+  if (offset < 0 || bytes.indexOf(before, offset + 1) >= 0)
+    throw new Error("Synthetic ledger section must occur exactly once");
+  return Buffer.concat([bytes.subarray(0, offset), after, bytes.subarray(offset + before.length)]);
+}
+
+/** Synthetic, unsigned data: no private keys, real signatures, or captured network metadata. */
+export function ledgerFixture(protocol30StellarValueType?: 3 | 4) {
+  const protocolVersion = protocol30StellarValueType === undefined ? 29 : 30;
   const contractAddress = new Address(LEDGER_CONTRACT).toScAddress();
   const invocation = new xdr.SorobanAuthorizedInvocation({
     function: xdr.SorobanAuthorizedFunction.sorobanAuthorizedFunctionTypeContractFn(
@@ -51,7 +79,7 @@ export function ledgerFixture() {
     .build();
   const zero = Buffer.alloc(32);
   const header = new xdr.LedgerHeader({
-    ledgerVersion: 29,
+    ledgerVersion: protocolVersion,
     previousLedgerHash: zero,
     scpValue: new xdr.StellarValue({
       txSetHash: zero,
@@ -86,16 +114,19 @@ export function ledgerFixture() {
         1,
         new xdr.TransactionSetV1({
           previousLedgerHash: zero,
-          phases: [
-            new xdr.TransactionPhase(0, [
-              xdr.TxSetComponent.txsetCompTxsMaybeDiscountedFee(
-                new xdr.TxSetComponentTxsMaybeDiscountedFee({
-                  baseFee: null,
-                  txes: [tx.toEnvelope()],
-                }),
-              ),
-            ]),
-          ],
+          phases:
+            protocol30StellarValueType === 4
+              ? []
+              : [
+                  new xdr.TransactionPhase(0, [
+                    xdr.TxSetComponent.txsetCompTxsMaybeDiscountedFee(
+                      new xdr.TxSetComponentTxsMaybeDiscountedFee({
+                        baseFee: null,
+                        txes: [tx.toEnvelope()],
+                      }),
+                    ),
+                  ]),
+                ],
         }),
       ),
       txProcessing: [],
@@ -105,14 +136,26 @@ export function ledgerFixture() {
       evictedKeys: [],
     }),
   );
+  const originalHeader = header.toXDR();
+  let headerBytes = originalHeader;
+  if (protocol30StellarValueType !== undefined) {
+    const value = header.scpValue().toXDR();
+    headerBytes = replaceOnce(
+      originalHeader,
+      value,
+      Buffer.concat([value.subarray(0, -4), protocol30Extension(protocol30StellarValueType)]),
+    );
+  }
+  const historyBytes = replaceOnce(history.toXDR(), originalHeader, headerBytes);
+  const metadataBytes = replaceOnce(metadata.toXDR(), originalHeader, headerBytes);
   return {
     latest: {
       id: zero.toString("hex"),
       sequence: LEDGER_SEQUENCE,
-      protocolVersion: 29,
+      protocolVersion,
       closeTime: LEDGER_CLOSE_TIME,
-      headerXdr: header.toXDR("base64"),
-      metadataXdr: metadata.toXDR("base64"),
+      headerXdr: headerBytes.toString("base64"),
+      metadataXdr: metadataBytes.toString("base64"),
     },
     ledgers: {
       ledgers: [
@@ -120,8 +163,8 @@ export function ledgerFixture() {
           hash: zero.toString("hex"),
           sequence: LEDGER_SEQUENCE,
           ledgerCloseTime: LEDGER_CLOSE_TIME,
-          headerXdr: history.toXDR("base64"),
-          metadataXdr: metadata.toXDR("base64"),
+          headerXdr: historyBytes.toString("base64"),
+          metadataXdr: metadataBytes.toString("base64"),
         },
       ],
       latestLedger: LEDGER_SEQUENCE,
