@@ -496,7 +496,7 @@ describe("retirement with real PostgreSQL admission locks", () => {
   });
   it("never times out an unknown submission into settlement", async () => {
     const d = await deployment();
-    const hash = "b".repeat(64);
+    const hash = randomUUID().replaceAll("-", "").repeat(2);
     await withDeploymentWork(d.id, "submit", () => beforeServiceSubmission(hash, "rpc"));
     await requestRetirement(d.id, ownerId);
     await reconcileRetirement(d.id);
