@@ -22,6 +22,16 @@ type PreparedDeployment = {
 };
 const blocked: PreparedRecovery = { status: "BLOCKED" };
 
+function retentionCloseTime(value: unknown): number | null {
+  // RPC encodes this int64 as a decimal string; SDK 16.4.1 declares a number
+  // but passes the wire value through. Validate either representation strictly.
+  if (typeof value === "string") {
+    if (value.length === 0 || /[^0-9]/.test(value)) return null;
+    value = Number(value);
+  }
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
 /** Server acceptance metadata only; the caller must independently prove safe signing history. */
 export async function preparedDeploymentRecovery(
   d: PreparedDeployment,
@@ -78,12 +88,16 @@ export async function preparedDeploymentRecovery(
     // NOT_FOUND is meaningful only when RPC retains that entire possible history.
     const created = Math.floor(d.createdAt.getTime() / 1000);
     if (!Number.isSafeInteger(created) || created <= 0) return blocked;
-    const coversHistory = (result: Awaited<ReturnType<typeof server.getTransaction>>) =>
-      result.status === "NOT_FOUND" &&
-      Number.isSafeInteger(result.oldestLedger) &&
-      result.oldestLedger > 0 &&
-      Number.isSafeInteger(result.oldestLedgerCloseTime) &&
-      result.oldestLedgerCloseTime <= created;
+    const coversHistory = (result: Awaited<ReturnType<typeof server.getTransaction>>) => {
+      const oldestCloseTime = retentionCloseTime(result.oldestLedgerCloseTime);
+      return (
+        result.status === "NOT_FOUND" &&
+        Number.isSafeInteger(result.oldestLedger) &&
+        result.oldestLedger > 0 &&
+        oldestCloseTime !== null &&
+        oldestCloseTime <= created
+      );
+    };
     if (!coversHistory(await server.getTransaction(txHash))) return blocked;
     const latest = await server.getLatestLedger();
     const ledgers = await server.getLedgers({
