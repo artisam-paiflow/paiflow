@@ -981,7 +981,7 @@ describe("private template instance durable lifecycle", () => {
     mocks.get.mockResolvedValue({
       status: "NOT_FOUND",
       oldestLedger: 1,
-      oldestLedgerCloseTime: Math.floor(saved.createdAt.getTime() / 1000) - 1,
+      oldestLedgerCloseTime: String(Math.floor(saved.createdAt.getTime() / 1000) - 1),
       latestLedger: 2000,
     });
     mocks.latest.mockResolvedValue({ sequence: 2000 });

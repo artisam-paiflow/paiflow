@@ -5,6 +5,11 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Restore expired unsigned deployment recovery when Stellar RPC returns retention
+  timestamps as decimal strings. Reject malformed or unsafe timestamps and retain
+  full non-inclusion coverage, closed-ledger expiry and durable submission checks
+  before releasing a pending private-instance reservation.
+
 - Reduce configuration-update preparation latency by overlapping independent
   account and instance reads and keeping up to four verified getters in flight.
   Settle failed attempts before retrying, stop at the existing RPC deadline, and
