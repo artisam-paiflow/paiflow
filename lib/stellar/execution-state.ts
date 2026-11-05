@@ -14,6 +14,7 @@ import {
 import { z } from "zod";
 import { stellarPassphrase, stellarRelayerAddress, env } from "@/lib/env";
 import { AppError } from "@/lib/errors";
+import { log } from "@/lib/log";
 import { FlowGraphSchema, type FlowGraph } from "@/lib/flows/schema";
 import { executionPath, executionPolicy, hasMutablePolicies } from "@/lib/flows/execution-v1";
 import {
@@ -24,6 +25,8 @@ import {
 import { ExecutionDiscoverySchema, type ExecutionDiscovery } from "@/lib/api/v1/execution-schema";
 import { sorobanRpc } from "./client";
 import { loadPaymentAccount } from "./load-payment-account";
+import { interactiveRpcBudgetExpired, InteractiveRpcDeadlineError } from "./interactive-rpc-budget";
+import { observeRpcPhase } from "./rpc-phase";
 import { assetContractId } from "./assets";
 import { decodeExecutionCapabilities, decodeExecutionState } from "./execution-v1";
 import { assertExecutionArtifact, executionArtifactMetadata } from "./execution-artifacts";
@@ -176,12 +179,46 @@ export function assertOriginalConfiguration(graph: FlowGraph, current: Confirmed
   throw unavailable();
 }
 
+type GetterRequest = { contractAddress: string; method: Parameters<ExecutionStateGetter>[1] };
+type ReadOptions = {
+  /** Additional instance-only getters, dispatched in the same bounded queue. */
+  additionalReads?: (nodes: z.infer<typeof SnapshotSchema>) => GetterRequest[];
+  /** Validate additional results against decoded configuration, before the final fence. */
+  inspect?: (current: SupportedExecutionState, results: unknown[]) => void;
+  /** Preparation-only independent read, overlapped with the closing instance fence. */
+  finalRead?: () => Promise<void>;
+};
+
+/** A failure stops queued dispatch. Started calls settle before another attempt can run. */
+async function readGetters(requests: GetterRequest[], getter: ExecutionStateGetter) {
+  const results: unknown[] = new Array(requests.length);
+  let next = 0;
+  let failure: { error: unknown } | undefined;
+  await Promise.all(
+    Array.from({ length: Math.min(4, requests.length) }, async () => {
+      while (!failure && next < requests.length) {
+        if (interactiveRpcBudgetExpired()) {
+          failure = { error: new InteractiveRpcDeadlineError() };
+          break;
+        }
+        const index = next++,
+          request = requests[index]!;
+        try {
+          results[index] = await getter(request.contractAddress, request.method);
+        } catch (error) {
+          failure ??= { error };
+        }
+      }
+    }),
+  );
+  if (failure) throw failure.error;
+  return results;
+}
+
 /** No latest-registry lookup: discovery uses the exact artifacts pinned by deployment. */
 export async function readExecutionState(
   deployment: ExecutionDeployment,
-  /** Read-only additional getters inside the SAME instance fence (e.g. mutation
-   * obligations). May run again on retry; never persist observations here. */
-  inspect?: (current: SupportedExecutionState, getter: ExecutionStateGetter) => Promise<void>,
+  options: ReadOptions = {},
 ): Promise<ExecutionDiscovery> {
   if (deployment.status !== "CONFIRMED" || deployment.network !== env().STELLAR_NETWORK)
     throw new AppError("NOT_FOUND", "Deployment unavailable on this network");
@@ -232,13 +269,31 @@ export async function readExecutionState(
   const server = sorobanRpc();
   const source = stellarRelayerAddress() ?? deployment.sourceAccount;
   if (!source) throw unavailable();
-  const account = await loadPaymentAccount(server, source).catch(() => {
-    throw unavailable();
-  });
+  let accountRead: ReturnType<typeof loadPaymentAccount> | undefined;
   // Retry the complete observation once on actual writes or inconsistent RPC evidence.
   for (let attempt = 0; attempt < 2; attempt++) {
+    let sourceAccountFailed = false;
+    let independentReadFailure: { error: unknown } | undefined;
     try {
-      const before = await readInstances(server, snapshot);
+      if (interactiveRpcBudgetExpired()) throw new InteractiveRpcDeadlineError();
+      const [before, account] = await observeRpcPhase(
+        "execution.opening",
+        deployment.id,
+        async () => {
+          accountRead ??= loadPaymentAccount(server, source).catch(() => {
+            throw unavailable();
+          });
+          const results = await Promise.allSettled([readInstances(server, snapshot), accountRead]);
+          const [instances, account] = results;
+          if (account.status === "rejected") {
+            sourceAccountFailed = true;
+            throw account.reason;
+          }
+          if (instances.status === "rejected") throw instances.reason;
+          return [instances.value, account.value] as const;
+        },
+        attempt,
+      );
       const ledger = before.ledger;
       const getterLedgers: number[] = [];
       const getter: ExecutionStateGetter = async (contract, method) => {
@@ -262,39 +317,35 @@ export async function readExecutionState(
         getterLedgers.push(observed);
         return scValToNative(sim.result.retval);
       };
-      const values: Array<{
-        capabilities: ReturnType<typeof decodeExecutionCapabilities>;
-        state: ReturnType<typeof decodeExecutionState>;
-      }> = [];
-      // At most four simultaneous RPC calls, including two getters for each node.
-      for (let offset = 0; offset < snapshot.length; offset += 2) {
-        values.push(
-          ...(await Promise.all(
-            snapshot.slice(offset, offset + 2).map(async (node) => {
-              const [capability, state] = await Promise.all([
-                getter(node.contractAddress, "capabilities"),
-                getter(node.contractAddress, "current_config"),
-              ]);
-              const capabilities = decodeExecutionCapabilities(capability, node.wasmHash);
-              if (
-                capabilities.policyVersion !== 1 ||
-                !capabilities.execution ||
-                !isDeepStrictEqual(capabilities, node.artifactCapabilities)
-              )
-                throw unavailable();
-              return {
-                capabilities,
-                state: decodeExecutionState(state, {
-                  nodeId: node.nodeId,
-                  contractAddress: node.contractAddress,
-                  confirmedLedger: ledger,
-                  templateKind: node.templateKind,
-                }),
-              };
-            }),
-          )),
-        );
-      }
+      const requests: GetterRequest[] = snapshot.flatMap((node) => [
+        { contractAddress: node.contractAddress, method: "capabilities" },
+        { contractAddress: node.contractAddress, method: "current_config" },
+      ]);
+      const extraRequests = options.additionalReads?.(snapshot) ?? [];
+      const results = await observeRpcPhase(
+        "execution.getters",
+        deployment.id,
+        () => readGetters([...requests, ...extraRequests], getter),
+        attempt,
+      );
+      const values = snapshot.map((node, index) => {
+        const capabilities = decodeExecutionCapabilities(results[index * 2], node.wasmHash);
+        if (
+          capabilities.policyVersion !== 1 ||
+          !capabilities.execution ||
+          !isDeepStrictEqual(capabilities, node.artifactCapabilities)
+        )
+          throw unavailable();
+        return {
+          capabilities,
+          state: decodeExecutionState(results[index * 2 + 1], {
+            nodeId: node.nodeId,
+            contractAddress: node.contractAddress,
+            confirmedLedger: ledger,
+            templateKind: node.templateKind,
+          }),
+        };
+      });
       const root = values[0]!.state;
       if (
         root.kind !== "on_receive" ||
@@ -342,8 +393,25 @@ export async function readExecutionState(
         })),
       });
       if (!current.supported) throw unavailable();
-      await inspect?.(current, getter);
-      const after = await readInstances(server, snapshot);
+      options.inspect?.(current, results.slice(requests.length));
+      const after = await observeRpcPhase(
+        "execution.closing",
+        deployment.id,
+        async () => {
+          // Both reads must settle before a retry or a verified result is returned.
+          const [instances, independent] = await Promise.allSettled([
+            readInstances(server, snapshot),
+            Promise.resolve().then(() => options.finalRead?.()),
+          ]);
+          if (independent.status === "rejected") {
+            independentReadFailure = { error: independent.reason };
+            throw independent.reason;
+          }
+          if (instances.status === "rejected") throw instances.reason;
+          return instances.value;
+        },
+        attempt,
+      );
       if (
         after.ledger < before.ledger ||
         getterLedgers.some((observed) => observed > after.ledger) ||
@@ -361,7 +429,23 @@ export async function readExecutionState(
         })),
       };
     } catch {
-      if (attempt === 1) throw unavailable();
+      log.warn(
+        {
+          deploymentId: deployment.id,
+          attempt,
+          category: interactiveRpcBudgetExpired() ? "deadline" : "unverified_state",
+          retry:
+            !independentReadFailure &&
+            !sourceAccountFailed &&
+            attempt === 0 &&
+            !interactiveRpcBudgetExpired(),
+        },
+        "Execution observation failed",
+      );
+      // A preparation-only account failure keeps its original safe error semantics.
+      if (independentReadFailure) throw independentReadFailure.error;
+      if (attempt === 1 || sourceAccountFailed || interactiveRpcBudgetExpired())
+        throw unavailable();
     }
   }
   throw unavailable();

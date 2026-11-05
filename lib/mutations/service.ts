@@ -1,7 +1,7 @@
 import "server-only";
 import { isDeepStrictEqual } from "node:util";
 import type { Deployment, Prisma, WalletControlIntent } from "@prisma/client";
-import { xdr as stellarXdr } from "@stellar/stellar-sdk";
+import { type Account, xdr as stellarXdr } from "@stellar/stellar-sdk";
 import { db } from "@/lib/db";
 import { env, stellarPassphrase } from "@/lib/env";
 import { AppError } from "@/lib/errors";
@@ -16,6 +16,9 @@ import {
 } from "@/lib/api/v1/control-intent";
 import { submitControlIntent } from "@/lib/api/v1/control-submission";
 import { getTransactionStatus } from "@/lib/api/v1/transaction-status";
+import { loadPaymentAccount } from "@/lib/stellar/load-payment-account";
+import { sorobanRpc } from "@/lib/stellar/client";
+import { observeRpcPhase } from "@/lib/stellar/rpc-phase";
 import { readMutationState } from "@/lib/stellar/mutation-state";
 import { prepareMutationTransaction } from "@/lib/stellar/prepare-mutation";
 import { mutationV1Args } from "@/lib/stellar/execution-v1";
@@ -225,7 +228,18 @@ export async function prepareMutation(
   let prepared: { mutation: MutationIntent; unsignedXdr: string; preparationLedger: number };
   let simulationStarted = false;
   try {
-    const current = await readMutationState(deployment);
+    let sourceAccount: Account | undefined;
+    let sourceAccountFailure: { error: AppError } | undefined;
+    const current = await readMutationState(deployment, async () => {
+      sourceAccount = undefined;
+      sourceAccountFailure = undefined;
+      sourceAccount = await observeRpcPhase("mutation.account", deployment.id, () =>
+        loadPaymentAccount(sorobanRpc(), input.admin),
+      ).catch((error: unknown) => {
+        sourceAccountFailure = { error: prepareFailure(error) };
+        return undefined;
+      });
+    });
     if (input.admin !== current.admin)
       throw new AppError(
         "FORBIDDEN",
@@ -253,7 +267,9 @@ export async function prepareMutation(
       })),
     });
     simulationStarted = true;
-    const unsignedXdr = await prepareMutationTransaction(mutation);
+    // Preserve existing authority/obligation/input refusal precedence over account failure.
+    if (sourceAccountFailure) throw sourceAccountFailure.error;
+    const unsignedXdr = await prepareMutationTransaction(mutation, sourceAccount);
     prepared = { mutation, unsignedXdr, preparationLedger: current.confirmedLedger };
   } catch (error) {
     if (

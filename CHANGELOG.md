@@ -5,6 +5,12 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Reduce configuration-update preparation latency by overlapping independent
+  account and instance reads and keeping up to four verified getters in flight.
+  Settle failed attempts before retrying, stop at the existing RPC deadline, and
+  report sanitized phase timings while retaining all configuration, authority,
+  obligation and original-transaction safeguards. No contract or API change.
+
 - Upgrade the Stellar SDK to decode Protocol 30 ledger headers and metadata,
   restoring Subscription allowance preparation and ledger-time finality reads
   without weakening unknown-transaction protection. Cover both millisecond

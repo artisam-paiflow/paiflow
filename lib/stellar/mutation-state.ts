@@ -28,43 +28,43 @@ const statusSchema = z
       .transform(String),
   })
   .strict();
-export async function readMutationState(deployment: Deployment) {
+export async function readMutationState(deployment: Deployment, finalRead?: () => Promise<void>) {
   const admin = WalletAddressSchema.safeParse(deployment.sourceAccount);
   if (!admin.success)
     throw new AppError("VALIDATION", "Deployment has no supported developer admin wallet");
   let statuses: Array<{ nodeId: string; obligationsStroops: string }> = [];
-  const current = await readExecutionState(deployment, async (current, getter) => {
-    if (current.nodes.some((node) => !node.capabilities.mutation)) return;
-    statuses = [];
-    // Configuration AND obligations share one whole-path instance-version fence.
-    // A balance change can alter obligations without changing the revision.
-    for (let offset = 1; offset < current.nodes.length; offset += 4) {
-      statuses.push(
-        ...(await Promise.all(
-          current.nodes.slice(offset, offset + 4).map(async (node, index) => {
-            const raw = await getter(node.contractAddress, "mutation_status");
-            const status = statusSchema.parse(raw);
-            const position = offset + index;
-            if (
-              status.node_id !== node.nodeId ||
-              status.admin !== admin.data ||
-              status.asset !== current.assetContract ||
-              status.revision !== node.expectedRevision ||
-              status.parent !== current.nodes[position - 1]!.contractAddress ||
-              !isDeepStrictEqual(
-                status.next_steps.map((n) => n.address),
-                current.nodes[position + 1] ? [current.nodes[position + 1]!.contractAddress] : [],
-              )
-            )
-              throw new AppError(
-                "UPSTREAM_RPC",
-                "Mutation authority or complete path could not be verified",
-              );
-            return { nodeId: node.nodeId, obligationsStroops: status.obligations };
-          }),
-        )),
-      );
-    }
+  const current = await readExecutionState(deployment, {
+    finalRead,
+    additionalReads: (nodes) =>
+      nodes.some((node) => !node.artifactCapabilities.mutation)
+        ? []
+        : nodes
+            .slice(1)
+            .map((node) => ({ contractAddress: node.contractAddress, method: "mutation_status" })),
+    inspect: (current, results) => {
+      if (current.nodes.some((node) => !node.capabilities.mutation)) return;
+      // Attempt-local results share the configuration's whole-path instance fence.
+      statuses = current.nodes.slice(1).map((node, index) => {
+        const status = statusSchema.parse(results[index]);
+        const position = index + 1;
+        if (
+          status.node_id !== node.nodeId ||
+          status.admin !== admin.data ||
+          status.asset !== current.assetContract ||
+          status.revision !== node.expectedRevision ||
+          status.parent !== current.nodes[position - 1]!.contractAddress ||
+          !isDeepStrictEqual(
+            status.next_steps.map((n) => n.address),
+            current.nodes[position + 1] ? [current.nodes[position + 1]!.contractAddress] : [],
+          )
+        )
+          throw new AppError(
+            "UPSTREAM_RPC",
+            "Mutation authority or complete path could not be verified",
+          );
+        return { nodeId: node.nodeId, obligationsStroops: status.obligations };
+      });
+    },
   });
   if (!current.supported || current.nodes.some((node) => !node.capabilities.mutation))
     throw new AppError("VALIDATION", "This deployment has no guarded mutation capability");
