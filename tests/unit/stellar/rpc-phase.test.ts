@@ -46,7 +46,7 @@ it("does not dispatch a phase after deadline expiry", async () => {
   const work = vi.fn();
   await expect(
     withInteractiveRpcBudget(() => observeRpcPhase("execution.opening", "deployment", work), 0),
-  ).rejects.toMatchObject({ code: "RPC_DEADLINE" });
+  ).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
   expect(work).not.toHaveBeenCalled();
   expect(mock.warn).toHaveBeenCalledWith(
     expect.objectContaining({ category: "deadline", remainingRpcMs: 0 }),
@@ -65,7 +65,7 @@ it("refuses a phase that finishes beyond its budget instead of logging success",
       ),
     25,
   );
-  const refused = expect(reading).rejects.toMatchObject({ code: "RPC_DEADLINE" });
+  const refused = expect(reading).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
   await vi.advanceTimersByTimeAsync(30);
   await refused;
   expect(mock.info).not.toHaveBeenCalled();

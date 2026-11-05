@@ -56,6 +56,11 @@ import {
 } from "@/lib/api/v1/execution-intent";
 import { ExecutionIntentSchema } from "@/lib/flows/field-policies";
 import { AppError } from "@/lib/errors";
+import { observeRpcPhase } from "@/lib/stellar/rpc-phase";
+import {
+  withInteractiveRpcBudget,
+  remainingInteractiveRpcMs,
+} from "@/lib/stellar/interactive-rpc-budget";
 import { reconcileControlIntent, recordControlFinality } from "@/lib/api/v1/control-intent";
 import { mutationV1Args, executionV1Args } from "@/lib/stellar/execution-v1";
 import {
@@ -414,6 +419,43 @@ describe("admin mutation durable lifecycle", () => {
       ),
     ).rejects.toMatchObject({ code: "CONFLICT", fields: undefined });
   });
+  it.each(["before", "after"] as const)(
+    "durably refuses a preparation when the deadline expires %s mutation simulation",
+    async (when) => {
+      const simulate = vi.fn(async () => {
+        const xdr = transaction(intent(deployment)).toXDR();
+        await new Promise((resolve) => setTimeout(resolve, remainingInteractiveRpcMs() + 5));
+        return xdr;
+      });
+      mocks.prepare.mockImplementationOnce(() =>
+        withInteractiveRpcBudget(
+          () => observeRpcPhase("mutation.simulation", deployment.id, simulate),
+          when === "before" ? 0 : 25,
+        ),
+      );
+      const error = await prepare("local-deadline").catch((e: unknown) => e);
+      expect(error).toMatchObject({ code: "UPSTREAM_RPC", status: 502 });
+      if (!(error instanceof AppError)) throw new Error("Expected durable preparation refusal");
+      const proof = JSON.parse(error.fields!.preparationRefusal![0]!);
+      expect(proof).toMatchObject({
+        outcome: "NOT_ADMITTED",
+        deploymentId: deployment.id,
+        reasonCode: "UPSTREAM_RPC",
+      });
+      expect(simulate).toHaveBeenCalledTimes(when === "before" ? 0 : 1);
+      expect(await db.walletControlIntent.count({ where: { deploymentId: deployment.id } })).toBe(
+        0,
+      );
+      expect(
+        await db.mutationPreparationRefusal.count({ where: { deploymentId: deployment.id } }),
+      ).toBe(1);
+      const reads = mocks.current.mock.calls.length;
+      await expect(prepare("local-deadline")).rejects.toMatchObject({
+        fields: { preparationRefusal: [JSON.stringify(proof)] },
+      });
+      expect(mocks.current).toHaveBeenCalledTimes(reads);
+    },
+  );
   it.each(["VALIDATION", "UPSTREAM_RPC", "INSUFFICIENT_FUNDS"] as const)(
     "preserves first-failure %s status and useful fields with additive refusal proof",
     async (code) => {
