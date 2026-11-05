@@ -44,7 +44,7 @@ beforeEach(() => {
   getTransaction.mockResolvedValue({
     status: "NOT_FOUND",
     oldestLedger: 100,
-    oldestLedgerCloseTime: now - 240,
+    oldestLedgerCloseTime: String(now - 240),
     latestLedger: 123,
   });
   getLatestLedger.mockResolvedValue({ sequence: 123 });
@@ -111,6 +111,78 @@ it("permits deliberate replacement only after ledger expiry and rechecking durab
   expect(getTransaction).toHaveBeenCalledTimes(2);
   expect(signed).toHaveBeenCalledTimes(2);
 });
+it.each([now - 240, String(now - 240), String(now - 180), `00${now - 240}`])(
+  "proves expiry with supported retention timestamp %j",
+  async (oldestLedgerCloseTime) => {
+    const d = deployment(now - 60);
+    current.mockResolvedValue(d);
+    getTransaction.mockResolvedValue({
+      status: "NOT_FOUND",
+      oldestLedger: 100,
+      oldestLedgerCloseTime,
+      latestLedger: 123,
+    });
+    expect(await preparedDeploymentRecovery(d)).toMatchObject({ status: "EXPIRED" });
+    const hash = TransactionBuilder.fromXDR(d.unsignedXdr, Networks.TESTNET).hash().toString("hex");
+    expect(getTransaction).toHaveBeenNthCalledWith(1, hash);
+    expect(getTransaction).toHaveBeenNthCalledWith(2, hash);
+    expect(signed).toHaveBeenCalledTimes(2);
+  },
+);
+const invalidRetentionTimes: unknown[] = [
+  undefined,
+  null,
+  true,
+  false,
+  {},
+  [],
+  [now - 240],
+  1n,
+  "",
+  " ",
+  "0",
+  0,
+  "-1",
+  -1,
+  "1.5",
+  1.5,
+  ` ${now - 240}`,
+  `${now - 240} `,
+  `${now - 240}\n`,
+  `${now - 240}\r`,
+  `+${now - 240}`,
+  "1e3",
+  "0x10",
+  "Infinity",
+  Number.POSITIVE_INFINITY,
+  Number.NaN,
+  "9007199254740992",
+  Number.MAX_SAFE_INTEGER + 1,
+];
+for (const read of ["initial", "final"] as const) {
+  it.each(invalidRetentionTimes)(
+    `blocks expiry on malformed ${read} retention timestamp %s`,
+    async (oldestLedgerCloseTime) => {
+      const d = deployment(now - 60);
+      current.mockResolvedValue(d);
+      const result = {
+        status: "NOT_FOUND",
+        oldestLedger: 100,
+        oldestLedgerCloseTime,
+        latestLedger: 123,
+      };
+      if (read === "initial") getTransaction.mockResolvedValueOnce(result);
+      else
+        getTransaction
+          .mockResolvedValueOnce({ ...result, oldestLedgerCloseTime: String(now - 240) })
+          .mockResolvedValueOnce(result);
+      expect(await preparedDeploymentRecovery(d)).toEqual({ status: "BLOCKED" });
+      expect(getTransaction).toHaveBeenCalledTimes(read === "initial" ? 1 : 2);
+      if (read === "initial") expect(getLatestLedger).not.toHaveBeenCalled();
+      expect(current).not.toHaveBeenCalled();
+    },
+  );
+}
 it.each(["old-ledger", "rpc-failure", "success", "concurrent-submit", "concurrent-ambiguity"])(
   "retains the expired preparation guard on %s",
   async (failure) => {
@@ -126,7 +198,7 @@ it.each(["old-ledger", "rpc-failure", "success", "concurrent-submit", "concurren
         .mockResolvedValueOnce({
           status: "NOT_FOUND",
           oldestLedger: 100,
-          oldestLedgerCloseTime: now - 240,
+          oldestLedgerCloseTime: String(now - 240),
           latestLedger: 123,
         })
         .mockResolvedValueOnce({ status: "SUCCESS" });
@@ -156,9 +228,9 @@ it("rejects malformed recovery metadata", () => {
 
 it.each([
   {},
-  { oldestLedger: 100, oldestLedgerCloseTime: now - 120, latestLedger: 123 },
-  { oldestLedger: 100, oldestLedgerCloseTime: now - 240, latestLedger: 122 },
-  { oldestLedger: 0, oldestLedgerCloseTime: now - 240, latestLedger: 123 },
+  { oldestLedger: 100, oldestLedgerCloseTime: String(now - 120), latestLedger: 123 },
+  { oldestLedger: 100, oldestLedgerCloseTime: String(now - 240), latestLedger: 122 },
+  { oldestLedger: 0, oldestLedgerCloseTime: String(now - 240), latestLedger: 123 },
   { oldestLedger: 100, oldestLedgerCloseTime: Number.NaN, latestLedger: 123 },
 ])("blocks expiry without complete available history %j", async (history) => {
   const d = deployment(now - 60);
@@ -173,13 +245,13 @@ it("blocks expiry if history is evicted between the two exact-hash reads", async
     .mockResolvedValueOnce({
       status: "NOT_FOUND",
       oldestLedger: 100,
-      oldestLedgerCloseTime: now - 240,
+      oldestLedgerCloseTime: String(now - 240),
       latestLedger: 123,
     })
     .mockResolvedValueOnce({
       status: "NOT_FOUND",
       oldestLedger: 120,
-      oldestLedgerCloseTime: now - 90,
+      oldestLedgerCloseTime: String(now - 90),
       latestLedger: 123,
     });
   expect(await preparedDeploymentRecovery(d)).toEqual({ status: "BLOCKED" });
