@@ -622,3 +622,190 @@ it("retries the complete mutation observation and publishes only the latest obli
   expect(mock.rpc.simulateTransaction).toHaveBeenCalledTimes(10);
   expect(mock.observe).toHaveBeenCalledTimes(1);
 });
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((yes, no) => {
+    resolve = yes;
+    reject = no;
+  });
+  return { promise, resolve, reject };
+}
+
+it("overlaps the initial account read with the opening instance fence", async () => {
+  const account = deferred<Account>();
+  mock.account.mockReturnValue(account.promise);
+  const reading = readExecutionState(deployment);
+  await vi.waitFor(() => expect(mock.rpc._getLedgerEntries).toHaveBeenCalledTimes(1));
+  expect(mock.rpc.simulateTransaction).not.toHaveBeenCalled();
+  account.resolve(new Account(owner, "10"));
+  expect((await reading).supported).toBe(true);
+});
+
+it("starts queued obligation getters while slower configuration getters are still running", async () => {
+  mutationGetters();
+  bracket({ after: 12 });
+  const simulate = mock.rpc.simulateTransaction.getMockImplementation()!;
+  const pending: Array<ReturnType<typeof deferred<void>>> = [];
+  let active = 0,
+    maximum = 0;
+  mock.rpc.simulateTransaction.mockImplementation(async (tx: Transaction) => {
+    const gate = deferred<void>();
+    pending.push(gate);
+    active++;
+    maximum = Math.max(maximum, active);
+    try {
+      const value = await simulate(tx);
+      await gate.promise;
+      return value;
+    } finally {
+      active--;
+    }
+  });
+  const reading = readMutationState(deployment);
+  await vi.waitFor(() => expect(pending).toHaveLength(4));
+  expect(mock.rpc._getLedgerEntries).toHaveBeenCalledTimes(1);
+  pending[0]!.resolve();
+  await vi.waitFor(() => expect(pending).toHaveLength(5));
+  const fifth = mock.rpc.simulateTransaction.mock.calls[4]![0] as Transaction;
+  const op = fifth.operations[0]!;
+  if (op.type !== "invokeHostFunction") throw new Error();
+  expect(op.func.invokeContract().functionName().toString()).toBe("mutation_status");
+  expect(mock.observe).not.toHaveBeenCalled();
+  expect(mock.rpc._getLedgerEntries).toHaveBeenCalledTimes(1);
+  pending.slice(1).forEach((gate) => gate.resolve());
+  await reading;
+  expect(maximum).toBe(4);
+  expect(active).toBe(0);
+  expect(mock.observe).toHaveBeenCalledOnce();
+});
+
+it("overlaps preparation-only work with the closing fence but verifies both before publishing", async () => {
+  mutationGetters();
+  bracket({ after: 12 });
+  const entries = mock.rpc._getLedgerEntries.getMockImplementation()!;
+  const closing = deferred<void>(),
+    account = deferred<void>();
+  let calls = 0;
+  mock.rpc._getLedgerEntries.mockImplementation(async (...keys: xdr.LedgerKey[]) => {
+    const value = await entries(...keys);
+    if (++calls === 2) await closing.promise;
+    return value;
+  });
+  const finalRead = vi.fn(() => account.promise);
+  const reading = readMutationState(deployment, finalRead);
+  await vi.waitFor(() => {
+    expect(calls).toBe(2);
+    expect(finalRead).toHaveBeenCalledOnce();
+  });
+  account.resolve();
+  await Promise.resolve();
+  expect(mock.observe).not.toHaveBeenCalled();
+  closing.resolve();
+  await reading;
+  expect(mock.observe).toHaveBeenCalledOnce();
+});
+
+it("retains preparation-only account failures without retrying or publishing history", async () => {
+  mutationGetters();
+  bracket({ after: 12 });
+  const error = new Error("safe account error");
+  await expect(
+    readMutationState(deployment, async () => {
+      throw error;
+    }),
+  ).rejects.toBe(error);
+  expect(mock.rpc._getLedgerEntries).toHaveBeenCalledTimes(2);
+  expect(mock.observe).not.toHaveBeenCalled();
+});
+
+it("settles failed-attempt siblings before retrying and never exceeds four active getters", async () => {
+  mutationGetters();
+  const simulate = mock.rpc.simulateTransaction.getMockImplementation()!;
+  const gates = Array.from({ length: 4 }, () => deferred<void>());
+  let calls = 0,
+    active = 0,
+    maximum = 0;
+  mock.rpc.simulateTransaction.mockImplementation(async (tx: Transaction) => {
+    const index = calls++;
+    active++;
+    maximum = Math.max(maximum, active);
+    try {
+      if (index < 4) await gates[index]!.promise;
+      return { ...(await simulate(tx)), latestLedger: 10 };
+    } finally {
+      active--;
+    }
+  });
+  const reading = readMutationState(deployment);
+  await vi.waitFor(() => expect(calls).toBe(4));
+  gates[0]!.reject(new Error("transport failure"));
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(mock.rpc._getLedgerEntries).toHaveBeenCalledTimes(1);
+  expect(calls).toBe(4);
+  gates.slice(1).forEach((gate) => gate.resolve());
+  expect((await reading).supported).toBe(true);
+  expect(maximum).toBe(4);
+  expect(active).toBe(0);
+  expect(mock.observe).toHaveBeenCalledOnce();
+});
+
+it("stops queued getters and refuses retry or history publication after the deadline", async () => {
+  const { withInteractiveRpcBudget } = await import("@/lib/stellar/interactive-rpc-budget");
+  mutationGetters();
+  bracket({ after: 12 });
+  const simulate = mock.rpc.simulateTransaction.getMockImplementation()!;
+  const gates: Array<ReturnType<typeof deferred<void>>> = [];
+  mock.rpc.simulateTransaction.mockImplementation(async (tx: Transaction) => {
+    const gate = deferred<void>();
+    gates.push(gate);
+    await gate.promise;
+    return simulate(tx);
+  });
+  vi.useFakeTimers();
+  try {
+    const reading = withInteractiveRpcBudget(() => readMutationState(deployment), 25);
+    const refused = expect(reading).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(gates).toHaveLength(4);
+    await vi.advanceTimersByTimeAsync(25);
+    gates.forEach((gate) => gate.resolve());
+    await refused;
+    expect(mock.rpc.simulateTransaction).toHaveBeenCalledTimes(4);
+    expect(mock.rpc._getLedgerEntries).toHaveBeenCalledTimes(1);
+    expect(mock.observe).not.toHaveBeenCalled();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("settles the closing fence when a preparation callback throws synchronously", async () => {
+  mutationGetters();
+  bracket({ after: 12 });
+  const entries = mock.rpc._getLedgerEntries.getMockImplementation()!;
+  const closing = deferred<void>();
+  let calls = 0,
+    completed = false;
+  mock.rpc._getLedgerEntries.mockImplementation(async (...keys: xdr.LedgerKey[]) => {
+    const value = await entries(...keys);
+    if (++calls === 2) await closing.promise;
+    return value;
+  });
+  const error = new Error("safe independent failure");
+  const reading = readMutationState(deployment, () => {
+    throw error;
+  });
+  const refused = expect(reading).rejects.toBe(error);
+  void reading
+    .finally(() => {
+      completed = true;
+    })
+    .catch(() => {});
+  await vi.waitFor(() => expect(calls).toBe(2));
+  expect(completed).toBe(false);
+  expect(mock.observe).not.toHaveBeenCalled();
+  closing.resolve();
+  await refused;
+  expect(calls).toBe(2);
+});
