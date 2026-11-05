@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   Account,
   Address,
+  Keypair,
   TransactionBuilder,
   Transaction,
   Networks,
@@ -75,6 +76,22 @@ describe("mutation transaction simulation and source admin auth", () => {
         .args()
         .map((v) => v.toXDR("base64")),
     ).toEqual(mutationV1Args(mutation.nodes, mutation.arguments).map((v) => v.toXDR("base64")));
+  });
+  it("uses an account already read inside preparation without another RPC account lookup", async () => {
+    const source = new Account(admin.publicKey(), "22");
+    const value = await prepareMutationTransaction(mutation, source);
+    const tx = TransactionBuilder.fromXDR(value, Networks.TESTNET);
+    if (!(tx instanceof Transaction)) throw new Error("Expected v1 envelope");
+    expect(tx.sequence).toBe("23");
+    expect(mock.account).not.toHaveBeenCalled();
+    expect(mock.simulate).toHaveBeenCalledOnce();
+  });
+  it("refuses a prefetched account belonging to another admin before simulation", async () => {
+    await expect(
+      prepareMutationTransaction(mutation, new Account(Keypair.random().publicKey(), "22")),
+    ).rejects.toMatchObject({ code: "VALIDATION" });
+    expect(mock.account).not.toHaveBeenCalled();
+    expect(mock.simulate).not.toHaveBeenCalled();
   });
   it("refuses unexpected non-source address authorizations and failed simulation", async () => {
     const sim = await mock.simulate();

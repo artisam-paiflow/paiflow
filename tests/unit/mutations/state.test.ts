@@ -37,13 +37,23 @@ function abi(value: unknown): xdr.ScVal {
 let status: Record<string, unknown>;
 beforeEach(() => {
   vi.clearAllMocks();
-  mock.current.mockImplementation(async (_deployment, inspect) => {
+  mock.current.mockImplementation(async (_deployment, options) => {
     const state = current(deployment);
-    await inspect(state, async () => {
-      const sim = await mock.simulate();
-      if (!sim.result) throw new Error("simulation unavailable");
-      return scValToNative(sim.result.retval);
-    });
+    const reads = options.additionalReads(
+      state.nodes.map((node) => ({
+        ...node,
+        artifactCapabilities: node.capabilities,
+      })),
+    );
+    const results = await Promise.all(
+      reads.map(async () => {
+        const sim = await mock.simulate();
+        if (!sim.result) throw new Error("simulation unavailable");
+        return scValToNative(sim.result.retval);
+      }),
+    );
+    options.inspect(state, results);
+    await options.finalRead?.();
     return state;
   });
   mock.account.mockResolvedValue(new Account(admin.publicKey(), "10"));

@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   current: vi.fn(),
   prepare: vi.fn(),
+  account: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({
   db: new Proxy(
@@ -30,6 +31,10 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@/lib/stellar/client", () => ({
   sorobanRpc: () => ({ sendTransaction: mocks.send, getTransaction: mocks.get }),
+}));
+vi.mock("@/lib/stellar/load-payment-account", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stellar/load-payment-account")>()),
+  loadPaymentAccount: mocks.account,
 }));
 vi.mock("@/lib/stellar/mutation-state", () => ({ readMutationState: mocks.current }));
 vi.mock("@/lib/stellar/prepare-mutation", () => ({ prepareMutationTransaction: mocks.prepare }));
@@ -101,6 +106,7 @@ beforeEach(async () => {
     },
   });
   mocks.current.mockImplementation(async () => current(deployment));
+  mocks.account.mockResolvedValue(new Account(admin.publicKey(), "10"));
   mocks.prepare.mockImplementation(async (mutation) =>
     new TransactionBuilder(new Account(mutation.admin, String(sequence++)), {
       fee: "100",
@@ -143,6 +149,65 @@ const send = async (data: Awaited<ReturnType<typeof prepare>>, signer = admin) =
   });
 };
 describe("admin mutation durable lifecycle", () => {
+  it("passes the overlapped admin account into transaction preparation", async () => {
+    mocks.current.mockImplementation(async (_deployment, finalRead) => {
+      await finalRead?.();
+      return current(deployment);
+    });
+    await prepare();
+    expect(mocks.account).toHaveBeenCalledOnce();
+    expect(mocks.prepare.mock.calls[0]![1].accountId()).toBe(admin.publicKey());
+  });
+  it("discards a failed account prefetch when a later observation retries successfully", async () => {
+    mocks.account
+      .mockRejectedValueOnce(new AppError("UPSTREAM_RPC", "Temporary account failure"))
+      .mockResolvedValueOnce(new Account(admin.publicKey(), "22"));
+    mocks.current.mockImplementation(async (_deployment, finalRead) => {
+      await finalRead(); // First closing fence rejects this observation after the account failure.
+      await finalRead(); // Stable retry has a new successful account observation.
+      return current(deployment);
+    });
+    await prepare();
+    expect(mocks.account).toHaveBeenCalledTimes(2);
+    expect(mocks.prepare.mock.calls[0]![1].sequenceNumber()).toBe("22");
+    expect(
+      await db.mutationPreparationRefusal.count({ where: { deploymentId: deployment.id } }),
+    ).toBe(0);
+  });
+  it.each(["obligations", "invalid-change", "unsupported"] as const)(
+    "preserves %s refusal precedence when the overlapped account lookup fails",
+    async (case_) => {
+      mocks.account.mockRejectedValue(new AppError("INSUFFICIENT_FUNDS", "Source missing"));
+      mocks.current.mockImplementation(async (_deployment, finalRead) => {
+        await finalRead?.();
+        if (case_ === "unsupported") throw new AppError("VALIDATION", "No guarded capability");
+        const state = current(deployment);
+        if (case_ === "obligations") state.obligations[0]!.obligationsStroops = "1";
+        return state;
+      });
+      const request = { admin: admin.publicKey(), arguments: intent(deployment).arguments };
+      if (case_ === "invalid-change") request.arguments.changes[0]!.nodeId = "foreign";
+      const code = case_ === "obligations" ? "CONFLICT" : "VALIDATION";
+      await expect(
+        prepareMutation(
+          deployment,
+          request,
+          executionIdempotencyKey("precedence")!,
+          admission,
+          "127.0.0.1",
+        ),
+      ).rejects.toMatchObject({ code });
+      expect(mocks.account).toHaveBeenCalledOnce();
+      expect(mocks.prepare).not.toHaveBeenCalled();
+      const refusal = await db.mutationPreparationRefusal.findFirstOrThrow({
+        where: { deploymentId: deployment.id },
+      });
+      expect(refusal.reasonCode).toBe(code);
+      expect(await db.walletControlIntent.count({ where: { deploymentId: deployment.id } })).toBe(
+        0,
+      );
+    },
+  );
   it("serializes concurrent same-key admission and retains original reviewed body on retry", async () => {
     const prepared = await Promise.all([prepare(), prepare(), prepare()]);
     expect(new Set(prepared.map((p) => p.intent)).size).toBe(1);
