@@ -28,7 +28,7 @@ import { loadPaymentAccount } from "./load-payment-account";
 import { interactiveRpcBudgetExpired, InteractiveRpcDeadlineError } from "./interactive-rpc-budget";
 import { observeRpcPhase } from "./rpc-phase";
 import { assetContractId } from "./assets";
-import { decodeExecutionCapabilities, decodeExecutionState } from "./execution-v1";
+import { decodeExecutionState } from "./execution-v1";
 import { assertExecutionArtifact, executionArtifactMetadata } from "./execution-artifacts";
 
 type ExecutionDeployment = Pick<
@@ -220,16 +220,41 @@ export async function readExecutionState(
   deployment: ExecutionDeployment,
   options: ReadOptions = {},
 ): Promise<ExecutionDiscovery> {
+  return (await observeExecutionState(deployment, options)).current;
+}
+
+/** Request-local verified observation. The refresh closure retains the complete live
+ * instance witness privately; callers cannot supply a graph or revision as evidence.
+ * Hosted preparation uses it after admission to verify review freshness without
+ * repeating getters whose complete instance dependencies have not changed.
+ */
+export async function readExecutionStateForReview(
+  deployment: ExecutionDeployment,
+  options: ReadOptions = {},
+) {
+  return observeExecutionState(deployment, options);
+}
+
+type ExecutionObservation = {
+  current: ExecutionDiscovery;
+  refresh?: () => Promise<SupportedExecutionState>;
+};
+async function observeExecutionState(
+  deployment: ExecutionDeployment,
+  options: ReadOptions = {},
+): Promise<ExecutionObservation> {
   if (deployment.status !== "CONFIRMED" || deployment.network !== env().STELLAR_NETWORK)
     throw new AppError("NOT_FOUND", "Deployment unavailable on this network");
   const graph = FlowGraphSchema.parse(deployment.graphSnapshot);
   if (!graph.fieldPolicies)
     return {
-      supported: false,
-      deploymentId: deployment.id,
-      network: env().STELLAR_NETWORK,
-      policyVersion: 0,
-      reason: "Legacy deployment: execution inputs and mutable configuration are unavailable",
+      current: {
+        supported: false,
+        deploymentId: deployment.id,
+        network: env().STELLAR_NETWORK,
+        policyVersion: 0,
+        reason: "Legacy deployment: execution inputs and mutable configuration are unavailable",
+      },
     };
   const path = executionPath(graph);
   const parsed = SnapshotSchema.safeParse(deployment.pipelineSnapshot);
@@ -317,10 +342,14 @@ export async function readExecutionState(
         getterLedgers.push(observed);
         return scValToNative(sim.result.retval);
       };
-      const requests: GetterRequest[] = snapshot.flatMap((node) => [
-        { contractAddress: node.contractAddress, method: "capabilities" },
-        { contractAddress: node.contractAddress, method: "current_config" },
-      ]);
+      // For these exact reviewed executables capabilities are fixed once policy
+      // initialization succeeds. current_config requires that policy to exist.
+      // Both live instance fences verify the executable, so another simulation of
+      // capabilities grants no additional authority and costs a queue slot/RPC.
+      const requests: GetterRequest[] = snapshot.map((node) => ({
+        contractAddress: node.contractAddress,
+        method: "current_config",
+      }));
       const extraRequests = options.additionalReads?.(snapshot) ?? [];
       const results = await observeRpcPhase(
         "execution.getters",
@@ -329,7 +358,7 @@ export async function readExecutionState(
         attempt,
       );
       const values = snapshot.map((node, index) => {
-        const capabilities = decodeExecutionCapabilities(results[index * 2], node.wasmHash);
+        const capabilities = executionArtifactMetadata(node.templateKind, node.wasmHash);
         if (
           capabilities.policyVersion !== 1 ||
           !capabilities.execution ||
@@ -338,7 +367,7 @@ export async function readExecutionState(
           throw unavailable();
         return {
           capabilities,
-          state: decodeExecutionState(results[index * 2 + 1], {
+          state: decodeExecutionState(results[index], {
             nodeId: node.nodeId,
             contractAddress: node.contractAddress,
             confirmedLedger: ledger,
@@ -420,13 +449,34 @@ export async function readExecutionState(
         throw unavailable();
       // Every getter's instance dependencies were unchanged throughout the bracket,
       // so their decoded values also describe the final common snapshot.
-      return {
+      const atLedger = (confirmedLedger: number): SupportedExecutionState => ({
         ...current,
-        confirmedLedger: after.ledger,
+        confirmedLedger,
         configurations: current.configurations.map((configuration) => ({
           ...configuration,
-          confirmedLedger: after.ledger,
+          confirmedLedger,
         })),
+      });
+      return {
+        current: atLedger(after.ledger),
+        refresh: async () => {
+          try {
+            const review = await observeRpcPhase("execution.review", deployment.id, () =>
+              readInstances(server, snapshot),
+            );
+            // Compare complete XDR and lastModified, not just revisions: this also
+            // detects changes followed by a return to the original storage value.
+            if (review.ledger < after.ledger || !isDeepStrictEqual(review.versions, after.versions))
+              throw new AppError(
+                "CONFLICT",
+                "Configuration changed; check this payment receipt before preparing again",
+              );
+            return atLedger(review.ledger);
+          } catch (error) {
+            if (error instanceof AppError) throw error;
+            throw unavailable();
+          }
+        },
       };
     } catch {
       log.warn(

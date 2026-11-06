@@ -49,6 +49,17 @@ Visibility is a hosted UI choice, not on-chain access control. Direct contract c
 remain subject to the payer-bound on-chain policy. Disabling the form neither
 rewrites constants nor cancels, hides or clears an uncertain payment.
 
+Fresh preparation shares the existing 25-second interactive RPC deadline. Current
+configuration and mutation-status getters remain bracketed by complete live
+instance checks; capabilities come from the reviewed manifest only after exact
+live executable verification and successful policy configuration reads. Payer
+account loading overlaps the closing check. After durable admission, one further
+live instance batch verifies the complete stored values, executable hashes and
+last-modified ledgers before reusing that request's decoded review. No witness is
+cached or persisted: keyed retries obtain a fresh complete observation. A failed
+post-admission check retains the original receipt and capability. Sanitized phase
+logs distinguish account loading, payment simulation and review verification.
+
 ## Recovery and privacy
 
 The ownership proof binds a domain/version, deployment, payer, every canonical

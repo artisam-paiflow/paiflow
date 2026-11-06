@@ -5,6 +5,12 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Reduce configuration and hosted-payment RPC work by deriving capabilities from
+  verified reviewed executables, overlapping payer account loading with the closing
+  consistency check, and verifying hosted review with a complete post-admission
+  instance fence. Preserve exact-original recovery and the 25-second deadline; add
+  sanitized account/simulation/review timings ([#1210](https://github.com/webnxt-2030/pinkraft/issues/1210)).
+
 - Preserve registered ABI metadata during same-hash synchronization and reject
   hash changes without matching ABI evidence. Upload and hash synchronization
   extract complete specifications from the exact WASM, with a scoped inspection
