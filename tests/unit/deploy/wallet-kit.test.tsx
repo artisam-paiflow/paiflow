@@ -58,7 +58,7 @@ describe("shared wallet initialization", () => {
     expect(mocks.init).toHaveBeenCalledOnce();
     expect(mocks.kit).toHaveBeenCalledOnce();
     expect(first.method).toBe("stellar_signXDR");
-    expect(first).not.toHaveProperty("modal");
+    expect(first.modal).toBeDefined();
   });
 
   it.each([false, true])("preserves desktop/mobile module choice (mobile=%s)", async (mobile) => {

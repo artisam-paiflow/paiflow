@@ -1,6 +1,7 @@
 import type { WalletKit } from "./wallet-kit";
 import { selectWallet } from "./select-wallet";
 import { walletConnectConnection } from "./wallet-connect-connection";
+import { pairWalletConnect } from "./wallet-connect-pairing";
 
 export function assertWalletAttemptActive(signal: AbortSignal): void {
   signal.throwIfAborted();
@@ -18,16 +19,12 @@ export async function connectSelectedWallet(
   if (!wallet) return null;
   shared.kit.setWallet(wallet.id);
   if (wallet.id === "wallet_connect") {
-    if (!shared.module || !shared.client) throw new Error("WalletConnect is not configured.");
-    const { module, client } = shared;
-    const session = await module.connectWalletConnect();
+    if (!shared.module || !shared.client || !shared.modal)
+      throw new Error("WalletConnect is not configured.");
+    const { client, modal } = shared;
+    const approved = await pairWalletConnect(client, modal, network, signal);
     assertWalletAttemptActive(signal);
-    const address = session.accounts.find(
-      (account: { network: string; publicKey: string }) =>
-        account.network === (network === "mainnet" ? "pubnet" : "testnet"),
-    )?.publicKey;
-    if (!address) throw new Error("Wallet connection does not authorize this network.");
-    const approved = { topic: session.id, address };
+    if (!approved) return null;
     return walletConnectConnection(client, network, approved, signal);
   }
   const { address } = await shared.kit.getAddress();

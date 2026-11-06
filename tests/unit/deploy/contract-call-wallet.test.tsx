@@ -562,11 +562,16 @@ describe("WalletConnect contract actions", () => {
     });
     const client = {
       session: { values: [session("older-topic"), session("chosen-topic")] },
+      connect: vi.fn(async () => ({
+        uri: "wc:fixture",
+        approval: async () => session("chosen-topic"),
+      })),
       request: vi.fn(async () => ({ signedXDR: "signed-wc" })),
     };
     mocks.getWalletKit.mockResolvedValue({
       ...shared,
       client,
+      modal: { subscribeModal: () => () => {}, openModal: async () => {}, closeModal: vi.fn() },
       module: {
         connectWalletConnect: vi.fn(async () => ({
           id: "chosen-topic",

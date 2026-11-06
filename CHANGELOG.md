@@ -5,6 +5,11 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Recover desktop WalletConnect cancellation without reloading the payment page.
+  Scope QR cleanup to its connection attempt, reject overlapping pairings, and
+  ignore late approvals while preserving exact account, network and signing checks
+  ([#1211](https://github.com/webnxt-2030/pinkraft/issues/1211)).
+
 - Reduce configuration and hosted-payment RPC work by deriving capabilities from
   verified reviewed executables, overlapping payer account loading with the closing
   consistency check, and verifying hosted review with a complete post-admission
