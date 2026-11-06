@@ -5,6 +5,11 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Recover desktop WalletConnect cancellation without reloading the payment page.
+  Scope QR cleanup to its connection attempt, reject overlapping pairings, and
+  ignore late approvals while preserving exact account, network and signing checks
+  ([#1211](https://github.com/webnxt-2030/pinkraft/issues/1211)).
+
 - Restore expired unsigned deployment recovery when Stellar RPC returns retention
   timestamps as decimal strings. Reject malformed or unsafe timestamps and retain
   full non-inclusion coverage, closed-ledger expiry and durable submission checks

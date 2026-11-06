@@ -49,6 +49,11 @@ function fixture() {
   });
   const client = {
     session: { values: [session("older-topic"), session("chosen-topic")] },
+    connect: vi.fn(async () => ({
+      uri: "wc:fixture",
+      approval: async () => session("chosen-topic"),
+    })),
+    disconnect: vi.fn(async () => {}),
     request: vi.fn(async ({ request }: { request: { params: { xdr: string } } }) => {
       const tx = TransactionBuilder.fromXDR(request.params.xdr, Networks.TESTNET);
       tx.sign(wallet);
@@ -77,7 +82,8 @@ function fixture() {
     signTransaction: (...args: Parameters<typeof module.signTransaction>) =>
       module.signTransaction(...args),
   };
-  const shared = { kit, module, client } as unknown as WalletKit;
+  const modal = { subscribeModal: () => () => {}, openModal: async () => {}, closeModal: vi.fn() };
+  const shared = { kit, module, client, modal } as unknown as WalletKit;
   return { shared, client, module, sdkSign };
 }
 async function connect(value = fixture(), signal = new AbortController().signal) {

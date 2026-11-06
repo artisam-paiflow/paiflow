@@ -27,6 +27,7 @@ export type WalletKit = {
   /** null when WalletConnect is not configured; desktop Freighter remains available. */
   module: WalletConnectModule | null;
   client: WalletConnectClient | null;
+  modal: WalletConnectModal | null;
   method: WalletConnectAllowedMethods.SIGN;
 };
 
@@ -76,6 +77,7 @@ export async function getWalletKit(network: "testnet" | "mainnet"): Promise<Wall
         lantern: lanternModule,
         module: null,
         client: null,
+        modal: null,
         method: WalletConnectAllowedMethods.SIGN,
       };
     }
@@ -139,6 +141,7 @@ export async function getWalletKit(network: "testnet" | "mainnet"): Promise<Wall
       lantern: lanternModule,
       module: walletConnectModule,
       client: walletConnectClient,
+      modal: walletConnectModal,
       method: WalletConnectAllowedMethods.SIGN,
     };
   })().then((value) => {
