@@ -111,14 +111,16 @@ describe("DeployReview shared picker", () => {
   it("pairs WalletConnect before resolving the address and preparing", async () => {
     const shared = await mocks.getWalletKit();
     const connectWalletConnect = vi.fn(async () => ({
-      id: "new-topic",
-      accounts: [{ network: "testnet", publicKey: ADDRESS }],
+      uri: "wc:fixture",
+      approval: async () => ({ topic: "new-topic" }),
     }));
     const setSession = vi.fn();
     mocks.getWalletKit.mockResolvedValue({
       ...shared,
       module: { connectWalletConnect, setSession },
+      modal: { subscribeModal: () => () => {}, openModal: async () => {}, closeModal: vi.fn() },
       client: {
+        connect: connectWalletConnect,
         session: {
           values: [
             {

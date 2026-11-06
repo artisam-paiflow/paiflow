@@ -1,16 +1,26 @@
 import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Keypair, Networks, StrKey } from "@stellar/stellar-sdk";
+import { Account, Keypair, Networks, StrKey } from "@stellar/stellar-sdk";
 import type { Deployment } from "@prisma/client";
 import { ExecutionDiscoverySchema } from "@/lib/api/v1/execution-schema";
 const mock = vi.hoisted(() => ({
   state: vi.fn(),
+  observation: vi.fn(),
+  account: vi.fn(),
   prepare: vi.fn(),
   save: vi.fn(),
   retry: vi.fn(),
   control: vi.fn(),
 }));
-vi.mock("@/lib/stellar/execution-state", () => ({ readExecutionState: mock.state }));
+vi.mock("@/lib/stellar/execution-state", () => ({
+  readExecutionState: mock.state,
+  readExecutionStateForReview: mock.observation,
+}));
+vi.mock("@/lib/stellar/client", () => ({ sorobanRpc: () => ({}) }));
+vi.mock("@/lib/stellar/load-payment-account", async (original) => ({
+  ...(await original<typeof import("@/lib/stellar/load-payment-account")>()),
+  loadPaymentAccount: mock.account,
+}));
 vi.mock("@/lib/stellar/prepare-execution", () => ({ prepareExecutionTransaction: mock.prepare }));
 vi.mock("@/lib/api/v1/execution-intent", () => ({
   createExecutionIntent: mock.save,
@@ -71,6 +81,7 @@ beforeEach(() => {
     ],
   });
   mock.state.mockResolvedValue(current);
+  mock.account.mockResolvedValue(new Account(wallet, "10"));
   mock.prepare.mockResolvedValue({ xdr: "unsigned" });
   mock.retry.mockResolvedValue(null);
   mock.save.mockImplementation(async (input) => input);
@@ -106,7 +117,7 @@ describe("reviewed runtime payment preparation", () => {
       { nodeId: "root", contractAddress: root, wasmHash: "aa".repeat(32) },
       { nodeId: "pay", contractAddress: pay, wasmHash: "aa".repeat(32) },
     ]);
-    expect(mock.prepare).toHaveBeenCalledWith(saved.execution);
+    expect(mock.prepare).toHaveBeenCalledWith(saved.execution, undefined);
   });
   it("never falls back to a saved recipient when a declared input is missing", async () => {
     await expect(
@@ -169,4 +180,49 @@ describe("reviewed runtime payment preparation", () => {
       });
     },
   );
+});
+
+it("overlaps payer loading with the closing fence and passes the verified payer into simulation", async () => {
+  mock.state.mockImplementation(async (_deployment, options) => {
+    await options.finalRead();
+    return current;
+  });
+  await prepareExecutionPayment(deployment, input(), "key");
+  expect(mock.prepare).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({}));
+  const source = mock.prepare.mock.calls[0]![1] as Account;
+  expect(source.accountId()).toBe(wallet);
+  expect(mock.account).toHaveBeenCalledTimes(1);
+});
+
+it("requires post-admission fresh fence before returning request-local review state", async () => {
+  const refresh = vi.fn(async () => {
+    expect(mock.save).toHaveBeenCalledTimes(1);
+    return current;
+  });
+  mock.observation.mockResolvedValue({ current, refresh });
+  const review = vi.fn();
+  await prepareExecutionPayment(deployment, input(), "key", undefined, "capability-hash", review);
+  expect(review).toHaveBeenCalledWith(current);
+  expect(mock.state).not.toHaveBeenCalled();
+  expect(refresh).toHaveBeenCalledTimes(1);
+});
+
+it("retains the admitted original after a post-admission review deadline and recovers exact keyed retry", async () => {
+  const { AppError } = await import("@/lib/errors");
+  const refresh = vi.fn().mockRejectedValue(new AppError("UPSTREAM_RPC", "Deadline exhausted"));
+  mock.observation.mockResolvedValue({ current, refresh });
+  const review = vi.fn();
+  await expect(
+    prepareExecutionPayment(deployment, input(), "key", undefined, "capability-hash", review),
+  ).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
+  expect(mock.save).toHaveBeenCalledTimes(1);
+  expect(review).not.toHaveBeenCalled();
+  mock.retry.mockResolvedValue({ intent: "original", txHash: "original-hash" });
+  expect(
+    await prepareExecutionPayment(deployment, input(), "key", undefined, "capability-hash", review),
+  ).toEqual({ intent: "original", txHash: "original-hash" });
+  expect(mock.save).toHaveBeenCalledTimes(1);
+  expect(mock.prepare).toHaveBeenCalledTimes(1);
+  expect(mock.observation).toHaveBeenCalledTimes(1);
+  expect(review).not.toHaveBeenCalled();
 });

@@ -491,7 +491,10 @@ export default function DeployReview({
           check();
           const connection = await connectSelectedWallet(shared, network, signal);
           check();
-          if (!connection) return;
+          if (!connection) {
+            toast.warning("Connection cancelled");
+            return;
+          }
           const { address, walletId } = connection;
           void trackWalletConnection({ address, network, walletId, surface: "deploy_review" });
           let prepared: { deploymentId: string; xdr: string; networkPassphrase: string };

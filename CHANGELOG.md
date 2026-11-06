@@ -5,6 +5,25 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Recover desktop WalletConnect cancellation without reloading the payment page.
+  Scope QR cleanup to its connection attempt, reject overlapping pairings, and
+  ignore late approvals while preserving exact account, network and signing checks
+  ([#1211](https://github.com/webnxt-2030/pinkraft/issues/1211)).
+
+- Reduce configuration and hosted-payment RPC work by deriving capabilities from
+  verified reviewed executables, overlapping payer account loading with the closing
+  consistency check, and verifying hosted review with a complete post-admission
+  instance fence. Preserve exact-original recovery and the 25-second deadline; add
+  sanitized account/simulation/review timings ([#1210](https://github.com/webnxt-2030/pinkraft/issues/1210)).
+
+- Preserve registered ABI metadata during same-hash synchronization and reject
+  hash changes without matching ABI evidence. Upload and hash synchronization
+  extract complete specifications from the exact WASM, with a scoped inspection
+  and repair mode for existing metadata. ABI changes still invalidate immutable
+  template pins; see [registry ABI synchronization](docs/registry-abi-sync.md)
+  ([#1209](https://github.com/webnxt-2030/pinkraft/issues/1209)). No live registry
+  or contract changes are applied by this source fix.
+
 - Restore expired unsigned deployment recovery when Stellar RPC returns retention
   timestamps as decimal strings. Reject malformed or unsafe timestamps and retain
   full non-inclusion coverage, closed-ledger expiry and durable submission checks
