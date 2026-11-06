@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   Account,
   Address,
@@ -6,6 +6,7 @@ import {
   Keypair,
   Networks,
   StrKey,
+  SorobanDataBuilder,
   nativeToScVal,
   xdr,
   type Transaction,
@@ -25,7 +26,7 @@ vi.mock("@/lib/stellar/client", () => ({ sorobanRpc: () => mock.rpc }));
 vi.mock("@/lib/stellar/load-payment-account", () => ({ loadPaymentAccount: mock.account }));
 vi.mock("@/lib/mutations/history", () => ({ recordConfigurationObservation: mock.observe }));
 import { readMutationState } from "@/lib/stellar/mutation-state";
-import { readExecutionState } from "@/lib/stellar/execution-state";
+import { readExecutionState, readExecutionStateForReview } from "@/lib/stellar/execution-state";
 
 const owner = Keypair.random().publicKey();
 const recipient = Keypair.random().publicKey();
@@ -186,7 +187,7 @@ describe("verified current execution state", () => {
     });
     expect(state.policies.nodes[0]).toMatchObject({ nodeId: "pay", recipient: "execution" });
     expect(JSON.stringify(state)).not.toContain("email");
-    expect(mock.rpc.simulateTransaction).toHaveBeenCalledTimes(4);
+    expect(mock.rpc.simulateTransaction).toHaveBeenCalledTimes(2);
   });
   it("reports legacy unavailability without querying arbitrary getters", async () => {
     const graph = deployment.graphSnapshot as Record<string, unknown>;
@@ -260,19 +261,19 @@ describe("verified current execution state", () => {
     };
     await expect(readExecutionState(deployment)).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
   });
-  it("does not infer support from an unknown/missing capability", async () => {
-    const original = mock.rpc.simulateTransaction.getMockImplementation()!;
-    mock.rpc.simulateTransaction.mockImplementation(async (tx: Transaction) => {
-      const result = await original(tx);
-      const op = tx.operations[0]!;
-      if (
-        op.type === "invokeHostFunction" &&
-        op.func.invokeContract().functionName().toString() === "capabilities"
-      )
-        result.result.retval = abiValue({ ...capabilities, execution: false });
-      return result;
-    });
+  it("derives capabilities only from verified exact artifacts and still requires valid live policy", async () => {
+    rawPay.policy = null;
     await expect(readExecutionState(deployment)).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
+    expect(
+      mock.rpc.simulateTransaction.mock.calls.every(([value]) => {
+        const tx = value as Transaction;
+        const op = tx.operations[0]!;
+        return (
+          op.type === "invokeHostFunction" &&
+          op.func.invokeContract().functionName().toString() === "current_config"
+        );
+      }),
+    ).toBe(true);
   });
 });
 
@@ -471,7 +472,7 @@ it("accepts a three-node path whose successive getter batches cross ledgers", as
   const state = await readExecutionState(deployment);
   expect(state.supported && state.nodes).toHaveLength(3);
   expect(state.supported && state.confirmedLedger).toBe(12);
-  expect(mock.rpc.simulateTransaction).toHaveBeenCalledTimes(6);
+  expect(mock.rpc.simulateTransaction).toHaveBeenCalledTimes(3);
 });
 
 it.each(["metadata", "storage", "code"] as const)(
@@ -486,7 +487,7 @@ it.each(["metadata", "storage", "code"] as const)(
 it("restarts all getters after a detected write and accepts only the stable retry", async () => {
   bracket({ changed: "metadata", firstAttemptOnly: true });
   expect((await readExecutionState(deployment)).supported).toBe(true);
-  expect(mock.rpc.simulateTransaction).toHaveBeenCalledTimes(8);
+  expect(mock.rpc.simulateTransaction).toHaveBeenCalledTimes(4);
 });
 
 it.each([
@@ -573,7 +574,7 @@ it("rejects obligation writes after configuration getters even with unchanged re
   mutationGetters(0n);
   bracket({ after: 12, changed: "storage" });
   await expect(readMutationState(deployment)).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
-  expect(mock.rpc.simulateTransaction).toHaveBeenCalledTimes(10);
+  expect(mock.rpc.simulateTransaction).toHaveBeenCalledTimes(6);
   expect(mock.observe).not.toHaveBeenCalled();
 });
 
@@ -619,7 +620,7 @@ it("retries the complete mutation observation and publishes only the latest obli
   });
   const state = await readMutationState(deployment);
   expect(state.obligations).toEqual([{ nodeId: "pay", obligationsStroops: "2" }]);
-  expect(mock.rpc.simulateTransaction).toHaveBeenCalledTimes(10);
+  expect(mock.rpc.simulateTransaction).toHaveBeenCalledTimes(6);
   expect(mock.observe).toHaveBeenCalledTimes(1);
 });
 
@@ -663,7 +664,13 @@ it("starts queued obligation getters while slower configuration getters are stil
       active--;
     }
   });
-  const reading = readMutationState(deployment);
+  const reading = readExecutionState(deployment, {
+    additionalReads: () =>
+      Array.from({ length: 3 }, () => ({
+        contractAddress: pay,
+        method: "mutation_status" as const,
+      })),
+  });
   await vi.waitFor(() => expect(pending).toHaveLength(4));
   expect(mock.rpc._getLedgerEntries).toHaveBeenCalledTimes(1);
   pending[0]!.resolve();
@@ -678,7 +685,7 @@ it("starts queued obligation getters while slower configuration getters are stil
   await reading;
   expect(maximum).toBe(4);
   expect(active).toBe(0);
-  expect(mock.observe).toHaveBeenCalledOnce();
+  expect(mock.observe).not.toHaveBeenCalled();
 });
 
 it("overlaps preparation-only work with the closing fence but verifies both before publishing", async () => {
@@ -738,7 +745,13 @@ it("settles failed-attempt siblings before retrying and never exceeds four activ
       active--;
     }
   });
-  const reading = readMutationState(deployment);
+  const reading = readExecutionState(deployment, {
+    additionalReads: () =>
+      Array.from({ length: 3 }, () => ({
+        contractAddress: pay,
+        method: "mutation_status" as const,
+      })),
+  });
   await vi.waitFor(() => expect(calls).toBe(4));
   gates[0]!.reject(new Error("transport failure"));
   await new Promise((resolve) => setTimeout(resolve, 10));
@@ -748,7 +761,7 @@ it("settles failed-attempt siblings before retrying and never exceeds four activ
   expect((await reading).supported).toBe(true);
   expect(maximum).toBe(4);
   expect(active).toBe(0);
-  expect(mock.observe).toHaveBeenCalledOnce();
+  expect(mock.observe).not.toHaveBeenCalled();
 });
 
 it("stops queued getters and refuses retry or history publication after the deadline", async () => {
@@ -765,7 +778,17 @@ it("stops queued getters and refuses retry or history publication after the dead
   });
   vi.useFakeTimers();
   try {
-    const reading = withInteractiveRpcBudget(() => readMutationState(deployment), 25);
+    const reading = withInteractiveRpcBudget(
+      () =>
+        readExecutionState(deployment, {
+          additionalReads: () =>
+            Array.from({ length: 3 }, () => ({
+              contractAddress: pay,
+              method: "mutation_status" as const,
+            })),
+        }),
+      25,
+    );
     const refused = expect(reading).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
     await vi.advanceTimersByTimeAsync(0);
     expect(gates).toHaveLength(4);
@@ -808,4 +831,152 @@ it("settles the closing fence when a preparation callback throws synchronously",
   closing.resolve();
   await refused;
   expect(calls).toBe(2);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+});
+
+it("finishes guarded configuration within25s with slow opening/getter/closing calls", async () => {
+  mutationGetters();
+  vi.useFakeTimers();
+  const ledger = mock.rpc._getLedgerEntries.getMockImplementation()!;
+  mock.rpc._getLedgerEntries.mockImplementation(async (...keys: xdr.LedgerKey[]) => {
+    await new Promise((resolve) => setTimeout(resolve, 8_000));
+    const result = await ledger(...keys);
+    result.latestLedger = 12;
+    return result;
+  });
+  const simulate = mock.rpc.simulateTransaction.getMockImplementation()!;
+  mock.rpc.simulateTransaction.mockImplementation(async (tx: Transaction) => {
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
+    return { ...(await simulate(tx)), latestLedger: 12 };
+  });
+  const { withInteractiveRpcBudget } = await import("@/lib/stellar/interactive-rpc-budget");
+  const started = Date.now();
+  const result = withInteractiveRpcBudget(() => readMutationState(deployment));
+  await vi.advanceTimersByTimeAsync(21_000);
+  expect((await result).mutationSupported).toBe(true);
+  expect(Date.now() - started).toBe(21_000);
+  // The old two capability simulations forced a second5s queue wave (26s total).
+  expect(mock.rpc.simulateTransaction).toHaveBeenCalledTimes(3);
+  expect(mock.rpc._getLedgerEntries).toHaveBeenCalledTimes(2);
+});
+
+it("refreshes a request-local review with one complete live fence and no repeated simulations", async () => {
+  const observed = await readExecutionStateForReview(deployment);
+  const original = mock.rpc._getLedgerEntries.getMockImplementation()!;
+  mock.rpc._getLedgerEntries.mockImplementation(async (...keys: xdr.LedgerKey[]) => ({
+    ...(await original(...keys)),
+    latestLedger: 13,
+  }));
+  expect((await observed.refresh!()).confirmedLedger).toBe(13);
+  expect(mock.rpc.simulateTransaction).toHaveBeenCalledTimes(2);
+  expect(mock.rpc._getLedgerEntries).toHaveBeenCalledTimes(3);
+});
+
+it.each(["lastModified", "storage", "code", "missing", "regression", "expired"])(
+  "refuses post-admission review with changed or incomplete %s evidence",
+  async (fault) => {
+    const observed = await readExecutionStateForReview(deployment);
+    const original = mock.rpc._getLedgerEntries.getMockImplementation()!;
+    mock.rpc._getLedgerEntries.mockImplementation(async (...keys: xdr.LedgerKey[]) => {
+      const result = await original(...keys);
+      if (fault === "lastModified") result.entries[1].lastModifiedLedgerSeq = 6;
+      if (fault === "missing") result.entries.pop();
+      if (fault === "regression") result.latestLedger = 9;
+      if (fault === "expired") result.entries[1].liveUntilLedgerSeq = 9;
+      if (fault === "storage" || fault === "code") {
+        const data = xdr.LedgerEntryData.fromXDR(result.entries[1].xdr, "base64");
+        const instance = data.contractData().val().instance();
+        if (fault === "storage")
+          instance.storage([new xdr.ScMapEntry({ key: abiValue("balance"), val: abiValue(1n) })]);
+        else
+          instance.executable(xdr.ContractExecutable.contractExecutableWasm(Buffer.alloc(32, 9)));
+        result.entries[1].xdr = data.toXDR("base64");
+      }
+      return result;
+    });
+    await expect(observed.refresh!()).rejects.toMatchObject({
+      code: expect.stringMatching(/CONFLICT|UPSTREAM_RPC/),
+    });
+    expect(mock.rpc.simulateTransaction).toHaveBeenCalledTimes(2);
+  },
+);
+
+it("overlaps real payer loading and reuses verified review to complete the slow payment RPC path within25s", async () => {
+  vi.useFakeTimers();
+  const { loadPaymentAccount: actualLoad } = await vi.importActual<
+    typeof import("@/lib/stellar/load-payment-account")
+  >("@/lib/stellar/load-payment-account");
+  const { paymentAccountResponse } = await import("./payment-account-fixture");
+  const { prepareExecutionTransaction } = await import("@/lib/stellar/prepare-execution");
+  const { ExecutionIntentSchema } = await import("@/lib/flows/field-policies");
+  const { withInteractiveRpcBudget } = await import("@/lib/stellar/interactive-rpc-budget");
+  const ledger = mock.rpc._getLedgerEntries.getMockImplementation()!;
+  mock.rpc._getLedgerEntries.mockImplementation(async (...keys: xdr.LedgerKey[]) => {
+    await new Promise((resolve) => setTimeout(resolve, 6_000));
+    return ledger(...keys);
+  });
+  const simulate = mock.rpc.simulateTransaction.getMockImplementation()!;
+  mock.rpc.simulateTransaction.mockImplementation(async (tx: Transaction) => {
+    await new Promise((resolve) => setTimeout(resolve, 3_000));
+    const op = tx.operations[0]!;
+    if (
+      op.type === "invokeHostFunction" &&
+      op.func.invokeContract().functionName().toString() === "execute_v1"
+    )
+      return {
+        _parsed: true,
+        id: "1",
+        latestLedger: 10,
+        transactionData: new SorobanDataBuilder().setResourceFee("1000"),
+        minResourceFee: "1000",
+        result: { retval: xdr.ScVal.scvVoid(), auth: [] },
+        events: [],
+      };
+    return simulate(tx);
+  });
+  let payerAccount: Account | undefined;
+  const payerRead = vi.fn(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 6_000));
+    return paymentAccountResponse(owner, "22");
+  });
+  const started = Date.now();
+  const result = withInteractiveRpcBudget(async () => {
+    const observed = await readExecutionStateForReview(deployment, {
+      finalRead: async () => {
+        payerAccount = await actualLoad({ _getLedgerEntries: payerRead }, owner);
+      },
+    });
+    if (!observed.current.supported) throw new Error();
+    expect(Date.now() - started).toBe(15_000);
+    const execution = ExecutionIntentSchema.parse({
+      version: 1,
+      deploymentId: deployment.id,
+      networkPassphraseHash: "aa".repeat(32),
+      rootContract: root,
+      assetContract: asset,
+      payer: owner,
+      amountStroops: "100",
+      nonce: "ab".repeat(32),
+      expiresAtLedger: 700,
+      nodes: observed.current.nodes.map(({ nodeId, contractAddress, expectedRevision }) => ({
+        nodeId,
+        contractAddress,
+        expectedRevision,
+      })),
+      arguments: { version: 1, inputs: [{ kind: "pay", nodeId: "pay", recipient }] },
+    });
+    const prepared = await prepareExecutionTransaction(execution, payerAccount);
+    await observed.refresh!();
+    return prepared;
+  });
+  await vi.advanceTimersByTimeAsync(24_000);
+  expect((await result).xdr).toBeTruthy();
+  expect(Date.now() - started).toBe(24_000);
+  expect(payerRead).toHaveBeenCalledTimes(1);
+  expect(mock.rpc._getLedgerEntries).toHaveBeenCalledTimes(3);
+  expect(mock.rpc.simulateTransaction).toHaveBeenCalledTimes(3);
 });

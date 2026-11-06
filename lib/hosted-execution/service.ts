@@ -11,6 +11,7 @@ import { prepareExecutionPayment, submitExecutionPayment } from "@/lib/api/v1/ex
 import { reconcileControlIntent, parseControlTransaction } from "@/lib/api/v1/control-intent";
 import { readExecutionState } from "@/lib/stellar/execution-state";
 import { verifyHostedOwnershipProof } from "@/lib/stellar/hosted-ownership";
+import type { ExecutionDiscovery } from "@/lib/api/v1/execution-schema";
 import { executionRequestDigest } from "@/lib/api/v1/execution-intent";
 import {
   HostedPreparedSchema,
@@ -115,6 +116,7 @@ export async function prepareHostedPayment(deployment: Deployment, input: Hosted
       input.ownershipProofXdr,
     );
   }
+  let verifiedReview: Extract<ExecutionDiscovery, { supported: true }> | undefined;
   const prepared = await prepareExecutionPayment(
     deployment,
     input.payment,
@@ -130,11 +132,16 @@ export async function prepareHostedPayment(deployment: Deployment, input: Hosted
         );
     },
     hostedKeyHash(input.recoveryKey),
+    (current) => {
+      verifiedReview = current;
+    },
   );
   if (!prepared.intent || !prepared.execution)
     throw new AppError("INTERNAL", "Incomplete payment preparation");
   await readHostedReceipt(deployment.id, input.recoveryKey);
-  const current = await readExecutionState(deployment);
+  // Fresh preparations have a request-local post-admission live fence. Exact-key
+  // retries still need full discovery: no witness survives a request boundary.
+  const current = verifiedReview ?? (await readExecutionState(deployment));
   if (
     !current.supported ||
     current.nodes.length !== prepared.execution.nodes.length ||

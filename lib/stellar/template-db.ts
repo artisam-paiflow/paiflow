@@ -1,4 +1,4 @@
-import { TemplateKind } from "@prisma/client";
+import { Prisma, TemplateKind } from "@prisma/client";
 import { db } from "@/lib/prisma";
 
 export async function setWasmHash(
@@ -6,12 +6,48 @@ export async function setWasmHash(
   network: string,
   wasmHash: string,
   abiJson?: object,
+  options?: { expectedCurrentHash: string },
 ): Promise<void> {
-  await db.contractTemplate.upsert({
-    where: { kind_network: { kind, network } },
-    update: { wasmHash, abiJson: abiJson ?? {} },
-    create: { kind, network, wasmHash, abiJson: abiJson ?? {} },
-  });
+  if (
+    abiJson !== undefined &&
+    (abiJson === null || Array.isArray(abiJson) || Object.keys(abiJson).length === 0)
+  )
+    throw new Error("Empty ABI metadata cannot replace registered contract evidence");
+
+  // Serializable admission keeps a concurrent hash change from reusing ABI
+  // evidence read for a different artifact. A serialization conflict is safe to
+  // retry because this transaction performs only this registry write.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await db.$transaction(
+        async (tx) => {
+          const where = { kind_network: { kind, network } };
+          const current = await tx.contractTemplate.findUnique({ where });
+          if (options && current?.wasmHash !== options.expectedCurrentHash)
+            throw new Error(
+              "Registry hash changed or is absent; ABI repair requires the exact existing artifact",
+            );
+          if (current && current.wasmHash !== wasmHash && abiJson === undefined)
+            throw new Error("Changing a registered WASM hash requires its matching ABI metadata");
+          await tx.contractTemplate.upsert({
+            where,
+            update: { wasmHash, ...(abiJson !== undefined ? { abiJson } : {}) },
+            create: { kind, network, wasmHash, abiJson: abiJson ?? {} },
+          });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+      return;
+    } catch (error) {
+      if (
+        attempt < 2 &&
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2034"
+      )
+        continue;
+      throw error;
+    }
+  }
 }
 
 export async function setFactoryAddress(
