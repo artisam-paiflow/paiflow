@@ -12,8 +12,18 @@ import { db } from "@/lib/db";
 import { executionV1Args } from "@/lib/stellar/execution-v1";
 import type { ExecutionIntent } from "@/lib/flows/field-policies";
 import type { Prisma } from "@prisma/client";
-const mocks = vi.hoisted(() => ({ read: vi.fn(), prepare: vi.fn(), send: vi.fn(), get: vi.fn() }));
-vi.mock("@/lib/stellar/execution-state", () => ({ readExecutionState: mocks.read }));
+const mocks = vi.hoisted(() => ({
+  read: vi.fn(),
+  observation: vi.fn(),
+  refresh: vi.fn(),
+  prepare: vi.fn(),
+  send: vi.fn(),
+  get: vi.fn(),
+}));
+vi.mock("@/lib/stellar/execution-state", () => ({
+  readExecutionState: mocks.read,
+  readExecutionStateForReview: mocks.observation,
+}));
 vi.mock("@/lib/stellar/prepare-execution", () => ({ prepareExecutionTransaction: mocks.prepare }));
 vi.mock("@/lib/stellar/client", () => ({
   sorobanRpc: () => ({ sendTransaction: mocks.send, getTransaction: mocks.get }),
@@ -64,6 +74,16 @@ beforeEach(() => {
     ...hostedState,
     deploymentId: deployment.id,
   }));
+  mocks.observation.mockImplementation(async (deployment: { id: string }) => ({
+    current: await mocks.read(deployment),
+    refresh: () => mocks.refresh(deployment),
+  }));
+  mocks.refresh.mockImplementation(async (deployment: { id: string }) => {
+    // Model the request-local post-admission fence, not another full discovery.
+    // A fresh review must only run after its original durable admission commits.
+    expect(await db.walletControlIntent.count({ where: { deploymentId: deployment.id } })).toBe(1);
+    return { ...hostedState, deploymentId: deployment.id };
+  });
   mocks.prepare.mockImplementation(async (execution: ExecutionIntent) => ({
     xdr: new TransactionBuilder(new Account(execution.payer, "10"), {
       fee: "100",
@@ -114,16 +134,25 @@ describe("hosted durable database boundary", () => {
     "persists receipt capability atomically and recovers a postcommit crash after %s",
     async (closed) => {
       const d = await deployment(true);
-      const original = mocks.read.getMockImplementation()!;
-      mocks.read
-        .mockImplementationOnce(original)
-        .mockRejectedValueOnce(new Error("response crashed after financial commit"));
+      const refresh = mocks.refresh.getMockImplementation()!;
+      mocks.refresh.mockImplementationOnce(async (deployment: { id: string }) => {
+        await refresh(deployment);
+        throw new Error("response crashed after financial commit");
+      });
       await expect(
         prepareHostedPayment(d, { recoveryKey: key, payment, ownershipProofXdr: ownership(d.id) }),
       ).rejects.toThrow("response crashed after financial commit");
       const row = await db.walletControlIntent.findFirstOrThrow({ where: { deploymentId: d.id } });
       expect(row.hostedAccessHash).toMatch(/^[a-f0-9]{64}$/);
       expect(row.state).toBe("PREPARED");
+      // The admitted original is recoverable while enabled without a new proof,
+      // simulation or request-local witness. Its review uses fresh discovery.
+      const retried = await prepareHostedPayment(d, { recoveryKey: key, payment });
+      expect(retried.prepared).toMatchObject({ intent: row.id, txHash: row.txHash });
+      expect(mocks.prepare).toHaveBeenCalledTimes(1);
+      expect(mocks.observation).toHaveBeenCalledTimes(1);
+      expect(mocks.refresh).toHaveBeenCalledTimes(1);
+      expect(mocks.read).toHaveBeenCalledTimes(2);
       const closedDeployment = await db.deployment.update({
         where: { id: d.id },
         data:
