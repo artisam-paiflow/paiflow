@@ -7,6 +7,9 @@ type Phase =
   | "execution.opening"
   | "execution.getters"
   | "execution.closing"
+  | "execution.review"
+  | "payment.account"
+  | "payment.simulation"
   | "mutation.account"
   | "mutation.simulation";
 

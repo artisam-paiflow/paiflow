@@ -180,6 +180,7 @@ describe("public payment admission and receipts", () => {
       expect.stringMatching(/^[a-f0-9]{64}$/),
       expect.any(Function),
       hostedKeyHash(key),
+      expect.any(Function),
     );
     const serialized = JSON.stringify(result);
     for (const secret of [
@@ -341,4 +342,21 @@ describe("owner opt-in", () => {
       code: "CONFLICT",
     });
   });
+});
+
+it("uses post-admission verified review for fresh preparation without repeating full discovery", async () => {
+  mocks.prepare.mockImplementation(async (...args: unknown[]) => {
+    const capture = args[5] as (state: typeof hostedState) => void;
+    capture(hostedState);
+    return preparation(payment).prepared;
+  });
+  await expect(
+    prepareHostedPayment(deployment, { recoveryKey: key, payment }),
+  ).resolves.toHaveProperty("prepared.intent", intentId);
+  expect(mocks.state).not.toHaveBeenCalled();
+});
+
+it("freshly discovers review state for original retries without a request-local witness", async () => {
+  await prepareHostedPayment(deployment, { recoveryKey: key, payment });
+  expect(mocks.state).toHaveBeenCalledWith(deployment);
 });
