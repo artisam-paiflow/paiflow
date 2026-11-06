@@ -16,7 +16,8 @@ import { resolve } from "node:path";
 import { config } from "dotenv";
 import { TemplateKind } from "@prisma/client";
 import { db } from "@/lib/prisma";
-import { setWasmHash, setFactoryAddress } from "@/lib/stellar/template-db";
+import { setFactoryAddress } from "@/lib/stellar/template-db";
+import { parseAbiRepair, inspectOrRepairAbi, syncBuiltWasm } from "./registry-abi";
 // Neither call overrides, so dotenv's first-write-wins gives shell > .env.local
 // > .env. The shell has to win: this script writes to whatever DATABASE_URL
 // names, and an operator syncing hashes into a deployed database must not have
@@ -24,7 +25,23 @@ import { setWasmHash, setFactoryAddress } from "@/lib/stellar/template-db";
 config({ path: resolve(".env.local") });
 config({ path: resolve(".env") });
 async function update() {
+  const args = process.argv.slice(2);
+  if (args.length === 1 && args[0] === "--help") {
+    process.stdout.write(
+      "Default: sync environment hashes; preserve same-hash ABI and refuse hash changes without ABI.\nABI repair: --abi-kind=<KIND> --abi-wasm=<file> --abi-hash=<hash> [--apply]\nRepair targets one existing row and defaults to read-only inspection. Review immutable template ABI pins before --apply.\n",
+    );
+    return;
+  }
+  const repair = parseAbiRepair(args);
   const network = process.env.STELLAR_NETWORK ?? "testnet";
+  if (network !== "testnet" && network !== "mainnet") throw new Error("Invalid STELLAR_NETWORK");
+  if (repair) {
+    const abiJson = await inspectOrRepairAbi(repair, network);
+    process.stdout.write(
+      `${repair.apply ? "Applying" : "Inspecting"} ${repair.kind}@${network}: ${abiJson.specEntriesXdr.length} spec entries for ${repair.wasmHash}\n`,
+    );
+    return;
+  }
   const suffix = network.toUpperCase();
   const templates = [
     { kind: TemplateKind.SPLITTER, envKey: `STELLAR_WASM_HASH_SPLITTER_${suffix}` },
@@ -49,7 +66,7 @@ async function update() {
       console.log(`${t.envKey} not set, skipping`);
       continue;
     }
-    await setWasmHash(t.kind, network, hash);
+    await syncBuiltWasm(t.kind, network, hash);
     console.log(`Synced ${t.kind}: ${hash.slice(0, 12)}...`);
   }
   const factoryAddress = process.env[`STELLAR_FACTORY_ADDRESS_${suffix}`];
@@ -61,7 +78,10 @@ async function update() {
   }
 }
 update()
-  .catch(console.error)
+  .catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  })
   .finally(async () => {
     await db.$disconnect();
   });
