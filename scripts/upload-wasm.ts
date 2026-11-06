@@ -25,6 +25,7 @@ import {
 import { TemplateKind } from "@prisma/client";
 import { db } from "@/lib/prisma";
 import { setWasmHash } from "@/lib/stellar/template-db";
+import { extractWasmAbi } from "@/lib/stellar/wasm-abi";
 import { writeEnvLocal } from "./env-file";
 
 const WASM_DIR = "contracts/target/wasm32v1-none/release";
@@ -112,6 +113,7 @@ async function main() {
   for (const c of contracts) {
     const wasm = readFileSync(c.path);
     const wasmHash = hash(wasm).toString("hex");
+    const abiJson = extractWasmAbi(wasm, wasmHash);
     const envKey = `STELLAR_WASM_HASH_${c.kind}_${suffix}`;
     const existingHash = process.env[envKey];
 
@@ -172,7 +174,7 @@ async function main() {
 
     console.log(`[upload] ${c.kind}@${network} uploaded, hash=${wasmHash}`);
     updates[envKey] = wasmHash;
-    await setWasmHash(c.templateKind, network, wasmHash);
+    await setWasmHash(c.templateKind, network, wasmHash, abiJson);
   }
 
   if (Object.keys(updates).length > 0) {

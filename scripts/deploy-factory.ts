@@ -26,6 +26,7 @@ import {
 import { TemplateKind } from "@prisma/client";
 import { db } from "@/lib/prisma";
 import { getFactoryAddressFromDb, setFactoryAddress, setWasmHash } from "@/lib/stellar/template-db";
+import { extractWasmAbi } from "@/lib/stellar/wasm-abi";
 import { writeEnvLocal } from "./env-file";
 
 const WASM_DIR = "contracts/target/wasm32v1-none/release";
@@ -121,6 +122,7 @@ async function main() {
 
   const wasm = readFileSync(wasmPath);
   const wasmHash = hash(wasm).toString("hex");
+  const abiJson = extractWasmAbi(wasm, wasmHash);
   const suffix = network.toUpperCase();
   const hashKey = `STELLAR_WASM_HASH_FACTORY_${suffix}`;
   const addressKey = `STELLAR_FACTORY_ADDRESS_${suffix}`;
@@ -232,7 +234,7 @@ async function main() {
 
   try {
     await setFactoryAddress(network, factoryAddress, wasmHash);
-    await setWasmHash(TemplateKind.FACTORY, network, wasmHash);
+    await setWasmHash(TemplateKind.FACTORY, network, wasmHash, abiJson);
   } catch (err) {
     const envLocalHoldsAddress = persistError === undefined;
     persistError ??= err;
