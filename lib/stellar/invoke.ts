@@ -483,11 +483,17 @@ export async function prepareTokenApproveInvocation(opts: {
   from: string;
   spender: string;
   amount: string;
+  /** Server-captured ledger from this preparation; never supplied by a client. */
+  latestLedgerSequence?: number;
 }): Promise<PreparedInvokeTx> {
   const server = sorobanRpc();
   const [sourceAcct, latestLedger] = await Promise.all([
     loadPaymentAccount(server, opts.from),
-    allowanceRpcCall("getLatestLedger", () => server.getLatestLedger()),
+    opts.latestLedgerSequence === undefined
+      ? allowanceRpcCall("getLatestLedger", () => server.getLatestLedger()).then(
+          (ledger) => ledger.sequence,
+        )
+      : opts.latestLedgerSequence,
   ]);
 
   const tokenIdBytes = decodeContractAddress(opts.tokenContractAddress);
@@ -497,13 +503,8 @@ export async function prepareTokenApproveInvocation(opts: {
   const amountScVal = nativeToScVal(BigInt(opts.amount), { type: "i128" });
   // Approval expirations must be within the network's max entry TTL.
   // Using U32_MAX caused "live_until is greater than max".
-  const expirationLedger =
-    latestLedger.sequence + MAX_APPROVAL_LEDGER_DELTA - APPROVAL_LEDGER_BUFFER;
-  if (
-    !Number.isInteger(latestLedger.sequence) ||
-    latestLedger.sequence <= 0 ||
-    expirationLedger > 0xffff_ffff
-  ) {
+  const expirationLedger = latestLedger + MAX_APPROVAL_LEDGER_DELTA - APPROVAL_LEDGER_BUFFER;
+  if (!Number.isInteger(latestLedger) || latestLedger <= 0 || expirationLedger > 0xffff_ffff) {
     throw new AppError("UPSTREAM_RPC", "Cannot establish a valid allowance expiration ledger");
   }
   const expirationScVal = nativeToScVal(expirationLedger, { type: "u32" });

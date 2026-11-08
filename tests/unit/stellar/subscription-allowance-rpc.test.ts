@@ -8,6 +8,7 @@ import {
   StrKey,
   TransactionBuilder,
   nativeToScVal,
+  scValToNative,
   xdr,
 } from "@stellar/stellar-sdk";
 
@@ -49,6 +50,7 @@ import { withInteractiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
 import { interactiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
 import { paymentAccountResponse } from "./payment-account-fixture";
 import { ledgerFixture } from "./ledger-fixtures";
+import { readAllowanceIntent } from "@/lib/subscription/intent";
 
 const id = "11111111-1111-4111-8111-111111111111";
 const wallet = Keypair.random();
@@ -276,6 +278,35 @@ describe("public Subscription allowance RPC reliability through the installed SD
     expect(calls).toContain("approve");
     noSend();
   });
+  it("prepares within 25 seconds with four-second RPCs, capturing one ledger for intent and approval", async () => {
+    // The former sequential ledger read plus duplicate builder lookup took
+    // seven network waves (28 seconds), exhausting the unchanged budget.
+    delay = 4000;
+    const startedAt = Date.now();
+    const pending = POST(request({ amount: "200", userAddress: wallet.publicKey() }), context);
+    await vi.advanceTimersByTimeAsync(24000);
+    const response = await pending;
+    expect(response.status).toBe(200);
+    expect(Date.now() - startedAt).toBe(24000);
+    const prepared = (await response.json()).data;
+    expect(calls.filter((stage) => stage === "getLatestLedger")).toHaveLength(1);
+    expect(new Set(m.budgets).size).toBe(1);
+    const intent = readAllowanceIntent(prepared.intent, id);
+    expect(intent.preparationLedger).toBe(ledgerFixture().latest.sequence);
+    const tx = TransactionBuilder.fromXDR(prepared.xdr, Networks.TESTNET);
+    if ("innerTransaction" in tx) throw new Error("Expected subscriber-source transaction");
+    const operation = tx.operations[0]!;
+    if (operation.type !== "invokeHostFunction") throw new Error("Expected approval");
+    expect(operation.func.invokeContract().args().map(scValToNative)).toEqual([
+      wallet.publicKey(),
+      contract,
+      205n,
+      intent.preparationLedger! + 3_110_400 - 10,
+    ]);
+    expect(tx.source).toBe(wallet.publicKey());
+    expect(tx.signatures).toHaveLength(0);
+    noSend();
+  });
   it.each(["getLedgerEntries", "subscriber", "getTransaction"])(
     "retains original identity without sending when submit %s eligibility is unavailable",
     async (stage) => {
@@ -329,7 +360,7 @@ describe("public Subscription allowance RPC reliability through the installed SD
 
 describe("public allowance aggregate deadlines", () => {
   it("stops preparation before returning an intent when the shared budget expires", async () => {
-    delay = 4000;
+    delay = 4300;
     const response = POST(request({ amount: "200", userAddress: wallet.publicKey() }), context);
     await vi.advanceTimersByTimeAsync(25001);
     const result = await response;
@@ -380,6 +411,19 @@ describe("approval builder failures preserve account and contract distinctions",
     spender: contract,
     amount: "200",
   };
+  it.each([0, -1, 1.5, NaN, Infinity, 0xffff_ffff])(
+    "rejects invalid or overflowing captured ledger %s without simulating approval",
+    async (latestLedgerSequence) => {
+      await expect(
+        withInteractiveRpcBudget(() =>
+          prepareTokenApproveInvocation({ ...approval, latestLedgerSequence }),
+        ),
+      ).rejects.toMatchObject({ code: "UPSTREAM_RPC" });
+      expect(calls).not.toContain("getLatestLedger");
+      expect(calls).not.toContain("approve");
+      noSend();
+    },
+  );
   it.each(["getLedgerEntries", "getLatestLedger", "approve"])(
     "sanitizes %s transport failure",
     async (stage) => {
