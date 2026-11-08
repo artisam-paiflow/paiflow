@@ -5,6 +5,11 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Reduce public Subscription allowance preparation latency by overlapping the
+  allowance and ledger reads and reusing the captured ledger for approval expiry.
+  Preserve fresh allowance/account reads, original-expiry evidence and the shared
+  25-second RPC deadline.
+
 - Recover desktop WalletConnect cancellation without reloading the payment page.
   Scope QR cleanup to its connection attempt, reject overlapping pairings, and
   ignore late approvals while preserving exact account, network and signing checks
