@@ -54,20 +54,23 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
     const body = AllowancePrepareSchema.parse(await req.json());
     const state = await subscriptionState(id, { classifyRpcFailures: true });
     const subscriber = requireSubscriber(state, body.userAddress);
-    const currentAllowance = await readTokenAllowance({
-      tokenContractAddress: state.tokenContractAddress,
-      owner: subscriber,
-      spender: state.contractAddress,
-      classifyRpcFailures: true,
-    });
+    // These reads are independent once the subscriber is verified. Keep the
+    // captured ledger as the conservative non-inclusion bound and reuse it for
+    // approval expiry instead of fetching another ledger in the builder.
+    const [currentAllowance, { sequence: preparationLedger }] = await Promise.all([
+      readTokenAllowance({
+        tokenContractAddress: state.tokenContractAddress,
+        owner: subscriber,
+        spender: state.contractAddress,
+        classifyRpcFailures: true,
+      }),
+      allowanceRpcCall("getLatestLedger", () => sorobanRpc().getLatestLedger()),
+    ]);
     const amount = currentAllowance + BigInt(body.amount);
     if (currentAllowance < 0n || amount > MAX_ALLOWANCE)
       throw new AppError("VALIDATION", "Cumulative allowance would exceed the maximum i128 value");
     // Capture before the envelope is exposed to the customer. Any possible
     // inclusion must follow this ledger; wall-clock time is not a safe bound.
-    const { sequence: preparationLedger } = await allowanceRpcCall("getLatestLedger", () =>
-      sorobanRpc().getLatestLedger(),
-    );
     if (
       !Number.isInteger(preparationLedger) ||
       preparationLedger <= 0 ||
@@ -79,6 +82,7 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
       from: subscriber,
       spender: state.contractAddress,
       amount: amount.toString(),
+      latestLedgerSequence: preparationLedger,
     });
     if (interactiveRpcBudgetExpired())
       throw new AppError(
