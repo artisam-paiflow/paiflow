@@ -279,15 +279,21 @@ describe("public Subscription allowance RPC reliability through the installed SD
     noSend();
   });
   it("prepares within 25 seconds with four-second RPCs, capturing one ledger for intent and approval", async () => {
-    // The former sequential ledger read plus duplicate builder lookup took
-    // seven network waves (28 seconds), exhausting the unchanged budget.
+    // Ledger reuse previously reduced seven network waves to six (24s).
+    // Sharing the read-only source account removes a further wave: five (20s).
     delay = 4000;
     const startedAt = Date.now();
-    const pending = POST(request({ amount: "200", userAddress: wallet.publicKey() }), context);
-    await vi.advanceTimersByTimeAsync(24000);
+    let completedAt: number | undefined;
+    const pending = POST(request({ amount: "200", userAddress: wallet.publicKey() }), context).then(
+      (response) => {
+        completedAt = Date.now();
+        return response;
+      },
+    );
+    await vi.advanceTimersByTimeAsync(20000);
     const response = await pending;
     expect(response.status).toBe(200);
-    expect(Date.now() - startedAt).toBe(24000);
+    expect(completedAt! - startedAt).toBe(20000);
     const prepared = (await response.json()).data;
     expect(calls.filter((stage) => stage === "getLatestLedger")).toHaveLength(1);
     expect(new Set(m.budgets).size).toBe(1);
@@ -360,7 +366,8 @@ describe("public Subscription allowance RPC reliability through the installed SD
 
 describe("public allowance aggregate deadlines", () => {
   it("stops preparation before returning an intent when the shared budget expires", async () => {
-    delay = 4300;
+    // Five dependent RPC waves still exceed 25s at 5.1s per wave.
+    delay = 5100;
     const response = POST(request({ amount: "200", userAddress: wallet.publicKey() }), context);
     await vi.advanceTimersByTimeAsync(25001);
     const result = await response;
