@@ -5,6 +5,11 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Reduce public Subscription allowance preparation RPC work by sharing one validated
+  relayer account snapshot within each POST, with separate simulation account objects.
+  Keep the approval source lookup fresh and the 25-second deadline unchanged; add
+  sanitized request-correlated preparation stage timings.
+
 - Reduce public Subscription allowance preparation latency by overlapping the
   allowance and ledger reads and reusing the captured ledger for approval expiry.
   Preserve fresh allowance/account reads, original-expiry evidence and the shared
