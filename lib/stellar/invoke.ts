@@ -20,6 +20,7 @@ import { subscriptionSubscribeFailure } from "./subscription-subscribe-error";
 import { streamerRetrieveFailure } from "./streamer-retrieve-error";
 import { allowanceRpcCall } from "./allowance-rpc";
 import { loadPaymentAccount } from "./load-payment-account";
+import { observeAllowancePhase } from "./allowance-preparation";
 
 export type PreparedInvoke = {
   xdr: string;
@@ -488,7 +489,7 @@ export async function prepareTokenApproveInvocation(opts: {
 }): Promise<PreparedInvokeTx> {
   const server = sorobanRpc();
   const [sourceAcct, latestLedger] = await Promise.all([
-    loadPaymentAccount(server, opts.from),
+    observeAllowancePhase("subscriber-account", () => loadPaymentAccount(server, opts.from)),
     opts.latestLedgerSequence === undefined
       ? allowanceRpcCall("getLatestLedger", () => server.getLatestLedger()).then(
           (ledger) => ledger.sequence,

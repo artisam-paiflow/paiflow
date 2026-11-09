@@ -12,7 +12,8 @@ import { sorobanRpc } from "./client";
 import { stellarPassphrase, stellarRelayerAddress } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { log } from "@/lib/log";
-import { loadPaymentAccount, MissingPaymentAccountError } from "./load-payment-account";
+import { MissingPaymentAccountError } from "./load-payment-account";
+import { allowancePreparationRequestId, loadAllowanceReadAccount } from "./allowance-preparation";
 import { simulationFailure } from "./sim-error";
 
 export type ContractReadContext = { requestId?: string };
@@ -73,6 +74,7 @@ export async function simulateContractCall(
   args: xdr.ScVal[] = [],
   context: ContractReadContext = {},
 ): Promise<unknown> {
+  context = { requestId: context.requestId ?? allowancePreparationRequestId() };
   const server = sorobanRpc();
   const source = stellarRelayerAddress();
   if (!source) throw new AppError("INTERNAL", "STELLAR_RELAYER_ADDRESS is not configured");
@@ -82,7 +84,7 @@ export async function simulateContractCall(
   const accountStartedAt = Date.now();
   let sourceAccount: Account;
   try {
-    sourceAccount = await loadPaymentAccount(server, source);
+    sourceAccount = await loadAllowanceReadAccount(server, source);
   } catch (error) {
     if (error instanceof MissingPaymentAccountError) {
       log.warn(

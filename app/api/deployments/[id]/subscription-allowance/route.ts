@@ -6,6 +6,10 @@ import {
   interactiveRpcBudgetExpired,
 } from "@/lib/stellar/interactive-rpc-budget";
 import { allowanceRpcCall } from "@/lib/stellar/allowance-rpc";
+import {
+  observeAllowancePhase,
+  withAllowancePreparation,
+} from "@/lib/stellar/allowance-preparation";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { stellarPassphrase } from "@/lib/env";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
@@ -44,75 +48,84 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
 }
 
 async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  return withErrorHandler(async () => {
-    const id = AllowanceDeploymentIdSchema.parse((await ctx.params).id);
-    await enforceRateLimit({
-      key: `subscription-allowance-prepare:${clientIp(req)}`,
-      limit: 20,
-      windowSeconds: 60,
-    });
-    const body = AllowancePrepareSchema.parse(await req.json());
-    const state = await subscriptionState(id, { classifyRpcFailures: true });
-    const subscriber = requireSubscriber(state, body.userAddress);
-    // These reads are independent once the subscriber is verified. Keep the
-    // captured ledger as the conservative non-inclusion bound and reuse it for
-    // approval expiry instead of fetching another ledger in the builder.
-    const [currentAllowance, { sequence: preparationLedger }] = await Promise.all([
-      readTokenAllowance({
-        tokenContractAddress: state.tokenContractAddress,
-        owner: subscriber,
-        spender: state.contractAddress,
-        classifyRpcFailures: true,
-      }),
-      allowanceRpcCall("getLatestLedger", () => sorobanRpc().getLatestLedger()),
-    ]);
-    const amount = currentAllowance + BigInt(body.amount);
-    if (currentAllowance < 0n || amount > MAX_ALLOWANCE)
-      throw new AppError("VALIDATION", "Cumulative allowance would exceed the maximum i128 value");
-    // Capture before the envelope is exposed to the customer. Any possible
-    // inclusion must follow this ledger; wall-clock time is not a safe bound.
-    if (
-      !Number.isInteger(preparationLedger) ||
-      preparationLedger <= 0 ||
-      preparationLedger > 0xffff_ffff
-    )
-      throw new AppError("UPSTREAM_RPC", "Cannot establish approval preparation ledger");
-    const { xdr } = await prepareTokenApproveInvocation({
-      tokenContractAddress: state.tokenContractAddress,
-      from: subscriber,
-      spender: state.contractAddress,
-      amount: amount.toString(),
-      latestLedgerSequence: preparationLedger,
-    });
-    if (interactiveRpcBudgetExpired())
-      throw new AppError(
-        "UPSTREAM_RPC",
-        "Approval preparation exceeded its RPC deadline; try preparing again",
+  return withErrorHandler(() =>
+    withAllowancePreparation(async () => {
+      const id = AllowanceDeploymentIdSchema.parse((await ctx.params).id);
+      await enforceRateLimit({
+        key: `subscription-allowance-prepare:${clientIp(req)}`,
+        limit: 20,
+        windowSeconds: 60,
+      });
+      const body = AllowancePrepareSchema.parse(await req.json());
+      const state = await observeAllowancePhase("state", () =>
+        subscriptionState(id, { classifyRpcFailures: true }),
       );
-    const prepared = createAllowanceIntent(
-      xdr,
-      {
-        preparationLedger,
-        deploymentId: id,
-        network: state.network,
-        subscriber,
+      const subscriber = requireSubscriber(state, body.userAddress);
+      // These reads are independent once the subscriber is verified. Keep the
+      // captured ledger as the conservative non-inclusion bound and reuse it for
+      // approval expiry instead of fetching another ledger in the builder.
+      const [currentAllowance, { sequence: preparationLedger }] = await Promise.all([
+        observeAllowancePhase("allowance", () =>
+          readTokenAllowance({
+            tokenContractAddress: state.tokenContractAddress,
+            owner: subscriber,
+            spender: state.contractAddress,
+            classifyRpcFailures: true,
+          }),
+        ),
+        allowanceRpcCall("getLatestLedger", () => sorobanRpc().getLatestLedger()),
+      ]);
+      const amount = currentAllowance + BigInt(body.amount);
+      if (currentAllowance < 0n || amount > MAX_ALLOWANCE)
+        throw new AppError(
+          "VALIDATION",
+          "Cumulative allowance would exceed the maximum i128 value",
+        );
+      // Capture before the envelope is exposed to the customer. Any possible
+      // inclusion must follow this ledger; wall-clock time is not a safe bound.
+      if (
+        !Number.isInteger(preparationLedger) ||
+        preparationLedger <= 0 ||
+        preparationLedger > 0xffff_ffff
+      )
+        throw new AppError("UPSTREAM_RPC", "Cannot establish approval preparation ledger");
+      const { xdr } = await prepareTokenApproveInvocation({
         tokenContractAddress: state.tokenContractAddress,
-        contractAddress: state.contractAddress,
-      },
-      amount.toString(),
-    );
-    return NextResponse.json(
-      {
-        data: {
-          xdr,
-          ...prepared,
-          networkPassphrase: stellarPassphrase(),
-          allowance: amount.toString(),
+        from: subscriber,
+        spender: state.contractAddress,
+        amount: amount.toString(),
+        latestLedgerSequence: preparationLedger,
+      });
+      if (interactiveRpcBudgetExpired())
+        throw new AppError(
+          "UPSTREAM_RPC",
+          "Approval preparation exceeded its RPC deadline; try preparing again",
+        );
+      const prepared = createAllowanceIntent(
+        xdr,
+        {
+          preparationLedger,
+          deploymentId: id,
+          network: state.network,
+          subscriber,
+          tokenContractAddress: state.tokenContractAddress,
+          contractAddress: state.contractAddress,
         },
-      },
-      { headers: { "Cache-Control": "no-store" } },
-    );
-  });
+        amount.toString(),
+      );
+      return NextResponse.json(
+        {
+          data: {
+            xdr,
+            ...prepared,
+            networkPassphrase: stellarPassphrase(),
+            allowance: amount.toString(),
+          },
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    }),
+  );
 }
 
 export const GET = deploymentServiceRoute(
