@@ -3,7 +3,10 @@ import { Address, hash, nativeToScVal, scValToNative, xdr } from "@stellar/stell
 import { z } from "zod";
 import {
   ConditionalExecutionIntentSchema,
+  ConditionalMutationIntentSchema,
   type ConditionalExecutionIntent,
+  type ConditionalMutationArguments,
+  type ConditionalMutationIntent,
   type ConditionalPayNode,
   type ConditionalSplitNode,
 } from "@/lib/flows/conditional-v2";
@@ -13,6 +16,7 @@ import {
   type ConditionalGraphManifest,
 } from "@/lib/flows/conditional-v2-compiler";
 import {
+  ConditionalConfigurationEventSchema,
   ConditionalMutationStatusSchema,
   ConditionalNodeStateSchema,
   type ConditionalNodeState,
@@ -259,7 +263,7 @@ function nodeInput(input: NodeExecutionInput): xdr.ScVal {
     }),
   );
 }
-const encodedBindings = (intent: ConditionalExecutionIntent) =>
+const encodedBindings = (intent: Pick<ConditionalExecutionIntent, "nodes">) =>
   vec(
     intent.nodes.map((node) =>
       record({
@@ -313,6 +317,72 @@ export function executionV2StepArgs(
   if (BigInt(amount) > BigInt(parsed.amountStroops))
     throw new Error("A hop cannot enlarge the invocation budget");
   return [conditionalExecutionContextScVal(parsed), i128(amount)];
+}
+
+function nodeChange(change: ConditionalMutationArguments["changes"][number]): xdr.ScVal {
+  const identity = {
+    node_id: string(change.nodeId),
+    expected_revision: u64(change.expectedRevision),
+  };
+  switch (change.kind) {
+    case "condition":
+      return variant(
+        "Condition",
+        record({ ...identity, threshold: i128(change.thresholdStroops) }),
+      );
+    case "pay":
+      return variant(
+        "Pay",
+        record({
+          ...identity,
+          recipient: optionalAddress(change.recipient),
+          payout_value: maybeAllocation(change.payoutValue),
+        }),
+      );
+    case "split":
+      return variant(
+        "Split",
+        record({
+          ...identity,
+          rows: vec(
+            change.rows.map((row) =>
+              record({
+                row_id: string(row.rowId),
+                recipient: optionalAddress(row.recipient),
+                allocation: maybeAllocation(row.allocation),
+              }),
+            ),
+          ),
+          additional:
+            change.additionalRecipients === undefined
+              ? xdr.ScVal.scvVoid()
+              : vec(change.additionalRecipients.map(additional)),
+        }),
+      );
+    default: {
+      const exhaustive: never = change;
+      return exhaustive;
+    }
+  }
+}
+
+/** Exact token-free mutate_v2 arguments. Policy/current values and complete
+ * ordered graph bindings are validated before any bytes are serialized. */
+export function mutationV2Args(raw: ConditionalMutationIntent): xdr.ScVal[] {
+  const intent = ConditionalMutationIntentSchema.parse(raw);
+  return [encodedBindings(intent), vec(intent.arguments.changes.map(nodeChange))];
+}
+export function conditionalMutationContextScVal(raw: ConditionalMutationIntent): xdr.ScVal {
+  const intent = ConditionalMutationIntentSchema.parse(raw);
+  return record({
+    root: address(intent.rootContract),
+    admin: address(intent.admin),
+    bindings: encodedBindings(intent),
+    changes: vec(intent.arguments.changes.map(nodeChange)),
+  });
+}
+export function mutationV2StepArgs(intent: ConditionalMutationIntent): xdr.ScVal[] {
+  return [conditionalMutationContextScVal(intent)];
 }
 
 const rawDecimal = z.bigint().nonnegative().transform(String);
@@ -552,6 +622,11 @@ export function decodeConditionalMutationStatus(raw: unknown) {
     obligationsStroops: value.obligations,
   });
 }
+/** Event provenance (emitter/hash/ledger/event ID) must be verified by ingestion.
+ * This decoder validates only the exact resulting config_v2 payload. */
+export function decodeConditionalConfigurationEvent(raw: unknown): ConditionalNodeState {
+  return ConditionalConfigurationEventSchema.parse(decodeConditionalNodeState(raw));
+}
 /** Local partial implementation tuple only. This decoder grants no production
  * artifact capability; the reviewed trust manifest intentionally has no v2 pins. */
 export const ConditionalLocalCapabilitiesSchema = z
@@ -568,4 +643,13 @@ export const ConditionalLocalCapabilitiesSchema = z
   .strict();
 export function decodeConditionalCapabilities(raw: unknown) {
   return ConditionalLocalCapabilitiesSchema.parse(native(raw));
+}
+/** Local guarded implementation tuple only; parsing never grants artifact trust
+ * or enables conditional deployment, discovery or mutation endpoints. */
+export const ConditionalLocalGuardedCapabilitiesSchema = ConditionalLocalCapabilitiesSchema.extend({
+  mutation_abi: z.literal(2),
+  mutation: z.literal(true),
+}).strict();
+export function decodeConditionalGuardedCapabilities(raw: unknown) {
+  return ConditionalLocalGuardedCapabilitiesSchema.parse(native(raw));
 }

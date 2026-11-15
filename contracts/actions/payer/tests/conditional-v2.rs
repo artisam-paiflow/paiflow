@@ -328,8 +328,8 @@ fn getters_are_versioned_and_all_retained_entry_paths_reject_v2() {
             &Symbol::new(&w.env, "capabilities_v2"),
             Vec::new(&w.env),
         );
-        assert!(!caps.mutation);
-        assert_eq!(caps.mutation_abi, 0);
+        assert!(caps.mutation);
+        assert_eq!(caps.mutation_abi, 2);
         for method in [
             "capabilities",
             "current_config",

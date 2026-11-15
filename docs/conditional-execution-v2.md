@@ -4,7 +4,9 @@
 portion of the [conditional v2 contract](conditional-v2.md). Source implementation,
 local verification, trusted artifact activation and live release acceptance are
 separate. Conditional API deployment/discovery/execution remains unavailable in
-this change; stored mutation is the next contract issue, #1224.
+this source checkpoint. [Guarded conditional mutation](conditional-mutation-v2.md)
+adds #1224 separately; its new binaries and local evidence do not relabel the
+execution-only checkpoint recorded below.
 
 ## Compatibility adapters
 

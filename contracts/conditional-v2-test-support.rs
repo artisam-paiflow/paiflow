@@ -54,6 +54,28 @@ impl World {
         threshold: i128,
         prefix: Option<v1::PayoutRule>,
     ) -> Self {
+        Self::new_with_mutable(yes, no, comparison, threshold, prefix, false)
+    }
+    pub fn new_with_mutable(
+        yes: Terminal,
+        no: Terminal,
+        comparison: v2::ComparisonV2,
+        threshold: i128,
+        prefix: Option<v1::PayoutRule>,
+        mutable: bool,
+    ) -> Self {
+        Self::new_configured(yes, no, comparison, threshold, prefix, mutable, |_, _| {})
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_configured(
+        yes: Terminal,
+        no: Terminal,
+        comparison: v2::ComparisonV2,
+        threshold: i128,
+        prefix: Option<v1::PayoutRule>,
+        mutable: bool,
+        configure: impl FnOnce(&Env, &mut v2::GraphManifestV2),
+    ) -> Self {
         let env = Env::default();
         // SDK26's diagnostic auth snapshots exceed their separate shadow budget
         // for complete manifests. Actual source-account auth remains enforced.
@@ -204,13 +226,47 @@ impl World {
                 state: state(id, address, Some(condition.clone()), Vec::new(&env), config),
             });
         }
-        let manifest = v2::GraphManifestV2 {
+        if mutable {
+            for i in 0..nodes.len() {
+                let mut entry = nodes.get(i).unwrap();
+                match &mut entry.state.configuration {
+                    v2::NodeConfigurationV2::Condition(value) => {
+                        value.threshold_mode = v2::StoredModeV2::Mutable
+                    }
+                    v2::NodeConfigurationV2::Pay(value) => {
+                        if value.recipient_mode != v1::FieldMode::Execution {
+                            value.recipient_mode = v1::FieldMode::Mutable;
+                        }
+                        if value.payout_rule != v1::PayoutRule::Full {
+                            value.payout_value_mode = v1::FieldMode::Mutable;
+                        }
+                    }
+                    v2::NodeConfigurationV2::Split(value) => {
+                        value.policy.additional_mode = v1::FieldMode::Mutable;
+                        for j in 0..value.policy.rows.len() {
+                            let mut row = value.policy.rows.get(j).unwrap();
+                            if row.recipient_mode != v1::FieldMode::Execution {
+                                row.recipient_mode = v1::FieldMode::Mutable;
+                            }
+                            if row.allocation_mode != v1::FieldMode::Execution {
+                                row.allocation_mode = v1::FieldMode::Mutable;
+                            }
+                            value.policy.rows.set(j, row);
+                        }
+                    }
+                    _ => (),
+                }
+                nodes.set(i, entry);
+            }
+        }
+        let mut manifest = v2::GraphManifestV2 {
             version: 2,
             root: root.clone(),
             admin: admin.clone(),
             asset: asset.clone(),
             nodes,
         };
+        configure(&env, &mut manifest);
         // Root-first registration proves constructors don't query not-yet-created children.
         for entry in manifest.nodes.iter() {
             let state = &entry.state;

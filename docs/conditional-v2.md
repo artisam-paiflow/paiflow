@@ -5,9 +5,9 @@ under [#1221](https://github.com/webnxt-2030/pinkraft/issues/1221). This documen
 normative for #1223–#1228. `lib/flows/conditional-v2.ts` and
 `conditional-v2-state.ts` define strict, **unavailable-at-runtime** domain values.
 They are not an extension of v1 payloads or a declaration of trusted artifacts.
-The source implementation for #1223 is described in
-[conditional execution v2](conditional-execution-v2.md); it does not activate the
-conditional generation or implement #1224's mutation methods.
+The source implementations are described in [conditional execution v2](conditional-execution-v2.md)
+and [guarded conditional mutation v2](conditional-mutation-v2.md). Neither activates
+the conditional generation in deployment, API, SDK or discovery runtime paths.
 
 ## Compatibility and availability
 
@@ -316,7 +316,8 @@ binary introspection where only immutable pin comparison is performed.
 mutation:false,immutable_policies:true,revision_binding:true}`. This is a partial
 implementation tuple, not a trusted public availability claim. It must not enter
 any production trust manifest/discovery response. The full mutation tuple above
-requires #1224; public integration additionally requires the API/reader work.
+is implemented separately by [#1224](conditional-mutation-v2.md); public integration
+additionally requires the API/reader work and explicitly reviewed artifact activation.
 No deployment/compiler/API may infer availability from accepting the pure v2
 schemas or this local getter. All old v1 mutation/routing/legacy entry paths reject
 v2 instances until an explicit enforcing v2 method exists.
@@ -331,6 +332,9 @@ increment. A condition patch requires mutable threshold policy; comparison, mode
 links, asset and owner cannot change. Validate merged Pay/Split state with existing
 constant preservation, fixed payout kind, configured-row and allocation rules.
 Root/Return changes and execution-field/constant overrides fail.
+Split row patches name unique configured row IDs and may arrive in any order;
+merging by ID preserves the stored configured order and its rounding semantics.
+The complete-graph ordering rule applies to node changes, not to partial row patches.
 `ConditionalMutationIntentSchema` wraps version 2, deployment UUID, environment
 passphrase hash, root contract, immutable admin, verified current definition,
 complete nodes and exact mutation arguments. The prepared-envelope record
@@ -341,7 +345,15 @@ each changed node exactly once; unchanged nodes retain revisions.
 mutate_v2(bindings: Vec<GraphBindingV2>, changes: Vec<NodeChangeV2>)
 MutationContextV2 { root, admin, bindings, changes }
 mutate_step_v2(context: MutationContextV2)
+ConditionMutationV2 { node_id:String, expected_revision:u64, threshold:i128 }
+NodeChangeV2 = Pay(PayMutation) | Split(SplitMutation) | Condition(ConditionMutationV2)
 ```
+
+PayMutation and SplitMutation retain their existing v1 wire fields, but v2 merges
+and revision checks operate on NodeStateV2, never v1 policy storage. Root mutation
+has exactly two arguments; child mutation has one complete context argument.
+Options retain Void/bare-value encoding and MaybeAllocation retains its tagged
+Missing/Present representation. There is no mutation branch selector or index.
 
 The root authenticates its immutable admin for the entire group. Before applying
 anything, it queries `mutation_status_v2()` on **every** complete-graph node, verifies

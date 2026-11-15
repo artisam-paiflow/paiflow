@@ -5,6 +5,12 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Add conditional-v2 guarded threshold and Pay/Split updates with complete-graph
+  revision and obligation checks, including inactive-branch debt. Preserve initial
+  policies, constants and immutable owner-return routing; grouped admin updates
+  move no funds. Conditional runtime activation remains unavailable
+  ([#1224](https://github.com/webnxt-2030/pinkraft/issues/1224)).
+
 - Add local conditional-v2 contract execution and a separate complete-graph compiler
   for strict amount branches and immutable owner returns. Preserve legacy/v1
   constructor arities and event shapes through tagged adapters and versioned getters.

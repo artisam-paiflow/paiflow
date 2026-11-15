@@ -1,4 +1,4 @@
-//! Versioned conditional execution ABI. No v2 mutation entry point is provided.
+//! Versioned conditional execution and whole-graph guarded mutation ABI.
 #![allow(dead_code)]
 use crate::execution_v1::{self, NodeInput, PayConfig, StoredSplitConfig};
 use soroban_sdk::{contracttype, Address, BytesN, Env, String, Vec};
@@ -111,6 +111,28 @@ pub struct ExecutionContextV2 {
 }
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ConditionMutationV2 {
+    pub node_id: String,
+    pub expected_revision: u64,
+    pub threshold: i128,
+}
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum NodeChangeV2 {
+    Pay(execution_v1::PayMutation),
+    Split(execution_v1::SplitMutation),
+    Condition(ConditionMutationV2),
+}
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MutationContextV2 {
+    pub root: Address,
+    pub admin: Address,
+    pub bindings: Vec<GraphBindingV2>,
+    pub changes: Vec<NodeChangeV2>,
+}
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MutationStatusV2 {
     pub state: NodeStateV2,
     pub obligations: i128,
@@ -219,10 +241,10 @@ pub fn capabilities(env: &Env) -> CapabilitiesV2 {
     CapabilitiesV2 {
         policy_version: 2,
         execution_abi: 2,
-        mutation_abi: 0,
+        mutation_abi: 2,
         conditional: true,
         execution: true,
-        mutation: false,
+        mutation: true,
         immutable_policies: true,
         revision_binding: true,
     }
@@ -341,36 +363,7 @@ pub fn validate_manifest(env: &Env, manifest: &GraphManifestV2) {
                     ExecutionError::InvalidPolicy,
                 );
                 execution_v1::validate_stored_split(env, &value.policy, &value.additional);
-                if value.policy.allocation_mode == AllocationMode::Percentage {
-                    // Every configured execution allocation must eventually supply
-                    // at least one bps. Optional appended execution rows may be [].
-                    let mut minimum_bps = 0u32;
-                    for row in value.policy.rows.iter() {
-                        let minimum = match row.allocation {
-                            execution_v1::MaybeAllocation::Present(Allocation::Percentage(bps)) => {
-                                bps
-                            }
-                            execution_v1::MaybeAllocation::Missing
-                                if row.allocation_mode == FieldMode::Execution =>
-                            {
-                                1
-                            }
-                            _ => fail(env, ExecutionError::InvalidPolicy),
-                        };
-                        minimum_bps = minimum_bps
-                            .checked_add(minimum)
-                            .unwrap_or_else(|| fail(env, ExecutionError::ArithmeticOverflow));
-                    }
-                    for row in value.additional.iter() {
-                        let Allocation::Percentage(bps) = row.allocation else {
-                            fail(env, ExecutionError::InvalidPolicy)
-                        };
-                        minimum_bps = minimum_bps
-                            .checked_add(bps)
-                            .unwrap_or_else(|| fail(env, ExecutionError::ArithmeticOverflow));
-                    }
-                    require(env, minimum_bps <= 10_000, ExecutionError::InvalidPolicy);
-                }
+                validate_split_state(env, value);
             }
             NodeConfigurationV2::ReturnToOwner(value) => require(
                 env,
@@ -392,6 +385,37 @@ pub fn validate_manifest(env: &Env, manifest: &GraphManifestV2) {
                     )),
             ExecutionError::InvalidPolicy,
         );
+    }
+}
+fn validate_split_state(env: &Env, value: &StoredSplitConfig) {
+    execution_v1::validate_stored_split(env, &value.policy, &value.additional);
+    if value.policy.allocation_mode == AllocationMode::Percentage {
+        // Every configured execution allocation must eventually supply
+        // at least one bps. Optional appended execution rows may be [].
+        let mut minimum_bps = 0u32;
+        for row in value.policy.rows.iter() {
+            let minimum = match row.allocation {
+                execution_v1::MaybeAllocation::Present(Allocation::Percentage(bps)) => bps,
+                execution_v1::MaybeAllocation::Missing
+                    if row.allocation_mode == FieldMode::Execution =>
+                {
+                    1
+                }
+                _ => fail(env, ExecutionError::InvalidPolicy),
+            };
+            minimum_bps = minimum_bps
+                .checked_add(minimum)
+                .unwrap_or_else(|| fail(env, ExecutionError::ArithmeticOverflow));
+        }
+        for row in value.additional.iter() {
+            let Allocation::Percentage(bps) = row.allocation else {
+                fail(env, ExecutionError::InvalidPolicy)
+            };
+            minimum_bps = minimum_bps
+                .checked_add(bps)
+                .unwrap_or_else(|| fail(env, ExecutionError::ArithmeticOverflow));
+        }
+        require(env, minimum_bps <= 10_000, ExecutionError::InvalidPolicy);
     }
 }
 /// Constructor-only installation; callers check their redundant wire slots before this write.
@@ -544,13 +568,86 @@ fn validate_input(env: &Env, context: &ExecutionContextV2, state: &NodeStateV2, 
         _ => require(env, input.is_none(), ExecutionError::InvalidInput),
     }
 }
+/// Validate current terms against the complete immutable constructor evidence.
+/// Only values explicitly declared mutable may differ; modes and kinds never do.
 fn require_state(env: &Env, original: &NodeStateV2, state: &NodeStateV2) {
-    // #1224 extends this comparison with declared mutable-field merge enforcement.
-    // No v2 mutation method exists in the execution-only generation.
     let mut normalized = state.clone();
     normalized.revision = 0;
-    require(env, normalized == *original, ExecutionError::InvalidPolicy);
+    let mutable = match (&original.configuration, &mut normalized.configuration) {
+        (NodeConfigurationV2::Pay(initial), NodeConfigurationV2::Pay(value)) => {
+            execution_v1::validate_pay(env, value);
+            if !state.next_steps.is_empty() {
+                require(
+                    env,
+                    value.payout_rule != PayoutRule::Full
+                        && value.payout_rule != PayoutRule::Percentage(10_000),
+                    ExecutionError::InvalidPolicy,
+                );
+            }
+            let recipient = initial.recipient_mode == FieldMode::Mutable;
+            let payout = initial.payout_value_mode == FieldMode::Mutable;
+            if recipient {
+                value.recipient = initial.recipient.clone();
+            }
+            if payout {
+                require(
+                    env,
+                    matches!(
+                        (&initial.payout_rule, &value.payout_rule),
+                        (PayoutRule::Fixed(_), PayoutRule::Fixed(_))
+                            | (PayoutRule::Percentage(_), PayoutRule::Percentage(_))
+                    ),
+                    ExecutionError::InvalidPolicy,
+                );
+                value.payout_rule = initial.payout_rule.clone();
+            }
+            recipient || payout
+        }
+        (NodeConfigurationV2::Split(initial), NodeConfigurationV2::Split(value)) => {
+            validate_split_state(env, value);
+            require(
+                env,
+                value.policy.rows.len() == initial.policy.rows.len(),
+                ExecutionError::InvalidPolicy,
+            );
+            let mut mutable = initial.policy.additional_mode == FieldMode::Mutable;
+            for (i, old) in initial.policy.rows.iter().enumerate() {
+                let mut row = value.policy.rows.get(i as u32).unwrap();
+                if old.recipient_mode == FieldMode::Mutable {
+                    row.recipient = old.recipient;
+                    mutable = true;
+                }
+                if old.allocation_mode == FieldMode::Mutable {
+                    row.allocation = old.allocation;
+                    mutable = true;
+                }
+                value.policy.rows.set(i as u32, row);
+            }
+            if initial.policy.additional_mode == FieldMode::Mutable {
+                value.additional = initial.additional.clone();
+            }
+            mutable
+        }
+        (NodeConfigurationV2::Condition(initial), NodeConfigurationV2::Condition(value)) => {
+            require(env, value.threshold >= 0, ExecutionError::InvalidPolicy);
+            if initial.threshold_mode == StoredModeV2::Mutable {
+                value.threshold = initial.threshold;
+                true
+            } else {
+                false
+            }
+        }
+        _ => false,
+    };
+    require(
+        env,
+        normalized == *original
+            && (mutable || state.revision == 0)
+            && (state.revision != 0 || state == original),
+        ExecutionError::InvalidPolicy,
+    );
 }
+
 fn validate_field_set(env: &Env, state: &NodeStateV2, input: &NodeInput) {
     match (&state.configuration, input) {
         (NodeConfigurationV2::Pay(config), NodeInput::Pay(value)) => {
@@ -788,6 +885,302 @@ fn forward(env: &Env, context: &ExecutionContextV2, target: &Address, amount: i1
         &Symbol::new(env, "execute_step_v2"),
         vec![env, context.into_val(env), amount.into_val(env)],
     );
+}
+fn change_id(change: &NodeChangeV2) -> String {
+    match change {
+        NodeChangeV2::Pay(value) => value.node_id.clone(),
+        NodeChangeV2::Split(value) => value.node_id.clone(),
+        NodeChangeV2::Condition(value) => value.node_id.clone(),
+    }
+}
+fn change_revision(change: &NodeChangeV2) -> u64 {
+    match change {
+        NodeChangeV2::Pay(value) => value.expected_revision,
+        NodeChangeV2::Split(value) => value.expected_revision,
+        NodeChangeV2::Condition(value) => value.expected_revision,
+    }
+}
+fn validate_mutation_context(env: &Env, graph: &GraphManifestV2, context: &MutationContextV2) {
+    require(
+        env,
+        context.root == graph.root
+            && context.admin == graph.admin
+            && context.bindings.len() == graph.nodes.len()
+            && !context.changes.is_empty()
+            && context.changes.len() <= graph.nodes.len(),
+        ExecutionError::InvalidInput,
+    );
+    for (entry, binding) in graph.nodes.iter().zip(context.bindings.iter()) {
+        require(
+            env,
+            entry.state.node_id == binding.node_id
+                && entry.state.contract_address == binding.contract_address
+                && entry.wasm_hash == binding.wasm_hash,
+            ExecutionError::InvalidInput,
+        );
+    }
+    let mut previous = 0;
+    for change in context.changes.iter() {
+        let id = change_id(&change);
+        let position = graph
+            .nodes
+            .iter()
+            .position(|entry| entry.state.node_id == id)
+            .unwrap_or_else(|| fail(env, ExecutionError::InvalidInput))
+            as u32;
+        require(
+            env,
+            position > previous && position < graph.nodes.len(),
+            ExecutionError::InvalidInput,
+        );
+        previous = position;
+        require(
+            env,
+            context.bindings.get(position).unwrap().expected_revision == change_revision(&change),
+            ExecutionError::StaleRevision,
+        );
+    }
+}
+fn merge_change(env: &Env, state: &NodeStateV2, change: &NodeChangeV2) -> NodeStateV2 {
+    require(
+        env,
+        state.node_id == change_id(change),
+        ExecutionError::InvalidInput,
+    );
+    require(
+        env,
+        state.revision == change_revision(change),
+        ExecutionError::StaleRevision,
+    );
+    let mut result = state.clone();
+    match (&mut result.configuration, change) {
+        (NodeConfigurationV2::Condition(value), NodeChangeV2::Condition(patch)) => {
+            require(
+                env,
+                value.threshold_mode == StoredModeV2::Mutable,
+                ExecutionError::Unauthorized,
+            );
+            require(
+                env,
+                patch.threshold >= 0 && patch.threshold != value.threshold,
+                ExecutionError::InvalidInput,
+            );
+            value.threshold = patch.threshold;
+        }
+        (NodeConfigurationV2::Pay(value), NodeChangeV2::Pay(patch)) => {
+            require(
+                env,
+                patch.recipient.is_some() || patch.payout_value.is_some(),
+                ExecutionError::InvalidInput,
+            );
+            if let Some(recipient) = &patch.recipient {
+                require(
+                    env,
+                    value.recipient_mode == FieldMode::Mutable,
+                    ExecutionError::Unauthorized,
+                );
+                execution_v1::require_wallet(env, recipient);
+                value.recipient = Some(recipient.clone());
+            }
+            if let execution_v1::MaybeAllocation::Present(allocation) = &patch.payout_value {
+                require(
+                    env,
+                    value.payout_value_mode == FieldMode::Mutable,
+                    ExecutionError::Unauthorized,
+                );
+                value.payout_rule = match (&value.payout_rule, allocation) {
+                    (PayoutRule::Fixed(_), Allocation::Fixed(amount)) if *amount > 0 => {
+                        PayoutRule::Fixed(*amount)
+                    }
+                    (PayoutRule::Percentage(_), Allocation::Percentage(bps))
+                        if *bps > 0 && *bps <= 10_000 =>
+                    {
+                        PayoutRule::Percentage(*bps)
+                    }
+                    _ => fail(env, ExecutionError::InvalidInput),
+                };
+            }
+        }
+        (NodeConfigurationV2::Split(value), NodeChangeV2::Split(patch)) => {
+            require(
+                env,
+                patch.rows.len() <= 20 && (!patch.rows.is_empty() || patch.additional.is_some()),
+                ExecutionError::InvalidInput,
+            );
+            for (i, input) in patch.rows.iter().enumerate() {
+                require(
+                    env,
+                    input.recipient.is_some() || input.allocation.is_some(),
+                    ExecutionError::InvalidInput,
+                );
+                let position = value
+                    .policy
+                    .rows
+                    .iter()
+                    .position(|row| row.row_id == input.row_id)
+                    .unwrap_or_else(|| fail(env, ExecutionError::InvalidInput))
+                    as u32;
+                require(
+                    env,
+                    patch
+                        .rows
+                        .iter()
+                        .take(i)
+                        .all(|previous| previous.row_id != input.row_id),
+                    ExecutionError::InvalidInput,
+                );
+                let mut row = value.policy.rows.get(position).unwrap();
+                if let Some(recipient) = &input.recipient {
+                    require(
+                        env,
+                        row.recipient_mode == FieldMode::Mutable,
+                        ExecutionError::Unauthorized,
+                    );
+                    execution_v1::require_wallet(env, recipient);
+                    row.recipient = Some(recipient.clone());
+                }
+                if input.allocation.is_some() {
+                    require(
+                        env,
+                        row.allocation_mode == FieldMode::Mutable,
+                        ExecutionError::Unauthorized,
+                    );
+                    execution_v1::validate_allocation(
+                        env,
+                        &input.allocation.to_option().unwrap(),
+                        &value.policy.allocation_mode,
+                    );
+                    row.allocation = input.allocation;
+                }
+                value.policy.rows.set(position, row);
+            }
+            if let Some(additional) = &patch.additional {
+                require(
+                    env,
+                    value.policy.additional_mode == FieldMode::Mutable,
+                    ExecutionError::Unauthorized,
+                );
+                value.additional = additional.clone();
+            }
+        }
+        _ => fail(env, ExecutionError::InvalidInput),
+    }
+    require(
+        env,
+        result.configuration != state.configuration,
+        ExecutionError::InvalidInput,
+    );
+    result.revision = state
+        .revision
+        .checked_add(1)
+        .unwrap_or_else(|| fail(env, ExecutionError::ArithmeticOverflow));
+    result
+}
+fn preflight_mutation(env: &Env, graph: &GraphManifestV2, context: &MutationContextV2) {
+    for (entry, binding) in graph.nodes.iter().zip(context.bindings.iter()) {
+        let address = &entry.state.contract_address;
+        let observed = if *address == env.current_contract_address() {
+            status(env)
+        } else {
+            let declared: GraphManifestV2 = env.invoke_contract(
+                address,
+                &Symbol::new(env, "graph_manifest_v2"),
+                Vec::new(env),
+            );
+            let observed: CapabilitiesV2 =
+                env.invoke_contract(address, &Symbol::new(env, "capabilities_v2"), Vec::new(env));
+            require(env, declared == *graph, ExecutionError::InvalidPolicy);
+            require(
+                env,
+                observed == capabilities(env),
+                ExecutionError::Unsupported,
+            );
+            env.invoke_contract(
+                address,
+                &Symbol::new(env, "mutation_status_v2"),
+                Vec::new(env),
+            )
+        };
+        require_state(env, &entry.state, &observed.state);
+        require(
+            env,
+            observed.state.revision == binding.expected_revision,
+            ExecutionError::StaleRevision,
+        );
+        require(
+            env,
+            observed.obligations == 0,
+            ExecutionError::ObligationConflict,
+        );
+        for change in context.changes.iter() {
+            if change_id(&change) == observed.state.node_id {
+                let merged = merge_change(env, &observed.state, &change);
+                require_state(env, &entry.state, &merged);
+            }
+        }
+    }
+}
+fn forward_mutation(env: &Env, context: &MutationContextV2, state: &NodeStateV2) {
+    for target in state.next_steps.iter() {
+        env.invoke_contract::<()>(
+            &target,
+            &Symbol::new(env, "mutate_step_v2"),
+            vec![env, context.into_val(env)],
+        );
+    }
+}
+pub fn mutate_root(env: &Env, bindings: Vec<GraphBindingV2>, changes: Vec<NodeChangeV2>) {
+    let graph = manifest(env);
+    require(
+        env,
+        env.current_contract_address() == graph.root,
+        ExecutionError::Unauthorized,
+    );
+    graph.admin.require_auth();
+    let context = MutationContextV2 {
+        root: graph.root.clone(),
+        admin: graph.admin.clone(),
+        bindings,
+        changes,
+    };
+    validate_mutation_context(env, &graph, &context);
+    preflight_mutation(env, &graph, &context);
+    forward_mutation(env, &context, &current(env));
+    bump_ttl(env);
+}
+pub fn mutate_child(env: &Env, context: MutationContextV2) {
+    let graph = manifest(env);
+    validate_mutation_context(env, &graph, &context);
+    let own = index(env, &graph, &env.current_contract_address());
+    require(env, own > 0, ExecutionError::Unauthorized);
+    let state = current(env);
+    require_state(env, &graph.nodes.get(own).unwrap().state, &state);
+    require(
+        env,
+        context.bindings.get(own).unwrap().expected_revision == state.revision,
+        ExecutionError::StaleRevision,
+    );
+    require(
+        env,
+        status(env).obligations == 0,
+        ExecutionError::ObligationConflict,
+    );
+    state.parent.clone().unwrap().require_auth();
+    for change in context.changes.iter() {
+        if change_id(&change) == state.node_id {
+            graph.admin.require_auth();
+            let merged = merge_change(env, &state, &change);
+            require_state(env, &graph.nodes.get(own).unwrap().state, &merged);
+            env.storage().instance().set(&V2Key::Current, &merged);
+            #[allow(deprecated)]
+            env.events().publish(
+                (Symbol::new(env, "config_v2"), merged.node_id.clone()),
+                merged,
+            );
+        }
+    }
+    forward_mutation(env, &context, &state);
+    bump_ttl(env);
 }
 pub fn execute_root(env: &Env, context: ExecutionContextV2) {
     let manifest = manifest(env);

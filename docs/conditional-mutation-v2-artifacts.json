@@ -1,0 +1,134 @@
+{
+  "scope": "#1224 local guarded source/build evidence; NOT trusted, uploaded or activated artifacts",
+  "gitBase": "17cf0146b468d40b716e5d555cb17f1b9fd1ac9a",
+  "executionParent": "4b048e3f713f7ec9d7b1632f8336c18f2576eeb7868d53b9e3345dd1a348d2c3",
+  "rust": "1.95.0",
+  "target": "wasm32v1-none",
+  "profile": "release",
+  "locked": true,
+  "productionAvailability": false,
+  "capabilities": {
+    "policyVersion": 2,
+    "executionAbi": 2,
+    "mutationAbi": 2,
+    "conditional": true,
+    "execution": true,
+    "mutation": true,
+    "immutablePolicies": true,
+    "revisionBinding": true
+  },
+  "artifacts": [
+    {
+      "templateKind": "DEPOSIT_TRIGGER",
+      "file": "deposit_trigger.wasm",
+      "bytes": 96288,
+      "sha256": "8ad4a9072e7f3bb2e708a0124e764843599badd5d2cef964e47d7e367a0453e9"
+    },
+    {
+      "templateKind": "PAYER",
+      "file": "payer.wasm",
+      "bytes": 103621,
+      "sha256": "58af309f7af9d912b309e078a9db4c8df7cef89cc44a4f49829f74af545d9fd8"
+    },
+    {
+      "templateKind": "SPLITTER",
+      "file": "paiflow_splitter.wasm",
+      "bytes": 109154,
+      "sha256": "24186c7112423c4ffae8d59900460d3e3196a14c2b375dd15d76b55638a0d9d2"
+    },
+    {
+      "templateKind": "ROUTER",
+      "file": "router.wasm",
+      "bytes": 83153,
+      "sha256": "6c7f0a6ca5019bf40e430b152e1aeeaa08ef05428d0cdd76e6261a063f963ece"
+    }
+  ],
+  "productionSourceInputs": [
+    {
+      "path": "contracts/Cargo.toml",
+      "sha256": "cef3e27b57a65f7759a532c0a2b64cca3099fa10396065a5dd342523e823f3e8"
+    },
+    {
+      "path": "contracts/Cargo.lock",
+      "sha256": "b36279593b7cf58bc8b88ebd230aaa8cc3fd3b4d6c5ac18d060b8df574493a01"
+    },
+    {
+      "path": "contracts/conditional-v2.rs",
+      "sha256": "6281a5bbf973c54650aa25d713d6d88c0d52ff92ff125f1fbc9616c3369c39f2"
+    },
+    {
+      "path": "contracts/execution-v1.rs",
+      "sha256": "763acd9b1b17854982d29b4be2b32a4c9bc30d3c9a04844530b9ec33fa44cc68"
+    },
+    {
+      "path": "contracts/payment-math.rs",
+      "sha256": "d8e067a9e5586ad573ff29bd190df36a656f511b5fd80fa496db64ad3ee6f076"
+    },
+    {
+      "path": "contracts/triggers/deposit_trigger/src/lib.rs",
+      "sha256": "1f00f15532fbc2814e0bc822f4cabea925fe24beb1985f4729543029eacf6474"
+    },
+    {
+      "path": "contracts/actions/payer/src/lib.rs",
+      "sha256": "0e92942656a29dff5f4258ff068fdb748a833cb088d4513a96c25df1af84d278"
+    },
+    {
+      "path": "contracts/actions/splitter/src/lib.rs",
+      "sha256": "930f906b61e262d784e80061315e38427e4480e82298c632c1608dda320e953e"
+    },
+    {
+      "path": "contracts/conditions/router/src/lib.rs",
+      "sha256": "3af209ade64b092325c87367d300b79ff355b423240a24780ab0d2661cb9c4fa"
+    },
+    {
+      "path": "contracts/triggers/deposit_trigger/Cargo.toml",
+      "sha256": "5dc095db43e1ebb19906ed819871728a41f1f7de6337604c7c04515e8e32888f"
+    },
+    {
+      "path": "contracts/actions/payer/Cargo.toml",
+      "sha256": "950c8c7466b4420b08e17e51408a430dd3e5e44c6b9c8ba46caf37581aff6ef5"
+    },
+    {
+      "path": "contracts/actions/splitter/Cargo.toml",
+      "sha256": "35084c7f34a2b1740b268fcea95965357cba0975503e07f17162cdbc4ba4b5f5"
+    },
+    {
+      "path": "contracts/conditions/router/Cargo.toml",
+      "sha256": "9ed37ed0e482e5b5dce9284d9a808c0b99bab7561e692bdb8141673c82c77fc4"
+    }
+  ],
+  "localMutationGuestResources": {
+    "scenarios": 3,
+    "nodesPerGraph": [4, 5, 5],
+    "mutationAttempts": 10,
+    "successfulMutations": 3,
+    "expectedMutationRefusals": 7,
+    "paymentAttempts": 10,
+    "successfulPayments": 8,
+    "stalePaymentRefusals": 2,
+    "successfulMutationInstructionMin": 30859971,
+    "successfulMutationInstructionMax": 50104357,
+    "successfulMutationMeteredMemoryMin": 20068256,
+    "successfulMutationMeteredMemoryMax": 26689855,
+    "actualBudget": "SDK default actual execution limits after fixture setup",
+    "authorization": "real source-account admin and payer credentials; no blanket execution/mutation mocks",
+    "diagnosticObserver": "disabled because SDK26 diagnostic invocation snapshots can exhaust separate observer shadow budget; actual authorization and actual default budget retained",
+    "guestLogSha256": "6c26bdc5dc00abbaa08c7af2e2cf7a6ddb2673c09945174de0f25024529bfa07"
+  },
+  "limitations": [
+    "Local host measurements are not RPC simulation, fees, maximum-layout guarantees or live acceptance.",
+    "Source-account authorization tests are not genuine wallet/network signatures.",
+    "Existing execution-only #1223 build identity remains a separate historical record.",
+    "No runtime trust/discovery registry entry or template capability is changed."
+  ],
+  "localExecutionGuestResources": {
+    "attempts": 54,
+    "instructionsMin": 25617469,
+    "instructionsMax": 34284746,
+    "meteredMemoryMin": 23606978,
+    "meteredMemoryMax": 24784231,
+    "scenarios": 18,
+    "actualBudget": "SDK default actual execution limits after fixture setup",
+    "guestLogSha256": "e99ced177a01b7c60725547272acf92e2ac8f745c4ff31fefd63ff5da3a19bdf"
+  }
+}
