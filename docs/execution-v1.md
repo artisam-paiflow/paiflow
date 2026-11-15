@@ -1,5 +1,9 @@
 # Immediate execution v1: contract/compiler implementation
 
+The separately versioned [conditional v2 foundation](conditional-v2.md) does not
+extend this v1 ABI or activate conditional execution/mutation. Retain the v1
+payloads, artifact manifests, receipts and initial snapshots documented here.
+
 Implements [#1159](https://github.com/webnxt-2030/pinkraft/issues/1159) against the
 [shared domain contract](reusable-flows.md). This is source and local build evidence,
 not an upload, registry update, service deployment or wallet acceptance record.
