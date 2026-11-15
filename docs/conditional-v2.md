@@ -2,6 +2,9 @@
 
 Ordinary-flow source authoring, deployment review and owner recovery are described in [conditional authoring](conditional-authoring.md). Artifact activation and live acceptance remain separate.
 
+[Local readiness and rollout](conditional-v2-readiness.md) records the compiled
+factory/resource evidence, conditional-only configuration and unperformed live gates.
+
 Shared contract for [#1222](https://github.com/webnxt-2030/pinkraft/issues/1222),
 under [#1221](https://github.com/webnxt-2030/pinkraft/issues/1221). This document is
 normative for #1223–#1228. `lib/flows/conditional-v2.ts` and

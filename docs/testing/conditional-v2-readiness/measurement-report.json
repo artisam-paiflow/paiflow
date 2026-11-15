@@ -1,0 +1,663 @@
+{
+  "format": "paiflow.conditional.readiness-measurements.v1",
+  "scope": "Local compiled factory/native-SAC guest execution joined to production readers/history, SDK parsers and hosted review. No live release acceptance.",
+  "candidateIdentity": "External complete-candidate manifest; intentionally omitted here to avoid a self-hash cycle.",
+  "baseSha": "17cf0146b468d40b716e5d555cb17f1b9fd1ac9a",
+  "reviewedParentCheckpoint": "716951b40194ba1fedfb9265500a4bd8c92929adce98b8b8e4da4f9b86421b23",
+  "artifactSha256": {
+    "DEPOSIT_TRIGGER": "8ad4a9072e7f3bb2e708a0124e764843599badd5d2cef964e47d7e367a0453e9",
+    "PAYER": "58af309f7af9d912b309e078a9db4c8df7cef89cc44a4f49829f74af545d9fd8",
+    "SPLITTER": "24186c7112423c4ffae8d59900460d3e3196a14c2b375dd15d76b55638a0d9d2",
+    "ROUTER": "6c7f0a6ca5019bf40e430b152e1aeeaa08ef05428d0cdd76e6261a063f963ece",
+    "factory": "3020bb44c41e358412e61565e0a132b16136b4414fc187afa628b968e6480023"
+  },
+  "resourceProfile": {
+    "actualInvocationLimits": {
+      "cpu": 100000000,
+      "memoryBytes": 41943040
+    },
+    "debugShadowLimits": {
+      "cpu": 1000000000,
+      "memoryBytes": 536870912
+    },
+    "control": "Separate default-shadow control retained; all seven main outcomes/balances/states/events and getter/instance sidecars byte-identical to instrumented control.",
+    "controlProvenance": {
+      "bundleRelativePath": "resource/shadow-comparison.json",
+      "sha256": "a71fab0d84b0d405ace93c0db2f12ff020ebf05e008e8d4f0e80d515a030a515"
+    },
+    "qualification": "Exact SDK diagnostic counters are recorded, not a network fit guarantee. Prefix-8 successful post-call memory diagnostics marginally exceed40MiB; no inferred network envelope or explanation is claimed. Stored-code/module-cache setup and unlimited observations are separate from measured invocations; actual invocation limits are unchanged."
+  },
+  "functionalChecks": {
+    "successfulFactoryLayouts": 4,
+    "factoryBudgetRefusals": 3,
+    "successfulPayments": 12,
+    "successfulGroupedMutations": 1,
+    "staleUnusedNonceRefusals": 1,
+    "staleContractError": 105,
+    "configurationEvents": 3,
+    "routeEvents": 12,
+    "totalProjectedEvents": 15,
+    "joinedNodeTestsPassed": 3,
+    "assertions": [
+      "Exact token conservation/rounding/owner Return and zero mutation/stale token delta.",
+      "Complete graph/current revisions after grouped prefix/threshold/inactive-branch update.",
+      "Actual getters/instances through fenced readers; mixed executable witness refused.",
+      "Actual event projection/replay; observed history gaps/backfill and immutable original evidence.",
+      "SDK state/receipt/history parsers, exact hosted review and original sign-only callback."
+    ],
+    "refusalQualification": "Recipients-20, prefix-12 and ceiling-40 factories hit the default CPU limit; their current review and downstream execution were not reached."
+  },
+  "reviewCostQualification": "Counts cover exactly one successful production fenced-current read per reached phase through the local guest RPC adapter. getLedgerEntries counts the two actual opening/closing instance requests; account loading is separately counted at the mocked loadPaymentAccount adapter boundary, whose underlying RPC lookup is not measured. DTO bytes are exact UTF-8 JSON.stringify({data:current}), excluding HTTP headers/compression. Sidecar sizes cover each complete layout file, not one phase. No live RPC latency or fee claim.",
+  "feeDiagnostics": {
+    "historicalModelDate": "2024-12-11",
+    "sdkMajor": 26,
+    "feeDiagnosticsComplete": false,
+    "feeModelOnly": true,
+    "feeQuoteUsable": false,
+    "qualification": "All feeDebug models are incomplete historical diagnostics, not actual fees, usable quotes or current rent. Never convert to XLM or sum as actual fees. Zero diagnostic counters do not prove no reads/writes/events; first-native-payment rent-model spikes are not real charges.",
+    "knownMissingCounters": {
+      "layout": "prefix-8",
+      "successfulOperations": ["below", "equal", "above"],
+      "writeEntries": 0,
+      "contractEventBytes": 0,
+      "actualStateChangesAndEventsAsserted": true
+    }
+  },
+  "fixtureQualification": {
+    "assetMode": "native-sac",
+    "initialClassicWalletStroops": "1000000000",
+    "initialContractStroops": "0",
+    "baseReserve": 0,
+    "sourceOwnerDiffersFromPayer": true,
+    "accountLoader": "One local loadPaymentAccount adapter call per fenced read; its underlying production account-ledger RPC lookup is not measured.",
+    "rpcMetadata": "Only VM lastModified0 mapped to positive1; actual getter/configuration/executable XDR untouched.",
+    "notPerformed": [
+      "Actual HTTP partner/hosted API transport",
+      "Live RPC/network simulation",
+      "Wallet extension/browser signing",
+      "Actual network fees or funded submission",
+      "Artifact upload/registry activation/SDK publication",
+      "Hosted CI"
+    ]
+  },
+  "canonicalRebuildSupplement": {
+    "provenance": {
+      "bundleRelativePath": "resource/canonical-rebuild/manifest.json",
+      "sha256": "23a5671dad9525f87df913c8d781527cdf6bf9abeb2f27e486b4c055b9ed5639"
+    },
+    "result": "Original #1224 CargoHome reproduced all four approved family bytes. An arbitrary later CargoHome changed exactly two SDK panic-path DATA bytes; no executable source change or repinning. Earlier raw differing-build reports remain unchanged.",
+    "factory": "Fresh factory byte hash measured separately; not a new conditional runtime trust pin."
+  },
+  "provenanceRoot": "Paths below are relative to the durable paiflow-1229-tools evidence bundle, not remote URLs.",
+  "provenance": [
+    {
+      "bundleRelativePath": "join/compiled-20261115-b/joined-report.json",
+      "sha256": "b06b4b647294d6df32d5ec7da2607b9f499aa6a30fd96c159e1acb7e73e419c2"
+    },
+    {
+      "bundleRelativePath": "join/compiled-20261115-b/artifacts.json",
+      "sha256": "8265dfa10ea09d3f9665f61713aadba6d3b898ae2ee04433c1242c54c829fcf6"
+    },
+    {
+      "bundleRelativePath": "join/compiled-20261115-b/compiled-guest.log",
+      "sha256": "993bac1c13c893378eaf75887a4d3cd1f4140cd0fe430212b860a928b5be3ec0"
+    },
+    {
+      "bundleRelativePath": "join/final-lane-manifest-round-2.json",
+      "sha256": "a009e2037df54848479e2c05320b962c988f5a3d9c61b02c0d71d894d37f59ec"
+    }
+  ],
+  "layouts": [
+    {
+      "id": "minimal-gt",
+      "nodeCount": 4,
+      "factory": {
+        "outcome": "success",
+        "cpuDiagnosticCounter": "15889334",
+        "memoryDiagnosticCounterBytes": "13357953"
+      },
+      "downstreamReached": true,
+      "operations": [
+        {
+          "id": "below",
+          "method": "execute_v2",
+          "outcome": "success",
+          "cpuDiagnosticCounter": "18537669",
+          "memoryDiagnosticCounterBytes": "17941051"
+        },
+        {
+          "id": "equal",
+          "method": "execute_v2",
+          "outcome": "success",
+          "cpuDiagnosticCounter": "18589058",
+          "memoryDiagnosticCounterBytes": "17921482"
+        },
+        {
+          "id": "above",
+          "method": "execute_v2",
+          "outcome": "success",
+          "cpuDiagnosticCounter": "18943217",
+          "memoryDiagnosticCounterBytes": "17942702"
+        }
+      ],
+      "allNodeReview": {
+        "nodeCount": 4,
+        "callCounts": {
+          "simulateTransaction": 16,
+          "getLedgerEntries": 2,
+          "getLatestLedger": 0,
+          "getAccount": 0,
+          "loadPaymentAccountAdapter": 1
+        },
+        "getterMethodCounts": {
+          "capabilities_v2": 4,
+          "graph_manifest_v2": 4,
+          "initial_config_v2": 4,
+          "mutation_status_v2": 4
+        },
+        "instanceLedgerKeysRequested": 8,
+        "accountLookupRpcCallsMeasured": false,
+        "phases": [
+          {
+            "id": "post-deploy",
+            "publicResponseJsonUtf8Bytes": 3732
+          },
+          {
+            "id": "below",
+            "publicResponseJsonUtf8Bytes": 3732
+          },
+          {
+            "id": "equal",
+            "publicResponseJsonUtf8Bytes": 3732
+          },
+          {
+            "id": "above",
+            "publicResponseJsonUtf8Bytes": 3732
+          }
+        ]
+      },
+      "byteSizes": {
+        "getterSidecarFileBytes": 147289,
+        "getterSidecarXdrBytes": 73644,
+        "instanceSidecarFileBytes": 3299889,
+        "instanceSidecarXdrBytes": 1649944,
+        "unsignedDeploymentBase64Utf8Bytes": 17868,
+        "unsignedDeploymentXdrBytes": 13400,
+        "inputPacketXdrBytes": 18864
+      },
+      "provenance": [
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/input/minimal-gt.json",
+          "sha256": "d93378ec7f839ef8cda883a0c6284495dc9912c25e59f25ede416aa261236ef9"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/input/minimal-gt.xdr-hex",
+          "sha256": "688527418c8e9a0121842ce65cc6f81b68c35a8aab900d968bcf9017a002869f"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/minimal-gt.result.xdr-hex",
+          "sha256": "9ebf5a5e590a18f4ce91888ae837f6a57fa182266b288a5f8a078828e178153b"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/minimal-gt.getters.xdr-hex",
+          "sha256": "c7f052756be3d132945739a4c994d5446fee6a94f601d5045f0da205ca644443"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/minimal-gt.instances.xdr-hex",
+          "sha256": "37247ec619a40b5a9bd91c394297a97fd592796c1a4e9e745bfdd51ebe32e441"
+        }
+      ]
+    },
+    {
+      "id": "minimal-lt",
+      "nodeCount": 4,
+      "factory": {
+        "outcome": "success",
+        "cpuDiagnosticCounter": "15882384",
+        "memoryDiagnosticCounterBytes": "13357953"
+      },
+      "downstreamReached": true,
+      "operations": [
+        {
+          "id": "below",
+          "method": "execute_v2",
+          "outcome": "success",
+          "cpuDiagnosticCounter": "18890544",
+          "memoryDiagnosticCounterBytes": "17952188"
+        },
+        {
+          "id": "equal",
+          "method": "execute_v2",
+          "outcome": "success",
+          "cpuDiagnosticCounter": "18540145",
+          "memoryDiagnosticCounterBytes": "17928437"
+        },
+        {
+          "id": "above",
+          "method": "execute_v2",
+          "outcome": "success",
+          "cpuDiagnosticCounter": "18583353",
+          "memoryDiagnosticCounterBytes": "17927330"
+        }
+      ],
+      "allNodeReview": {
+        "nodeCount": 4,
+        "callCounts": {
+          "simulateTransaction": 16,
+          "getLedgerEntries": 2,
+          "getLatestLedger": 0,
+          "getAccount": 0,
+          "loadPaymentAccountAdapter": 1
+        },
+        "getterMethodCounts": {
+          "capabilities_v2": 4,
+          "graph_manifest_v2": 4,
+          "initial_config_v2": 4,
+          "mutation_status_v2": 4
+        },
+        "instanceLedgerKeysRequested": 8,
+        "accountLookupRpcCallsMeasured": false,
+        "phases": [
+          {
+            "id": "post-deploy",
+            "publicResponseJsonUtf8Bytes": 3732
+          },
+          {
+            "id": "below",
+            "publicResponseJsonUtf8Bytes": 3732
+          },
+          {
+            "id": "equal",
+            "publicResponseJsonUtf8Bytes": 3732
+          },
+          {
+            "id": "above",
+            "publicResponseJsonUtf8Bytes": 3732
+          }
+        ]
+      },
+      "byteSizes": {
+        "getterSidecarFileBytes": 147289,
+        "getterSidecarXdrBytes": 73644,
+        "instanceSidecarFileBytes": 3299889,
+        "instanceSidecarXdrBytes": 1649944,
+        "unsignedDeploymentBase64Utf8Bytes": 17868,
+        "unsignedDeploymentXdrBytes": 13400,
+        "inputPacketXdrBytes": 18864
+      },
+      "provenance": [
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/input/minimal-lt.json",
+          "sha256": "1ffd32891b67174639cd0cad733acbfe4b621e1487fab59891b8a00068b45b26"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/input/minimal-lt.xdr-hex",
+          "sha256": "46dd50b24ad8903633254020e29c346ddd5c4af15e8623a85c1d536a8f433084"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/minimal-lt.result.xdr-hex",
+          "sha256": "53cb7f8bb563bd830e545f7553863b64ec7cc8a4c273f17a7c75e3e117311309"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/minimal-lt.getters.xdr-hex",
+          "sha256": "e39d450f216ba5183a4e4b6b9732919a27468ba0dc4ca4fd4009aa7c7ef18f61"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/minimal-lt.instances.xdr-hex",
+          "sha256": "9c1f166c0398f1f2e98e1174814794089c4445818ed6b33de18d63281b7163dc"
+        }
+      ]
+    },
+    {
+      "id": "standard",
+      "nodeCount": 5,
+      "factory": {
+        "outcome": "success",
+        "cpuDiagnosticCounter": "28983623",
+        "memoryDiagnosticCounterBytes": "17104130"
+      },
+      "downstreamReached": true,
+      "operations": [
+        {
+          "id": "before",
+          "method": "execute_v2",
+          "outcome": "success",
+          "cpuDiagnosticCounter": "33927009",
+          "memoryDiagnosticCounterBytes": "24844641"
+        },
+        {
+          "id": "group",
+          "method": "mutate_v2",
+          "outcome": "success",
+          "cpuDiagnosticCounter": "36079841",
+          "memoryDiagnosticCounterBytes": "25847512"
+        },
+        {
+          "id": "stale",
+          "method": "execute_v2",
+          "outcome": "expected-refusal",
+          "cpuDiagnosticCounter": "6576596",
+          "memoryDiagnosticCounterBytes": "6533674"
+        },
+        {
+          "id": "fresh-true",
+          "method": "execute_v2",
+          "outcome": "success",
+          "cpuDiagnosticCounter": "33973610",
+          "memoryDiagnosticCounterBytes": "24820957"
+        },
+        {
+          "id": "fresh-false",
+          "method": "execute_v2",
+          "outcome": "success",
+          "cpuDiagnosticCounter": "30803710",
+          "memoryDiagnosticCounterBytes": "24791032"
+        }
+      ],
+      "allNodeReview": {
+        "nodeCount": 5,
+        "callCounts": {
+          "simulateTransaction": 20,
+          "getLedgerEntries": 2,
+          "getLatestLedger": 0,
+          "getAccount": 0,
+          "loadPaymentAccountAdapter": 1
+        },
+        "getterMethodCounts": {
+          "capabilities_v2": 5,
+          "graph_manifest_v2": 5,
+          "initial_config_v2": 5,
+          "mutation_status_v2": 5
+        },
+        "instanceLedgerKeysRequested": 10,
+        "accountLookupRpcCallsMeasured": false,
+        "phases": [
+          {
+            "id": "post-deploy",
+            "publicResponseJsonUtf8Bytes": 5682
+          },
+          {
+            "id": "before",
+            "publicResponseJsonUtf8Bytes": 5682
+          },
+          {
+            "id": "group",
+            "publicResponseJsonUtf8Bytes": 5680
+          },
+          {
+            "id": "stale",
+            "publicResponseJsonUtf8Bytes": 5680
+          },
+          {
+            "id": "fresh-true",
+            "publicResponseJsonUtf8Bytes": 5680
+          },
+          {
+            "id": "fresh-false",
+            "publicResponseJsonUtf8Bytes": 5680
+          }
+        ]
+      },
+      "byteSizes": {
+        "getterSidecarFileBytes": 372697,
+        "getterSidecarXdrBytes": 186348,
+        "instanceSidecarFileBytes": 5098537,
+        "instanceSidecarXdrBytes": 2549268,
+        "unsignedDeploymentBase64Utf8Bytes": 31232,
+        "unsignedDeploymentXdrBytes": 23424,
+        "inputPacketXdrBytes": 33656
+      },
+      "provenance": [
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/input/standard.json",
+          "sha256": "2f07761ac7180647259c146a77f3698ef0c7c93395ce2ccd845d7c724f13d204"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/input/standard.xdr-hex",
+          "sha256": "60b73a1260e9d6c86d028213c14ccd9ee617db719ecc0667f9ffff4890cd0845"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/standard.result.xdr-hex",
+          "sha256": "7d63b38f275ce4d5fdfb737c65eab92a91c2a5c32be9b415cecde7c15d071be7"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/standard.getters.xdr-hex",
+          "sha256": "1a6d9d78818d4198d2df789c79fc0346c28618f23ccef61a15efd4bf251ecd50"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/standard.instances.xdr-hex",
+          "sha256": "46c30ebf4b507cf415db0a4121441834fbc07a2b9d448b273beb629715d5b25c"
+        }
+      ]
+    },
+    {
+      "id": "recipients-20",
+      "nodeCount": 4,
+      "factory": {
+        "outcome": "host-error",
+        "cpuDiagnosticCounter": "100000310",
+        "memoryDiagnosticCounterBytes": "9778025"
+      },
+      "downstreamReached": false,
+      "operations": [],
+      "allNodeReview": null,
+      "byteSizes": {
+        "getterSidecarFileBytes": 25,
+        "getterSidecarXdrBytes": 12,
+        "instanceSidecarFileBytes": 25,
+        "instanceSidecarXdrBytes": 12,
+        "unsignedDeploymentBase64Utf8Bytes": 49728,
+        "unsignedDeploymentXdrBytes": 37296,
+        "inputPacketXdrBytes": 42632
+      },
+      "provenance": [
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/input/recipients-20.json",
+          "sha256": "0c075605edece954b94b0dd50ba9efe86d93483727f3c8d555592d6f91677389"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/input/recipients-20.xdr-hex",
+          "sha256": "f546f3583650603790714a482a8a0219cd4889cfaa1551f731dab97987b5fe00"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/recipients-20.result.xdr-hex",
+          "sha256": "202bd81889c1272006a89c7775c54ee79b3e77f350b656f53aaa061fbacb8fc9"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/recipients-20.getters.xdr-hex",
+          "sha256": "56bc61be44e737f78191293deba8987566ab58695839a16aa7a8670fa7ce98d3"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/recipients-20.instances.xdr-hex",
+          "sha256": "56bc61be44e737f78191293deba8987566ab58695839a16aa7a8670fa7ce98d3"
+        }
+      ]
+    },
+    {
+      "id": "prefix-8",
+      "nodeCount": 8,
+      "factory": {
+        "outcome": "success",
+        "cpuDiagnosticCounter": "67984705",
+        "memoryDiagnosticCounterBytes": "26524446"
+      },
+      "downstreamReached": true,
+      "operations": [
+        {
+          "id": "below",
+          "method": "execute_v2",
+          "outcome": "success",
+          "cpuDiagnosticCounter": "61429970",
+          "memoryDiagnosticCounterBytes": "41946051"
+        },
+        {
+          "id": "equal",
+          "method": "execute_v2",
+          "outcome": "success",
+          "cpuDiagnosticCounter": "61752212",
+          "memoryDiagnosticCounterBytes": "41945976"
+        },
+        {
+          "id": "above",
+          "method": "execute_v2",
+          "outcome": "success",
+          "cpuDiagnosticCounter": "62426302",
+          "memoryDiagnosticCounterBytes": "41945850"
+        }
+      ],
+      "allNodeReview": {
+        "nodeCount": 8,
+        "callCounts": {
+          "simulateTransaction": 32,
+          "getLedgerEntries": 2,
+          "getLatestLedger": 0,
+          "getAccount": 0,
+          "loadPaymentAccountAdapter": 1
+        },
+        "getterMethodCounts": {
+          "capabilities_v2": 8,
+          "graph_manifest_v2": 8,
+          "initial_config_v2": 8,
+          "mutation_status_v2": 8
+        },
+        "instanceLedgerKeysRequested": 16,
+        "accountLookupRpcCallsMeasured": false,
+        "phases": [
+          {
+            "id": "post-deploy",
+            "publicResponseJsonUtf8Bytes": 8563
+          },
+          {
+            "id": "below",
+            "publicResponseJsonUtf8Bytes": 8563
+          },
+          {
+            "id": "equal",
+            "publicResponseJsonUtf8Bytes": 8563
+          },
+          {
+            "id": "above",
+            "publicResponseJsonUtf8Bytes": 8563
+          }
+        ]
+      },
+      "byteSizes": {
+        "getterSidecarFileBytes": 520921,
+        "getterSidecarXdrBytes": 260460,
+        "instanceSidecarFileBytes": 3665617,
+        "instanceSidecarXdrBytes": 1832808,
+        "unsignedDeploymentBase64Utf8Bytes": 71584,
+        "unsignedDeploymentXdrBytes": 53688,
+        "inputPacketXdrBytes": 62240
+      },
+      "provenance": [
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/input/prefix-8.json",
+          "sha256": "947319540791d6daed67efa117533f18f5f99ecbfdd265f9b4f4916476293c2f"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/input/prefix-8.xdr-hex",
+          "sha256": "34d02c94d7c0952a498a426ea8a72083e159a3088efab3b2a7f2d9cc1445f820"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/prefix-8.result.xdr-hex",
+          "sha256": "939718438fa2900ac395c231edeb65a6b66f2a1fee0610b55647710846aaf23c"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/prefix-8.getters.xdr-hex",
+          "sha256": "8e144bb4a51d31ce4b482a955bb719237d57b0ec0f7e2682f7299e695a6a133e"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/prefix-8.instances.xdr-hex",
+          "sha256": "392c8f649e7a14dd7d1cbb028ac942c8fc42f365f9f93c6b7e1dd9a9c5af5d88"
+        }
+      ]
+    },
+    {
+      "id": "prefix-12",
+      "nodeCount": 12,
+      "factory": {
+        "outcome": "host-error",
+        "cpuDiagnosticCounter": "100111420",
+        "memoryDiagnosticCounterBytes": "21025634"
+      },
+      "downstreamReached": false,
+      "operations": [],
+      "allNodeReview": null,
+      "byteSizes": {
+        "getterSidecarFileBytes": 25,
+        "getterSidecarXdrBytes": 12,
+        "instanceSidecarFileBytes": 25,
+        "instanceSidecarXdrBytes": 12,
+        "unsignedDeploymentBase64Utf8Bytes": 161144,
+        "unsignedDeploymentXdrBytes": 120856,
+        "inputPacketXdrBytes": 132496
+      },
+      "provenance": [
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/input/prefix-12.json",
+          "sha256": "5aa8b4ad71c06f94106113e40c6575ea91beffae0cbdcb3c24f98aa41f742fbe"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/input/prefix-12.xdr-hex",
+          "sha256": "a12b3b2ff36c317d220422f3099ccc28c6d3d6ea05ec6af89cb946fcc3fef982"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/prefix-12.result.xdr-hex",
+          "sha256": "420633f884c12b5ab2bb912ac842f43392c3723e9d4f71f1b5079c43fc3aceb8"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/prefix-12.getters.xdr-hex",
+          "sha256": "56bc61be44e737f78191293deba8987566ab58695839a16aa7a8670fa7ce98d3"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/prefix-12.instances.xdr-hex",
+          "sha256": "56bc61be44e737f78191293deba8987566ab58695839a16aa7a8670fa7ce98d3"
+        }
+      ]
+    },
+    {
+      "id": "ceiling-40",
+      "nodeCount": 40,
+      "factory": {
+        "outcome": "host-error",
+        "cpuDiagnosticCounter": "100001066",
+        "memoryDiagnosticCounterBytes": "4530310"
+      },
+      "downstreamReached": false,
+      "operations": [],
+      "allNodeReview": null,
+      "byteSizes": {
+        "getterSidecarFileBytes": 25,
+        "getterSidecarXdrBytes": 12,
+        "instanceSidecarFileBytes": 25,
+        "instanceSidecarXdrBytes": 12,
+        "unsignedDeploymentBase64Utf8Bytes": 1802796,
+        "unsignedDeploymentXdrBytes": 1352096,
+        "inputPacketXdrBytes": 1385768
+      },
+      "provenance": [
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/input/ceiling-40.json",
+          "sha256": "cf55c052f91e6fadcd2a9e3de1ac56bf6bd88d1242bbff2d29fbd42277fef643"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/input/ceiling-40.xdr-hex",
+          "sha256": "403094e8a9a5f983be54c1e2595e53a2807041936d0bb153e8386985aa2dd222"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/ceiling-40.result.xdr-hex",
+          "sha256": "14af2970aee3bb6d9daaceba64dfe94b7ff7465674ff9ccfeb90f2323bfd6d99"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/ceiling-40.getters.xdr-hex",
+          "sha256": "56bc61be44e737f78191293deba8987566ab58695839a16aa7a8670fa7ce98d3"
+        },
+        {
+          "bundleRelativePath": "join/compiled-20261115-b/output/ceiling-40.instances.xdr-hex",
+          "sha256": "56bc61be44e737f78191293deba8987566ab58695839a16aa7a8670fa7ce98d3"
+        }
+      ]
+    }
+  ]
+}

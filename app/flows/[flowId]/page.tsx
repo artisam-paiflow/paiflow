@@ -6,6 +6,7 @@ import { env, soroswapRouterAddress } from "@/lib/env";
 import { serverFeatures } from "@/lib/features";
 import { OrdinaryFlowGraphSchema } from "@/lib/flows/ordinary-schema";
 import { ordinarySandboxNotifications } from "@/lib/flows/ordinary-flow";
+import { getConditionalWasmHashes } from "@/lib/stellar/conditional-artifact-config";
 import { getWasmHash } from "@/lib/stellar/config";
 import Topbar from "@/components/app/topbar";
 import BuilderClient from "@/components/builder/builder-client";
@@ -41,12 +42,15 @@ export default async function FlowBuilderPage({ params }: { params: Promise<{ fl
       ].map(async (kind) => [kind, (await getWasmHash(kind)) ?? ""] as const),
     ),
   );
+  const conditionalHashes = await getConditionalWasmHashes().catch(
+    () => new Map<TemplateKind, string>(),
+  );
   return (
     <>
       <Topbar username={user.username} />
       <BuilderClient
         allowConditional
-        conditionalArtifactHashes={Object.fromEntries(hashes)}
+        conditionalArtifactHashes={Object.fromEntries(conditionalHashes)}
         flowId={flow.id}
         initialName={flow.name}
         initialGraph={

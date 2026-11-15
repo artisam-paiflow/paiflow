@@ -239,3 +239,29 @@ it("navigation during an uncertain prepare retains oldkey without overwriting th
       ?.state,
   ).toBe("preparing");
 });
+it("unavailable new artifacts block only fresh conditional prepare and preserve admitted original signing", async () => {
+  const view = render(
+    <DeployReview {...props} preparationUnavailableReason="Conditional artifacts unavailable" />,
+  );
+  expect(
+    (screen.getByRole("button", { name: /deploy to testnet/i }) as HTMLButtonElement).disabled,
+  ).toBe(true);
+  await act(async () =>
+    fireEvent.click(screen.getByRole("button", { name: /deploy to testnet/i })),
+  );
+  expect(m.fetch).not.toHaveBeenCalled();
+  view.rerender(<DeployReview {...props} />);
+  await act(async () =>
+    fireEvent.click(screen.getByRole("button", { name: /deploy to testnet/i })),
+  );
+  await screen.findByRole("region", { name: "Conditional deployment original review" });
+  view.rerender(
+    <DeployReview {...props} preparationUnavailableReason="Conditional artifacts unavailable" />,
+  );
+  fireEvent.click(screen.getByRole("checkbox"));
+  await act(async () =>
+    fireEvent.click(await screen.findByRole("button", { name: "RESUME DEPLOYMENT" })),
+  );
+  expect(m.sign).toHaveBeenCalledOnce();
+  expect(m.fetch.mock.calls.filter(([url]) => String(url).endsWith("/prepare"))).toHaveLength(1);
+});

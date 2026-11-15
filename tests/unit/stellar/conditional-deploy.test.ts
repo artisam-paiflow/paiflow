@@ -16,6 +16,9 @@ const mocks = vi.hoisted(() => ({
   load: vi.fn(),
   simulate: vi.fn(),
 }));
+vi.mock("@/lib/stellar/conditional-artifact-config", () => ({
+  getConditionalWasmHashes: mocks.hashes,
+}));
 vi.mock("@/lib/stellar/config", () => ({
   getWasmHashes: mocks.hashes,
   getFactoryAddress: mocks.factory,

@@ -19,9 +19,9 @@ const hash = "a".repeat(64);
 const args = ["--abi-kind=SUBSCRIPTION", "--abi-wasm=/tmp/subscription.wasm", `--abi-hash=${hash}`];
 beforeEach(() => vi.resetAllMocks());
 
-function artifact() {
+function artifact(method = "charge") {
   const entry = xdr.ScSpecEntry.scSpecEntryFunctionV0(
-    new xdr.ScSpecFunctionV0({ doc: "", name: "charge", inputs: [], outputs: [] }),
+    new xdr.ScSpecFunctionV0({ doc: "", name: method, inputs: [], outputs: [] }),
   );
   const name = Buffer.from("contractspecv0");
   const payload = Buffer.concat([Buffer.from([name.length]), name, entry.toXDR()]);
@@ -143,4 +143,36 @@ describe("scoped registry ABI repair", () => {
       a.abiJson,
     );
   });
+});
+
+it("inspects conditional ABI read-only but refuses applying unknown-hash v2 metadata to a legacy slot", async () => {
+  const a = artifact("execute_v2");
+  fs.readFileSync.mockReturnValue(a.wasm);
+  registry.findUnique.mockResolvedValue({ wasmHash: a.wasmHash, abiJson: {} });
+  const repair = { ...parseAbiRepair(args)!, wasmHash: a.wasmHash };
+  expect(await inspectOrRepairAbi(repair, "testnet")).toEqual(a.abiJson);
+  expect(registry.setWasmHash).not.toHaveBeenCalled();
+  await expect(inspectOrRepairAbi({ ...repair, apply: true }, "testnet")).rejects.toThrow(
+    "artifact ABI",
+  );
+  expect(registry.setWasmHash).not.toHaveBeenCalled();
+});
+it("refuses a rebuilt unknown-hash conditional spec before syncing a legacy row", async () => {
+  const a = artifact("capabilities_v2");
+  fs.existsSync.mockReturnValue(true);
+  fs.readFileSync.mockReturnValue(a.wasm);
+  registry.findUnique.mockResolvedValue({ wasmHash: hash, abiJson: { retained: true } });
+  await expect(syncBuiltWasm(TemplateKind.PAYER, "testnet", a.wasmHash)).rejects.toThrow(
+    "artifact ABI",
+  );
+  expect(registry.setWasmHash).not.toHaveBeenCalled();
+});
+it("also refuses a same-hash conditional spec already present in a legacy slot without changing it", async () => {
+  const a = artifact("mutate_v2");
+  registry.findUnique.mockResolvedValue({ wasmHash: a.wasmHash, abiJson: a.abiJson });
+  await expect(syncBuiltWasm(TemplateKind.PAYER, "testnet", a.wasmHash)).rejects.toThrow(
+    "artifact ABI",
+  );
+  expect(fs.readFileSync).not.toHaveBeenCalled();
+  expect(registry.setWasmHash).not.toHaveBeenCalled();
 });

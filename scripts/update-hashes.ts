@@ -17,7 +17,13 @@ import { config } from "dotenv";
 import { TemplateKind } from "@prisma/client";
 import { db } from "@/lib/prisma";
 import { setFactoryAddress } from "@/lib/stellar/template-db";
-import { parseAbiRepair, inspectOrRepairAbi, syncBuiltWasm } from "./registry-abi";
+import { assertLegacyArtifactRegistryHash } from "@/lib/stellar/conditional-artifact-config-schema";
+import {
+  parseAbiRepair,
+  inspectOrRepairAbi,
+  planBuiltWasm,
+  applyBuiltWasmPlan,
+} from "./registry-abi";
 // Neither call overrides, so dotenv's first-write-wins gives shell > .env.local
 // > .env. The shell has to win: this script writes to whatever DATABASE_URL
 // names, and an operator syncing hashes into a deployed database must not have
@@ -60,13 +66,23 @@ async function update() {
     { kind: TemplateKind.YIELD, envKey: `STELLAR_WASM_HASH_YIELD_${suffix}` },
     { kind: TemplateKind.PAYER, envKey: `STELLAR_WASM_HASH_PAYER_${suffix}` },
   ];
-  for (const t of templates) {
-    const hash = process.env[t.envKey];
+  // Snapshot and preflight the whole update before any row is synchronized.
+  const proposed = templates.map((template) => ({
+    ...template,
+    hash: process.env[template.envKey],
+  }));
+  for (const template of proposed)
+    if (template.hash) assertLegacyArtifactRegistryHash(template.hash);
+  const plans = new Map<TemplateKind, Awaited<ReturnType<typeof planBuiltWasm>>>();
+  for (const t of proposed)
+    if (t.hash) plans.set(t.kind, await planBuiltWasm(t.kind, network, t.hash));
+  for (const t of proposed) {
+    const hash = t.hash;
     if (!hash) {
       console.log(`${t.envKey} not set, skipping`);
       continue;
     }
-    await syncBuiltWasm(t.kind, network, hash);
+    await applyBuiltWasmPlan(plans.get(t.kind)!);
     console.log(`Synced ${t.kind}: ${hash.slice(0, 12)}...`);
   }
   const factoryAddress = process.env[`STELLAR_FACTORY_ADDRESS_${suffix}`];

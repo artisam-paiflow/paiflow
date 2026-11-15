@@ -8,6 +8,8 @@ import { FlowGraphSchema } from "@/lib/flows/schema";
 const mocks = vi.hoisted(() => ({
   flow: vi.fn(),
   hash: vi.fn(),
+  conditionalHash: vi.fn(),
+  deploy: vi.fn(),
   builder: vi.fn(),
   trustlines: vi.fn(),
 }));
@@ -27,6 +29,9 @@ vi.mock("@/lib/env", () => ({
 vi.mock("@/lib/features", () => ({
   serverFeatures: () => ({ aiAssistant: false, oracleCondition: true }),
 }));
+vi.mock("@/lib/stellar/conditional-artifact-config", () => ({
+  getConditionalWasmHashes: mocks.conditionalHash,
+}));
 vi.mock("@/lib/stellar/config", () => ({ getWasmHash: mocks.hash }));
 vi.mock("@/lib/stellar/trustline-check", () => ({ checkPayoutTrustlines: mocks.trustlines }));
 vi.mock("@/components/app/topbar", () => ({ default: () => <div>Topbar</div> }));
@@ -37,7 +42,10 @@ vi.mock("@/components/builder/builder-client", () => ({
   },
 }));
 vi.mock("@/components/deploy/deploy-review", () => ({
-  default: () => <div>Wallet deployment review</div>,
+  default: (props: unknown) => {
+    mocks.deploy(props);
+    return <div>Wallet deployment review</div>;
+  },
 }));
 import FlowBuilderPage from "@/app/flows/[flowId]/page";
 import DeployReviewPage from "@/app/flows/[flowId]/deploy/page";
@@ -68,6 +76,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.flow.mockResolvedValue({ id: "flow", name: "Payments", graph: graph() });
   mocks.hash.mockResolvedValue("a".repeat(64));
+  mocks.conditionalHash.mockResolvedValue(new Map());
   mocks.trustlines.mockResolvedValue([]);
 });
 describe("builder and deployment artifact readiness", () => {
@@ -112,5 +121,83 @@ describe("builder and deployment artifact readiness", () => {
     expect(mocks.trustlines.mock.lastCall![0]).toEqual([
       { nodeId: "pay", address: ADDRESS, asset: { kind: "native" } },
     ]);
+  });
+});
+
+import { CONDITIONAL_V2_WASM_HASHES } from "@/lib/stellar/conditional-artifacts";
+function conditionalGraph() {
+  return {
+    generation: "conditional-v2",
+    conditionalPolicies: { version: 2, nodes: [] },
+    nodes: [
+      { id: "receive", type: "on_receive", config: { asset: { kind: "native" } } },
+      { id: "condition", type: "condition", config: { kind: "amount_gt", amountStroops: "100" } },
+      {
+        id: "yes",
+        type: "pay",
+        config: { asset: { kind: "native" }, recipient: ADDRESS, fullAmount: true },
+      },
+      { id: "no", type: "return_to_owner", config: {} },
+    ],
+    edges: [
+      { id: "a", source: "receive", target: "condition" },
+      { id: "t", source: "condition", target: "yes", sourceHandle: "true" },
+      { id: "f", source: "condition", target: "no", sourceHandle: "false" },
+    ],
+  };
+}
+it("keeps conditional activation and retained v1 builder readiness in separate maps", async () => {
+  mocks.hash.mockImplementation(
+    async (kind: keyof typeof EXECUTION_V1_WASM_HASHES) => EXECUTION_V1_WASM_HASHES[kind],
+  );
+  mocks.conditionalHash.mockResolvedValue(new Map(Object.entries(CONDITIONAL_V2_WASM_HASHES)));
+  render(await FlowBuilderPage({ params: Promise.resolve({ flowId: "flow" }) }));
+  expect(mocks.builder.mock.lastCall![0].executionArtifacts).toEqual({
+    receive: true,
+    pay: true,
+    split: true,
+  });
+  expect(mocks.builder.mock.lastCall![0].conditionalArtifactHashes).toEqual(
+    CONDITIONAL_V2_WASM_HASHES,
+  );
+});
+it("mounts original recovery for disabled conditional artifacts and incomplete tagged drafts", async () => {
+  mocks.flow.mockResolvedValue({ id: "flow", name: "Conditional", graph: conditionalGraph() });
+  render(await DeployReviewPage({ params: Promise.resolve({ flowId: "flow" }) }));
+  expect(screen.getByText("Wallet deployment review")).toBeTruthy();
+  expect(mocks.deploy.mock.lastCall![0]).toMatchObject({
+    conditional: true,
+    preparationUnavailableReason: expect.any(String),
+  });
+  mocks.flow.mockResolvedValue({
+    id: "flow",
+    name: "Incomplete",
+    graph: { ...conditionalGraph(), edges: [] },
+  });
+  render(await DeployReviewPage({ params: Promise.resolve({ flowId: "flow" }) }));
+  expect(mocks.deploy.mock.lastCall![0].preparationUnavailableReason).toContain("Resolve");
+});
+
+it("malformed conditional configuration cannot abort retained v1 builder readiness", async () => {
+  mocks.hash.mockImplementation(
+    async (kind: keyof typeof EXECUTION_V1_WASM_HASHES) => EXECUTION_V1_WASM_HASHES[kind],
+  );
+  mocks.conditionalHash.mockRejectedValue(new Error("Conditional pin invalid"));
+  render(await FlowBuilderPage({ params: Promise.resolve({ flowId: "flow" }) }));
+  expect(mocks.builder.mock.lastCall![0].executionArtifacts).toEqual({
+    receive: true,
+    pay: true,
+    split: true,
+  });
+  expect(mocks.builder.mock.lastCall![0].conditionalArtifactHashes).toEqual({});
+});
+it("malformed conditional configuration still mounts the original conditional deployment recovery engine", async () => {
+  mocks.flow.mockResolvedValue({ id: "flow", name: "Conditional", graph: conditionalGraph() });
+  mocks.conditionalHash.mockRejectedValue(new Error("Conditional pin invalid"));
+  render(await DeployReviewPage({ params: Promise.resolve({ flowId: "flow" }) }));
+  expect(screen.getByText("Wallet deployment review")).toBeTruthy();
+  expect(mocks.deploy.mock.lastCall![0]).toMatchObject({
+    conditional: true,
+    preparationUnavailableReason: expect.any(String),
   });
 });

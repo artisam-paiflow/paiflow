@@ -358,7 +358,11 @@ never activate an artifact or grant capability. Explicit opt-in
 ownership proof, selected-route review and exact-original recovery. Existing
 legacy/v1 payloads, pins and template
 functionality remain unchanged; there is no retrofit or artifact activation. Source
-readiness and actual network/wallet release acceptance remain distinct under #1229.
+readiness and actual network/wallet release acceptance remain distinct under #1229. Conditional deployment
+configuration uses a separate, default-disabled network/version2 artifact set;
+legacy/template registry slots and pins remain unchanged. Disabling fresh
+preparation retains admitted original recovery. See
+[readiness and rollout](docs/conditional-v2-readiness.md).
 Swap, delayed/recurring nodes and other deferred capabilities remain outside scope.
 
 ### 3.5 English Preview Pane
