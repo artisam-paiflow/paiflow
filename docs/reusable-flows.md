@@ -8,6 +8,14 @@ artifacts or public endpoints are activated by the foundation. #1159 implements
 the contract/compiler execution lane described in [execution-v1.md](execution-v1.md).
 Its local builds are not artifact activation. Existing deployed contracts are unchanged.
 
+## Conditional v2 foundation
+
+[Conditional v2](conditional-v2.md) defines the separately versioned Phase 2
+contract for #1222. Its normalized schemas are isolated from the retained v1
+runtime unions below. It enables no conditional runtime capability and does not
+expand templates. Use that document for complete-graph bindings, selected inputs,
+threshold mutation, getter/event shapes and downstream handoffs.
+
 ## Availability and compatibility
 
 An absent `graph.fieldPolicies` means the existing configured behavior: no execution

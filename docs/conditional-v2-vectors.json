@@ -1,0 +1,1167 @@
+{
+  "description": "Design-only examples. Synthetic addresses/hashes are not reviewed or activated artifacts. owner != payer. Every test uses the definition embedded in executionIntent.",
+  "executionIntent": {
+    "version": 2,
+    "deploymentId": "6c1709db-ecc1-4c68-b9db-66f6f5aca2f1",
+    "networkPassphraseHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "rootContract": "CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526",
+    "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+    "payer": "GABAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEJXA",
+    "amountStroops": "111",
+    "nonce": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "expiresAtLedger": 1000,
+    "definition": {
+      "version": 2,
+      "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+      "owner": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+      "root": {
+        "nodeId": "receive",
+        "minAmountStroops": "0"
+      },
+      "prefix": [
+        {
+          "kind": "pay",
+          "nodeId": "platform",
+          "policy": {
+            "nodeId": "platform",
+            "kind": "pay",
+            "recipient": "constant",
+            "payoutValue": "constant"
+          },
+          "configuration": {
+            "kind": "pay",
+            "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+            "payoutValue": {
+              "kind": "fixed",
+              "amountStroops": "10"
+            }
+          }
+        }
+      ],
+      "condition": {
+        "nodeId": "condition",
+        "kind": "amount_gt",
+        "thresholdStroops": "100",
+        "thresholdMode": "mutable"
+      },
+      "trueBranch": {
+        "kind": "split",
+        "nodeId": "workers",
+        "policy": {
+          "nodeId": "workers",
+          "kind": "split",
+          "allocationMode": "percentage",
+          "rows": [
+            {
+              "rowId": "platform",
+              "recipient": "constant",
+              "allocation": "constant"
+            }
+          ],
+          "additionalRecipients": "execution"
+        },
+        "configuration": {
+          "kind": "split",
+          "configuredRows": [
+            {
+              "rowId": "platform",
+              "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+              "allocation": {
+                "kind": "percentage",
+                "bps": 1000
+              }
+            }
+          ],
+          "additionalRecipients": []
+        }
+      },
+      "falseBranch": {
+        "kind": "return_to_owner",
+        "nodeId": "owner-return"
+      }
+    },
+    "nodes": [
+      {
+        "nodeId": "receive",
+        "contractAddress": "CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526",
+        "expectedRevision": "0",
+        "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "nodeId": "platform",
+        "contractAddress": "CABAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAFNSZ",
+        "expectedRevision": "0",
+        "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "nodeId": "condition",
+        "contractAddress": "CABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGCK3",
+        "expectedRevision": "0",
+        "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "nodeId": "workers",
+        "contractAddress": "CACAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAINCW",
+        "expectedRevision": "0",
+        "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "nodeId": "owner-return",
+        "contractAddress": "CACQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQLC2U",
+        "expectedRevision": "0",
+        "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ],
+    "arguments": {
+      "version": 2,
+      "inputs": [
+        {
+          "kind": "split",
+          "nodeId": "workers",
+          "rows": [],
+          "additionalRecipients": [
+            {
+              "rowId": "worker",
+              "recipient": "GACAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAJJHP",
+              "allocation": {
+                "kind": "percentage",
+                "bps": 9000
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "selectedBranch": "true",
+    "amountAtConditionStroops": "101"
+  },
+  "mutationArguments": {
+    "version": 2,
+    "changes": [
+      {
+        "kind": "condition",
+        "nodeId": "condition",
+        "expectedRevision": "0",
+        "thresholdStroops": "0"
+      }
+    ]
+  },
+  "selectionCases": [
+    {
+      "name": "gt below after prefix",
+      "comparison": "amount_gt",
+      "thresholdStroops": "100",
+      "amountStroops": "109",
+      "amountAtConditionStroops": "99",
+      "selectedBranch": "false"
+    },
+    {
+      "name": "gt equality after prefix",
+      "comparison": "amount_gt",
+      "thresholdStroops": "100",
+      "amountStroops": "110",
+      "amountAtConditionStroops": "100",
+      "selectedBranch": "false"
+    },
+    {
+      "name": "gt above after prefix",
+      "comparison": "amount_gt",
+      "thresholdStroops": "100",
+      "amountStroops": "111",
+      "amountAtConditionStroops": "101",
+      "selectedBranch": "true"
+    },
+    {
+      "name": "lt below after prefix",
+      "comparison": "amount_lt",
+      "thresholdStroops": "100",
+      "amountStroops": "109",
+      "amountAtConditionStroops": "99",
+      "selectedBranch": "true"
+    },
+    {
+      "name": "lt equality after prefix",
+      "comparison": "amount_lt",
+      "thresholdStroops": "100",
+      "amountStroops": "110",
+      "amountAtConditionStroops": "100",
+      "selectedBranch": "false"
+    },
+    {
+      "name": "lt above after prefix",
+      "comparison": "amount_lt",
+      "thresholdStroops": "100",
+      "amountStroops": "111",
+      "amountAtConditionStroops": "101",
+      "selectedBranch": "false"
+    },
+    {
+      "name": "gt max threshold never wraps",
+      "comparison": "amount_gt",
+      "thresholdStroops": "170141183460469231731687303715884105727",
+      "amountStroops": "170141183460469231731687303715884105727",
+      "amountAtConditionStroops": "170141183460469231731687303715884105717",
+      "selectedBranch": "false"
+    },
+    {
+      "name": "lt zero threshold",
+      "comparison": "amount_lt",
+      "thresholdStroops": "0",
+      "amountStroops": "11",
+      "amountAtConditionStroops": "1",
+      "selectedBranch": "false"
+    }
+  ],
+  "invalidIntents": [
+    {
+      "name": "inactive branch input",
+      "intent": {
+        "version": 2,
+        "deploymentId": "6c1709db-ecc1-4c68-b9db-66f6f5aca2f1",
+        "networkPassphraseHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "rootContract": "CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526",
+        "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+        "payer": "GABAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEJXA",
+        "amountStroops": "110",
+        "nonce": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "expiresAtLedger": 1000,
+        "definition": {
+          "version": 2,
+          "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+          "owner": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+          "root": {
+            "nodeId": "receive",
+            "minAmountStroops": "0"
+          },
+          "prefix": [
+            {
+              "kind": "pay",
+              "nodeId": "platform",
+              "policy": {
+                "nodeId": "platform",
+                "kind": "pay",
+                "recipient": "constant",
+                "payoutValue": "constant"
+              },
+              "configuration": {
+                "kind": "pay",
+                "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+                "payoutValue": {
+                  "kind": "fixed",
+                  "amountStroops": "10"
+                }
+              }
+            }
+          ],
+          "condition": {
+            "nodeId": "condition",
+            "kind": "amount_gt",
+            "thresholdStroops": "100",
+            "thresholdMode": "mutable"
+          },
+          "trueBranch": {
+            "kind": "split",
+            "nodeId": "workers",
+            "policy": {
+              "nodeId": "workers",
+              "kind": "split",
+              "allocationMode": "percentage",
+              "rows": [
+                {
+                  "rowId": "platform",
+                  "recipient": "constant",
+                  "allocation": "constant"
+                }
+              ],
+              "additionalRecipients": "execution"
+            },
+            "configuration": {
+              "kind": "split",
+              "configuredRows": [
+                {
+                  "rowId": "platform",
+                  "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+                  "allocation": {
+                    "kind": "percentage",
+                    "bps": 1000
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            }
+          },
+          "falseBranch": {
+            "kind": "return_to_owner",
+            "nodeId": "owner-return"
+          }
+        },
+        "nodes": [
+          {
+            "nodeId": "receive",
+            "contractAddress": "CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "platform",
+            "contractAddress": "CABAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAFNSZ",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "condition",
+            "contractAddress": "CABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGCK3",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "workers",
+            "contractAddress": "CACAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAINCW",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "owner-return",
+            "contractAddress": "CACQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQLC2U",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "arguments": {
+          "version": 2,
+          "inputs": [
+            {
+              "kind": "split",
+              "nodeId": "workers",
+              "rows": [],
+              "additionalRecipients": [
+                {
+                  "rowId": "worker",
+                  "recipient": "GACAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAJJHP",
+                  "allocation": {
+                    "kind": "percentage",
+                    "bps": 9000
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "selectedBranch": "false",
+        "amountAtConditionStroops": "100"
+      }
+    },
+    {
+      "name": "payer forces false route",
+      "intent": {
+        "version": 2,
+        "deploymentId": "6c1709db-ecc1-4c68-b9db-66f6f5aca2f1",
+        "networkPassphraseHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "rootContract": "CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526",
+        "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+        "payer": "GABAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEJXA",
+        "amountStroops": "111",
+        "nonce": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "expiresAtLedger": 1000,
+        "definition": {
+          "version": 2,
+          "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+          "owner": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+          "root": {
+            "nodeId": "receive",
+            "minAmountStroops": "0"
+          },
+          "prefix": [
+            {
+              "kind": "pay",
+              "nodeId": "platform",
+              "policy": {
+                "nodeId": "platform",
+                "kind": "pay",
+                "recipient": "constant",
+                "payoutValue": "constant"
+              },
+              "configuration": {
+                "kind": "pay",
+                "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+                "payoutValue": {
+                  "kind": "fixed",
+                  "amountStroops": "10"
+                }
+              }
+            }
+          ],
+          "condition": {
+            "nodeId": "condition",
+            "kind": "amount_gt",
+            "thresholdStroops": "100",
+            "thresholdMode": "mutable"
+          },
+          "trueBranch": {
+            "kind": "split",
+            "nodeId": "workers",
+            "policy": {
+              "nodeId": "workers",
+              "kind": "split",
+              "allocationMode": "percentage",
+              "rows": [
+                {
+                  "rowId": "platform",
+                  "recipient": "constant",
+                  "allocation": "constant"
+                }
+              ],
+              "additionalRecipients": "execution"
+            },
+            "configuration": {
+              "kind": "split",
+              "configuredRows": [
+                {
+                  "rowId": "platform",
+                  "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+                  "allocation": {
+                    "kind": "percentage",
+                    "bps": 1000
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            }
+          },
+          "falseBranch": {
+            "kind": "return_to_owner",
+            "nodeId": "owner-return"
+          }
+        },
+        "nodes": [
+          {
+            "nodeId": "receive",
+            "contractAddress": "CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "platform",
+            "contractAddress": "CABAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAFNSZ",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "condition",
+            "contractAddress": "CABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGCK3",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "workers",
+            "contractAddress": "CACAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAINCW",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "owner-return",
+            "contractAddress": "CACQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQLC2U",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "arguments": {
+          "version": 2,
+          "inputs": [
+            {
+              "kind": "split",
+              "nodeId": "workers",
+              "rows": [],
+              "additionalRecipients": [
+                {
+                  "rowId": "worker",
+                  "recipient": "GACAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAJJHP",
+                  "allocation": {
+                    "kind": "percentage",
+                    "bps": 9000
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "selectedBranch": "false",
+        "amountAtConditionStroops": "101"
+      }
+    },
+    {
+      "name": "missing selected input",
+      "intent": {
+        "version": 2,
+        "deploymentId": "6c1709db-ecc1-4c68-b9db-66f6f5aca2f1",
+        "networkPassphraseHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "rootContract": "CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526",
+        "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+        "payer": "GABAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEJXA",
+        "amountStroops": "111",
+        "nonce": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "expiresAtLedger": 1000,
+        "definition": {
+          "version": 2,
+          "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+          "owner": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+          "root": {
+            "nodeId": "receive",
+            "minAmountStroops": "0"
+          },
+          "prefix": [
+            {
+              "kind": "pay",
+              "nodeId": "platform",
+              "policy": {
+                "nodeId": "platform",
+                "kind": "pay",
+                "recipient": "constant",
+                "payoutValue": "constant"
+              },
+              "configuration": {
+                "kind": "pay",
+                "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+                "payoutValue": {
+                  "kind": "fixed",
+                  "amountStroops": "10"
+                }
+              }
+            }
+          ],
+          "condition": {
+            "nodeId": "condition",
+            "kind": "amount_gt",
+            "thresholdStroops": "100",
+            "thresholdMode": "mutable"
+          },
+          "trueBranch": {
+            "kind": "split",
+            "nodeId": "workers",
+            "policy": {
+              "nodeId": "workers",
+              "kind": "split",
+              "allocationMode": "percentage",
+              "rows": [
+                {
+                  "rowId": "platform",
+                  "recipient": "constant",
+                  "allocation": "constant"
+                }
+              ],
+              "additionalRecipients": "execution"
+            },
+            "configuration": {
+              "kind": "split",
+              "configuredRows": [
+                {
+                  "rowId": "platform",
+                  "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+                  "allocation": {
+                    "kind": "percentage",
+                    "bps": 1000
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            }
+          },
+          "falseBranch": {
+            "kind": "return_to_owner",
+            "nodeId": "owner-return"
+          }
+        },
+        "nodes": [
+          {
+            "nodeId": "receive",
+            "contractAddress": "CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "platform",
+            "contractAddress": "CABAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAFNSZ",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "condition",
+            "contractAddress": "CABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGCK3",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "workers",
+            "contractAddress": "CACAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAINCW",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "owner-return",
+            "contractAddress": "CACQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQLC2U",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "arguments": {
+          "version": 2,
+          "inputs": []
+        },
+        "selectedBranch": "true",
+        "amountAtConditionStroops": "101"
+      }
+    },
+    {
+      "name": "inactive binding omitted",
+      "intent": {
+        "version": 2,
+        "deploymentId": "6c1709db-ecc1-4c68-b9db-66f6f5aca2f1",
+        "networkPassphraseHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "rootContract": "CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526",
+        "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+        "payer": "GABAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEJXA",
+        "amountStroops": "111",
+        "nonce": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "expiresAtLedger": 1000,
+        "definition": {
+          "version": 2,
+          "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+          "owner": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+          "root": {
+            "nodeId": "receive",
+            "minAmountStroops": "0"
+          },
+          "prefix": [
+            {
+              "kind": "pay",
+              "nodeId": "platform",
+              "policy": {
+                "nodeId": "platform",
+                "kind": "pay",
+                "recipient": "constant",
+                "payoutValue": "constant"
+              },
+              "configuration": {
+                "kind": "pay",
+                "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+                "payoutValue": {
+                  "kind": "fixed",
+                  "amountStroops": "10"
+                }
+              }
+            }
+          ],
+          "condition": {
+            "nodeId": "condition",
+            "kind": "amount_gt",
+            "thresholdStroops": "100",
+            "thresholdMode": "mutable"
+          },
+          "trueBranch": {
+            "kind": "split",
+            "nodeId": "workers",
+            "policy": {
+              "nodeId": "workers",
+              "kind": "split",
+              "allocationMode": "percentage",
+              "rows": [
+                {
+                  "rowId": "platform",
+                  "recipient": "constant",
+                  "allocation": "constant"
+                }
+              ],
+              "additionalRecipients": "execution"
+            },
+            "configuration": {
+              "kind": "split",
+              "configuredRows": [
+                {
+                  "rowId": "platform",
+                  "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+                  "allocation": {
+                    "kind": "percentage",
+                    "bps": 1000
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            }
+          },
+          "falseBranch": {
+            "kind": "return_to_owner",
+            "nodeId": "owner-return"
+          }
+        },
+        "nodes": [
+          {
+            "nodeId": "receive",
+            "contractAddress": "CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "platform",
+            "contractAddress": "CABAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAFNSZ",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "condition",
+            "contractAddress": "CABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGCK3",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "workers",
+            "contractAddress": "CACAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAINCW",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "arguments": {
+          "version": 2,
+          "inputs": [
+            {
+              "kind": "split",
+              "nodeId": "workers",
+              "rows": [],
+              "additionalRecipients": [
+                {
+                  "rowId": "worker",
+                  "recipient": "GACAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAJJHP",
+                  "allocation": {
+                    "kind": "percentage",
+                    "bps": 9000
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "selectedBranch": "true",
+        "amountAtConditionStroops": "101"
+      }
+    },
+    {
+      "name": "constant prefix recipient override",
+      "intent": {
+        "version": 2,
+        "deploymentId": "6c1709db-ecc1-4c68-b9db-66f6f5aca2f1",
+        "networkPassphraseHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "rootContract": "CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526",
+        "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+        "payer": "GABAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEJXA",
+        "amountStroops": "111",
+        "nonce": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "expiresAtLedger": 1000,
+        "definition": {
+          "version": 2,
+          "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+          "owner": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+          "root": {
+            "nodeId": "receive",
+            "minAmountStroops": "0"
+          },
+          "prefix": [
+            {
+              "kind": "pay",
+              "nodeId": "platform",
+              "policy": {
+                "nodeId": "platform",
+                "kind": "pay",
+                "recipient": "constant",
+                "payoutValue": "constant"
+              },
+              "configuration": {
+                "kind": "pay",
+                "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+                "payoutValue": {
+                  "kind": "fixed",
+                  "amountStroops": "10"
+                }
+              }
+            }
+          ],
+          "condition": {
+            "nodeId": "condition",
+            "kind": "amount_gt",
+            "thresholdStroops": "100",
+            "thresholdMode": "mutable"
+          },
+          "trueBranch": {
+            "kind": "split",
+            "nodeId": "workers",
+            "policy": {
+              "nodeId": "workers",
+              "kind": "split",
+              "allocationMode": "percentage",
+              "rows": [
+                {
+                  "rowId": "platform",
+                  "recipient": "constant",
+                  "allocation": "constant"
+                }
+              ],
+              "additionalRecipients": "execution"
+            },
+            "configuration": {
+              "kind": "split",
+              "configuredRows": [
+                {
+                  "rowId": "platform",
+                  "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+                  "allocation": {
+                    "kind": "percentage",
+                    "bps": 1000
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            }
+          },
+          "falseBranch": {
+            "kind": "return_to_owner",
+            "nodeId": "owner-return"
+          }
+        },
+        "nodes": [
+          {
+            "nodeId": "receive",
+            "contractAddress": "CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "platform",
+            "contractAddress": "CABAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAFNSZ",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "condition",
+            "contractAddress": "CABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGCK3",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "workers",
+            "contractAddress": "CACAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAINCW",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "owner-return",
+            "contractAddress": "CACQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQLC2U",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "arguments": {
+          "version": 2,
+          "inputs": [
+            {
+              "kind": "pay",
+              "nodeId": "platform",
+              "recipient": "GACAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAJJHP"
+            },
+            {
+              "kind": "split",
+              "nodeId": "workers",
+              "rows": [],
+              "additionalRecipients": [
+                {
+                  "rowId": "worker",
+                  "recipient": "GACAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAJJHP",
+                  "allocation": {
+                    "kind": "percentage",
+                    "bps": 9000
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "selectedBranch": "true",
+        "amountAtConditionStroops": "101"
+      }
+    },
+    {
+      "name": "threshold per-payment override",
+      "intent": {
+        "version": 2,
+        "deploymentId": "6c1709db-ecc1-4c68-b9db-66f6f5aca2f1",
+        "networkPassphraseHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "rootContract": "CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526",
+        "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+        "payer": "GABAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEJXA",
+        "amountStroops": "111",
+        "nonce": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "expiresAtLedger": 1000,
+        "definition": {
+          "version": 2,
+          "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+          "owner": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+          "root": {
+            "nodeId": "receive",
+            "minAmountStroops": "0"
+          },
+          "prefix": [
+            {
+              "kind": "pay",
+              "nodeId": "platform",
+              "policy": {
+                "nodeId": "platform",
+                "kind": "pay",
+                "recipient": "constant",
+                "payoutValue": "constant"
+              },
+              "configuration": {
+                "kind": "pay",
+                "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+                "payoutValue": {
+                  "kind": "fixed",
+                  "amountStroops": "10"
+                }
+              }
+            }
+          ],
+          "condition": {
+            "nodeId": "condition",
+            "kind": "amount_gt",
+            "thresholdStroops": "100",
+            "thresholdMode": "mutable"
+          },
+          "trueBranch": {
+            "kind": "split",
+            "nodeId": "workers",
+            "policy": {
+              "nodeId": "workers",
+              "kind": "split",
+              "allocationMode": "percentage",
+              "rows": [
+                {
+                  "rowId": "platform",
+                  "recipient": "constant",
+                  "allocation": "constant"
+                }
+              ],
+              "additionalRecipients": "execution"
+            },
+            "configuration": {
+              "kind": "split",
+              "configuredRows": [
+                {
+                  "rowId": "platform",
+                  "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+                  "allocation": {
+                    "kind": "percentage",
+                    "bps": 1000
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            }
+          },
+          "falseBranch": {
+            "kind": "return_to_owner",
+            "nodeId": "owner-return"
+          }
+        },
+        "nodes": [
+          {
+            "nodeId": "receive",
+            "contractAddress": "CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "platform",
+            "contractAddress": "CABAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAFNSZ",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "condition",
+            "contractAddress": "CABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGCK3",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "workers",
+            "contractAddress": "CACAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAINCW",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "owner-return",
+            "contractAddress": "CACQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQLC2U",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "arguments": {
+          "version": 2,
+          "inputs": [
+            {
+              "kind": "split",
+              "nodeId": "workers",
+              "rows": [],
+              "additionalRecipients": [
+                {
+                  "rowId": "worker",
+                  "recipient": "GACAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAJJHP",
+                  "allocation": {
+                    "kind": "percentage",
+                    "bps": 9000
+                  }
+                }
+              ]
+            }
+          ],
+          "thresholdStroops": "0"
+        },
+        "selectedBranch": "true",
+        "amountAtConditionStroops": "101"
+      }
+    },
+    {
+      "name": "unknown wire version",
+      "intent": {
+        "version": 3,
+        "deploymentId": "6c1709db-ecc1-4c68-b9db-66f6f5aca2f1",
+        "networkPassphraseHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "rootContract": "CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526",
+        "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+        "payer": "GABAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEJXA",
+        "amountStroops": "111",
+        "nonce": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "expiresAtLedger": 1000,
+        "definition": {
+          "version": 2,
+          "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+          "owner": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+          "root": {
+            "nodeId": "receive",
+            "minAmountStroops": "0"
+          },
+          "prefix": [
+            {
+              "kind": "pay",
+              "nodeId": "platform",
+              "policy": {
+                "nodeId": "platform",
+                "kind": "pay",
+                "recipient": "constant",
+                "payoutValue": "constant"
+              },
+              "configuration": {
+                "kind": "pay",
+                "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+                "payoutValue": {
+                  "kind": "fixed",
+                  "amountStroops": "10"
+                }
+              }
+            }
+          ],
+          "condition": {
+            "nodeId": "condition",
+            "kind": "amount_gt",
+            "thresholdStroops": "100",
+            "thresholdMode": "mutable"
+          },
+          "trueBranch": {
+            "kind": "split",
+            "nodeId": "workers",
+            "policy": {
+              "nodeId": "workers",
+              "kind": "split",
+              "allocationMode": "percentage",
+              "rows": [
+                {
+                  "rowId": "platform",
+                  "recipient": "constant",
+                  "allocation": "constant"
+                }
+              ],
+              "additionalRecipients": "execution"
+            },
+            "configuration": {
+              "kind": "split",
+              "configuredRows": [
+                {
+                  "rowId": "platform",
+                  "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+                  "allocation": {
+                    "kind": "percentage",
+                    "bps": 1000
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            }
+          },
+          "falseBranch": {
+            "kind": "return_to_owner",
+            "nodeId": "owner-return"
+          }
+        },
+        "nodes": [
+          {
+            "nodeId": "receive",
+            "contractAddress": "CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "platform",
+            "contractAddress": "CABAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAFNSZ",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "condition",
+            "contractAddress": "CABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGCK3",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "workers",
+            "contractAddress": "CACAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAINCW",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "nodeId": "owner-return",
+            "contractAddress": "CACQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQLC2U",
+            "expectedRevision": "0",
+            "wasmHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "arguments": {
+          "version": 2,
+          "inputs": [
+            {
+              "kind": "split",
+              "nodeId": "workers",
+              "rows": [],
+              "additionalRecipients": [
+                {
+                  "rowId": "worker",
+                  "recipient": "GACAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAJJHP",
+                  "allocation": {
+                    "kind": "percentage",
+                    "bps": 9000
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "selectedBranch": "true",
+        "amountAtConditionStroops": "101"
+      }
+    }
+  ]
+}

@@ -5,6 +5,13 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Define isolated conditional reusable-flow v2 schemas and ABI/design handoffs for
+  strict amount branches, immutable owner returns and whole-graph guarded updates.
+  Reject unsupported generations before legacy parsing/deployment; retained v1
+  payloads and artifact pins remain supported. Conditional runtime capabilities
+  remain unavailable; no artifacts or templates are activated or expanded
+  ([#1222](https://github.com/webnxt-2030/pinkraft/issues/1222)).
+
 - Reduce public Subscription allowance preparation RPC work by sharing one validated
   relayer account snapshot within each POST, with separate simulation account objects.
   Keep the approval source lookup fresh and the 25-second deadline unchanged; add

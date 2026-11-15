@@ -7,7 +7,7 @@ import {
   type NodeFieldPolicy,
 } from "./field-policies";
 import { directBinding } from "./implementation";
-import { pctToBps, type FlowGraph, type FlowNode } from "./schema";
+import { FlowGraphSchema, pctToBps, type FlowGraph, type FlowNode } from "./schema";
 import type { CompiledPipelineNode } from "./to-params";
 
 export function hasMutablePolicies(graph: Pick<FlowGraph, "fieldPolicies">): boolean {
@@ -23,6 +23,7 @@ export function hasMutablePolicies(graph: Pick<FlowGraph, "fieldPolicies">): boo
 
 /** The complete, deliberately narrow v1 path. This never enables an artifact. */
 export function executionPath(graph: FlowGraph): FlowNode[] {
+  graph = FlowGraphSchema.parse(graph);
   if (graph.fieldPolicies === undefined) throw new Error("An explicit field policy is required");
   const roots = graph.nodes.filter((n) => n.type === "on_receive");
   if (roots.length !== 1 || graph.nodes.length < 2)

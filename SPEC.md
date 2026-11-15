@@ -316,6 +316,41 @@ actual artifact/network/hosted/wallet acceptance; publication eligibility does n
 prove runtime ABI compatibility. See
 [instance readiness and remaining release gates](docs/instance-readiness.md).
 
+### 3.4.2 Conditional reusable payments (Phase 2 foundation)
+
+New conditional reusable deployments use a separate version 2 domain and ABI:
+one Receive, optional sequential partial Pays, exactly one strict `amount_gt` or
+`amount_lt`, and one terminal Pay, Split or Return to owner on each True/False
+branch. One asset; no joins, nested conditions, branch chains or arbitrary fan-out.
+The test uses the current invocation's amount after prefix deductions. Equality
+takes False for either comparison. Threshold is constant by default or explicitly
+admin-mutable, never a per-payment input; zero through signed i128 max is valid.
+Comparison kind, topology, field modes, asset and owner destination are immutable.
+
+Only prefix plus selected-branch declared execution inputs are required/allowed.
+Complete payment/mutation bindings always include root, prefix, condition, True
+terminal and False terminal in that order, with every artifact/revision. Any bound
+revision change invalidates an old payment before funding. Any accounted obligation
+anywhere blocks every stored update, including inactive-branch accumulation or debt
+with zero raw token balance. Grouped mutations require admin and parent auth and
+commit atomically without moving funds. Preserve existing fixed funding/refund,
+Split accumulation, conservation and rounding rules.
+
+Return to owner is an immutable full payout to the deploying owner/admin wallet,
+not the payer. Compile it through the Pay family while preserving its authored
+meaning and exact resolved destination in immutable review evidence. It consumes
+only its own incoming budget. Keep initial construction evidence separate from
+verified current configuration and append-only observed history.
+
+[Conditional v2](docs/conditional-v2.md) fixes strict schemas, complete ordering,
+authenticated route/child forwarding, replay/expiry, getters/events, read consistency
+and downstream handoffs. The foundation adds pure definitions/validation and
+compatibility guards only. Conditional deployment, execution, mutation and advertised
+capability remain unavailable until enforcing implementations and reviewed artifacts
+exist. Existing legacy/v1 payloads, pins and template functionality remain unchanged;
+there is no retrofit or artifact activation. Swap, delayed/recurring nodes and other
+deferred capabilities remain outside this phase.
+
 ### 3.5 English Preview Pane
 
 `flowToEnglish(graph)` (`lib/flows/english.ts`) is a pure function rendering the canvas as prose, so
