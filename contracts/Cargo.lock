@@ -1093,6 +1093,7 @@ dependencies = [
  "paiflow-splitter",
  "paiflow-subscription",
  "paiflow-webhook",
+ "router",
  "soroban-sdk",
 ]
 
