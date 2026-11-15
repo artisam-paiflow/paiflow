@@ -8,6 +8,7 @@ import { checkPayoutTrustlines } from "@/lib/stellar/trustline-check";
 import TriggerClient from "./trigger-client";
 import { hasExecutionPolicies } from "@/lib/api/v1/execution-schema";
 import { env } from "@/lib/env";
+import { assertConditionalHostedDeployment } from "@/lib/hosted-execution/conditional-service";
 import HostedPaymentForm from "@/components/deploy/hosted-payment-form";
 
 export const dynamic = "force-dynamic";
@@ -24,14 +25,29 @@ export default async function TriggerPage({
       flow: { select: { name: true, templateKind: true } },
     },
   });
-  // Conditional hosted review is integrated separately in #1228. A tagged v2
-  // deployment must never fall through to the legacy deposit form.
+  // Explicit conditional declarations never fall through to legacy funding.
   if (
     d &&
     (hasConditionalDeploymentDeclaration(d.paramsSnapshot) ||
       hasConditionalDeploymentDeclaration(d.graphSnapshot))
-  )
-    notFound();
+  ) {
+    try {
+      assertConditionalHostedDeployment(d);
+    } catch {
+      notFound();
+    }
+    const enabled = d.hostedExecutionEnabled && d.serviceState === "ACTIVE";
+    return (
+      <HostedPaymentForm
+        key={d.id}
+        deploymentId={d.id}
+        flowName={enabled ? d.flow.name : "Payment receipt"}
+        network={env().STELLAR_NETWORK}
+        enabled={enabled}
+        conditional
+      />
+    );
+  }
   if (d && hasExecutionPolicies(d.graphSnapshot)) {
     if (d.network !== env().STELLAR_NETWORK) notFound();
     const enabled = d.hostedExecutionEnabled && d.serviceState === "ACTIVE";

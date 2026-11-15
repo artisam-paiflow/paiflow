@@ -4,6 +4,7 @@ import { FlowGraphSchema } from "@/lib/flows/schema";
 import { toCanvasGraph, type CanvasGraph } from "@/lib/flows/canvas-graph";
 import { isStellarNetwork, type StellarNetwork } from "@/lib/stellar/explorer";
 import { hasExecutionPolicies } from "@/lib/api/v1/execution-schema";
+import { hasConditionalDeploymentDeclaration } from "@/lib/flows/conditional-deployment";
 
 export type PublicEmbedEvent = {
   eventId: string;
@@ -72,6 +73,8 @@ export function publicPayment(
     Partial<Pick<EmbedSource, "graphSnapshot" | "hostedExecutionEnabled">>,
 ): PublicEmbedData["payment"] {
   if (!isStellarNetwork(source.network)) return null;
+  // Retained embed formats have no conditional review protocol.
+  if (hasConditionalDeploymentDeclaration(source.graphSnapshot)) return null;
   if (hasExecutionPolicies(source.graphSnapshot) && !source.hostedExecutionEnabled) return null;
   const first: unknown = Array.isArray(source.pipelineSnapshot) ? source.pipelineSnapshot[0] : null;
   const kind =

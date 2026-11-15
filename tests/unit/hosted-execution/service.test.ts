@@ -74,8 +74,9 @@ beforeEach(() => {
     hostedAccessHash: hostedKeyHash(key),
     idempotencyKeyHash: createHash("sha256").update(`hosted-execution:${key}`).digest("hex"),
     walletAddress: payment.from,
+    executionIntent: preparation(payment).prepared.execution,
     requestDigest: executionRequestDigest({ deploymentId, network: "testnet", input: payment }),
-  } as WalletControlIntent;
+  } as unknown as WalletControlIntent;
   mocks.db.deployment.findFirst.mockImplementation(async () => deployment);
   mocks.db.deployment.findUnique.mockImplementation(async () => ({
     hostedExecutionEnabled: deployment.hostedExecutionEnabled,

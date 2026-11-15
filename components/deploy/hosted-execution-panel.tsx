@@ -6,9 +6,11 @@ import { HostedVisibilitySchema } from "@/lib/hosted-execution/schema";
 export default function HostedExecutionPanel({
   deploymentId,
   initialEnabled,
+  conditional = false,
 }: {
   deploymentId: string;
   initialEnabled: boolean;
+  conditional?: boolean;
 }) {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [busy, setBusy] = useState(false);
@@ -18,11 +20,14 @@ export default function HostedExecutionPanel({
     setError(null);
     try {
       const input = HostedVisibilitySchema.parse({ enabled: !enabled });
-      const response = await fetch(`/api/deployments/${deploymentId}/hosted-execution`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      });
+      const response = await fetch(
+        `/api/deployments/${deploymentId}/hosted-execution${conditional ? "?version=2" : ""}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        },
+      );
       const body = await response.json();
       if (!response.ok) throw new Error(body.error?.message ?? "Could not update the payment form");
       setEnabled(HostedVisibilitySchema.parse(body.data).enabled);

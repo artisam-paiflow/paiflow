@@ -353,8 +353,10 @@ source/network and the same original hash. Saved preparation keys survive lost
 responses; acknowledgement precedes signing, and one existing recovery engine
 retains uncertain originals. Stored editing requires a verified complete current
 read and zero accounted obligations everywhere. Schemas or source support alone
-never activate an artifact or grant capability. Hosted conditional payments remain
-unavailable pending #1228 integration. Existing legacy/v1 payloads, pins and template
+never activate an artifact or grant capability. Explicit opt-in
+[hosted conditional payments](docs/conditional-hosted-execution.md) reuse wallet-only
+ownership proof, selected-route review and exact-original recovery. Existing
+legacy/v1 payloads, pins and template
 functionality remain unchanged; there is no retrofit or artifact activation. Source
 readiness and actual network/wallet release acceptance remain distinct under #1229.
 Swap, delayed/recurring nodes and other deferred capabilities remain outside scope.

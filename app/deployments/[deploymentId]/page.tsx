@@ -24,6 +24,7 @@ import {
 import { log } from "@/lib/log";
 import { env } from "@/lib/env";
 import { isFeatureEnabled } from "@/lib/features";
+import { assertConditionalHostedDeployment } from "@/lib/hosted-execution/conditional-service";
 import { deploymentCapabilities } from "@/lib/api/v1/capabilities";
 export const dynamic = "force-dynamic";
 const statusMeta: Record<
@@ -109,6 +110,15 @@ export default async function DeploymentPage({
     : null;
   if (conditional && (!original?.success || original.data.definition.owner !== d.sourceAccount))
     notFound();
+  let conditionalHostedEligible = false;
+  if (conditional) {
+    try {
+      assertConditionalHostedDeployment(d);
+      conditionalHostedEligible = true;
+    } catch {
+      /* Keep unsupported generations unavailable for opt-in. */
+    }
+  }
   const editable = conditional
     ? graph.conditionalPolicies.condition?.thresholdMode === "mutable" ||
       graph.conditionalPolicies.nodes.some((policy) =>
@@ -285,9 +295,12 @@ export default async function DeploymentPage({
 
         {d.status === "CONFIRMED" &&
         user.role !== Role.SANDBOX &&
-        !conditional &&
-        hasExecutionPolicies(d.graphSnapshot) ? (
-          <HostedExecutionPanel deploymentId={d.id} initialEnabled={d.hostedExecutionEnabled} />
+        (conditional ? conditionalHostedEligible : hasExecutionPolicies(d.graphSnapshot)) ? (
+          <HostedExecutionPanel
+            deploymentId={d.id}
+            initialEnabled={d.hostedExecutionEnabled}
+            {...(conditional ? { conditional: true } : {})}
+          />
         ) : null}
 
         {d.status === "CONFIRMED" && user.role !== Role.SANDBOX ? (

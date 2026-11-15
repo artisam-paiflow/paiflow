@@ -1,32 +1,36 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ExecutePrepareSchema } from "@/lib/api/v1/schema";
 import { ExecutionDiscoverySchema } from "@/lib/api/v1/execution-schema";
-import { assertExecutionValues } from "@/lib/api/v1/execution-values";
+
 import { withContractCallLock } from "@/lib/contract-call-pending";
 import { formatStroops } from "@/lib/utils";
+import type { NodeFieldPolicy } from "@/lib/flows/field-policies";
 import { signWithRecovery } from "@/lib/wallet-signing-recovery";
-import {
-  HostedPreparedSchema,
-  HostedReceiptSchema,
-  HostedOwnershipChallengeSchema,
-  type HostedPrepared,
-} from "@/lib/hosted-execution/schema";
-import { assertHostedOwnershipChallenge } from "@/lib/stellar/hosted-ownership-transaction";
 import { signedWalletTransactionHash } from "@/lib/stellar/wallet-signature";
 import {
   fieldKey,
-  formArguments,
   hostedRecoveryStorageKey,
-  readHostedRecovery,
-  saveHostedRecovery,
   tokenInput,
-  restoredHostedInputs,
   type AdditionalDraft,
-  type HostedBrowserRecovery,
-  type HostedState,
 } from "@/lib/hosted-execution/form";
+import {
+  hostedUiProtocol,
+  readHostedUiRecovery,
+  saveHostedUiRecovery,
+  clearHostedUiRecovery,
+  restoredHostedUiInputs,
+  conditionalHostedState,
+  conditionalHostedPrepared,
+  type HostedUiRecovery as HostedBrowserRecovery,
+  type HostedUiState as HostedState,
+  type HostedUiPrepared as HostedPrepared,
+} from "./hosted-payment-protocol";
+import {
+  conditionalHostedRequirements,
+  conditionalHostedTermsIdentity,
+} from "@/lib/hosted-execution/conditional-form";
+import ConditionalHostedPaymentReview from "./conditional-hosted-payment-review";
 import { getWalletKit } from "./wallet-kit";
 import { connectSelectedWallet } from "./selected-wallet-connection";
 
@@ -73,12 +77,19 @@ export default function HostedPaymentForm({
   flowName,
   network,
   enabled,
+  conditional = false,
 }: {
   deploymentId: string;
   flowName: string;
   network: "testnet" | "mainnet";
   enabled: boolean;
+  conditional?: boolean;
 }) {
+  const protocol = hostedUiProtocol(conditional, deploymentId, network);
+  const [acknowledged, setAcknowledged] = useState<string | null>(null);
+  const [currentError, setCurrentError] = useState(false);
+  const currentReadSequence = useRef(0);
+  const selection = useRef<{ key: string; prefix: Map<string, string> } | null>(null);
   const [state, setState] = useState<HostedState | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [rosters, setRosters] = useState<Record<string, AdditionalDraft[]>>({});
@@ -97,6 +108,26 @@ export default function HostedPaymentForm({
   const lockKey = `paiflow_contract_call_pending:${deploymentId}:${network}`;
   const base = `/api/deployments/${deploymentId}/hosted-execution`;
 
+  const readHostedRecovery = (key: string) => readHostedUiRecovery(key, protocol);
+  async function loadCurrent() {
+    const sequence = ++currentReadSequence.current;
+    try {
+      const current = protocol.parseState(await paymentRequest(protocol.url(base, "state")));
+      if (conditional && sequence !== currentReadSequence.current)
+        throw new Error(
+          "A newer current-term read superseded this observation. Retry the retained original.",
+        );
+      setState(current);
+      setCurrentError(false);
+      return current;
+    } catch (error) {
+      if (conditional && sequence === currentReadSequence.current) {
+        setState(null);
+        setCurrentError(true);
+      }
+      throw error;
+    }
+  }
   useEffect(() => {
     let active = true;
     const read = () => {
@@ -104,7 +135,7 @@ export default function HostedPaymentForm({
         const saved = readHostedRecovery(storageKey);
         setPending(saved);
         if (saved) {
-          const restored = restoredHostedInputs(saved);
+          const restored = restoredHostedUiInputs(saved);
           setAmount(restored.amount);
           setFields(restored.fields);
           setRosters(restored.rosters);
@@ -122,27 +153,102 @@ export default function HostedPaymentForm({
       if (event.key === storageKey) {
         read();
         setPrepared(null);
+        setAcknowledged(null);
       }
     };
     window.addEventListener("storage", changed);
+    const sequence = conditional ? ++currentReadSequence.current : 0;
     if (enabled)
-      void paymentRequest(`${base}/state`)
+      void paymentRequest(protocol.url(base, "state"))
         .then((data) => {
-          const current = ExecutionDiscoverySchema.parse(data);
-          if (active && current.supported) setState(current);
+          if (!conditional) {
+            const current = ExecutionDiscoverySchema.parse(data);
+            if (active && current.supported) setState(current);
+          } else if (active && sequence === currentReadSequence.current) {
+            setState(protocol.parseState(data));
+            setCurrentError(false);
+          }
         })
         .catch((err) => {
-          if (active) setError(err instanceof Error ? err.message : "Payment form unavailable");
+          if (active && (!conditional || sequence === currentReadSequence.current)) {
+            if (conditional) {
+              setState(null);
+              setCurrentError(true);
+            }
+            setError(err instanceof Error ? err.message : "Payment form unavailable");
+          }
         });
     return () => {
       active = false;
       controller.current?.abort();
       window.removeEventListener("storage", changed);
     };
-  }, [base, enabled, storageKey]);
+  }, [base, enabled, storageKey, conditional]);
 
-  function save(record: HostedBrowserRecovery) {
-    saveHostedRecovery(storageKey, record);
+  useEffect(() => {
+    if (!conditional || !state || !conditionalHostedState(state)) return;
+    let branch = "invalid";
+    try {
+      branch = conditionalHostedRequirements(state, tokenInput(amount)).branch;
+    } catch {
+      /* Invalid amount has no active branch. */
+    }
+    const key = `${conditionalHostedTermsIdentity(state)}:${branch}`;
+    const prefix = new Map(
+      state.definition.prefix.map((node) => [
+        node.nodeId,
+        JSON.stringify({
+          policy: node.policy,
+          contractAddress: state.nodes.find((binding) => binding.nodeId === node.nodeId)
+            ?.contractAddress,
+        }),
+      ]),
+    );
+    const previous = selection.current;
+    if (previous?.key === key) return;
+    try {
+      if (readHostedRecovery(storageKey)) return;
+    } catch {
+      setBlocked(true);
+      return;
+    }
+    selection.current = { key, prefix };
+    setPrepared(null);
+    setAcknowledged(null);
+    setFields((old) =>
+      Object.fromEntries(
+        Object.entries(old).filter(([field]) =>
+          [...prefix].some(
+            ([nodeId, identity]) =>
+              field.startsWith(`${nodeId}:`) && previous?.prefix.get(nodeId) === identity,
+          ),
+        ),
+      ),
+    );
+    setRosters({});
+  }, [conditional, state, amount, storageKey, pending]);
+  useEffect(() => {
+    if (!conditional || !enabled) return;
+    let active = true;
+    const timer = setInterval(() => {
+      if (active && !busy) void loadCurrent().catch(() => {});
+    }, 15000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [conditional, enabled, base, busy]);
+  let knownStale = false;
+  if (conditional && prepared) {
+    try {
+      if (!state) throw new Error();
+      protocol.assertCurrentPrepared(state, prepared);
+    } catch {
+      knownStale = true;
+    }
+  }
+  function save(record: HostedBrowserRecovery, previous?: HostedBrowserRecovery | null) {
+    saveHostedUiRecovery(storageKey, record, protocol, previous);
     setPending(record);
   }
   async function action(run: () => Promise<void>) {
@@ -180,8 +286,9 @@ export default function HostedPaymentForm({
   }
   async function prepare(resume = false) {
     await action(async () => {
-      if (!enabled || !state) throw new Error("Payment form is unavailable");
       const previous = readHostedRecovery(storageKey);
+      if (!enabled || (!state && !(conditional && previous?.intent && previous.txHash)))
+        throw new Error("Payment form is unavailable");
       if (previous && previous.phase !== "ownership" && previous.phase !== "preparing" && !resume)
         throw new Error("Check the previous payment before preparing another");
       if (previous?.phase === "signing" || previous?.phase === "submitted")
@@ -189,48 +296,46 @@ export default function HostedPaymentForm({
           "Signing or finality is unresolved. Check the original payment without signing again.",
         );
       const selected = activeConnection();
-      const arguments_ = previous
-        ? previous.request.arguments
-        : formArguments(state, fields, rosters);
       const payment = previous
         ? previous.request
-        : ExecutePrepareSchema.parse({
-            from: selected.address,
-            amount: tokenInput(amount),
-            arguments: arguments_,
-          });
+        : protocol.buildPayment(state!, selected.address, amount, fields, rosters);
       if (payment.from !== selected.address)
         throw new Error("Connect the original payer wallet to recover this preparation");
-      assertExecutionValues(
-        state.policies,
-        state.configurations,
-        payment.arguments ?? { version: 1, inputs: [] },
-        payment.amount,
-      );
-      if (BigInt(payment.amount) < BigInt(state.minAmountStroops))
-        throw new Error(
-          `Enter at least ${formatStroops(state.minAmountStroops)} tokens to meet this flow’s minimum.`,
-        );
+      if (conditional && !(previous?.intent && previous.txHash))
+        protocol.assertCurrentPayment(await loadCurrent(), payment);
+      else if (!conditional) protocol.assertCurrentPayment(state!, payment);
       const ownershipOnly = !previous || previous.phase === "ownership";
-      const record: HostedBrowserRecovery = {
+      const record = protocol.parseRecord({
+        ...(conditional
+          ? { version: 2, deploymentId: state?.deploymentId ?? deploymentId, network }
+          : {}),
         ...previous,
         recoveryKey: previous?.recoveryKey ?? randomRecoveryKey(),
         request: payment,
         phase: ownershipOnly ? "ownership" : "preparing",
+      });
+      let durable = record;
+      const persist = (next: HostedBrowserRecovery) => {
+        save(next, durable);
+        durable = next;
       };
       // Save the capability before a request can succeed with a lost HTTP acknowledgement.
-      save(record);
+      save(record, previous);
       setPrepared(null);
+      setAcknowledged(null);
       const request = { recoveryKey: record.recoveryKey, payment };
       let response: unknown;
       const prepareWithProof = async () => {
         // A fresh/ownership-only record has never dispatched a signed proof.
         // A missing server row cannot establish this for a restored preparing record:
         // its original request may still be simulating and commit later.
-        const challenge = HostedOwnershipChallengeSchema.parse(
-          await paymentRequest(`${base}/ownership`, request),
+        const challenge = await protocol.assertOwnership(
+          await paymentRequest(protocol.url(base, "ownership"), request),
+          payment,
+          record.recoveryKey,
+          selected.address,
+          state?.deploymentId ?? deploymentId,
         );
-        assertHostedOwnershipChallenge(challenge, selected.address, network);
         setMessage(
           ownershipOnly
             ? "Verify wallet ownership in your wallet. This sign-only proof cannot move funds. You will review and sign the payment separately."
@@ -252,10 +357,15 @@ export default function HostedPaymentForm({
           selected.address,
           challenge.networkPassphrase,
         );
+        if (conditional) {
+          protocol.assertCurrentPayment(await loadCurrent(), payment);
+          controller.current?.signal.throwIfAborted();
+          if (connection.current !== selected) throw new Error("Wallet connection changed");
+        }
         // Persist uncertainty before the first request that can reserve the payer.
-        save({ ...record, phase: "preparing" });
+        persist(protocol.parseRecord({ ...record, phase: "preparing" }));
         // The proof stays in memory and is never sent to a transaction submission route.
-        return paymentRequest(`${base}/prepare`, {
+        return paymentRequest(protocol.url(base, "prepare"), {
           ...request,
           ownershipProofXdr: proof.signedTxXdr,
         });
@@ -266,7 +376,7 @@ export default function HostedPaymentForm({
         try {
           // Recover only the original exact preparation. Missing rows never allow
           // editing, clearing its capability, or creating another payment identity.
-          response = await paymentRequest(`${base}/prepare`, request);
+          response = await paymentRequest(protocol.url(base, "prepare"), request);
         } catch (err) {
           if (!(err instanceof Error) || !("ownershipRequired" in err)) throw err;
           if (previous?.phase !== "preparing" || previous.intent || previous.txHash)
@@ -280,28 +390,16 @@ export default function HostedPaymentForm({
           response = await prepareWithProof();
         }
       }
-      const result = HostedPreparedSchema.parse(response);
-      if (
-        result.prepared.network !== network ||
-        (record.intent !== undefined && result.prepared.intent !== record.intent) ||
-        (record.txHash !== undefined && result.prepared.txHash !== record.txHash) ||
-        result.prepared.walletAddress !== payment.from ||
-        result.prepared.execution.amountStroops !== payment.amount
-      )
-        throw new Error("Prepared payment does not match the selected payer or network");
-      if (
-        JSON.stringify(result.prepared.execution.arguments) !==
-        JSON.stringify(payment.arguments ?? { version: 1, inputs: [] })
-      )
-        throw new Error(
-          "Prepared destinations differ from the payment inputs. Check the original receipt.",
-        );
-      save({
-        ...record,
-        phase: "prepared",
-        intent: result.prepared.intent,
-        txHash: result.prepared.txHash,
-      });
+      const result = protocol.parsePrepared(response);
+      protocol.assertPrepared(result, record);
+      persist(
+        protocol.parseRecord({
+          ...record,
+          phase: "prepared",
+          intent: result.prepared.intent,
+          txHash: result.prepared.txHash,
+        }),
+      );
       setPrepared(result);
       setMessage(null);
     });
@@ -309,6 +407,9 @@ export default function HostedPaymentForm({
   async function sign() {
     await action(async () => {
       if (!prepared) throw new Error("Prepare and review this payment first");
+      if (conditional && (!enabled || acknowledged !== prepared.prepared.txHash))
+        throw new Error("Review and acknowledge this exact original payment first.");
+      if (conditional) protocol.assertCurrentPrepared(await loadCurrent(), prepared);
       if (Date.parse(prepared.prepared.expiresAt) <= Date.now())
         throw new Error("This preparation has expired. Check its receipt before preparing again.");
       const saved = readHostedRecovery(storageKey);
@@ -316,13 +417,14 @@ export default function HostedPaymentForm({
       if (
         !saved ||
         saved.phase !== "prepared" ||
-        saved.intent !== prepared.prepared.intent ||
+        !protocol.sameId(saved.intent ?? "", prepared.prepared.intent) ||
         saved.txHash !== prepared.prepared.txHash ||
         selected.address !== prepared.prepared.walletAddress
       )
         throw new Error(
           "The reviewed payment or wallet changed. Check its receipt before continuing.",
         );
+      if (conditional) protocol.assertPrepared(prepared, saved);
       const check = () => {
         controller.current?.signal.throwIfAborted();
         if (connection.current !== selected) throw new Error("Wallet connection changed");
@@ -333,14 +435,18 @@ export default function HostedPaymentForm({
         xdr: prepared.prepared.xdr,
         networkPassphrase: prepared.prepared.networkPassphrase,
         check,
-        save: (attempt) => save({ ...saved, ...attempt }),
+        save: (attempt) => save(protocol.parseRecord({ ...saved, ...attempt }), saved),
         read: () => {
           const record = readHostedRecovery(storageKey);
           return record?.txHash && (record.phase === "signing" || record.phase === "submitted")
             ? { txHash: record.txHash, phase: record.phase, attemptId: record.attemptId }
             : null;
         },
-        clearRejected: () => save({ ...saved, phase: "prepared" }),
+        clearRejected: () => {
+          const actual = readHostedRecovery(storageKey);
+          if (!actual) throw new Error("Original signing recovery is missing.");
+          save(protocol.parseRecord({ ...saved, phase: "prepared" }), actual);
+        },
         sign: () =>
           selected.signTransaction(prepared.prepared.xdr, {
             address: selected.address,
@@ -351,14 +457,15 @@ export default function HostedPaymentForm({
       const current = readHostedRecovery(storageKey);
       if (current?.attemptId !== attempt.attemptId || current.phase !== "signing")
         throw new Error("Signing attempt changed; check the original payment");
-      save({ ...current, phase: "submitted" });
+      save(protocol.parseRecord({ ...current, phase: "submitted" }), current);
       setPrepared(null);
       // Signed bytes remain in memory only and are never saved to browser storage.
-      await paymentRequest(`${base}/submit`, {
+      const submitted = await paymentRequest(protocol.url(base, "submit"), {
         recoveryKey: saved.recoveryKey,
         intent: saved.intent,
         signedXdr: signedTxXdr,
       });
+      protocol.parseSubmitted(submitted, prepared.prepared.txHash);
       setMessage("Payment submitted. Check its status before making another payment.");
     });
   }
@@ -366,18 +473,18 @@ export default function HostedPaymentForm({
     await action(async () => {
       const saved = readHostedRecovery(storageKey);
       if (!saved) throw new Error("No payment receipt is stored in this browser");
-      const result = HostedReceiptSchema.parse(
-        await paymentRequest(`${base}/receipt`, { recoveryKey: saved.recoveryKey }),
+      const result = protocol.parseReceipt(
+        await paymentRequest(protocol.url(base, "receipt"), { recoveryKey: saved.recoveryKey }),
       );
       if (
         result.network !== network ||
-        (saved.intent && result.intent !== saved.intent) ||
+        (saved.intent && !protocol.sameId(result.intent, saved.intent)) ||
         (saved.txHash && result.txHash !== saved.txHash)
       )
         throw new Error("Receipt does not match this payment");
       if (["SUCCESS", "FAILED", "EXPIRED"].includes(result.state)) {
-        if (readHostedRecovery(storageKey)?.recoveryKey === saved.recoveryKey)
-          localStorage.removeItem(storageKey);
+        if (conditional || readHostedRecovery(storageKey)?.recoveryKey === saved.recoveryKey)
+          clearHostedUiRecovery(storageKey, saved, protocol);
         setPending(null);
         setPrepared(null);
         setMessage(
@@ -389,7 +496,10 @@ export default function HostedPaymentForm({
         );
         if (result.state === "SUCCESS") toast.success("Payment confirmed");
       } else {
-        save({ ...saved, intent: result.intent, txHash: result.txHash });
+        save(
+          protocol.parseRecord({ ...saved, intent: result.intent, txHash: result.txHash }),
+          saved,
+        );
         setMessage(
           result.state === "PREPARED"
             ? "Original payment is prepared. If signing was interrupted, keep checking this receipt; do not sign a replacement. Expiry alone does not establish failure."
@@ -413,7 +523,7 @@ export default function HostedPaymentForm({
           value={value}
           inputMode={mode}
           required
-          disabled={busy || Boolean(pending)}
+          disabled={busy || Boolean(pending) || (conditional && blocked)}
           onChange={(event) => {
             setPrepared(null);
             onChange(event.target.value);
@@ -423,8 +533,17 @@ export default function HostedPaymentForm({
     );
   }
   function runtimeFields() {
-    return state?.policies.nodes.map((policy) => (
-      <fieldset className="border-outline-variant space-y-3 rounded border p-3" key={policy.nodeId}>
+    let policies: NodeFieldPolicy[];
+    try {
+      policies = state ? protocol.policies(state, amount) : [];
+    } catch {
+      policies = [];
+    }
+    return policies.map((policy) => (
+      <fieldset
+        className={`border-outline-variant space-y-3 rounded border p-3 ${conditional ? "min-w-0 break-words" : ""}`}
+        key={policy.nodeId}
+      >
         <legend className="px-1 font-mono text-sm">
           {policy.kind === "pay" ? "Pay" : "Split"} · {policy.nodeId}
         </legend>
@@ -505,7 +624,7 @@ export default function HostedPaymentForm({
                     <button
                       type="button"
                       className="text-error text-sm underline"
-                      disabled={busy || Boolean(pending)}
+                      disabled={busy || Boolean(pending) || (conditional && blocked)}
                       onClick={() =>
                         setRosters((old) => ({
                           ...old,
@@ -554,10 +673,24 @@ export default function HostedPaymentForm({
           {network.toUpperCase()}
         </span>
         <h1 className="font-display text-3xl">{flowName}</h1>
+        {conditional && enabled && (
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={busy || blocked}
+            onClick={() =>
+              action(async () => {
+                await loadCurrent();
+              })
+            }
+          >
+            Refresh payment terms
+          </button>
+        )}
         {!enabled && (
           <p>This payment form is unavailable. A previously stored receipt can still be checked.</p>
         )}
-        {enabled && state && (
+        {enabled && state && !(conditional && pending) && (
           <section className="glass-panel space-y-4 rounded-xl p-4" aria-label="Payment inputs">
             <p className="text-sm">
               Pay with your wallet. No Paiflow account is required. Fixed destinations and
@@ -568,9 +701,16 @@ export default function HostedPaymentForm({
               move funds. You review and sign the payment in a separate step.
             </p>
             <p className="text-on-surface-variant text-xs break-all">
-              Asset contract: {state.assetContract}
+              Asset contract: {protocol.asset(state)}
             </p>
             {input("Payment amount", amount, setAmount, "decimal")}
+            {conditional && state && conditionalHostedState(state) && (
+              <p className="text-sm">
+                Threshold: {state.definition.condition.thresholdStroops} stroops (
+                {state.definition.condition.thresholdMode}); compare after upstream Pay deductions,
+                equality takes False. Only the selected branch asks for payment inputs.
+              </p>
+            )}
             {runtimeFields()}
             {address && <p className="text-sm break-all">Payer: {address}</p>}
             <button
@@ -603,7 +743,10 @@ export default function HostedPaymentForm({
           </section>
         )}
         {prepared && (
-          <section className="glass-panel space-y-3 rounded-xl p-4" aria-label="Review payment">
+          <section
+            className={`glass-panel space-y-3 rounded-xl p-4 ${conditional ? "break-words" : ""}`}
+            aria-label="Review payment"
+          >
             <h2 className="text-xl">Review before signing</h2>
             <p>
               Deposit: {formatStroops(prepared.prepared.execution.amountStroops)} · Maximum
@@ -615,6 +758,9 @@ export default function HostedPaymentForm({
                 key={`${row.nodeId}:${row.rowId}`}
                 className="border-outline-variant rounded border p-3 text-sm"
               >
+                {"kind" in row && row.kind === "return_to_owner" && (
+                  <p className="font-medium">Return to immutable deployment owner</p>
+                )}
                 <p className="break-all">{row.recipient}</p>
                 <p>
                   {formatStroops(row.amountStroops)} · {row.allocation}
@@ -656,10 +802,32 @@ export default function HostedPaymentForm({
               Percentage rounding goes to the last destination in the listed order. Verify the
               asset, amounts and recipients in your wallet.
             </p>
+            {conditional && conditionalHostedPrepared(prepared) && (
+              <ConditionalHostedPaymentReview
+                prepared={prepared}
+                acknowledged={acknowledged === prepared.prepared.txHash}
+                onAcknowledge={(checked) =>
+                  setAcknowledged(checked ? prepared.prepared.txHash : null)
+                }
+                disabled={busy}
+              />
+            )}
+            {conditional && (currentError || knownStale) && (
+              <p role="status" className="text-error">
+                Current complete graph terms cannot authorize this original review. Signing is
+                unavailable; keep checking the original receipt.
+              </p>
+            )}
             <button
               type="button"
               className="btn-primary"
-              disabled={busy || pending?.phase !== "prepared" || !enabled}
+              disabled={
+                busy ||
+                pending?.phase !== "prepared" ||
+                !enabled ||
+                (conditional &&
+                  (currentError || knownStale || acknowledged !== prepared.prepared.txHash))
+              }
               onClick={sign}
             >
               Sign and pay
@@ -679,6 +847,21 @@ export default function HostedPaymentForm({
             </button>
           </section>
         )}
+        {conditional &&
+          pending &&
+          enabled &&
+          (pending.phase === "ownership" ||
+            pending.phase === "preparing" ||
+            pending.phase === "prepared") && (
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={busy || blocked}
+              onClick={connect}
+            >
+              Connect original payer wallet
+            </button>
+          )}
         {pending && (
           <section
             className="border-outline-variant space-y-2 rounded border p-4"
@@ -692,11 +875,55 @@ export default function HostedPaymentForm({
                 : "Original payment receipt"}
             </h2>
             {pending.txHash && <p className="font-mono text-xs break-all">{pending.txHash}</p>}
+            {conditional && (
+              <details open>
+                <summary className="min-h-11 cursor-pointer">Original saved payment inputs</summary>
+                <p className="text-sm break-all">
+                  Original payer: {pending.request.from}; amount: {pending.request.amount} stroops.
+                </p>
+                {pending.request.arguments?.inputs.map((input) => (
+                  <div key={input.nodeId} className="text-sm break-all">
+                    <p>
+                      {input.nodeId} ({input.kind})
+                    </p>
+                    {input.kind === "pay" ? (
+                      <p>{input.recipient}</p>
+                    ) : (
+                      <>
+                        <p>
+                          {input.rows
+                            .map(
+                              (row) =>
+                                `${row.rowId}: ${row.recipient ?? "stored recipient"}; ${row.allocation?.kind === "fixed" ? `${row.allocation.amountStroops} stroops` : row.allocation?.kind === "percentage" ? `${row.allocation.bps} bps` : "stored allocation"}`,
+                            )
+                            .join("; ")}
+                        </p>
+                        {input.additionalRecipients?.map((row) => (
+                          <p key={row.rowId}>
+                            {row.rowId}: {row.recipient};{" "}
+                            {row.allocation.kind === "fixed"
+                              ? `${row.allocation.amountStroops} stroops`
+                              : `${row.allocation.bps} bps`}
+                          </p>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                ))}
+              </details>
+            )}
             <p className="text-sm">
               {pending.phase === "ownership"
                 ? "No payment has been prepared. You can retry the sign-only ownership proof or edit your inputs."
                 : "Keep this browser’s receipt until finality is confirmed. An interrupted payment signature or unknown status never means it is safe to pay again."}
             </p>
+            {conditional && pending.phase === "preparing" && (
+              <p className="text-sm">
+                This original request remains held even if current branch inputs become obsolete or
+                a server row is not yet visible. Only the same request and key may be recovered;
+                missing data, validation failure or time passing does not permit a replacement.
+              </p>
+            )}
             {pending.phase !== "ownership" && (
               <button
                 type="button"
@@ -717,7 +944,7 @@ export default function HostedPaymentForm({
                     const saved = readHostedRecovery(storageKey);
                     if (saved?.phase !== "ownership" || saved.recoveryKey !== pending.recoveryKey)
                       throw new Error("Payment state changed; check its original receipt");
-                    localStorage.removeItem(storageKey);
+                    clearHostedUiRecovery(storageKey, saved, protocol);
                     setPending(null);
                     setPrepared(null);
                     setMessage(
