@@ -1,5 +1,7 @@
 # Conditional reusable payments: v2 foundation
 
+Ordinary-flow source authoring, deployment review and owner recovery are described in [conditional authoring](conditional-authoring.md). Artifact activation and live acceptance remain separate.
+
 Shared contract for [#1222](https://github.com/webnxt-2030/pinkraft/issues/1222),
 under [#1221](https://github.com/webnxt-2030/pinkraft/issues/1221). This document is
 normative for #1223–#1228. `lib/flows/conditional-v2.ts` and

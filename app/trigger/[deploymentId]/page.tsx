@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { hasConditionalDeploymentDeclaration } from "@/lib/flows/conditional-deployment";
 import { FlowGraphSchema, isTrigger, assetLabel, migrateFlowGraph } from "@/lib/flows/schema";
 import { inboundRequirement } from "@/lib/flows/inbound-amount";
 import { payoutRecipients } from "@/lib/flows/payout-recipients";
@@ -23,6 +24,14 @@ export default async function TriggerPage({
       flow: { select: { name: true, templateKind: true } },
     },
   });
+  // Conditional hosted review is integrated separately in #1228. A tagged v2
+  // deployment must never fall through to the legacy deposit form.
+  if (
+    d &&
+    (hasConditionalDeploymentDeclaration(d.paramsSnapshot) ||
+      hasConditionalDeploymentDeclaration(d.graphSnapshot))
+  )
+    notFound();
   if (d && hasExecutionPolicies(d.graphSnapshot)) {
     if (d.network !== env().STELLAR_NETWORK) notFound();
     const enabled = d.hostedExecutionEnabled && d.serviceState === "ACTIVE";

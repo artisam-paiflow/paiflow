@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
@@ -27,9 +28,21 @@ import { withInteractiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
 import { assertDeploymentPreparationBudget } from "@/lib/stellar/deployment-preparation";
 import { getWasmHashes } from "@/lib/stellar/config";
 import { stellarRelayerAddress } from "@/lib/env";
-import { Role } from "@prisma/client";
+import { Role, type Deployment } from "@prisma/client";
 import { SANDBOX_TEMPLATE_KINDS } from "@/lib/sandbox";
 import { assertNoHiddenSurfaces, serverFeatures } from "@/lib/features";
+import { ConditionalCanvasSchema } from "@/lib/flows/conditional-canvas-schema";
+import {
+  conditionalDeploymentPlan,
+  prepareConditionalDeployTransaction,
+  verifyConditionalDeploymentOriginal,
+} from "@/lib/stellar/prepare-conditional-deploy";
+import { checkPayoutTrustlines } from "@/lib/stellar/trustline-check";
+import {
+  ConditionalDeployPrepareSchema,
+  conditionalDeploymentKey,
+  type ConditionalDeployPrepare,
+} from "@/lib/deployments/conditional-prepare-schema";
 const PrepareInputSchema = z.object({
   flowId: z.string().guid({ error: "Invalid uuid" }),
   sourceAccount: z.string().optional(),
@@ -40,12 +53,129 @@ const PrepareSchema = z.object({
     .string()
     .refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar account"),
 });
+function conditionalReceipt(deployment: Deployment) {
+  const original = verifyConditionalDeploymentOriginal(deployment);
+  return {
+    deploymentId: deployment.id,
+    xdr: deployment.unsignedXdr!,
+    networkPassphrase: stellarPassphrase(),
+    expectedContractAddress: original.pipeline[0]!.contractAddress,
+    pipeline: original.pipeline,
+    conditionalReview: original.conditionalReview,
+  };
+}
+async function prepareConditionalOwner(
+  body: ConditionalDeployPrepare,
+  user: { id: string; role: Role },
+) {
+  if (user.role === Role.SANDBOX)
+    throw new AppError("FORBIDDEN", "Conditional deployment requires a full owner account");
+  const network = env().STELLAR_NETWORK,
+    idempotencyKey = conditionalDeploymentKey(body.preparationKey);
+  const previous = () =>
+    db.deployment.findUnique({
+      where: { ownerId_idempotencyKey: { ownerId: user.id, idempotencyKey } },
+    });
+  const originalReceipt = (deployment: Deployment) => {
+    const conflict = () =>
+      new AppError(
+        "CONFLICT",
+        "Preparation key already identifies another request or unavailable original",
+        {
+          deploymentId: [deployment.id],
+          ...(deployment.preparedTxHash ? { txHash: [deployment.preparedTxHash] } : {}),
+        },
+      );
+    if (
+      deployment.flowId.toLowerCase() !== body.flowId.toLowerCase() ||
+      deployment.sourceAccount !== body.sourceAccount ||
+      deployment.network !== network ||
+      deployment.templateVersionId ||
+      deployment.serviceState !== "ACTIVE"
+    )
+      throw conflict();
+    try {
+      return conditionalReceipt(deployment);
+    } catch {
+      throw conflict();
+    }
+  };
+  const retained = await previous();
+  if (retained) return NextResponse.json({ data: originalReceipt(retained) });
+  const flow = await db.flow.findFirst({ where: { id: body.flowId, ownerId: user.id } });
+  if (!flow) throw new AppError("NOT_FOUND", "Flow not found");
+  const graph = ConditionalCanvasSchema.parse(flow.graph);
+  const plan = await conditionalDeploymentPlan(graph, body.sourceAccount);
+  assertNoHiddenSurfaces(
+    graph,
+    plan.pipeline.map((node) => node.templateKind),
+    serverFeatures(),
+  );
+  return withInteractiveRpcBudget(async () => {
+    await checkAccountFunding(body.sourceAccount);
+    const trustlineChecks = await checkPayoutTrustlines(plan.recipients).catch(() =>
+      plan.recipients.map((recipient) => ({
+        nodeId: recipient.nodeId,
+        address: recipient.address,
+        status: "unknown" as const,
+        assetCode: "",
+        assetIssuer: "",
+      })),
+    );
+    const id = randomUUID();
+    const prepared = await prepareConditionalDeployTransaction(plan, id);
+    assertDeploymentPreparationBudget(id);
+    let deployment: Deployment;
+    try {
+      deployment = await db.deployment.create({
+        data: {
+          id,
+          flowId: flow.id,
+          ownerId: user.id,
+          network,
+          status: "PENDING_SIGNATURE",
+          graphSnapshot: plan.draft as object,
+          paramsSnapshot: plan.envelope as object,
+          pipelineSnapshot: plan.pipeline as object,
+          sourceAccount: body.sourceAccount,
+          unsignedXdr: prepared.xdr,
+          preparedTxHash: prepared.conditionalReview.txHash,
+          contractAddress: plan.pipeline[0]!.contractAddress,
+          idempotencyKey,
+        },
+      });
+    } catch (error) {
+      if ((error as { code?: string }).code !== "P2002") throw error;
+      const winner = await previous();
+      if (!winner)
+        throw new AppError(
+          "CONFLICT",
+          "Preparation admission is unresolved; retain the same preparationKey",
+        );
+      return NextResponse.json({ data: originalReceipt(winner) });
+    }
+    await audit({
+      action: "DEPLOY_PREPARE",
+      userId: user.id,
+      metadata: { deploymentId: deployment.id, network },
+    });
+    return NextResponse.json({ data: { ...originalReceipt(deployment), trustlineChecks } });
+  });
+}
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     const rl = await rateLimit(`deploy:${user.id}`, 10, 60);
     if (!rl.ok) throw rateLimitedError(rl, "Too many deploys");
-    const input = PrepareInputSchema.parse(await req.json());
+    const raw: unknown = await req.json();
+    if (
+      raw &&
+      typeof raw === "object" &&
+      !Array.isArray(raw) &&
+      ("version" in raw || "preparationKey" in raw)
+    )
+      return prepareConditionalOwner(ConditionalDeployPrepareSchema.parse(raw), user);
+    const input = PrepareInputSchema.parse(raw);
     const network = env().STELLAR_NETWORK;
     const flow = await db.flow.findFirst({
       where: { id: input.flowId, ownerId: user.id },
@@ -61,6 +191,16 @@ export async function POST(req: NextRequest) {
     ) {
       throw new AppError("VALIDATION", "Invalid input", { _: [PAYROLL_RETIRED_MESSAGE] });
     }
+    if (
+      flow.graph &&
+      typeof flow.graph === "object" &&
+      !Array.isArray(flow.graph) &&
+      "generation" in flow.graph
+    )
+      throw new AppError(
+        "VALIDATION",
+        "Conditional deployment requires explicit version2 and a saved preparationKey",
+      );
     const parsedGraph = FlowGraphSchema.parse(migrateFlowGraph(flow.graph));
     const graph = user.role === "SANDBOX" ? sandboxNotifications(parsedGraph) : parsedGraph;
     if (

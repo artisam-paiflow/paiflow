@@ -316,7 +316,7 @@ actual artifact/network/hosted/wallet acceptance; publication eligibility does n
 prove runtime ABI compatibility. See
 [instance readiness and remaining release gates](docs/instance-readiness.md).
 
-### 3.4.2 Conditional reusable payments (Phase 2 foundation)
+### 3.4.2 Conditional reusable payments (Phase 2)
 
 New conditional reusable deployments use a separate version 2 domain and ABI:
 one Receive, optional sequential partial Pays, exactly one strict `amount_gt` or
@@ -344,12 +344,20 @@ verified current configuration and append-only observed history.
 
 [Conditional v2](docs/conditional-v2.md) fixes strict schemas, complete ordering,
 authenticated route/child forwarding, replay/expiry, getters/events, read consistency
-and downstream handoffs. The foundation adds pure definitions/validation and
-compatibility guards only. Conditional deployment, execution, mutation and advertised
-capability remain unavailable until enforcing implementations and reviewed artifacts
-exist. Existing legacy/v1 payloads, pins and template functionality remain unchanged;
-there is no retrofit or artifact activation. Swap, delayed/recurring nodes and other
-deferred capabilities remain outside this phase.
+and downstream handoffs. Contract and API/SDK enforcement, explicit ordinary-flow
+[authoring/deployment review and owner editing](docs/conditional-authoring.md) are
+implemented in separate source checkpoints. Drafts remain available before compatible
+artifacts are configured; deployment requires every participating exact reviewed
+v2 artifact. Prepared terms bind both branches, immutable initial states, salts,
+source/network and the same original hash. Saved preparation keys survive lost
+responses; acknowledgement precedes signing, and one existing recovery engine
+retains uncertain originals. Stored editing requires a verified complete current
+read and zero accounted obligations everywhere. Schemas or source support alone
+never activate an artifact or grant capability. Hosted conditional payments remain
+unavailable pending #1228 integration. Existing legacy/v1 payloads, pins and template
+functionality remain unchanged; there is no retrofit or artifact activation. Source
+readiness and actual network/wallet release acceptance remain distinct under #1229.
+Swap, delayed/recurring nodes and other deferred capabilities remain outside scope.
 
 ### 3.5 English Preview Pane
 

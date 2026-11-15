@@ -22,20 +22,25 @@ function amount(
       ? `${bpsToPct(value.bps)}%`
       : `${formatStroops(value.amountStroops)} ${asset ? assetLabel(asset) : "tokens"} (${value.amountStroops} stroops)`;
 }
-export function ConfigurationValues({
+export function ConfigurationValues<
+  T extends Pick<
+    ConfirmedNodeConfiguration,
+    "nodeId" | "contractAddress" | "revision" | "policy" | "configuration"
+  >,
+>({
   values,
   asset,
   onChange,
   disabled = false,
   revisionLabel,
 }: {
-  values: ConfirmedNodeConfiguration[];
+  values: T[];
   asset?: Asset;
-  onChange?: (values: ConfirmedNodeConfiguration[]) => void;
+  onChange?: (values: T[]) => void;
   disabled?: boolean;
   revisionLabel?: string;
 }) {
-  function edit(index: number, change: (node: ConfirmedNodeConfiguration) => void) {
+  function edit(index: number, change: (node: T) => void) {
     const next = structuredClone(values);
     change(next[index]!);
     onChange?.(next);

@@ -11,7 +11,10 @@ import HostedExecutionPanel from "@/components/deploy/hosted-execution-panel";
 import ConfigurationPanel from "@/components/deploy/configuration-panel";
 import { hasMutablePolicies } from "@/lib/flows/execution-v1";
 import { hasExecutionPolicies } from "@/lib/api/v1/execution-schema";
-import { FlowGraphSchema, isTrigger } from "@/lib/flows/schema";
+import { isTrigger } from "@/lib/flows/schema";
+import { OrdinaryFlowGraphSchema, isConditionalCanvas } from "@/lib/flows/ordinary-schema";
+import { ConditionalDeploymentEnvelopeSchema } from "@/lib/flows/conditional-deployment";
+import ConditionalOwnerView from "@/components/deploy/conditional-owner-view";
 import { NODE_TYPE_LABELS } from "@/lib/flows/node-labels";
 import {
   isStellarNetwork,
@@ -97,9 +100,24 @@ export default async function DeploymentPage({
         </main>
       </>
     );
-  const graphResult = FlowGraphSchema.safeParse(d.graphSnapshot);
+  const graphResult = OrdinaryFlowGraphSchema.safeParse(d.graphSnapshot);
   if (!graphResult.success) notFound();
   const graph = graphResult.data;
+  const conditional = isConditionalCanvas(graph);
+  const original = conditional
+    ? ConditionalDeploymentEnvelopeSchema.safeParse(d.paramsSnapshot)
+    : null;
+  if (conditional && (!original?.success || original.data.definition.owner !== d.sourceAccount))
+    notFound();
+  const editable = conditional
+    ? graph.conditionalPolicies.condition?.thresholdMode === "mutable" ||
+      graph.conditionalPolicies.nodes.some((policy) =>
+        policy.kind === "pay"
+          ? policy.recipient === "mutable" || policy.payoutValue === "mutable"
+          : policy.additionalRecipients === "mutable" ||
+            policy.rows.some((row) => row.recipient === "mutable" || row.allocation === "mutable"),
+      )
+    : hasMutablePolicies(graph);
   // The legacy flow category can be SPLITTER even for a Pay-only flow.
   // Describe the deployed blocks without implying an order across branches.
   const blockLabels = [
@@ -113,7 +131,7 @@ export default async function DeploymentPage({
     templateKind: string;
   }> | null;
   const isPipeline = pipeline?.[0]?.templateKind === "DEPOSIT_TRIGGER";
-  const triggerNode = graph.nodes.find(isTrigger);
+  const triggerNode = conditional ? undefined : graph.nodes.find(isTrigger);
   const isWebhookLike = triggerNode?.type === "webhook" || triggerNode?.type === "web2_webhook";
   const isStreamerLike = d.flow.templateKind === "STREAMER";
   const isSubscription = d.flow.templateKind === "SUBSCRIPTION";
@@ -210,33 +228,53 @@ export default async function DeploymentPage({
           </div>
         </div>
 
-        <DeploymentView
-          deploymentId={d.id}
-          contractAddress={d.contractAddress}
-          network={network}
-          status={d.status}
-          qrUrl={qrUrl}
-          graph={graph}
-          pipeline={pipeline}
-          templateKind={d.flow.templateKind}
-          errorMessage={d.errorMessage ?? null}
-          initialEvents={d.events.map((e) => ({
-            id: e.id,
-            eventId: e.eventId,
-            kind: e.kind,
-            ledger: e.ledger,
-            txHash: e.txHash,
-            payload: e.payload,
-            decodedData: e.decodedData as Record<string, unknown> | null,
-            occurredAt: e.occurredAt.toISOString(),
-          }))}
-        />
+        {conditional && original?.success ? (
+          <ConditionalOwnerView
+            deploymentId={d.id}
+            original={original.data}
+            network={network}
+            status={d.status}
+            errorMessage={d.errorMessage ?? null}
+            initialEvents={d.events.map((e) => ({
+              id: e.id,
+              eventId: e.eventId,
+              kind: e.kind,
+              ledger: e.ledger,
+              txHash: e.txHash,
+              payload: e.payload,
+              decodedData: e.decodedData as Record<string, unknown> | null,
+              occurredAt: e.occurredAt.toISOString(),
+            }))}
+          />
+        ) : (
+          <DeploymentView
+            deploymentId={d.id}
+            contractAddress={d.contractAddress}
+            network={network}
+            status={d.status}
+            qrUrl={qrUrl}
+            graph={conditional ? null : graph}
+            pipeline={pipeline}
+            templateKind={d.flow.templateKind}
+            errorMessage={d.errorMessage ?? null}
+            initialEvents={d.events.map((e) => ({
+              id: e.id,
+              eventId: e.eventId,
+              kind: e.kind,
+              ledger: e.ledger,
+              txHash: e.txHash,
+              payload: e.payload,
+              decodedData: e.decodedData as Record<string, unknown> | null,
+              occurredAt: e.occurredAt.toISOString(),
+            }))}
+          />
+        )}
 
         {d.status === "CONFIRMED" &&
           user.role !== Role.SANDBOX &&
           network &&
           network === env().STELLAR_NETWORK &&
-          hasMutablePolicies(graph) && (
+          editable && (
             <ConfigurationPanel
               ownerId={user.id}
               deploymentId={d.id}
@@ -247,6 +285,7 @@ export default async function DeploymentPage({
 
         {d.status === "CONFIRMED" &&
         user.role !== Role.SANDBOX &&
+        !conditional &&
         hasExecutionPolicies(d.graphSnapshot) ? (
           <HostedExecutionPanel deploymentId={d.id} initialEnabled={d.hostedExecutionEnabled} />
         ) : null}

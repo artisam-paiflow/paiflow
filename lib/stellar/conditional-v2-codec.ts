@@ -1,4 +1,3 @@
-import "server-only";
 import { Address, hash, nativeToScVal, scValToNative, xdr } from "@stellar/stellar-sdk";
 import { z } from "zod";
 import {
@@ -38,7 +37,11 @@ const address = (value: string) => new Address(value).toScVal();
 const i128 = (value: string) => nativeToScVal(BigInt(value), { type: "i128" });
 const u32 = (value: number) => nativeToScVal(value, { type: "u32" });
 const u64 = (value: string) => nativeToScVal(BigInt(value), { type: "u64" });
-const bytes = (value: string) => xdr.ScVal.scvBytes(Buffer.from(value, "hex"));
+const bytes = (value: string) =>
+  nativeToScVal(
+    Uint8Array.from(value.match(/../g) ?? [], (byte) => parseInt(byte, 16)),
+    { type: "bytes" },
+  );
 const vec = (values: xdr.ScVal[]) => xdr.ScVal.scvVec(values);
 const variant = (name: string, ...values: xdr.ScVal[]) => vec([symbol(name), ...values]);
 const record = (fields: Record<string, xdr.ScVal>) =>
@@ -76,11 +79,11 @@ export function conditionalContractAddress(
     throw new Error("CAP-46 requires a 32-byte salt and server-selected network passphrase");
   const preimage = xdr.HashIdPreimage.envelopeTypeContractId(
     new xdr.HashIdPreimageContractId({
-      networkId: hash(Buffer.from(networkPassphrase)),
+      networkId: hash(networkPassphrase),
       contractIdPreimage: xdr.ContractIdPreimage.contractIdPreimageFromAddress(
         new xdr.ContractIdPreimageFromAddress({
           address: new Address(owner).toScAddress(),
-          salt: Buffer.from(salt),
+          salt: nativeToScVal(salt, { type: "bytes" }).bytes(),
         }),
       ),
     }),
@@ -594,7 +597,9 @@ export function decodeConditionalManifest(raw: unknown): ConditionalGraphManifes
               wasm_hash: z
                 .instanceof(Uint8Array)
                 .refine((value) => value.length === 32)
-                .transform((value) => Buffer.from(value).toString("hex")),
+                .transform((value) =>
+                  Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join(""),
+                ),
               state: RawNodeStateSchema,
             })
             .strict(),

@@ -5,9 +5,14 @@ import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 import { audit } from "@/lib/audit";
-import { FlowPatchSchema, sandboxNotifications } from "@/lib/flows/schema";
+import { OrdinaryFlowPatchSchema, isConditionalCanvas } from "@/lib/flows/ordinary-schema";
+import {
+  ordinarySandboxNotifications,
+  conditionalDraftParameters,
+} from "@/lib/flows/ordinary-flow";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
+import { writeOrdinaryFlow } from "@/lib/flow-persistence/ordinary-write";
 import { refuseIfFeatureOff } from "@/lib/features";
 async function getOwned(id: string, userId: string) {
   const flow = await db.flow.findFirst({ where: { id, ownerId: userId } });
@@ -42,30 +47,35 @@ export async function PATCH(
     await enforceWriteRateLimit("flowMutate", user.id);
     const { id } = await ctx.params;
     const flow = await getOwned(id, user.id);
-    const body = FlowPatchSchema.parse(await req.json());
-    let templateKind = flow.templateKind;
-    let parameters = flow.parameters;
-    let graph = flow.graph;
+    const body = OrdinaryFlowPatchSchema.parse(await req.json());
+    let compiled: { templateKind: typeof flow.templateKind; parameters: object } | undefined;
     if (body.graph) {
-      if (user.role === "SANDBOX") body.graph = sandboxNotifications(body.graph);
-      const v = validateFlow(body.graph, { ignoreOwnerEmail: true });
-      if (v.ok) {
-        templateKind = v.templateKind;
-        parameters = flowToPipeline(v.graph, undefined, {
-          forValidation: true,
-        }) as object;
+      if (user.role === "SANDBOX") body.graph = ordinarySandboxNotifications(body.graph);
+      const v = isConditionalCanvas(body.graph)
+        ? null
+        : validateFlow(body.graph, { ignoreOwnerEmail: true });
+      if (isConditionalCanvas(body.graph)) {
+        compiled = { templateKind: "ROUTER", parameters: conditionalDraftParameters() };
+      }
+      if (v?.ok) {
+        compiled = {
+          templateKind: v.templateKind,
+          parameters: flowToPipeline(v.graph, undefined, {
+            forValidation: true,
+          }) as object,
+        };
       }
       // Always save the graph even if flow validation fails (intermediate editing state).
-      graph = body.graph;
     }
-    const updated = await db.flow.update({
-      where: { id },
+    const updated = await writeOrdinaryFlow({
+      id,
+      ownerId: user.id,
+      originalGraph: flow.graph,
+      replacement: body.graph,
       data: {
-        name: body.name ?? flow.name,
-        description: body.description ?? flow.description,
-        graph: graph as object,
-        parameters: parameters as object,
-        templateKind,
+        ...(body.name === undefined ? {} : { name: body.name }),
+        ...(body.description === undefined ? {} : { description: body.description }),
+        ...(compiled ?? {}),
         version: { increment: 1 },
       },
     });

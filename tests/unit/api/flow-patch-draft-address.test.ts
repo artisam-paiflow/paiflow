@@ -84,8 +84,9 @@ describe("PATCH /api/flows/:id with a draft address (#588)", () => {
       expect(res.status).toBe(200);
       const saved = mockDb.flow.update.mock.calls[0]![0].data.graph;
       expect(saved.nodes[1].config.recipients[1].address).toBe(draft);
-      // The last valid pipeline is kept; an invalid graph never replaces it.
-      expect(mockDb.flow.update.mock.calls[0]![0].data.parameters).toEqual({});
+      // The last valid pipeline is kept by leaving its column untouched;
+      // rewriting captured parameters could clobber a concurrent graph update.
+      expect(mockDb.flow.update.mock.calls[0]![0].data).not.toHaveProperty("parameters");
     },
   );
 });

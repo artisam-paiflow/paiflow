@@ -531,6 +531,8 @@ const FlowGraphShape = z.object({
  * normalized definition; reject its reserved fields before legacy normalization
  * and unknown-key stripping can reinterpret it as a constant canvas graph. */
 const CONDITIONAL_DEFINITION_KEYS = [
+  "generation",
+  "conditionalPolicies",
   "version",
   "root",
   "prefix",

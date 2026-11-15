@@ -3,8 +3,11 @@ import Link from "next/link";
 import { TemplateKind } from "@prisma/client";
 import { requirePageSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { FlowGraphSchema, type Asset, type FlowGraph, assetLabel } from "@/lib/flows/schema";
+import { type Asset, type FlowGraph, assetLabel } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
+import { OrdinaryFlowGraphSchema, isConditionalCanvas } from "@/lib/flows/ordinary-schema";
+import { validateOrdinaryFlow } from "@/lib/flows/ordinary-flow";
+import { conditionalArtifactAvailability } from "@/lib/flows/conditional-canvas";
 import { flowToEnglish } from "@/lib/flows/english";
 import { deployPreviewFromGraph } from "@/lib/flows/deploy-preview";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
@@ -33,28 +36,36 @@ export default async function DeployReviewPage({
   const { flowId } = await params;
   const flow = await db.flow.findFirst({ where: { id: flowId, ownerId: user.id } });
   if (!flow) notFound();
-  const graph = FlowGraphSchema.safeParse(flow.graph);
+  const graph = OrdinaryFlowGraphSchema.safeParse(flow.graph);
   const hashes =
-    graph.success && graph.data.fieldPolicies !== undefined
+    graph.success && (isConditionalCanvas(graph.data) || graph.data.fieldPolicies !== undefined)
       ? new Map(
           await Promise.all(
-            [TemplateKind.DEPOSIT_TRIGGER, TemplateKind.PAYER, TemplateKind.SPLITTER].map(
-              async (kind) => [kind, (await getWasmHash(kind)) ?? ""] as const,
-            ),
+            [
+              TemplateKind.DEPOSIT_TRIGGER,
+              TemplateKind.PAYER,
+              TemplateKind.SPLITTER,
+              TemplateKind.ROUTER,
+            ].map(async (kind) => [kind, (await getWasmHash(kind)) ?? ""] as const),
           ),
         )
       : new Map<string, string>();
   const executionAvailable =
-    graph.success && executionDeploymentAvailable(graph.data, executionArtifactsFromHashes(hashes));
+    graph.success &&
+    (isConditionalCanvas(graph.data)
+      ? conditionalArtifactAvailability(graph.data, Object.fromEntries(hashes)).available
+      : executionDeploymentAvailable(graph.data, executionArtifactsFromHashes(hashes)));
   const validation = graph.success
-    ? validateFlow(graph.data, { features: serverFeatures(), ignoreOwnerEmail: true })
+    ? isConditionalCanvas(graph.data)
+      ? validateOrdinaryFlow(graph.data)
+      : validateFlow(graph.data, { features: serverFeatures(), ignoreOwnerEmail: true })
     : null;
   const english = graph.success ? flowToEnglish(graph.data) : "(invalid graph)";
-  const pipeline = validation?.ok ? validation.pipeline : null;
+  const pipeline = validation?.ok && "pipeline" in validation ? validation.pipeline : null;
   // Not awaited: the Horizon lookups stream into the review behind a Suspense
   // boundary, so a slow Horizon never holds up the page (#574).
   const trustlineCheck =
-    validation?.ok && graph.success
+    validation?.ok && graph.success && !isConditionalCanvas(graph.data)
       ? checkPayoutTrustlines(payoutRecipients(graph.data))
       : undefined;
   let streamerPreview: {
@@ -89,7 +100,7 @@ export default async function DeployReviewPage({
     : [];
   const isSubscriptionTrigger =
     graph.success && graph.data.nodes.some((n) => n.type === "subscription");
-  if (pipeline) {
+  if (pipeline && graph.success && !isConditionalCanvas(graph.data)) {
     const sp = deployPreviewFromGraph(graph.data!);
     if (sp) {
       const triggerNode = graph.data!.nodes.find(
@@ -314,6 +325,7 @@ export default async function DeployReviewPage({
         {validation?.ok && executionAvailable && (
           <DeployReview
             flowId={flow.id}
+            conditional={graph.success && isConditionalCanvas(graph.data)}
             network={env().STELLAR_NETWORK}
             swapPreviews={swapPreviews}
             trustlineCheck={trustlineCheck}
