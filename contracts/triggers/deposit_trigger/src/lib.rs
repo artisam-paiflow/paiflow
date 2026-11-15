@@ -1,4 +1,8 @@
 #![no_std]
+// The explicit execute_v2 ABI has eight wire arguments, including the bound route.
+#![allow(clippy::too_many_arguments)]
+#[path = "../../../conditional-v2.rs"]
+pub mod conditional_v2;
 #[path = "../../../execution-v1.rs"]
 pub mod execution_v1;
 use execution_v1::{
@@ -43,9 +47,14 @@ pub struct DepositTrigger;
 #[contractimpl]
 impl DepositTrigger {
     pub fn __constructor(env: Env, admin: Address, asset: Address, next_steps: Val) {
-        if env.storage().instance().has(&Key::Admin) {
+        if env.storage().instance().has(&Key::Admin) || conditional_v2::has_v2(&env) {
             panic_with_error!(&env, Error::AlreadyInitialized);
         }
+        if let Some(init) = conditional_v2::tagged_init(&env, &next_steps) {
+            conditional_v2::install(&env, &init, &admin, &asset, 0);
+            return;
+        }
+
         let next_steps = if let Ok(legacy) = Vec::<WorkflowTarget>::try_from_val(&env, &next_steps)
         {
             legacy
@@ -79,6 +88,7 @@ impl DepositTrigger {
     }
 
     pub fn deposit(env: Env, from: Address, amount: i128) {
+        conditional_v2::require_not_v2(&env);
         execution_v1::require_legacy(&env);
         from.require_auth();
         if amount <= 0 {
@@ -117,6 +127,7 @@ impl DepositTrigger {
         bindings: Vec<Binding>,
         inputs: Vec<NodeInput>,
     ) {
+        conditional_v2::require_not_v2(&env);
         let config: RootConfig = env
             .storage()
             .instance()
@@ -195,11 +206,13 @@ impl DepositTrigger {
     }
 
     pub fn capabilities(env: Env) -> Capabilities {
+        conditional_v2::require_not_v2(&env);
         execution_v1::capabilities(&env)
     }
     /// One atomic admin-authorized update of the complete conserved path.
     /// Every accepted obligation is checked before any stored term is changed.
     pub fn mutate_v1(env: Env, bindings: Vec<Binding>, changes: Vec<NodeMutation>) {
+        conditional_v2::require_not_v2(&env);
         let config = Self::field_policy(env.clone());
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
         admin.require_auth();
@@ -221,15 +234,18 @@ impl DepositTrigger {
         bump_ttl(&env);
     }
     pub fn config_revision(env: Env) -> u64 {
+        conditional_v2::require_not_v2(&env);
         execution_v1::revision(&env)
     }
     pub fn field_policy(env: Env) -> RootConfig {
+        conditional_v2::require_not_v2(&env);
         env.storage()
             .instance()
             .get(&PolicyKey::Root)
             .unwrap_or_else(|| execution_v1::fail(&env, ExecutionError::Unsupported))
     }
     pub fn current_config(env: Env) -> RootState {
+        conditional_v2::require_not_v2(&env);
         RootState {
             policy: Self::field_policy(env.clone()),
             revision: execution_v1::revision(&env),
@@ -238,11 +254,62 @@ impl DepositTrigger {
     }
 
     pub fn next_steps(env: Env) -> Vec<WorkflowTarget> {
+        conditional_v2::require_not_v2(&env);
         env.storage().instance().get(&Key::NextSteps).unwrap()
     }
 
     pub fn asset(env: Env) -> Address {
+        conditional_v2::require_not_v2(&env);
         env.storage().instance().get(&Key::Asset).unwrap()
+    }
+    pub fn capabilities_v2(env: Env) -> conditional_v2::CapabilitiesV2 {
+        conditional_v2::capabilities(&env)
+    }
+    pub fn graph_manifest_v2(env: Env) -> conditional_v2::GraphManifestV2 {
+        conditional_v2::manifest(&env)
+    }
+    pub fn field_policy_v2(env: Env) -> conditional_v2::NodeStateV2 {
+        conditional_v2::initial(&env)
+    }
+    pub fn initial_config_v2(env: Env) -> conditional_v2::NodeStateV2 {
+        conditional_v2::initial(&env)
+    }
+    pub fn current_config_v2(env: Env) -> conditional_v2::NodeStateV2 {
+        conditional_v2::current(&env)
+    }
+    pub fn config_revision_v2(env: Env) -> u64 {
+        conditional_v2::current(&env).revision
+    }
+    pub fn mutation_status_v2(env: Env) -> conditional_v2::MutationStatusV2 {
+        conditional_v2::status(&env)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn execute_v2(
+        env: Env,
+        payer: Address,
+        asset: Address,
+        amount: i128,
+        nonce: BytesN<32>,
+        expires_at_ledger: u32,
+        bindings: Vec<conditional_v2::GraphBindingV2>,
+        inputs: Vec<NodeInput>,
+        route: conditional_v2::RouteV2,
+    ) {
+        conditional_v2::execute_root(
+            &env,
+            conditional_v2::ExecutionContextV2 {
+                payer,
+                root: env.current_contract_address(),
+                asset,
+                funded_amount: amount,
+                nonce,
+                expires_at_ledger,
+                bindings,
+                inputs,
+                route,
+            },
+        );
     }
 }
 

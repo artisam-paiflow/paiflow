@@ -5,6 +5,9 @@ under [#1221](https://github.com/webnxt-2030/pinkraft/issues/1221). This documen
 normative for #1223–#1228. `lib/flows/conditional-v2.ts` and
 `conditional-v2-state.ts` define strict, **unavailable-at-runtime** domain values.
 They are not an extension of v1 payloads or a declaration of trusted artifacts.
+The source implementation for #1223 is described in
+[conditional execution v2](conditional-execution-v2.md); it does not activate the
+conditional generation or implement #1224's mutation methods.
 
 ## Compatibility and availability
 
@@ -192,7 +195,7 @@ and Split to `SPLITTER`. V2 constructors use a tagged argument wrapper, separate
 from all retained legacy/v1 constructor decoders:
 
 ```text
-__constructor(init: NodeInitV2)
+NodeInitV2 is the tagged value in an arity-preserving constructor slot below
 NodeInitV2 { version:2, node_id:String, manifest:GraphManifestV2 }
 GraphManifestV2 { version:2, root:Address, admin:Address, asset:Address,
                   nodes:Vec<InitialArtifactV2> }
@@ -206,7 +209,10 @@ The factory/compiler passes the same complete manifest to every node constructor
 using deterministic precomputed child addresses. Each constructor validates the
 whole shape and its own node's identity, expected semantic/family kind and all
 immutable values; it cannot accept a caller-supplied alternative owner or graph.
-All are initialized atomically in the factory deployment transaction.
+All are initialized atomically in the factory deployment transaction. Constructors
+validate only static manifest values and their own identity; they never query
+children that the sequential factory has not deployed yet. Complete live child
+manifest/current-state reads happen at execution preflight.
 
 Each node stores this immutable complete manifest in instance storage, alongside
 separate current values/revision and any accounted obligations. No constructor
@@ -220,14 +226,100 @@ never overwrite that manifest. It is intentionally a correctness-first shared
 shape; simulation/resource validation must refuse oversized combinations. Any
 future storage optimization must preserve exactly these checks and read fencing.
 
-`graph_manifest() -> GraphManifestV2` returns the immutable complete manifest on
-every node. `field_policy() -> NodeStateV2` is an exact alias of
-`initial_config()` (full original state, revision zero), not an unspecified second
+`graph_manifest_v2() -> GraphManifestV2` returns the immutable complete manifest on
+every node. `field_policy_v2() -> NodeStateV2` is an exact alias of
+`initial_config_v2()` (full original state, revision zero), not an unspecified second
 policy representation. Its Pay/Split policy fields reuse the normalized policy
 shapes; the outer state carries wire version 2. The condition policy and initial
 threshold are its ConditionState. These getters never return changed values.
 The compiler preserves authored semantic kinds in these states and its durable
 implementation map, even where both Pay and Return use PAYER artifacts.
+
+## Concrete implementation compatibility and encoding (#1223)
+
+The following constructor/getter adapters supersede the abstract single-init
+constructor notation. Inspection of existing standard-family constructors and
+strict v1 getter consumers requires preserving their legacy call shapes. No
+private-template feature is expanded by these adapters.
+
+| Kind         | Wire arguments (Env excluded)                                       | V2 tagged slot               |
+| ------------ | ------------------------------------------------------------------- | ---------------------------- |
+| Receive      | admin, asset, next_steps                                            | next_steps: Val = NodeInitV2 |
+| Pay / Return | admin, asset, recipient, amount, percentage_bps, next_steps, parent | recipient: Val = NodeInitV2  |
+| Split        | admin, asset, recipients, min_amount, parent, next_steps            | recipients: Val = NodeInitV2 |
+| Router       | admin, asset, threshold, path_a, path_b, parent                     | threshold: Val = NodeInitV2  |
+
+Router broadens its third argument's decoder to Val: retained i128 thresholds
+continue down the legacy decoder unchanged. The v2 tagged init contains
+`version:2`, `node_id`, and the complete `manifest`. Unknown/malformed tagged values
+must fail without a legacy fallback. Every redundant outer argument must equal its
+manifest-derived value. Router path_a is exactly the True successor and path_b the
+False successor; comparisons use the immutable comparison enum directly, never
+legacy threshold adjustment. Pay amount/bps match its payout rule; Return has
+amount0/bps10000 and no successors. Split min_amount is0 and has no successors.
+
+All v1 getters preserve their names and return types on retained instances. V2
+instances reject old getter and mutating/execution entry points. Separate v2
+getters are `capabilities_v2`, `graph_manifest_v2`, `field_policy_v2`,
+`initial_config_v2`, `current_config_v2`, `config_revision_v2` and
+`mutation_status_v2`. `field_policy_v2` aliases `initial_config_v2` exactly. All
+getters read instance storage, preserving the whole-graph read fence.
+
+Freeze the concrete shared Rust wire types in `contracts/conditional-v2.rs`:
+
+```text
+ComparisonV2 = AmountGt | AmountLt
+StoredModeV2 = Constant | Mutable
+ReceiveStateV2 { min_amount:i128 }
+ConditionStateV2 { comparison:ComparisonV2, threshold:i128, threshold_mode:StoredModeV2 }
+ReturnStateV2 { recipient:Address }
+NodeConfigurationV2 = Receive(ReceiveStateV2) | Pay(PayConfig) |
+  Split(StoredSplitConfig) | Condition(ConditionStateV2) | ReturnToOwner(ReturnStateV2)
+NodeStateV2 { version:u32, node_id:String, contract_address:Address, revision:u64,
+  admin:Address, asset:Address, parent:Option<Address>, next_steps:Vec<Address>,
+  configuration:NodeConfigurationV2 }
+InitialArtifactV2 { wasm_hash:BytesN<32>, state:NodeStateV2 }
+GraphManifestV2 { version:u32, root:Address, admin:Address, asset:Address,
+  nodes:Vec<InitialArtifactV2> }
+NodeInitV2 { version:u32, node_id:String, manifest:GraphManifestV2 }
+GraphBindingV2 { node_id:String, contract_address:Address,
+  expected_revision:u64, wasm_hash:BytesN<32> }
+RouteV2 { selected_branch:True|False, amount_at_condition:i128 }
+ExecutionContextV2 { payer:Address, root:Address, asset:Address, funded_amount:i128,
+  nonce:BytesN<32>, expires_at_ledger:u32, bindings:Vec<GraphBindingV2>,
+  inputs:Vec<NodeInput>, route:RouteV2 }
+MutationStatusV2 { state:NodeStateV2, obligations:i128 }
+```
+
+PayConfig, StoredSplitConfig, NodeInput and their nested types reuse the existing
+v1 value encodings. Their internal config version remains1; only the enclosing
+conditional generation is2. Maps use exact snake_case struct keys and XDR-sorted
+symbol keys; enum values use ordinary Soroban tagged vectors with the exact variant
+names above. Option<Address> encodes None as ScVal Void and Some directly as ScAddress.
+Option<Vec<T>> encodes None as Void and Some directly as ScVec, including an
+explicit empty vector. These are not tagged Some/None enum vectors.
+MaybeAllocation remains the distinct tagged Missing/Present enum. A child derives its
+complete-graph position from immutable manifest address and node ID; there is no
+caller-controlled index or mutable global routing slot.
+
+Before funding, root compares every child's full immutable manifest against its
+own, then verifies local current state/revision and the reviewed pins. On-chain
+pins bind the immutable declared manifest; SDK26 has no general child-executable
+introspection getter. Actual deployed WASM hashes must also be verified by the
+snapshot-pinned RPC reader before a payer authorizes an API/hosted or direct-client
+payment. No retained or v2 contract exposes an arbitrary WASM upgrade path; a
+getter/capability claim is never executable provenance. Do not claim on-chain
+binary introspection where only immutable pin comparison is performed.
+
+#1223 implements execution and getters only. Its local capability getter returns
+`{policy_version:2,execution_abi:2,mutation_abi:0,conditional:true,execution:true,
+mutation:false,immutable_policies:true,revision_binding:true}`. This is a partial
+implementation tuple, not a trusted public availability claim. It must not enter
+any production trust manifest/discovery response. The full mutation tuple above
+requires #1224; public integration additionally requires the API/reader work.
+No deployment/compiler/API may infer availability from accepting the pure v2
+schemas or this local getter. All old v1 mutation/routing/legacy entry paths reject
+v2 instances until an explicit enforcing v2 method exists.
 
 ## Atomic mutation and whole-graph obligations
 
@@ -252,7 +344,7 @@ mutate_step_v2(context: MutationContextV2)
 ```
 
 The root authenticates its immutable admin for the entire group. Before applying
-anything, it queries `mutation_status()` on **every** complete-graph node, verifies
+anything, it queries `mutation_status_v2()` on **every** complete-graph node, verifies
 all immutable identities/topology, current revisions and accounted obligations,
 and rejects if any obligation is nonzero. This includes inactive-branch accepted
 fixed Split accumulation and debt after token loss even with raw balance zero.
@@ -279,11 +371,11 @@ sufficient. Introducing persistent configuration/obligation dependencies require
 extending that fence before enabling it. Concrete common getters are:
 
 ```text
-capabilities() -> capability tuple above
-initial_config() -> NodeStateV2                       # original values, revision 0
-current_config() -> NodeStateV2                       # resolved stored values
-config_revision() -> u64
-mutation_status() -> MutationStatusV2
+capabilities_v2() -> capability tuple above
+initial_config_v2() -> NodeStateV2                       # original values, revision 0
+current_config_v2() -> NodeStateV2                       # resolved stored values
+config_revision_v2() -> u64
+mutation_status_v2() -> MutationStatusV2
 NodeStateV2 { version:2, node_id, contract_address, revision,
               admin, asset, parent:Option<Address>, next_steps:Vec<Address>,
               configuration: ReceiveState|PayState|SplitState|ConditionState|ReturnState }
@@ -300,9 +392,9 @@ PayState/SplitState carry node ID, immutable field policy plus resolved configur
 using the existing v1 value representation (execution fields tagged absent).
 `next_steps` for condition is exactly `[True address, False address]`, prefix/root
 has exactly one successor, all terminals have none. Parent is None only for root.
-`field_policy()` returns exactly the original `NodeStateV2` as specified in the
+`field_policy_v2()` returns exactly the original `NodeStateV2` as specified in the
 constructor section; it never reports changed values as initial.
-ReturnState has no editable policy. `initial_config()` includes initial appended
+ReturnState has no editable policy. `initial_config_v2()` includes initial appended
 Split roster; getter truth is checked against immutable original evidence.
 
 `ConditionalCurrentConfigurationSchema` defines the strict decoded whole-graph

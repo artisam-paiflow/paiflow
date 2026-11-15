@@ -5,6 +5,13 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Add local conditional-v2 contract execution and a separate complete-graph compiler
+  for strict amount branches and immutable owner returns. Preserve legacy/v1
+  constructor arities and event shapes through tagged adapters and versioned getters.
+  Conditional runtime discovery/deployment remain gated pending guarded mutation
+  and API enforcement; no artifacts are activated
+  ([#1223](https://github.com/webnxt-2030/pinkraft/issues/1223)).
+
 - Define isolated conditional reusable-flow v2 schemas and ABI/design handoffs for
   strict amount branches, immutable owner returns and whole-graph guarded updates.
   Reject unsupported generations before legacy parsing/deployment; retained v1
