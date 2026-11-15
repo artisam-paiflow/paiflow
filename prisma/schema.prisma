@@ -331,6 +331,21 @@ model ContractTemplate {
   @@unique([kind, network])
 }
 
+/// Explicit conditional deployment activation. Legacy ContractTemplate slots stay unchanged.
+model ConditionalArtifactSet {
+  network          String
+  version          Int      @default(2)
+  enabled          Boolean  @default(false)
+  receiveWasmHash  String
+  payerWasmHash    String
+  splitterWasmHash String
+  routerWasmHash   String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@id([network, version])
+}
+
 model FactoryDeployment {
   network   String   @id
   address   String
@@ -416,26 +431,26 @@ model Deployment {
   // Position within a large durable pipeline; each inventory reads one instance.
   ttlScanOffset           Int                    @default(0)
 
-  templateVersion       FlowTemplateVersion?  @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
-  flow                  Flow                  @relation(fields: [flowId], references: [id], onDelete: Restrict)
-  owner                 User                  @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  historicalEmployees   Employee[]            @ignore
-  historicalPayrollRuns PayrollRun[]          @ignore
-  events                ContractEvent[]
-  cursor                EventCursor?
-  streamerClaimJobs     StreamerClaimJob[]
-  apiTokens             DeploymentApiToken[]
-  signedTransactions    SignedTransaction[]
+  templateVersion              FlowTemplateVersion?          @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
+  flow                         Flow                          @relation(fields: [flowId], references: [id], onDelete: Restrict)
+  owner                        User                          @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  historicalEmployees          Employee[]                    @ignore
+  historicalPayrollRuns        PayrollRun[]                  @ignore
+  events                       ContractEvent[]
+  cursor                       EventCursor?
+  streamerClaimJobs            StreamerClaimJob[]
+  apiTokens                    DeploymentApiToken[]
+  signedTransactions           SignedTransaction[]
   walletSubmissionPreparations WalletSubmissionPreparation[]
-  timelockReleases      TimelockRelease[]
-  webhookAttempts       WebhookAttempt[]
-  walletControlIntents  WalletControlIntent[]
-  configurationHistory ConfigurationHistory[]
-  preparationRefusals MutationPreparationRefusal[]
+  timelockReleases             TimelockRelease[]
+  webhookAttempts              WebhookAttempt[]
+  walletControlIntents         WalletControlIntent[]
+  configurationHistory         ConfigurationHistory[]
+  preparationRefusals          MutationPreparationRefusal[]
 
+  @@unique([ownerId, idempotencyKey])
   @@index([templateVersionId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([ownerId, sourceAccount, status])
-  @@unique([ownerId, idempotencyKey])
   @@index([ownerId, status, serviceState, id])
   @@index([ownerId, createdAt(sort: Desc)])
   @@index([status])
@@ -908,39 +923,39 @@ enum WalletControlState {
 
 // Exact unsigned transaction binding; no customer signatures or keys are stored.
 model WalletControlIntent {
-  id                String             @id @default(uuid()) @db.Uuid
-  deploymentId      String             @db.Uuid
-  deployment        Deployment         @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
-  network           String
-  nodeId            String
-  contractAddress   String
-  action            String
-  walletAddress     String
-  txHash            String             @unique
-  maxTime           String
-  preparationLedger Int
+  id                  String             @id @default(uuid()) @db.Uuid
+  deploymentId        String             @db.Uuid
+  deployment          Deployment         @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
+  network             String
+  nodeId              String
+  contractAddress     String
+  action              String
+  walletAddress       String
+  txHash              String             @unique
+  maxTime             String
+  preparationLedger   Int
   // Execution preparations retain unsigned intent only, never customer signatures.
-  unsignedXdr        String?
-  executionIntent    Json?
-  mutationIntent     Json?
-  executionArtifacts Json?
-  idempotencyKeyHash String?
-  requestDigest      String?
+  unsignedXdr         String?
+  executionIntent     Json?
+  mutationIntent      Json?
+  executionArtifacts  Json?
+  idempotencyKeyHash  String?
+  requestDigest       String?
   // Hash of a random browser recovery capability. Never a wallet/API credential.
-  hostedAccessHash   String?
+  hostedAccessHash    String?
   // Durable retry scheduling only; never financial expiry.
-  finalityNextCheckAt DateTime @default(now())
+  finalityNextCheckAt DateTime           @default(now())
   // PREPARED -> SUBMITTING -> SUCCESS|FAILED|EXPIRED. Uncertainty never clears a reservation.
-  state             WalletControlState @default(PREPARED)
-  ledger            Int?
-  createdAt         DateTime           @default(now())
-  submittedAt       DateTime?
-  completedAt       DateTime?
+  state               WalletControlState @default(PREPARED)
+  ledger              Int?
+  createdAt           DateTime           @default(now())
+  submittedAt         DateTime?
+  completedAt         DateTime?
 
+  @@unique([deploymentId, network, idempotencyKeyHash])
   @@index([network, finalityNextCheckAt, id])
   @@index([deploymentId, network, nodeId, state])
   @@index([deploymentId, network, action, walletAddress, state], map: "WalletControlIntent_execution_payer_state_idx")
-  @@unique([deploymentId, network, idempotencyKeyHash])
   @@index([deploymentId, network, hostedAccessHash])
 }
 
@@ -1015,18 +1030,18 @@ model PayrollPayout {
 
 // Private reusable definitions; unrelated to the ContractTemplate WASM registry.
 model FlowTemplate {
-  id            String                @id @default(uuid()) @db.Uuid
-  ownerId       String                @db.Uuid
-  name          String
-  description   String?
-  draft         Json
-  draftRevision Int                   @default(1)
-  nextVersion   Int                   @default(1)
-  retiredAt     DateTime?
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
-  owner         User                  @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  versions      FlowTemplateVersion[]
+  id                   String                   @id @default(uuid()) @db.Uuid
+  ownerId              String                   @db.Uuid
+  name                 String
+  description          String?
+  draft                Json
+  draftRevision        Int                      @default(1)
+  nextVersion          Int                      @default(1)
+  retiredAt            DateTime?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  owner                User                     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  versions             FlowTemplateVersion[]
   developerTokenGrants DeveloperTemplateGrant[]
 
   @@index([ownerId, createdAt(sort: Desc), id(sort: Desc)])
@@ -1053,20 +1068,20 @@ model FlowTemplateVersion {
 
 /// Confirmed observed revisions only. Missing RPC history is never invented.
 model ConfigurationHistory {
-  id String @id @default(uuid()) @db.Uuid
-  deploymentId String @db.Uuid
-  deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
-  network String
-  nodeId String
+  id              String     @id @default(uuid()) @db.Uuid
+  deploymentId    String     @db.Uuid
+  deployment      Deployment @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
+  network         String
+  nodeId          String
   contractAddress String
-  revision String
-  configuration Json
-  contentHash String
-  observedLedger Int
-  eventLedger Int?
-  eventId String? @unique
-  txHash String?
-  createdAt DateTime @default(now())
+  revision        String
+  configuration   Json
+  contentHash     String
+  observedLedger  Int
+  eventLedger     Int?
+  eventId         String?    @unique
+  txHash          String?
+  createdAt       DateTime   @default(now())
 
   @@unique([deploymentId, network, nodeId, revision])
   @@index([deploymentId, network, observedLedger, id])

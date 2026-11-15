@@ -137,3 +137,12 @@ share a package version, so always use the commit SHA to identify their exact co
 
 This policy documents release requirements; automated tag/version enforcement and
 an in-app version display are not implemented by it.
+
+## Conditional reusable-flow activation
+
+Conditional generation2 has a separate default-disabled artifact configuration.
+The ordinary upload/sync commands must refuse known conditional binaries before
+any upload or legacy registry write. Use the independently reviewed
+[conditional readiness and rollout runbook](conditional-v2-readiness.md), including
+its upload-only boundary, exact configuration digest, original recovery and separate
+network/hosted/wallet acceptance. Source/local CI never substitutes for those gates.

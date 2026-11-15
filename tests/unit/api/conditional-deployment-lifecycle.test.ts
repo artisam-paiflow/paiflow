@@ -27,6 +27,17 @@ vi.mock("@/lib/db", () => ({
     },
   ),
 }));
+vi.mock("@/lib/prisma", () => ({
+  db: new Proxy(
+    {},
+    {
+      get(_target, key) {
+        const value = Reflect.get(m.client, key);
+        return typeof value === "function" ? value.bind(m.client) : value;
+      },
+    },
+  ),
+}));
 vi.mock("@/lib/auth", () => ({ requireSession: m.session }));
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: vi.fn(async () => ({ ok: true })),
@@ -36,6 +47,10 @@ vi.mock("@/lib/audit", () => ({ audit: m.audit }));
 vi.mock("@/lib/redis", () => ({ redis: () => null }));
 vi.mock("@/lib/analytics/server", () => ({ captureServer: vi.fn() }));
 vi.mock("@/lib/analytics/outcomes", () => ({ recordTransactionOutcome: vi.fn() }));
+vi.mock("@/lib/stellar/conditional-artifact-config", async (original) => ({
+  ...(await original<typeof import("@/lib/stellar/conditional-artifact-config")>()),
+  getConditionalWasmHashes: m.hashes,
+}));
 vi.mock("@/lib/stellar/config", () => ({ getWasmHashes: m.hashes, getFactoryAddress: m.factory }));
 vi.mock("@/lib/stellar/client", () => ({
   sorobanRpc: () => ({ simulateTransaction: m.simulate }),
@@ -48,6 +63,11 @@ vi.mock("@/lib/stellar/deploy", () => ({
 }));
 vi.mock("@/lib/stellar/trustline-check", () => ({ checkPayoutTrustlines: m.warnings }));
 vi.mock("@/lib/log", () => ({ log: { error: m.error, warn: vi.fn(), info: vi.fn() } }));
+import {
+  configureConditionalArtifacts,
+  conditionalArtifactSetDigest,
+  readConditionalArtifactSet,
+} from "@/lib/stellar/conditional-artifact-config";
 import { db } from "@/lib/db";
 import { POST } from "@/app/api/deployments/prepare/route";
 import { submitOwnedDeployment } from "@/lib/deployments/submit";
@@ -72,6 +92,18 @@ beforeEach(async () => {
   vi.clearAllMocks();
   m.audit.mockResolvedValue(undefined);
   preparationKey = randomUUID();
+  const config = {
+    enabled: true,
+    receiveWasmHash: CONDITIONAL_V2_WASM_HASHES.DEPOSIT_TRIGGER,
+    payerWasmHash: CONDITIONAL_V2_WASM_HASHES.PAYER,
+    splitterWasmHash: CONDITIONAL_V2_WASM_HASHES.SPLITTER,
+    routerWasmHash: CONDITIONAL_V2_WASM_HASHES.ROUTER,
+  };
+  await db.conditionalArtifactSet.upsert({
+    where: { network_version: { network: "testnet", version: 2 } },
+    create: { network: "testnet", version: 2, ...config },
+    update: config,
+  });
   const owner = await db.user.create({
     data: { username: `conditional-deploy-${randomUUID()}`, passwordHash: "unused" },
   });
@@ -370,4 +402,86 @@ it("owned template prefixkey collision retains the template original and never r
   expect(m.load).not.toHaveBeenCalled();
   expect((await saved(row.id)).templateVersionId).toBe(version.id);
   expect(await db.deployment.count({ where: { flowId } })).toBe(1);
+});
+it("operator disable during fresh simulation prevents a late new admission under the shared config lock", async () => {
+  let entered!: () => void, release!: () => void;
+  const reached = new Promise<void>((resolve) => (entered = resolve)),
+    held = new Promise<void>((resolve) => (release = resolve)),
+    simulation = m.simulate.getMockImplementation()!;
+  m.simulate.mockImplementationOnce(async (...args) => {
+    entered();
+    await held;
+    return simulation(...args);
+  });
+  const pending = POST({
+    json: async () => ({
+      version: 2,
+      flowId,
+      sourceAccount: conditionalDeploySigner().publicKey(),
+      preparationKey,
+    }),
+  } as unknown as NextRequest);
+  await reached;
+  await configureConditionalArtifacts(
+    {
+      network: "testnet",
+      enabled: false,
+      expectedCurrentDigest: conditionalArtifactSetDigest(
+        await readConditionalArtifactSet("testnet"),
+      ),
+    },
+    true,
+  );
+  release();
+  const response = await pending;
+  expect(response.status).toBe(422);
+  expect(await db.deployment.count({ where: { flowId } })).toBe(0);
+  expect(m.audit).not.toHaveBeenCalled();
+  expect(m.send).not.toHaveBeenCalled();
+});
+it("a raced admitted winner is returned before the disabled check without a second original or audit", async () => {
+  let firstEntered!: () => void,
+    secondEntered!: () => void,
+    releaseFirst!: () => void,
+    releaseSecond!: () => void;
+  const firstReady = new Promise<void>((resolve) => (firstEntered = resolve)),
+    secondReady = new Promise<void>((resolve) => (secondEntered = resolve)),
+    firstHeld = new Promise<void>((resolve) => (releaseFirst = resolve)),
+    secondHeld = new Promise<void>((resolve) => (releaseSecond = resolve)),
+    simulation = m.simulate.getMockImplementation()!;
+  let call = 0;
+  m.simulate.mockImplementation(async (...args) => {
+    if (++call === 1) {
+      firstEntered();
+      await firstHeld;
+    } else {
+      secondEntered();
+      await secondHeld;
+    }
+    return simulation(...args);
+  });
+  const a = prepare(),
+    b = prepare();
+  await Promise.all([firstReady, secondReady]);
+  releaseFirst();
+  const winner = await Promise.race([a, b]);
+  await configureConditionalArtifacts(
+    {
+      network: "testnet",
+      enabled: false,
+      expectedCurrentDigest: conditionalArtifactSetDigest(
+        await readConditionalArtifactSet("testnet"),
+      ),
+    },
+    true,
+  );
+  releaseSecond();
+  for (const recovered of await Promise.all([a, b])) {
+    expect(recovered.deploymentId).toBe(winner.deploymentId);
+    expect(recovered.xdr).toBe(winner.xdr);
+    expect(recovered.conditionalReview.txHash).toBe(winner.conditionalReview.txHash);
+  }
+  expect(await db.deployment.count({ where: { flowId } })).toBe(1);
+  expect(m.audit).toHaveBeenCalledOnce();
+  expect(m.send).not.toHaveBeenCalled();
 });

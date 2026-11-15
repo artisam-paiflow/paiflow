@@ -15,6 +15,7 @@ import { payoutRecipients } from "@/lib/flows/payout-recipients";
 import { checkPayoutTrustlines } from "@/lib/stellar/trustline-check";
 import { env } from "@/lib/env";
 import { serverFeatures } from "@/lib/features";
+import { getConditionalWasmHashes } from "@/lib/stellar/conditional-artifact-config";
 import { getWasmHash } from "@/lib/stellar/config";
 import Topbar from "@/components/app/topbar";
 import DeployReview from "@/components/deploy/deploy-review";
@@ -38,7 +39,7 @@ export default async function DeployReviewPage({
   if (!flow) notFound();
   const graph = OrdinaryFlowGraphSchema.safeParse(flow.graph);
   const hashes =
-    graph.success && (isConditionalCanvas(graph.data) || graph.data.fieldPolicies !== undefined)
+    graph.success && !isConditionalCanvas(graph.data) && graph.data.fieldPolicies !== undefined
       ? new Map(
           await Promise.all(
             [
@@ -50,10 +51,14 @@ export default async function DeployReviewPage({
           ),
         )
       : new Map<string, string>();
+  const conditionalGraph = graph.success && isConditionalCanvas(graph.data);
+  const conditionalHashes = conditionalGraph
+    ? await getConditionalWasmHashes().catch(() => new Map<TemplateKind, string>())
+    : new Map<TemplateKind, string>();
   const executionAvailable =
     graph.success &&
     (isConditionalCanvas(graph.data)
-      ? conditionalArtifactAvailability(graph.data, Object.fromEntries(hashes)).available
+      ? conditionalArtifactAvailability(graph.data, Object.fromEntries(conditionalHashes)).available
       : executionDeploymentAvailable(graph.data, executionArtifactsFromHashes(hashes)));
   const validation = graph.success
     ? isConditionalCanvas(graph.data)
@@ -317,14 +322,23 @@ export default async function DeployReviewPage({
           </div>
         )}
 
-        {validation?.ok && !executionAvailable && (
+        {validation?.ok && !executionAvailable && !conditionalGraph && (
           <p role="alert" className="text-error mt-md">
             {EXECUTION_ARTIFACTS_UNAVAILABLE}
           </p>
         )}
-        {validation?.ok && executionAvailable && (
+        {(conditionalGraph || (validation?.ok && executionAvailable)) && (
           <DeployReview
             flowId={flow.id}
+            preparationUnavailableReason={
+              conditionalGraph
+                ? !validation?.ok
+                  ? "Resolve the current draft before preparing a new deployment; the original remains recoverable."
+                  : !executionAvailable
+                    ? EXECUTION_ARTIFACTS_UNAVAILABLE
+                    : undefined
+                : undefined
+            }
             conditional={graph.success && isConditionalCanvas(graph.data)}
             network={env().STELLAR_NETWORK}
             swapPreviews={swapPreviews}

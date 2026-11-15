@@ -5,6 +5,12 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Add conditional artifact configuration separate from legacy/template registry
+  slots, protect legacy upload/sync writers from conditional binaries, and retain
+  admitted deployment recovery when fresh preparation is unavailable. Add local
+  compiled factory/resource and cross-layer readiness evidence; live activation
+  and funded wallet acceptance remain separate (#1229).
+
 - Add explicit opt-in conditional hosted payments with selected-branch inputs,
   immutable owner-return review, versioned wallet ownership proofs and exact-original
   recovery through the existing engine. Preserve legacy/v1 behavior; artifact

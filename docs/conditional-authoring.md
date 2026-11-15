@@ -41,7 +41,11 @@ are updated. Conflicts require rereading the current draft, never silent merging
 
 Draft authoring remains available before compatible artifacts are configured. The
 UI and server require exact reviewed v2 hashes for every participating family,
-including Router and Pay for semantic Return where used. Source schemas or flags
+including Router and Pay for semantic Return where used. Conditional configuration
+uses its own explicitly enabled network/version2 artifact set; legacy/template
+registry slots and pins stay unchanged. A missing/disabled set blocks fresh
+preparation, while the same engine remains mounted for admitted original recovery
+and incomplete current drafts. See [readiness and rollout](conditional-v2-readiness.md). Source schemas or flags
 alone grant no deployment capability. Network selection follows
 [CLAUDE.md §7.5](../CLAUDE.md#75-networks); wallet configuration is not authoritative.
 

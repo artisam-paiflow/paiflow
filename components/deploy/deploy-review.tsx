@@ -60,8 +60,10 @@ export default function DeployReview({
   swapPreviews,
   trustlineCheck,
   conditional = false,
+  preparationUnavailableReason,
 }: {
   conditional?: boolean;
+  preparationUnavailableReason?: string;
   flowId: string;
   network: StellarNetwork;
   /** One entry per swap node in the flow: drives the live Soroswap previews. */
@@ -495,6 +497,7 @@ export default function DeployReview({
   }
 
   async function onDeploy(resuming = false, recovering = false) {
+    if (conditional && preparationUnavailableReason && !resuming && !recovering) return;
     if (
       !checkSettled ||
       !storageReady ||
@@ -887,6 +890,9 @@ export default function DeployReview({
           </ul>
         </div>
       )}
+      {conditional && preparationUnavailableReason && (
+        <p role="alert">{preparationUnavailableReason}</p>
+      )}
       <button
         onClick={() => void onDeploy()}
         disabled={
@@ -894,7 +900,8 @@ export default function DeployReview({
           !checkSettled ||
           !storageReady ||
           storageBlocked ||
-          Boolean(pending || preparation || recoveryId || preparingRequest)
+          Boolean(pending || preparation || recoveryId || preparingRequest) ||
+          Boolean(conditional && preparationUnavailableReason)
         }
         className="bg-primary px-md text-label-md text-on-primary inline-flex w-full items-center justify-center gap-2 rounded-lg py-3 font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_24px_rgba(255,177,196,0.55)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
       >

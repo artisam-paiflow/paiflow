@@ -26,6 +26,7 @@ import { TemplateKind } from "@prisma/client";
 import { db } from "@/lib/prisma";
 import { setWasmHash } from "@/lib/stellar/template-db";
 import { extractWasmAbi } from "@/lib/stellar/wasm-abi";
+import { assertLegacyArtifactRegistryHash } from "@/lib/stellar/conditional-artifact-config-schema";
 import { writeEnvLocal } from "./env-file";
 
 const WASM_DIR = "contracts/target/wasm32v1-none/release";
@@ -103,6 +104,19 @@ async function main() {
       return false;
     });
 
+  // Inspect every local artifact before any upload, registry or env write.
+  const inspectedFiles = new Map(
+    files.map((file) => {
+      const wasm = readFileSync(resolve(WASM_DIR, file)),
+        wasmHash = hash(wasm).toString("hex");
+      assertLegacyArtifactRegistryHash(wasmHash);
+      const abiJson = contracts.some((contract) => contract.file === file)
+        ? extractWasmAbi(wasm, wasmHash)
+        : undefined;
+      assertLegacyArtifactRegistryHash(wasmHash, abiJson);
+      return [file, { wasm, wasmHash, abiJson }] as const;
+    }),
+  );
   const server = new rpc.Server(rpcUrl, { allowHttp: false });
   const kp = Keypair.fromSecret(uploaderSecret);
   const suffix = network.toUpperCase();
@@ -111,9 +125,7 @@ async function main() {
   let account: Awaited<ReturnType<typeof server.getAccount>> | null = null;
 
   for (const c of contracts) {
-    const wasm = readFileSync(c.path);
-    const wasmHash = hash(wasm).toString("hex");
-    const abiJson = extractWasmAbi(wasm, wasmHash);
+    const { wasm, wasmHash, abiJson } = inspectedFiles.get(c.file)!;
     const envKey = `STELLAR_WASM_HASH_${c.kind}_${suffix}`;
     const existingHash = process.env[envKey];
 

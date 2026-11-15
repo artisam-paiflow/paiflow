@@ -1,4 +1,5 @@
 import { Prisma, TemplateKind } from "@prisma/client";
+import { assertLegacyArtifactRegistryHash } from "./conditional-artifact-config-schema";
 import { db } from "@/lib/prisma";
 
 export async function setWasmHash(
@@ -8,6 +9,7 @@ export async function setWasmHash(
   abiJson?: object,
   options?: { expectedCurrentHash: string },
 ): Promise<void> {
+  assertLegacyArtifactRegistryHash(wasmHash, abiJson);
   if (
     abiJson !== undefined &&
     (abiJson === null || Array.isArray(abiJson) || Object.keys(abiJson).length === 0)

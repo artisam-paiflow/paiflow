@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { TemplateKind } from "@prisma/client";
 import { db } from "@/lib/prisma";
 import { setWasmHash } from "@/lib/stellar/template-db";
+import { assertLegacyArtifactRegistryHash } from "@/lib/stellar/conditional-artifact-config-schema";
 import { extractWasmAbi } from "@/lib/stellar/wasm-abi";
 
 export type AbiRepair = {
@@ -56,20 +57,30 @@ export async function inspectOrRepairAbi(repair: AbiRepair, network: string) {
   });
   if (row?.wasmHash !== repair.wasmHash)
     throw new Error("ABI repair requires the expected hash in the existing registry row");
-  if (repair.apply)
+  if (repair.apply) {
+    assertLegacyArtifactRegistryHash(repair.wasmHash, abiJson);
     await setWasmHash(repair.kind, network, repair.wasmHash, abiJson, {
       expectedCurrentHash: repair.wasmHash,
     });
+  }
   return abiJson;
 }
 
-export async function syncBuiltWasm(kind: TemplateKind, network: string, wasmHash: string) {
+/** Resolve and validate every proposal before the multi-kind caller writes any row. */
+export async function planBuiltWasm(kind: TemplateKind, network: string, wasmHash: string) {
+  assertLegacyArtifactRegistryHash(wasmHash);
   const current = await db.contractTemplate.findUnique({
     where: { kind_network: { kind, network } },
   });
-  // Preserve representation and immutable ABI digest when only syncing a hash.
   const abiJson = current?.wasmHash === wasmHash ? undefined : readBuiltWasmAbi(kind, wasmHash);
-  await setWasmHash(kind, network, wasmHash, abiJson);
+  assertLegacyArtifactRegistryHash(wasmHash, abiJson ?? current?.abiJson);
+  return { kind, network, wasmHash, abiJson };
+}
+export async function applyBuiltWasmPlan(plan: Awaited<ReturnType<typeof planBuiltWasm>>) {
+  await setWasmHash(plan.kind, plan.network, plan.wasmHash, plan.abiJson);
+}
+export async function syncBuiltWasm(kind: TemplateKind, network: string, wasmHash: string) {
+  await applyBuiltWasmPlan(await planBuiltWasm(kind, network, wasmHash));
 }
 
 /** Hash activation must carry ABI from the corresponding build output, never

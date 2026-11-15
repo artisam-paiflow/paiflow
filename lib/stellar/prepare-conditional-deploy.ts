@@ -28,7 +28,8 @@ import { conditionalArtifactMetadata } from "./conditional-artifacts";
 import { conditionalConstructorArgs, conditionalContractAddress } from "./conditional-v2-codec";
 import type { PayoutRecipient } from "@/lib/flows/payout-recipients";
 import { assetContractId } from "./assets";
-import { getFactoryAddress, getWasmHashes } from "./config";
+import { getFactoryAddress } from "./config";
+import { getConditionalWasmHashes } from "./conditional-artifact-config";
 import { nodeBlueprint } from "./scval";
 import { sorobanRpc } from "./client";
 import { loadPaymentAccount } from "./load-payment-account";
@@ -172,7 +173,7 @@ export async function conditionalDeploymentPlan(raw: ConditionalCanvas, sourceAc
       graph: issues.map((issue) => issue.message),
     });
   const normalized = definition(draft, sourceAccount);
-  const hashes = await getWasmHashes(env().STELLAR_NETWORK);
+  const hashes = await getConditionalWasmHashes(env().STELLAR_NETWORK);
   const factoryAddress = await getFactoryAddress();
   if (!factoryAddress) throw new AppError("VALIDATION", "Pipeline factory is unavailable");
   const identities = [

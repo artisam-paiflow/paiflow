@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   session: vi.fn(),
   builder: vi.fn(),
   hash: vi.fn(),
+  conditionalHash: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({
   notFound: () => {
@@ -24,6 +25,9 @@ vi.mock("@/lib/features", () => ({
   serverFeatures: () => ({ aiAssistant: true, oracleCondition: true }),
 }));
 vi.mock("@/lib/stellar/config", () => ({ getWasmHash: mocks.hash }));
+vi.mock("@/lib/stellar/conditional-artifact-config", () => ({
+  getConditionalWasmHashes: mocks.conditionalHash,
+}));
 vi.mock("@/components/app/topbar", () => ({ default: () => null }));
 vi.mock("@/components/builder/builder-client", () => ({
   default: (props: unknown) => {
@@ -47,12 +51,18 @@ beforeEach(() => {
   mocks.session.mockResolvedValue({ id, username: "Owner", role: "USER" });
   mocks.user.mockResolvedValue({ email: "owner@example.com" });
   mocks.hash.mockResolvedValue(undefined);
+  mocks.conditionalHash.mockResolvedValue(new Map());
   mocks.flow.mockResolvedValue({ id, name: "Conditional draft", graph: graph() });
 });
 it("ordinary builder server data preserves explicit generation and all draft metadata", async () => {
   render(await Page({ params: Promise.resolve({ flowId: id }) }));
   expect(mocks.builder).toHaveBeenCalledWith(
-    expect.objectContaining({ initialGraph: graph(), network: "testnet" }),
+    expect.objectContaining({
+      initialGraph: graph(),
+      network: "testnet",
+      conditionalArtifactHashes: {},
+      executionArtifacts: { receive: false, pay: false, split: false },
+    }),
   );
 });
 it("unknown conditional generation never becomes an empty legacy autosave draft", async () => {

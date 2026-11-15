@@ -43,6 +43,10 @@ import {
   conditionalDeploymentKey,
   type ConditionalDeployPrepare,
 } from "@/lib/deployments/conditional-prepare-schema";
+import {
+  lockConditionalArtifactConfiguration,
+  requireConditionalArtifactConfiguration,
+} from "@/lib/stellar/conditional-artifact-config";
 const PrepareInputSchema = z.object({
   flowId: z.string().guid({ error: "Invalid uuid" }),
   sourceAccount: z.string().optional(),
@@ -125,24 +129,33 @@ async function prepareConditionalOwner(
     const id = randomUUID();
     const prepared = await prepareConditionalDeployTransaction(plan, id);
     assertDeploymentPreparationBudget(id);
-    let deployment: Deployment;
+    let outcome: { deployment: Deployment; created: boolean };
     try {
-      deployment = await db.deployment.create({
-        data: {
-          id,
-          flowId: flow.id,
-          ownerId: user.id,
-          network,
-          status: "PENDING_SIGNATURE",
-          graphSnapshot: plan.draft as object,
-          paramsSnapshot: plan.envelope as object,
-          pipelineSnapshot: plan.pipeline as object,
-          sourceAccount: body.sourceAccount,
-          unsignedXdr: prepared.xdr,
-          preparedTxHash: prepared.conditionalReview.txHash,
-          contractAddress: plan.pipeline[0]!.contractAddress,
-          idempotencyKey,
-        },
+      outcome = await db.$transaction(async (tx) => {
+        await lockConditionalArtifactConfiguration(tx, network);
+        const winner = await tx.deployment.findUnique({
+          where: { ownerId_idempotencyKey: { ownerId: user.id, idempotencyKey } },
+        });
+        if (winner) return { deployment: winner, created: false };
+        await requireConditionalArtifactConfiguration(tx, network);
+        const deployment = await tx.deployment.create({
+          data: {
+            id,
+            flowId: flow.id,
+            ownerId: user.id,
+            network,
+            status: "PENDING_SIGNATURE",
+            graphSnapshot: plan.draft as object,
+            paramsSnapshot: plan.envelope as object,
+            pipelineSnapshot: plan.pipeline as object,
+            sourceAccount: body.sourceAccount,
+            unsignedXdr: prepared.xdr,
+            preparedTxHash: prepared.conditionalReview.txHash,
+            contractAddress: plan.pipeline[0]!.contractAddress,
+            idempotencyKey,
+          },
+        });
+        return { deployment, created: true };
       });
     } catch (error) {
       if ((error as { code?: string }).code !== "P2002") throw error;
@@ -154,12 +167,16 @@ async function prepareConditionalOwner(
         );
       return NextResponse.json({ data: originalReceipt(winner) });
     }
-    await audit({
-      action: "DEPLOY_PREPARE",
-      userId: user.id,
-      metadata: { deploymentId: deployment.id, network },
+    const { deployment, created } = outcome;
+    if (created)
+      await audit({
+        action: "DEPLOY_PREPARE",
+        userId: user.id,
+        metadata: { deploymentId: deployment.id, network },
+      });
+    return NextResponse.json({
+      data: { ...originalReceipt(deployment), ...(created ? { trustlineChecks } : {}) },
     });
-    return NextResponse.json({ data: { ...originalReceipt(deployment), trustlineChecks } });
   });
 }
 export async function POST(req: NextRequest) {
