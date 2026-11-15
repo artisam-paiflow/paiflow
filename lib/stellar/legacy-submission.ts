@@ -10,6 +10,7 @@ import {
   type xdr,
 } from "@stellar/stellar-sdk";
 import { hasExecutionPolicies } from "@/lib/api/v1/execution-schema";
+import { hasConditionalDeploymentDeclaration } from "@/lib/flows/conditional-deployment";
 import { db } from "@/lib/db";
 import { lockDeployment } from "@/lib/deployments/service-work";
 import { env, stellarPassphrase } from "@/lib/env";
@@ -128,6 +129,8 @@ function invocation(
   kind: LegacySubmissionKind,
 ): Invocation {
   if (deployment.status !== "CONFIRMED") return refuse("Deployment is not confirmed");
+  if (hasConditionalDeploymentDeclaration(deployment.paramsSnapshot))
+    return refuse("Conditional payments require explicit version2 execution preparation");
   const operation = tx.operations[0];
   if (
     tx.operations.length !== 1 ||

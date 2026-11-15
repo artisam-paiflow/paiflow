@@ -1,5 +1,10 @@
 # Developer API
 
+For conditional reusable payments, see the [explicit execution v2 protocol](conditional-execution.md).
+OpenAPI `1.8.0` adds opt-in operations and source SDK methods; default v1 receipts
+and pending originals retain their formats. Source availability does not establish
+artifact activation, target-environment support or SDK publication.
+
 For new policy-v1 execution inputs, exact payer-signed preparations and conservative
 recovery, see [execution parameters](execution-parameters.md). This is source-level
 OpenAPI `1.4.0` functionality; it requires verified new artifacts and does not imply

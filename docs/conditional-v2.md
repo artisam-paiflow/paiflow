@@ -469,6 +469,14 @@ retirement admission. API access never supplies payer/admin on-chain authority.
 Public hosted ownership proof and privacy boundaries remain unchanged. No new
 sender, credentials or private-key handling is introduced.
 
+[#1225's explicit execution protocol](api/conditional-execution.md) selects v2
+using a single `version=2` query parameter on execution discovery, preparation,
+submission and reconciliation. Missing or explicit `version=1` keeps the existing
+protocol. Separate SDK `execute.conditional` methods always opt in. Immutable
+`paramsSnapshot` generation evidence and complete original compilation are
+verified independently of binary support; a hash or schema parse never identifies
+an instance generation by itself.
+
 One-send exact-envelope verification and original-hash reconciliation apply to
 both branches and mutations. Recheck verified complete terms before first send;
 on-chain checks close later races. Unknown signing/submission/finality preserves

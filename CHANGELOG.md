@@ -5,6 +5,12 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Add explicit API/SDK conditional execution protocol v2 with whole-graph pinned
+  reads, selected-branch inputs and exact-original payment recovery. Keep default
+  v1 requests/receipts unchanged and refuse conditional generations on legacy
+  entry points. No artifacts, deployments or SDK packages are activated
+  ([#1225](https://github.com/webnxt-2030/pinkraft/issues/1225)).
+
 - Add conditional-v2 guarded threshold and Pay/Split updates with complete-graph
   revision and obligation checks, including inactive-branch debt. Preserve initial
   policies, constants and immutable owner-return routing; grouped admin updates

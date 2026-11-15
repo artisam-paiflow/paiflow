@@ -714,3 +714,57 @@ These namespaces are client capabilities, not live release acceptance. Instance
 readiness and guarded-mutation readiness remain separate, unfinished gates; no
 guarded artifact activation is implied. See [instance readiness](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/instance-readiness.md)
 and [mutation readiness](https://github.com/artisam-paiflow/paiflow/blob/sdk-js-v0.3.0/docs/mutation-readiness.md).
+
+## Conditional reusable payments (unreleased source)
+
+Conditional v2 is a separate opt-in protocol. It requires a deployment with
+explicit conditional construction evidence and verified compatible artifacts;
+source support does not activate contracts, hosted payments or a published SDK.
+The existing `deployment.execute` methods keep their v1 request and receipt shapes.
+Use `deployment.execute.conditional.state/prepare/submit/reconcile` for v2. These
+methods always select `version=2`; they do not retrofit existing deployments.
+
+Discovery includes both branches, prefix payout rules, strict comparison and
+threshold, immutable owner return, complete hashes/revisions and current states.
+`selectConditionalExecutionBranch(state.data.definition, amountStroops)` previews
+that snapshot's route so callers can choose the required inputs. Preparation
+rechecks current terms and recomputes the authoritative route; the preview grants
+no capability and is never sent as a branch selector.
+Only prefix and selected-branch execution fields may be supplied. The server
+computes the branch after prefix deductions; equality selects False for either
+comparison. Constants, stored mutable values and inactive-branch inputs are not
+payment overrides. Return pays the immutable owner, who may differ from the payer.
+
+```ts
+const flow = client.deployment(deploymentId);
+const state = await flow.execute.conditional.state();
+if (!state.data.supported) throw new Error(state.data.reason);
+// Select only fields declared for this amount's route; the server verifies them.
+const preparation = await flow.execute.conditional.prepare(
+  { from: payer, amount: amountStroops, arguments: { version: 2, inputs } },
+  { idempotencyKey: savedPaymentKey },
+);
+// Persist the exact request/key, preparation, intent/hash and history metadata
+// before asking the wallet to sign. Review both branches and actual selected route.
+const signed = await signPrepared(preparation, walletSigner, {
+  walletAddress: payer,
+  expectedNetwork: preparation.data.network,
+});
+const submitted = await flow.execute.conditional.submit(signed.submission, {
+  ...signed.submissionOptions,
+  wait: false,
+});
+// PENDING/UNKNOWN is not replacement permission. Recover the same original:
+const recovered = await flow.execute.conditional.reconcile({
+  intent: preparation.data.intent,
+});
+```
+
+The SDK validates strict structured receipts, complete graph/order and routing,
+selected-only inputs, funding rules, request identity and network binding. The
+server verifies actual executable provenance and the exact transaction body,
+authorization resources and source signature. `signPrepared` signs the original
+unchanged envelope through the caller's wallet callback; it does not parse XDR
+operations or prove on-chain finality. A lost response, timeout, interrupted
+signature or changed configuration never triggers an automatic replacement,
+rebuild, resubmission or polling loop. Preserve the original before recovery.

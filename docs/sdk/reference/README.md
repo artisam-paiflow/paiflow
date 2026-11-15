@@ -46,6 +46,15 @@ advance separately. Regenerate with `pnpm sdk:docs`; CI runs the read-only
 - [AllowanceStatusInput](interfaces/AllowanceStatusInput.md)
 - [AllowanceSubmitInput](interfaces/AllowanceSubmitInput.md)
 - [ApiResponse](interfaces/ApiResponse.md)
+- [ConditionalDefinition](interfaces/ConditionalDefinition.md)
+- [ConditionalExecutePrepared](interfaces/ConditionalExecutePrepared.md)
+- [ConditionalExecutePrepareInput](interfaces/ConditionalExecutePrepareInput.md)
+- [ConditionalExecutionArguments](interfaces/ConditionalExecutionArguments.md)
+- [ConditionalExecutionIntent](interfaces/ConditionalExecutionIntent.md)
+- [ConditionalNodeBinding](interfaces/ConditionalNodeBinding.md)
+- [ConditionalNodeState](interfaces/ConditionalNodeState.md)
+- [ConditionalPayNode](interfaces/ConditionalPayNode.md)
+- [ConditionalSplitNode](interfaces/ConditionalSplitNode.md)
 - [ConfigurationHistoryQuery](interfaces/ConfigurationHistoryQuery.md)
 - [CreationBindings](interfaces/CreationBindings.md)
 - [DeploymentPagesOptions](interfaces/DeploymentPagesOptions.md)
@@ -101,6 +110,9 @@ advance separately. Regenerate with `pnpm sdk:docs`; CI runs the read-only
 - [AllowancePrepared](type-aliases/AllowancePrepared.md)
 - [AllowanceState](type-aliases/AllowanceState.md)
 - [AllowanceStatus](type-aliases/AllowanceStatus.md)
+- [ConditionalExecutionDiscovery](type-aliases/ConditionalExecutionDiscovery.md)
+- [ConditionalNodeConfiguration](type-aliases/ConditionalNodeConfiguration.md)
+- [ConditionalTerminal](type-aliases/ConditionalTerminal.md)
 - [ConfigurationHistory](type-aliases/ConfigurationHistory.md)
 - [ContractEventItem](type-aliases/ContractEventItem.md)
 - [CreationValue](type-aliases/CreationValue.md)
@@ -155,4 +167,5 @@ advance separately. Regenerate with `pnpm sdk:docs`; CI runs the read-only
 
 ## Functions
 
+- [selectConditionalExecutionBranch](functions/selectConditionalExecutionBranch.md)
 - [signPrepared](functions/signPrepared.md)
