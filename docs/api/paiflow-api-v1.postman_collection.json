@@ -184,6 +184,30 @@
       "key": "conditionalSignedXdr",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "conditionalMutationIntent",
+      "value": ""
+    },
+    {
+      "key": "conditionalMutationIdempotencyKey",
+      "value": ""
+    },
+    {
+      "key": "conditionalConditionNodeId",
+      "value": "condition"
+    },
+    {
+      "key": "conditionalConditionRevision",
+      "value": "0"
+    },
+    {
+      "key": "conditionalThresholdStroops",
+      "value": "101"
+    },
+    {
+      "key": "conditionalMutationSignedXdr",
+      "value": ""
     }
   ],
   "item": [
@@ -2395,6 +2419,152 @@
         "body": {
           "mode": "raw",
           "raw": "{\n  \"intent\": \"{{conditionalIntent}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Conditional v2 State stored configuration",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/configuration?version=2",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "configuration"],
+          "query": [
+            {
+              "key": "version",
+              "value": "2"
+            }
+          ]
+        },
+        "description": "Explicit conditional v2. Retain the exact original request/key/intent/hash through signing, timeout and reconciliation. No replacement until authoritative permanent non-admission/expiry evidence; validate proof version2. Current state/history require a verified explicit v2 deployment; no artifact activation is implied."
+      },
+      "response": []
+    },
+    {
+      "name": "Conditional v2 History stored configuration",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/configuration/history?version=2",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "configuration", "history"],
+          "query": [
+            {
+              "key": "version",
+              "value": "2"
+            }
+          ]
+        },
+        "description": "Explicit conditional v2. Retain the exact original request/key/intent/hash through signing, timeout and reconciliation. No replacement until authoritative permanent non-admission/expiry evidence; validate proof version2. Current state/history require a verified explicit v2 deployment; no artifact activation is implied."
+      },
+      "response": []
+    },
+    {
+      "name": "Conditional v2 Prepare stored configuration",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{conditionalMutationIdempotencyKey}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/configuration/prepare?version=2",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "configuration", "prepare"],
+          "query": [
+            {
+              "key": "version",
+              "value": "2"
+            }
+          ]
+        },
+        "description": "Explicit conditional v2. Retain the exact original request/key/intent/hash through signing, timeout and reconciliation. No replacement until authoritative permanent non-admission/expiry evidence; validate proof version2. Current state/history require a verified explicit v2 deployment; no artifact activation is implied.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"admin\": \"{{walletAddress}}\",\n  \"arguments\": {\n    \"version\": 2,\n    \"changes\": [\n      {\n        \"kind\": \"condition\",\n        \"nodeId\": \"{{conditionalConditionNodeId}}\",\n        \"expectedRevision\": \"{{conditionalConditionRevision}}\",\n        \"thresholdStroops\": \"{{conditionalThresholdStroops}}\"\n      }\n    ]\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Conditional v2 Submit stored configuration",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/configuration/submit?version=2",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "configuration", "submit"],
+          "query": [
+            {
+              "key": "version",
+              "value": "2"
+            }
+          ]
+        },
+        "description": "Explicit conditional v2. Retain the exact original request/key/intent/hash through signing, timeout and reconciliation. No replacement until authoritative permanent non-admission/expiry evidence; validate proof version2. Current state/history require a verified explicit v2 deployment; no artifact activation is implied.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"intent\": \"{{conditionalMutationIntent}}\",\n  \"signedXdr\": \"{{conditionalMutationSignedXdr}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Conditional v2 Reconcile stored configuration",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/configuration/reconcile?version=2",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "configuration", "reconcile"],
+          "query": [
+            {
+              "key": "version",
+              "value": "2"
+            }
+          ]
+        },
+        "description": "Explicit conditional v2. Retain the exact original request/key/intent/hash through signing, timeout and reconciliation. No replacement until authoritative permanent non-admission/expiry evidence; validate proof version2. Current state/history require a verified explicit v2 deployment; no artifact activation is implied.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"intent\": \"{{conditionalMutationIntent}}\"\n}",
           "options": {
             "raw": {
               "language": "json"

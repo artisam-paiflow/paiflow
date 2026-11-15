@@ -1,4 +1,11 @@
 import {
+  ConditionalMutationPrepareSchema,
+  ConditionalMutationPreparedSchema,
+  ConditionalMutationStateSchema,
+  ConditionalConfigurationHistorySchema,
+  ConditionalPreparationRefusalSchema,
+} from "@/lib/mutations/conditional-schema";
+import {
   MutationPrepareSchema,
   MutationSubmitSchema,
   MutationReconcileSchema,
@@ -567,7 +574,7 @@ const executionVersionParam = {
   in: "query",
   required: false,
   description:
-    "Explicit execution protocol selection. Omit or use 1 for unchanged legacy/v1 shapes; use 2 for conditional discovery/receipts. Unknown or duplicate selectors and selector/persisted-intent mismatches are refused. Credentials and rate allowances are shared across versions.",
+    "Explicit protocol selection. Omit or use 1 for unchanged legacy/v1 shapes; use 2 for conditional discovery/configuration/history/receipts. Unknown or duplicate selectors and selector/persisted-intent mismatches are refused. Credentials and rate allowances are shared across versions.",
   schema: { type: "string", enum: ["1", "2"], default: "1" },
 };
 
@@ -899,7 +906,7 @@ export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: "Paiflow API v1",
-    version: "1.8.0",
+    version: "1.9.0",
     description: [
       "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.",
       "",
@@ -1244,7 +1251,7 @@ export const openApiDocument = {
               operationId: `${action}Configuration`,
               summary: `${action} guarded admin-owned stored configuration`,
               description:
-                "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Known pre-intent failures can add error.fields.preparationRefusal as one JSON string matching MutationPreparationRefusal. This immutable request/key/admin/network/deployment-bound non-admission fence blocks every late creator for that key. Original error codes and safe field messages are preserved. Re-fetch and validate exact proof before fresh review/new key; generic errors, timeout, missing rows and admitted uncertainty provide no such authority. " +
+                "Default/version1 retains reviewed immediate Pay/Split paths and exact existing schemas. Explicit version2 uses the complete conditional graph including prefix, condition and both terminal branches; threshold changes require a declared mutable mode. Every accounted obligation including inactive-branch or raw-zero debt blocks all updates. Both versions retain one exact-original mutation admission/sender and require immutable admin authority. Version selection must match saved intent/refusal generation on retry/submit/reconcile. V2 current/history/receipt schemas are separate, with honest observed-only coverage including immutable revision0 baselines. config_v2 events bind original routing/constants and route_v2 remains routing/status evidence, never a configuration revision or payout proof. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Known pre-intent failures can add error.fields.preparationRefusal as one JSON string matching MutationPreparationRefusal. This immutable request/key/admin/network/deployment-bound non-admission fence blocks every late creator for that key. Original error codes and safe field messages are preserved. Re-fetch and validate exact proof before fresh review/new key; generic errors, timeout, missing rows and admitted uncertainty provide no such authority. " +
                 rate(
                   action === "prepare"
                     ? V1_RATE_LIMITS.schedulePrepare
@@ -1258,6 +1265,7 @@ export const openApiDocument = {
               security: [{ bearerAuth: [] }],
               parameters: [
                 deploymentIdParam,
+                executionVersionParam,
                 ...(action === "prepare"
                   ? [
                       {
@@ -1285,7 +1293,21 @@ export const openApiDocument = {
                   : []),
               ],
               ...(method === "post"
-                ? { requestBody: { required: true, content: json(z.toJSONSchema(request)) } }
+                ? {
+                    requestBody: {
+                      required: true,
+                      content: json(
+                        action === "prepare"
+                          ? {
+                              oneOf: [
+                                z.toJSONSchema(request),
+                                { $ref: "#/components/schemas/ConditionalMutationPrepare" },
+                              ],
+                            }
+                          : z.toJSONSchema(request),
+                      ),
+                    },
+                  }
                 : {}),
               responses: {
                 "200": {
@@ -1299,11 +1321,28 @@ export const openApiDocument = {
                         action === "submit"
                           ? { $ref: "#/components/schemas/TransactionStatus" }
                           : action === "prepare"
-                            ? { $ref: "#/components/schemas/MutationPrepared" }
+                            ? {
+                                oneOf: [
+                                  { $ref: "#/components/schemas/MutationPrepared" },
+                                  { $ref: "#/components/schemas/ConditionalMutationPrepared" },
+                                ],
+                              }
                             : action === "state"
-                              ? z.toJSONSchema(MutationStateSchema)
+                              ? {
+                                  oneOf: [
+                                    z.toJSONSchema(MutationStateSchema),
+                                    { $ref: "#/components/schemas/ConditionalMutationState" },
+                                  ],
+                                }
                               : action === "history"
-                                ? z.toJSONSchema(ConfigurationHistorySchema)
+                                ? {
+                                    oneOf: [
+                                      z.toJSONSchema(ConfigurationHistorySchema),
+                                      {
+                                        $ref: "#/components/schemas/ConditionalConfigurationHistory",
+                                      },
+                                    ],
+                                  }
                                 : z.toJSONSchema(MutationReconciledSchema),
                     },
                   }),
@@ -2165,6 +2204,11 @@ export const openApiDocument = {
       },
     },
     schemas: {
+      ConditionalMutationPrepare: z.toJSONSchema(ConditionalMutationPrepareSchema),
+      ConditionalMutationPrepared: z.toJSONSchema(ConditionalMutationPreparedSchema),
+      ConditionalMutationState: z.toJSONSchema(ConditionalMutationStateSchema),
+      ConditionalConfigurationHistory: z.toJSONSchema(ConditionalConfigurationHistorySchema),
+      ConditionalPreparationRefusal: z.toJSONSchema(ConditionalPreparationRefusalSchema),
       MutationIntent: z.toJSONSchema(MutationIntentSchema),
       MutationPrepared: z.toJSONSchema(MutationPreparedSchema),
       MutationPreparationRefusal: z.toJSONSchema(MutationPreparationRefusalSchema),

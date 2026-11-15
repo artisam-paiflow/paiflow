@@ -4,7 +4,13 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { lockDeployment } from "@/lib/deployments/service-work";
-import { MutationPreparationRefusalSchema, type MutationPrepare } from "./schema";
+import { MutationPreparationRefusalSchema } from "./schema";
+import { ConditionalPreparationRefusalSchema } from "./conditional-schema";
+import {
+  assertStoredMutationVersion,
+  parseStoredMutationRequest,
+  type StoredMutationRequest,
+} from "./mutation-protocol";
 
 export function preparationRefusalError(
   row: MutationPreparationRefusal,
@@ -16,8 +22,19 @@ export function preparationRefusalError(
       "CONFLICT",
       "Idempotency-Key already identifies a different refused request",
     );
-  const proof = MutationPreparationRefusalSchema.parse({
-    version: 1,
+  let version: 1 | 2;
+  try {
+    version = parseStoredMutationRequest(row.request).arguments.version;
+  } catch {
+    return new AppError(
+      "UPSTREAM_RPC",
+      "Retained preparation refusal evidence could not be verified",
+    );
+  }
+  const proof = (
+    version === 2 ? ConditionalPreparationRefusalSchema : MutationPreparationRefusalSchema
+  ).parse({
+    version,
     outcome: "NOT_ADMITTED",
     refusalId: row.id,
     deploymentId: row.deploymentId,
@@ -60,6 +77,7 @@ export async function findPreparationRefusal(
   deploymentId: string,
   keyHash: string,
   digest: string,
+  expectedVersion: 1 | 2 = 1,
 ) {
   const row = await db.mutationPreparationRefusal.findUnique({
     where: {
@@ -70,19 +88,25 @@ export async function findPreparationRefusal(
       },
     },
   });
-  if (row) throw preparationRefusalError(row, digest);
+  if (row) {
+    const request = parseStoredMutationRequest(row.request);
+    if (request.arguments.version !== expectedVersion)
+      throw new AppError("CONFLICT", "Use the original refused request's configuration version");
+    throw preparationRefusalError(row, digest);
+  }
 }
 /** A read/simulation failure alone proves nothing. This transaction fences every
  * late creator before issuing non-admission evidence; admitted intent always wins. */
 export async function fenceRefusedPreparation(input: {
   deployment: Deployment;
-  request: MutationPrepare;
+  request: StoredMutationRequest;
   keyHash: string;
   digest: string;
   reason: AppError;
   assertAdmission: (client: Prisma.TransactionClient) => Promise<void>;
   ip: string;
 }) {
+  const request = parseStoredMutationRequest(input.request);
   return db.$transaction(async (client) => {
     const service = await lockDeployment(client, input.deployment.id);
     if (service.serviceState !== "ACTIVE")
@@ -101,6 +125,7 @@ export async function fenceRefusedPreparation(input: {
     if (existing) {
       if (existing.action !== "configuration.mutate" || existing.requestDigest !== input.digest)
         throw new AppError("CONFLICT", "Idempotency-Key already identifies a different request");
+      assertStoredMutationVersion(existing, request.arguments.version);
       return { intent: existing };
     }
     const old = await client.mutationPreparationRefusal.findUnique({
@@ -112,15 +137,19 @@ export async function fenceRefusedPreparation(input: {
         },
       },
     });
-    if (old) return { refusal: old, fresh: false };
+    if (old) {
+      if (parseStoredMutationRequest(old.request).arguments.version !== request.arguments.version)
+        throw new AppError("CONFLICT", "Use the original refused request's configuration version");
+      return { refusal: old, fresh: false };
+    }
     const refusal = await client.mutationPreparationRefusal.create({
       data: {
         deploymentId: input.deployment.id,
         network: input.deployment.network,
         idempotencyKeyHash: input.keyHash,
         requestDigest: input.digest,
-        admin: input.request.admin,
-        request: input.request as unknown as Prisma.InputJsonValue,
+        admin: request.admin,
+        request: request as unknown as Prisma.InputJsonValue,
         reasonCode: input.reason.code,
       },
     });

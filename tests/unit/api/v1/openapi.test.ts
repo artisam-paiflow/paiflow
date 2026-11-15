@@ -271,6 +271,11 @@ describe("Postman collection", () => {
         ...specOperations("/api/v1/"),
         ...specOperations("/api/webhooks/"),
         ...specOperations("/api/developer-tokens"),
+        "/api/v1/deployments/{id}/configuration get version=2",
+        "/api/v1/deployments/{id}/configuration/history get version=2",
+        "/api/v1/deployments/{id}/configuration/prepare post version=2",
+        "/api/v1/deployments/{id}/configuration/submit post version=2",
+        "/api/v1/deployments/{id}/configuration/reconcile post version=2",
         "/api/v1/deployments/{id}/execution get version=2",
         "/api/v1/deployments/{id}/execute post version=2",
         "/api/v1/deployments/{id}/execute/submit post version=2",
@@ -280,6 +285,11 @@ describe("Postman collection", () => {
   });
   it("keeps conditional protocol selection explicit across discovery and original recovery", () => {
     for (const [route, method] of [
+      ["configuration", "get"],
+      ["configuration/history", "get"],
+      ["configuration/prepare", "post"],
+      ["configuration/submit", "post"],
+      ["configuration/reconcile", "post"],
       ["execution", "get"],
       ["execute", "post"],
       ["execute/submit", "post"],

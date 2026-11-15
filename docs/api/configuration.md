@@ -1,5 +1,7 @@
 # Guarded stored configuration API and SDK
 
+Explicit conditional graph and threshold operations use separate [version2 configuration schemas](conditional-configuration.md). The default v1 protocol below remains unchanged.
+
 [#1169](https://github.com/webnxt-2030/pinkraft/issues/1169) adds the API and SDK for
 [guarded mutation v1](../mutation-v1.md). These routes do not activate artifacts,
 deploy services or retrofit existing deployments. [Owner editing and signing review](../owner-configuration.md) implements #1170;

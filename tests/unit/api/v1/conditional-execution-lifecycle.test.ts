@@ -184,7 +184,20 @@ describe("conditional execution financial admission with real PostgreSQL", () =>
         idempotencyKeyHash: executionIdempotencyKey(key)!,
         requestDigest: digest,
         admin: payer.publicKey(),
-        request: {},
+        request: {
+          admin: payer.publicKey(),
+          arguments: {
+            version: 1,
+            changes: [
+              {
+                kind: "pay",
+                nodeId: "retained",
+                expectedRevision: "0",
+                recipient: payer.publicKey(),
+              },
+            ],
+          },
+        },
         reasonCode: "VALIDATION",
       },
     });

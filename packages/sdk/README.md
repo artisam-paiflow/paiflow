@@ -768,3 +768,43 @@ unchanged envelope through the caller's wallet callback; it does not parse XDR
 operations or prove on-chain finality. A lost response, timeout, interrupted
 signature or changed configuration never triggers an automatic replacement,
 rebuild, resubmission or polling loop. Preserve the original before recovery.
+
+## Conditional configuration (unreleased source)
+
+Use `deployment.configuration.conditional.get/history/prepare/submit/reconcile`.
+Every operation explicitly selects `version=2`; existing v1 configuration methods
+and wire formats keep their original behavior. No method infers artifact capability
+from a successfully parsed schema or enables conditional deployments.
+
+`get()` returns the complete verified current prefix and both branches, immutable
+owner/admin, hashes, revisions and accounted obligations. History is separately
+observed evidence: it includes immutable Receive/Return revision-zero baselines,
+reports exact observed gaps and always has `historyComplete: false`. It cannot
+replace a current read or prove an unobserved revision never existed.
+
+Preparation requires a saved `idempotencyKey` and `{admin, arguments: {version: 2,
+changes}}`. Changes follow complete graph order and match current revisions. Only
+declared mutable Pay values, Split fields/rosters and threshold values may change;
+threshold zero is valid. Policies, allocation modes, owner return, routing and
+execution-only fields remain immutable. Every changed node must actually change.
+The server and contracts enforce authorization and zero accounted obligations
+across the whole graph, including inactive branches; raw balance is insufficient.
+
+Persist the exact original request/key, receipt, intent/hash and history metadata.
+Review the structured `mutation` evidence, sign through existing `signPrepared`,
+and pass its exact `submission` and `submissionOptions` to conditional `submit`.
+Recover uncertainty with conditional `reconcile({intent: original.data.intent})`
+before any fresh review or preparation. No method polls, retries, rebuilds or
+replaces automatically. The SDK validates structured receipt coherence and request
+binding; the server verifies executable provenance, exact XDR and signatures.
+
+`parseConditionalPreparationRefusal` accepts only strict v2 `NOT_ADMITTED` evidence
+from `PaiflowApiError.fields.preparationRefusal[0]` (JSON text). Compare its exact
+network, admin, deployment identity, idempotency-key hash and original request
+digest against your saved request before treating that original as durably refused.
+Schema parsing alone does not authenticate the proof. Generic failures, expiry,
+missing history and unknown finality never permit replacement.
+
+See `examples/conditional-configuration.ts` for preparation, wallet signing and
+original recovery. Source support does not upload artifacts, activate a registry,
+change a live deployment or publish an SDK release.
