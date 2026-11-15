@@ -353,6 +353,7 @@ assert.equal(calls, 1, "README first read makes exactly one explicit request");
       "examples/developer-server.ts",
       "examples/payment-browser.ts",
       "examples/parameterized-execution.ts",
+      "examples/conditional-execution.ts",
       "examples/workflows.ts",
     ],
     consumer,

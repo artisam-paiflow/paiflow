@@ -5,6 +5,14 @@ SDK versions are independent of the app and API. Follow the repository release
 
 ## [Unreleased]
 
+### Added
+
+- Explicit `execute.conditional` v2 discovery, preparation, submission and original
+  reconciliation methods, with separate strict types and canonical receipt
+  validation for both branches, prefix deductions and immutable owner returns
+  (#1225). Existing v1 methods and receipts remain unchanged. Source support does
+  not activate artifacts, deploy services or publish this SDK.
+
 ## [0.3.0]
 
 Prepared on 2026-11-03. This beta minor adds client APIs and records the approved

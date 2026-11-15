@@ -16,6 +16,12 @@ import { prepareExecutionPayment } from "@/lib/api/v1/execution-payments";
 import { executionIdempotencyKey } from "@/lib/api/v1/execution-intent";
 import { linkApiTransaction } from "@/lib/api/request-history/context";
 import { hasExecutionPolicies } from "@/lib/api/v1/execution-schema";
+import { hasConditionalDeploymentDeclaration } from "@/lib/flows/conditional-deployment";
+import {
+  ConditionalExecutePrepareSchema,
+  conditionalExecutionVersion,
+} from "@/lib/api/v1/conditional-execution-schema";
+import { prepareConditionalExecutionPayment } from "@/lib/api/v1/conditional-execution-payments";
 
 /**
  * Prepare the unsigned deposit that executes a deposit-triggered flow. The caller signs
@@ -25,11 +31,36 @@ export const POST = v1Route(
   { operation: "POST execute", rateLimit: V1_RATE_LIMITS.execute },
   async ({ req, params, token, tokenType, deployment }) =>
     withInteractiveRpcBudget(async () => {
-      const input = ExecutePrepareSchema.parse(
-        await req.json().catch(() => {
-          throw new AppError("VALIDATION", "Request body must be valid JSON");
-        }),
-      );
+      const version = conditionalExecutionVersion(new URL(req.url).searchParams);
+      const body = await req.json().catch(() => {
+        throw new AppError("VALIDATION", "Request body must be valid JSON");
+      });
+      if (version === 2) {
+        const input = ConditionalExecutePrepareSchema.parse(body);
+        const data = await prepareConditionalExecutionPayment(
+          deployment,
+          input,
+          executionIdempotencyKey(req.headers.get("idempotency-key")),
+        );
+        linkApiTransaction(data.txHash);
+        await audit({
+          action: "API_EXECUTE_PREPARED",
+          userId: deployment.ownerId,
+          ip: clientIp(req),
+          metadata: {
+            deploymentId: params.id,
+            tokenId: token.id,
+            tokenType,
+            intent: data.intent,
+            txHash: data.txHash,
+            executionVersion: 2,
+          },
+        });
+        return NextResponse.json({ data });
+      }
+      if (hasConditionalDeploymentDeclaration(deployment.paramsSnapshot))
+        throw new AppError("VALIDATION", "Conditional execution requires explicit version2 opt-in");
+      const input = ExecutePrepareSchema.parse(body);
       const { nodes, triggerAddress } = resolveExecutablePipeline(deployment);
 
       if (hasExecutionPolicies(deployment.graphSnapshot)) {

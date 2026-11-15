@@ -154,6 +154,36 @@
     {
       "key": "instanceIdempotencyKey",
       "value": ""
+    },
+    {
+      "key": "conditionalExecutionKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "conditionalArguments",
+      "value": "{\"version\":2,\"inputs\":[]}",
+      "type": "string"
+    },
+    {
+      "key": "conditionalIntent",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "conditionalTxHash",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "conditionalUnsignedXdr",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "conditionalSignedXdr",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -2226,6 +2256,145 @@
         "body": {
           "mode": "raw",
           "raw": "{\n  \"intent\": \"{{intent}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Read conditional execution v2",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execution?version=2",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "execution"],
+          "query": [
+            {
+              "key": "version",
+              "value": "2"
+            }
+          ]
+        },
+        "description": "Explicit conditional execution protocol v2 (source OpenAPI1.8). Requires an explicitly tagged deployment and verified reviewed artifacts; schema acceptance is not activation. Credentials/limits are shared with v1. Set one stable conditionalExecutionKey and retain the original intent, hash, unsigned/signed envelope and request. Save successful preparation fields manually into the corresponding conditional variables; no script overwrites an existing original. Never prepare a replacement after signing/submission uncertainty; recover the original first. No automatic signing or funded transaction is performed by this source example. See docs/api/conditional-execution.md."
+      },
+      "response": [
+        {
+          "name": "200 Unsupported conditional generation",
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"version\": 2,\n    \"supported\": false,\n    \"deploymentId\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"network\": \"testnet\",\n    \"policyVersion\": 0,\n    \"reason\": \"No verified conditional deployment generation\"\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Prepare conditional execution v2",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{conditionalExecutionKey}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute?version=2",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute"],
+          "query": [
+            {
+              "key": "version",
+              "value": "2"
+            }
+          ]
+        },
+        "description": "Explicit conditional execution protocol v2 (source OpenAPI1.8). Requires an explicitly tagged deployment and verified reviewed artifacts; schema acceptance is not activation. Credentials/limits are shared with v1. Set one stable conditionalExecutionKey and retain the original intent, hash, unsigned/signed envelope and request. Save successful preparation fields manually into the corresponding conditional variables; no script overwrites an existing original. Never prepare a replacement after signing/submission uncertainty; recover the original first. No automatic signing or funded transaction is performed by this source example. See docs/api/conditional-execution.md.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": \"{{amount}}\",\n  \"from\": \"{{from}}\",\n  \"arguments\": {{conditionalArguments}}\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Submit conditional execution v2",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute/submit?version=2",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute", "submit"],
+          "query": [
+            {
+              "key": "version",
+              "value": "2"
+            }
+          ]
+        },
+        "description": "Explicit conditional execution protocol v2 (source OpenAPI1.8). Requires an explicitly tagged deployment and verified reviewed artifacts; schema acceptance is not activation. Credentials/limits are shared with v1. Set one stable conditionalExecutionKey and retain the original intent, hash, unsigned/signed envelope and request. Save successful preparation fields manually into the corresponding conditional variables; no script overwrites an existing original. Never prepare a replacement after signing/submission uncertainty; recover the original first. No automatic signing or funded transaction is performed by this source example. See docs/api/conditional-execution.md.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"intent\": \"{{conditionalIntent}}\",\n  \"signedXdr\": \"{{conditionalSignedXdr}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Reconcile conditional execution v2",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute/reconcile?version=2",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute", "reconcile"],
+          "query": [
+            {
+              "key": "version",
+              "value": "2"
+            }
+          ]
+        },
+        "description": "Explicit conditional execution protocol v2 (source OpenAPI1.8). Requires an explicitly tagged deployment and verified reviewed artifacts; schema acceptance is not activation. Credentials/limits are shared with v1. Set one stable conditionalExecutionKey and retain the original intent, hash, unsigned/signed envelope and request. Save successful preparation fields manually into the corresponding conditional variables; no script overwrites an existing original. Never prepare a replacement after signing/submission uncertainty; recover the original first. No automatic signing or funded transaction is performed by this source example. See docs/api/conditional-execution.md.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"intent\": \"{{conditionalIntent}}\"\n}",
           "options": {
             "raw": {
               "language": "json"

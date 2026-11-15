@@ -41,6 +41,21 @@ export type {
 } from "./read-parsers.js";
 
 export { signPrepared, PaiflowSigningError } from "./payment.js";
+export { selectConditionalExecutionBranch } from "./conditional-execution.js";
+export type {
+  ConditionalPayNode,
+  ConditionalSplitNode,
+  ConditionalTerminal,
+  ConditionalDefinition,
+  ConditionalExecutionArguments,
+  ConditionalNodeBinding,
+  ConditionalExecutionIntent,
+  ConditionalNodeConfiguration,
+  ConditionalNodeState,
+  ConditionalExecutionDiscovery,
+  ConditionalExecutePrepareInput,
+  ConditionalExecutePrepared,
+} from "./conditional-execution.js";
 export type {
   ExecutionAllocation,
   ExecutionRowInput,
