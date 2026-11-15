@@ -5,6 +5,11 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Add explicit opt-in conditional hosted payments with selected-branch inputs,
+  immutable owner-return review, versioned wallet ownership proofs and exact-original
+  recovery through the existing engine. Preserve legacy/v1 behavior; artifact
+  activation and funded wallet acceptance remain separate (#1228).
+
 - Add explicit conditional reusable authoring, compiled deployment review before signing, keyed original recovery and owner threshold/branch editing. Preserve v1/templates, guard stale graph writes and seal conditional initial evidence; no artifact activation or live release is included.
 
 - Add explicit conditional v2 configuration updates and observed history across owner/API/SDK operations, preserving exact originals, whole-graph obligation checks and default v1 compatibility. No artifact activation or live release is included.

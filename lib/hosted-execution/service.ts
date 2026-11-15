@@ -20,17 +20,20 @@ import {
   type HostedPrepare,
   type HostedSubmit,
 } from "./schema";
+import { parsePaymentExecutionIntent } from "@/lib/api/v1/execution-protocol";
+import { ExecutionIntentSchema } from "@/lib/flows/field-policies";
+import { hasConditionalDeploymentDeclaration } from "@/lib/flows/conditional-deployment";
 import { hostedPaymentReview } from "./review";
 
 export function hostedKeyHash(key: string): string {
   return createHash("sha256").update(HostedRecoveryKeySchema.parse(key)).digest("hex");
 }
-function requestKeyHash(key: string): string {
+export function requestKeyHash(key: string): string {
   return createHash("sha256")
     .update(`hosted-execution:${HostedRecoveryKeySchema.parse(key)}`)
     .digest("hex");
 }
-function visibilityAdmission(deploymentId: string) {
+export function visibilityAdmission(deploymentId: string) {
   return async (tx: Prisma.TransactionClient) => {
     const current = await tx.deployment.findUnique({
       where: { id: deploymentId },
@@ -47,13 +50,48 @@ export async function hostedDeployment(id: string, requireEnabled = true) {
   });
   if (
     !deployment ||
+    hasConditionalDeploymentDeclaration(deployment.paramsSnapshot) ||
+    hasConditionalDeploymentDeclaration(deployment.graphSnapshot) ||
     !hasExecutionPolicies(deployment.graphSnapshot) ||
     (requireEnabled && (!deployment.hostedExecutionEnabled || deployment.serviceState !== "ACTIVE"))
   )
     throw new AppError("NOT_FOUND", "Payment form is unavailable");
   return deployment;
 }
-export async function readHostedReceipt(deploymentId: string, key: string) {
+/** Authenticate the original capability before parsing generation or exposing identity. */
+export function assertHostedReceiptCapability(
+  row: WalletControlIntent,
+  key: string,
+  version: 1 | 2,
+) {
+  const unavailable = () => new AppError("NOT_FOUND", "Payment receipt not found");
+  if (row.hostedAccessHash !== null) {
+    if (
+      typeof row.hostedAccessHash !== "string" ||
+      !timingSafeEqualString(row.hostedAccessHash, hostedKeyHash(key))
+    )
+      throw unavailable();
+  } else {
+    if (
+      version !== 1 ||
+      !timingSafeEqualString(row.idempotencyKeyHash ?? "", requestKeyHash(key)) ||
+      !/^[a-f0-9]{64}$/.test(row.requestDigest ?? "") ||
+      !ExecutionIntentSchema.safeParse(row.executionIntent).success
+    )
+      throw unavailable();
+  }
+  if (row.action !== "payment.execute") throw unavailable();
+  try {
+    if (parsePaymentExecutionIntent(row.executionIntent).version !== version) throw unavailable();
+  } catch {
+    throw unavailable();
+  }
+}
+export async function readHostedReceiptForVersion(
+  deploymentId: string,
+  key: string,
+  version: 1 | 2,
+) {
   const row = await db.walletControlIntent.findFirst({
     where: {
       deploymentId,
@@ -62,17 +100,12 @@ export async function readHostedReceipt(deploymentId: string, key: string) {
       idempotencyKeyHash: requestKeyHash(key),
     },
   });
-  if (
-    !row ||
-    (row.hostedAccessHash
-      ? !timingSafeEqualString(row.hostedAccessHash, hostedKeyHash(key))
-      : // Retained pre-atomic-marker history: knowledge of the original random key
-        // still proves this namespaced, exact receipt capability after service closes.
-        !timingSafeEqualString(row.idempotencyKeyHash ?? "", requestKeyHash(key)) ||
-        !/^[a-f0-9]{64}$/.test(row.requestDigest ?? ""))
-  )
-    throw new AppError("NOT_FOUND", "Payment receipt not found");
+  if (!row) throw new AppError("NOT_FOUND", "Payment receipt not found");
+  assertHostedReceiptCapability(row, key, version);
   return row;
+}
+export async function readHostedReceipt(deploymentId: string, key: string) {
+  return readHostedReceiptForVersion(deploymentId, key, 1);
 }
 function receipt(row: WalletControlIntent) {
   return HostedReceiptSchema.parse({
@@ -94,6 +127,7 @@ export async function prepareHostedPayment(deployment: Deployment, input: Hosted
     },
   });
   if (previous) {
+    assertHostedReceiptCapability(previous, input.recoveryKey, 1);
     // The random capability and exact original request recover even a crash before
     // hostedAccessHash was marked. They never authorize a different preparation.
     if (
@@ -201,6 +235,8 @@ export async function setHostedVisibility(
     deployment.ownerId !== ownerId ||
     deployment.status !== "CONFIRMED" ||
     deployment.network !== env().STELLAR_NETWORK ||
+    hasConditionalDeploymentDeclaration(deployment.paramsSnapshot) ||
+    hasConditionalDeploymentDeclaration(deployment.graphSnapshot) ||
     !hasExecutionPolicies(deployment.graphSnapshot)
   )
     throw new AppError("NOT_FOUND", "Deployment not found");

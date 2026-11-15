@@ -115,8 +115,8 @@ remain unchanged. Fresh matching non-admission or authoritative terminal/expiry
 proof is required before a new review/key; generic errors or missing history
 provide no replacement authority. See [conditional configuration API](api/conditional-configuration.md).
 
-The conditional public trigger page refuses legacy form fallback in this checkpoint.
-[#1228](https://github.com/webnxt-2030/pinkraft/issues/1228) separately integrates
-wallet-only hosted opt-in, ownership proof and original capability recovery.
+The conditional public trigger page explicitly selects the new hosted protocol and
+never falls back to legacy funding. See [conditional hosted execution](conditional-hosted-execution.md)
+for owner opt-in, wallet ownership proof and exact-original capability recovery.
 Local component, database and browser codec checks do not complete genuine wallet,
 mobile-device or funded network acceptance under #1229 and earlier release gates.
