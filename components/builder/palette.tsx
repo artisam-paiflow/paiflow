@@ -13,6 +13,7 @@ type Props = {
   onTogglePin?: () => void;
   /** Surface switches from the server (#722); an entry whose surface is off is not offered. */
   features: FeatureFlags;
+  conditional?: boolean;
 };
 function makeId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
@@ -229,7 +230,9 @@ export default function Palette({
   onExpand,
   onTogglePin,
   features,
+  conditional = false,
 }: Props) {
+  const allowed = new Set(["On Receive", "Pay", "Split", "Condition", "Return to owner"]);
   const groups: Template["group"][] = ["Triggers", "Actions", "Logic"];
   const headingId = useId();
   const hasTrigger = flowNodes.some(isTrigger);
@@ -284,17 +287,21 @@ export default function Palette({
             </div>
             <div className="mt-2 grid gap-1.5">
               {visibleTemplates(features)
-                .filter((tpl) => tpl.group === g)
+                .filter((tpl) => tpl.group === g && (!conditional || allowed.has(tpl.label)))
                 .map((tpl) => {
                   const isTriggerBlock = g === "Triggers";
                   const disabledReason =
-                    isTriggerBlock && hasTrigger
-                      ? "A flow can only have one trigger"
-                      : tpl.requiresCondition === "time" && !hasTimeCondition
-                        ? "Add a time condition to enable Hold"
-                        : tpl.requiresCondition === "non-oracle" && !hasReturnCondition
-                          ? "Add an amount, time, or multisig condition to enable Return to owner"
-                          : undefined;
+                    conditional &&
+                    tpl.label === "Condition" &&
+                    flowNodes.some((n) => n.type === "condition")
+                      ? "Conditional reusable flows have exactly one amount condition"
+                      : isTriggerBlock && hasTrigger
+                        ? "A flow can only have one trigger"
+                        : tpl.requiresCondition === "time" && !hasTimeCondition
+                          ? "Add a time condition to enable Hold"
+                          : tpl.requiresCondition === "non-oracle" && !hasReturnCondition
+                            ? "Add an amount, time, or multisig condition to enable Return to owner"
+                            : undefined;
                   const disabled = !!disabledReason;
                   return (
                     <div key={tpl.label} className="group relative">

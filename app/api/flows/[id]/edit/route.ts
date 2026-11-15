@@ -7,7 +7,8 @@ import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { validateFlow } from "@/lib/flows/validate";
 import { requireFeature, serverFeatures } from "@/lib/features";
-import { FlowGraphSchema, sandboxNotifications, isPendingAddress } from "@/lib/flows/schema";
+import { OrdinaryFlowGraphSchema, isConditionalCanvas } from "@/lib/flows/ordinary-schema";
+import { sandboxNotifications, isPendingAddress } from "@/lib/flows/schema";
 import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
 import { applyPatch, autoConnectOrphans, stripZeroBpsRecipients } from "@/lib/ai/normalize";
 import { callGroq } from "@/lib/ai/groq";
@@ -266,7 +267,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!flow) throw new AppError("NOT_FOUND", "Flow not found");
 
     const body = BodySchema.parse(await req.json());
-    const graph = FlowGraphSchema.parse(flow.graph);
+    const ordinary = OrdinaryFlowGraphSchema.parse(flow.graph);
+    if (isConditionalCanvas(ordinary))
+      throw new AppError(
+        "VALIDATION",
+        "AI editing is unavailable for conditional reusable flows. Edit this draft with its declared controls.",
+      );
+    const graph = ordinary;
     const addressBook = await getAddressBook(user.id);
 
     let result: Awaited<ReturnType<typeof tryEdit>>;

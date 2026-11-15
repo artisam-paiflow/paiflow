@@ -6,6 +6,8 @@ import { AppError } from "@/lib/errors";
 import { extractCreatedContract } from "@/lib/stellar/deploy";
 import { PipelineImplementationSchema } from "@/lib/flows/implementation";
 
+import { hasConditionalDeploymentDeclaration } from "@/lib/flows/conditional-deployment";
+import { verifyConditionalDeploymentOriginal } from "@/lib/stellar/prepare-conditional-deploy";
 const NodeIdentitySchema = z.object({
   nodeId: z.string().min(1),
   templateKind: z.nativeEnum(TemplateKind),
@@ -51,6 +53,27 @@ export function recoveredDeploymentReferences(
   d: Deployment,
   got?: rpc.Api.GetSuccessfulTransactionResponse,
 ): { contractAddress: string; pipelineSnapshot?: Prisma.InputJsonValue } {
+  if (
+    hasConditionalDeploymentDeclaration(d.paramsSnapshot) ||
+    hasConditionalDeploymentDeclaration(d.graphSnapshot)
+  ) {
+    const original = verifyConditionalDeploymentOriginal(d);
+    if (got) {
+      if (got.returnValue?.switch().name !== "scvVec")
+        throw new AppError("CONFLICT", "Conditional factory vector unavailable");
+      const actual = got.returnValue.vec()?.map((value) => {
+        if (value.switch().name !== "scvAddress")
+          throw new AppError("CONFLICT", "Invalid conditional factory reference");
+        return Address.fromScAddress(value.address()).toString();
+      });
+      if (
+        JSON.stringify(actual) !==
+        JSON.stringify(original.pipeline.map((node) => node.contractAddress))
+      )
+        throw new AppError("CONFLICT", "Conditional factory vector differs from its original");
+    }
+    return { contractAddress: original.pipeline[0]!.contractAddress };
+  }
   const params = z.array(NodeIdentitySchema).min(1).safeParse(d.paramsSnapshot);
   const stored = SnapshotSchema.safeParse(d.pipelineSnapshot);
   if (params.success) {

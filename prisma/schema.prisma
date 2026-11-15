@@ -364,6 +364,7 @@ model Deployment {
   templateVersionId       String?                @db.Uuid
   instanceSnapshot        Json?
   instanceRequestDigest   String?
+  // Exact original hash for private instances and sealed conditional ordinary deployments.
   preparedTxHash          String?
   ownerId                 String                 @db.Uuid
   network                 String

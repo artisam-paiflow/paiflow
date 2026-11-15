@@ -5,11 +5,17 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
-import { FlowGraphSchema, isPendingAddress } from "@/lib/flows/schema";
-import type { FlowGraph } from "@/lib/flows/schema";
+import { isPendingAddress } from "@/lib/flows/schema";
+import {
+  OrdinaryFlowGraphSchema,
+  isConditionalCanvas,
+  type OrdinaryFlowGraph,
+} from "@/lib/flows/ordinary-schema";
+import { conditionalDraftParameters } from "@/lib/flows/ordinary-flow";
 import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
+import { writeOrdinaryFlow } from "@/lib/flow-persistence/ordinary-write";
 import { upsertAddress } from "@/lib/address-book";
 import { refuseIfFeatureOff } from "@/lib/features";
 const ResolveSchema = z.object({
@@ -33,7 +39,7 @@ export async function POST(
     const body = ResolveSchema.parse(await req.json());
     const flow = await db.flow.findFirst({ where: { id, ownerId: user.id } });
     if (!flow) throw new AppError("NOT_FOUND", "Flow not found");
-    const graph = structuredClone(flow.graph) as FlowGraph;
+    const graph = OrdinaryFlowGraphSchema.parse(structuredClone(flow.graph));
     let replaced = 0;
     // Build a lookup: lowercased label → real address
     const addrMap = new Map<string, string>();
@@ -64,13 +70,13 @@ export async function POST(
       }
       return n;
     });
-    const updatedGraph: FlowGraph = { ...graph, nodes };
+    const updatedGraph: OrdinaryFlowGraph = { ...graph, nodes };
     if (replaced === 0) {
       throw new AppError("VALIDATION", "No pending addresses matched the provided labels");
     }
     // Validate the updated flow
-    const v = validateFlow(updatedGraph);
-    if (!v.ok) {
+    const v = isConditionalCanvas(updatedGraph) ? null : validateFlow(updatedGraph);
+    if (v && !v.ok) {
       throw new AppError(
         "VALIDATION",
         "Resolved addresses created an invalid flow",
@@ -78,12 +84,16 @@ export async function POST(
       );
     }
     // Save the flow
-    const templateKind = v.templateKind;
-    const pipeline = flowToPipeline(v.graph, undefined, { forValidation: true });
-    await db.flow.update({
-      where: { id },
+    const templateKind = v?.ok ? v.templateKind : "ROUTER";
+    const pipeline = v?.ok
+      ? flowToPipeline(v.graph, undefined, { forValidation: true })
+      : conditionalDraftParameters();
+    await writeOrdinaryFlow({
+      id,
+      ownerId: user.id,
+      originalGraph: flow.graph,
+      replacement: updatedGraph,
       data: {
-        graph: updatedGraph as object,
         parameters: pipeline as object,
         templateKind,
         version: { increment: 1 },

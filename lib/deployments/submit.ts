@@ -28,6 +28,9 @@ import { InstanceSnapshotSchema } from "@/lib/flow-instances/schema";
 import { assertTemplateArtifactAvailability } from "@/lib/stellar/template-artifacts";
 import { withInteractiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
 import { assertSignedWalletTransaction } from "@/lib/stellar/wallet-signature";
+import { hasConditionalDeploymentDeclaration } from "@/lib/flows/conditional-deployment";
+import { verifyConditionalDeploymentOriginal } from "@/lib/stellar/prepare-conditional-deploy";
+import { getFactoryAddress } from "@/lib/stellar/config";
 const SubmitSchema = z.object({ signedXdr: z.string().min(10).max(200_000) });
 
 function confirmedDeploymentResponse(deployment: {
@@ -69,6 +72,37 @@ export async function submitOwnedDeployment(
   });
   if (!deployment) throw new AppError("NOT_FOUND", "Deployment not found");
 
+  const conditional =
+    hasConditionalDeploymentDeclaration(deployment.paramsSnapshot) ||
+    hasConditionalDeploymentDeclaration(deployment.graphSnapshot);
+  if (conditional) {
+    if (deployment.templateVersionId || deployment.network !== env().STELLAR_NETWORK)
+      throw new AppError(
+        "CONFLICT",
+        "Conditional deployments require original owner generation evidence",
+      );
+    const factory =
+      deployment.status === "PENDING_SIGNATURE" ? await getFactoryAddress() : undefined;
+    if (deployment.status === "PENDING_SIGNATURE" && !factory)
+      throw new AppError("CONFLICT", "Conditional factory is unavailable");
+    const original = verifyConditionalDeploymentOriginal(deployment, factory ?? undefined);
+    assertSignedWalletTransaction(
+      deployment.unsignedXdr!,
+      body.signedXdr,
+      deployment.sourceAccount!,
+      stellarPassphrase(),
+    );
+    if (original.conditionalReview.txHash !== txHash)
+      throw new AppError("VALIDATION", "Sign the exact conditional deployment original");
+    if (
+      deployment.status === "PENDING_SIGNATURE" &&
+      BigInt(original.tx.timeBounds!.maxTime) <= BigInt(Math.floor(Date.now() / 1000))
+    )
+      throw new AppError(
+        "CONFLICT",
+        "Prepared conditional deployment expired; reconcile its original identity",
+      );
+  }
   if (deployment.templateVersionId) {
     if (user.role === "SANDBOX")
       throw new AppError("FORBIDDEN", "Private instances are unavailable in sandbox sessions");
@@ -252,7 +286,7 @@ export async function submitOwnedDeployment(
     );
   }
   if (result.status === "SUCCESS") {
-    if (deployment.templateVersionId) {
+    if (deployment.templateVersionId || conditional) {
       const expected = Array.isArray(deployment.pipelineSnapshot)
         ? deployment.pipelineSnapshot.map((node) =>
             node && typeof node === "object" && !Array.isArray(node) ? node.contractAddress : null,

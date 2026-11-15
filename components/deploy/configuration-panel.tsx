@@ -2,14 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
-import type { FlowGraph } from "@/lib/flows/schema";
-import type { ConfirmedNodeConfiguration } from "@/lib/flows/field-policies";
-import {
-  MutationStateSchema,
-  MutationPreparedSchema,
-  MutationReconciledSchema,
-  ConfigurationHistorySchema,
-} from "@/lib/mutations/schema";
+import { isConditionalCanvas, type OrdinaryFlowGraph } from "@/lib/flows/ordinary-schema";
+
+import { MutationReconciledSchema } from "@/lib/mutations/schema";
 import { TransactionStatusSchema } from "@/lib/api/v1/schema";
 import { signWithRecovery } from "@/lib/wallet-signing-recovery";
 import { withContractCallLock } from "@/lib/contract-call-pending";
@@ -21,24 +16,34 @@ import {
   ManagementError,
 } from "@/components/developer/api";
 import { connectSelectedWallet } from "./selected-wallet-connection";
-import { ConfigurationValues, InitialConfigurationValues } from "./configuration-values";
+import { InitialConfigurationValues } from "./configuration-values";
+import { EditorConfigurationValues as ConfigurationValues } from "./conditional-configuration-values";
+import {
+  editorProtocol,
+  readEditorRecovery,
+  saveEditorRecovery,
+  conditionalRecovery,
+  editorValues,
+  editorObligations,
+  editorAsset,
+  editorRevisionKey as configurationRevisionKey,
+  editorChanges as configurationChanges,
+  editorAssertPrepared as assertConfigurationPrepared,
+  editorAssertRefusal as assertConfigurationRefusal,
+  editorProposed,
+  type EditorRecovery as ConfigurationRecovery,
+  type EditorState as ConfigurationState,
+  type EditorDraft,
+  type EditorHistory as History,
+} from "./configuration-protocol";
+import { sameConfigurationUuid } from "./conditional-configuration-editor.utils";
 import {
   configurationRecoveryKey,
-  readConfigurationRecovery,
-  saveConfigurationRecovery,
   CONFIGURATION_RECOVERY_EVENT,
-  configurationChanges,
-  configurationRevisionKey,
-  assertConfigurationPrepared,
-  assertConfigurationRefusal,
   configurationOutcomeIsTerminal,
-  proposedConfigurations,
-  type ConfigurationRecovery,
-  type ConfigurationState,
 } from "./configuration-editor.utils";
 
 type Connection = NonNullable<Awaited<ReturnType<typeof connectSelectedWallet>>>;
-type History = z.infer<typeof ConfigurationHistorySchema>;
 export default function ConfigurationPanel({
   ownerId,
   deploymentId,
@@ -48,13 +53,16 @@ export default function ConfigurationPanel({
   ownerId: string;
   deploymentId: string;
   network: "testnet" | "mainnet";
-  initialGraph: FlowGraph;
+  initialGraph: OrdinaryFlowGraph;
 }) {
   const base = `/api/deployments/${deploymentId}/configuration`;
+  const conditional = isConditionalCanvas(initialGraph);
+  const protocol = editorProtocol(conditional);
+  const sameId = (a: string, b: string) => (conditional ? sameConfigurationUuid(a, b) : a === b);
   const key = configurationRecoveryKey(ownerId, network, deploymentId);
   const [current, setCurrent] = useState<ConfigurationState | null>(null);
   const [reviewed, setReviewed] = useState<ConfigurationState | null>(null);
-  const [drafts, setDrafts] = useState<ConfirmedNodeConfiguration[]>([]);
+  const [drafts, setDrafts] = useState<EditorDraft[]>([]);
   const [history, setHistory] = useState<History | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [readError, setReadError] = useState<string | null>(null);
@@ -71,26 +79,34 @@ export default function ConfigurationPanel({
     lifetime = useRef<AbortController | null>(null);
   const asset = initialGraph.nodes.find((n) => n.type === "on_receive")?.config.asset;
   function read() {
-    const r = readConfigurationRecovery(key);
-    if (r && (r.ownerId !== ownerId || r.deploymentId !== deploymentId || r.network !== network))
+    const r = readEditorRecovery(key);
+    if (
+      r &&
+      (!sameId(r.ownerId, ownerId) ||
+        !sameId(r.deploymentId, deploymentId) ||
+        r.network !== network ||
+        conditionalRecovery(r) !== conditional)
+    )
       throw new Error("Saved update belongs to another owner, deployment or network.");
     return r;
   }
   function save(r: ConfigurationRecovery, previous?: ConfigurationRecovery) {
     if (previous && JSON.stringify(read()) !== JSON.stringify(previous))
       throw new Error("Original update recovery changed in another tab. No action continued.");
-    saveConfigurationRecovery(key, r);
+    saveEditorRecovery(key, r);
     setSaved(r);
   }
   function stateIdentity(s: ConfigurationState) {
-    if (s.deploymentId !== deploymentId || s.network !== network)
+    if (!sameId(s.deploymentId, deploymentId) || s.network !== network)
       throw new Error("Configuration response belongs to a different deployment or network.");
     return s;
   }
   async function loadCurrent(signal?: AbortSignal) {
     const scope = lifetime.current;
     try {
-      return stateIdentity(await managementRequest(base, MutationStateSchema, { signal }));
+      return stateIdentity(
+        await managementRequest(protocol.url(base), protocol.stateSchema, { signal }),
+      );
     } catch (error) {
       if (!signal?.aborted && scope === lifetime.current && !scope?.signal.aborted) {
         setCurrent(null);
@@ -104,21 +120,25 @@ export default function ConfigurationPanel({
   async function loadHistory(cursor?: string, signal?: AbortSignal) {
     try {
       const page = await managementRequest(
-        `${base}/history?limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
-        ConfigurationHistorySchema,
+        protocol.url(
+          base,
+          "/history",
+          `limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+        ),
+        protocol.historySchema,
         { signal },
       );
-      if (page.deploymentId !== deploymentId || page.network !== network)
+      if (!sameId(page.deploymentId, deploymentId) || page.network !== network)
         throw new Error("History identity differs from this deployment.");
       if (signal?.aborted) return;
       setHistory((previous) =>
         cursor && previous
-          ? {
+          ? ({
               ...page,
               items: [
                 ...new Map([...previous.items, ...page.items].map((i) => [i.id, i])).values(),
               ],
-            }
+            } as History)
           : page,
       );
       setHistoryError(null);
@@ -156,7 +176,7 @@ export default function ConfigurationPanel({
           setReadError(null);
           setReviewed((previous) => previous ?? state);
           setDrafts((previous) =>
-            previous.length ? previous : structuredClone(state.configurations),
+            previous.length ? previous : structuredClone(editorValues(state)),
           );
         }
       } catch {
@@ -238,7 +258,7 @@ export default function ConfigurationPanel({
   ) {
     if (
       !r.prepared ||
-      result.intent !== r.prepared.intent ||
+      !sameId(result.intent, r.prepared.intent) ||
       result.transaction.txHash !== r.prepared.txHash ||
       result.transaction.network !== network
     )
@@ -255,14 +275,18 @@ export default function ConfigurationPanel({
   }
   async function outcome(r: ConfigurationRecovery, check: () => void) {
     if (!r.prepared) throw new Error("Recover the original preparation before reconciling.");
-    const result = await managementRequest(`${base}/reconcile`, MutationReconciledSchema, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ intent: r.prepared.intent }),
-    });
+    const result = await managementRequest(
+      protocol.url(base, "/reconcile"),
+      MutationReconciledSchema,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ intent: r.prepared.intent }),
+      },
+    );
     check();
     assertOutcome(result, r);
-    const next: ConfigurationRecovery = {
+    const next = protocol.parseRecovery({
       ...r,
       result,
       phase: configurationOutcomeIsTerminal(result)
@@ -270,29 +294,33 @@ export default function ConfigurationPanel({
         : result.state === "SUBMITTING"
           ? "held"
           : r.phase,
-    };
+    });
     save(next, r);
     return next;
   }
   async function requestOriginal(r: ConfigurationRecovery, check: () => void) {
     try {
-      const prepared = await managementRequest(`${base}/prepare`, MutationPreparedSchema, {
-        method: "POST",
-        headers: { "content-type": "application/json", "Idempotency-Key": r.key },
-        body: JSON.stringify(r.request),
-      });
+      const prepared = await managementRequest(
+        protocol.url(base, "/prepare"),
+        protocol.preparedSchema,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", "Idempotency-Key": r.key },
+          body: JSON.stringify(r.request),
+        },
+      );
       check();
       assertConfigurationPrepared(prepared, r.reviewed, r.request);
       if (r.prepared && JSON.stringify(prepared) !== JSON.stringify(r.prepared))
         throw new Error(
           "Original preparation differs from its authoritative receipt. Recovery retained; no signature requested.",
         );
-      const next: ConfigurationRecovery = {
+      const next = protocol.parseRecovery({
         ...r,
         prepared,
         refusal: null,
         phase: r.phase === "preparing" || r.phase === "refused" ? "prepared" : r.phase,
-      };
+      });
       save(next, r);
       return outcome(next, check);
     } catch (e) {
@@ -305,12 +333,12 @@ export default function ConfigurationPanel({
         check();
         if (r.prepared)
           throw new Error("A refusal cannot erase an admitted update. Recovery retained.");
-        const next: ConfigurationRecovery = {
+        const next = protocol.parseRecovery({
           ...r,
           phase: "refused",
           refusal: proof,
           result: null,
-        };
+        });
         save(next, r);
         setFields(e.fields);
         setError(
@@ -332,10 +360,11 @@ export default function ConfigurationPanel({
         configurationRevisionKey(reviewed) !== configurationRevisionKey(current)
       )
         throw new Error("Current terms changed. Refresh the review before preparing.");
-      if (current.obligations.some((o) => o.obligationsStroops !== "0"))
+      if (editorObligations(current).some((o) => o.obligationsStroops !== "0"))
         throw new Error("Unsettled path obligations block updates.");
       const request = configurationChanges(reviewed, drafts);
-      r = {
+      r = protocol.parseRecovery({
+        ...(conditional ? { version: 2 } : {}),
         ownerId,
         deploymentId,
         network,
@@ -346,7 +375,7 @@ export default function ConfigurationPanel({
         prepared: null,
         result: null,
         refusal: null,
-      };
+      });
       save(r); // Original immutable identity exists BEFORE a preparation request leaves this tab.
     }
     const next = await requestOriginal(r, check);
@@ -411,7 +440,7 @@ export default function ConfigurationPanel({
     setVerifiedPrepared(null);
     setCurrent(state);
     setReviewed(state);
-    setDrafts(structuredClone(state.configurations));
+    setDrafts(structuredClone(editorValues(state)));
     setReadError(null);
     setError(null);
     setFields({});
@@ -438,7 +467,7 @@ export default function ConfigurationPanel({
     setReadError(null);
     if (
       configurationRevisionKey(state) !== configurationRevisionKey(latest.reviewed) ||
-      state.obligations.some((o) => o.obligationsStroops !== "0")
+      editorObligations(state).some((o) => o.obligationsStroops !== "0")
     )
       throw new Error(
         "A revision or unsettled obligation changed. No signature requested; reconcile the original update.",
@@ -461,7 +490,10 @@ export default function ConfigurationPanel({
       save: (attempt) => {
         if (attempt.txHash !== prepared.txHash)
           throw new Error("Prepared transaction hash differs from the reviewed receipt.");
-        save({ ...latest, phase: "signing", attemptId: attempt.attemptId }, latest);
+        save(
+          protocol.parseRecovery({ ...latest, phase: "signing", attemptId: attempt.attemptId }),
+          latest,
+        );
       },
       read: () => {
         const actual = read();
@@ -472,7 +504,7 @@ export default function ConfigurationPanel({
       clearRejected: (attempt) => {
         const actual = read();
         if (actual?.phase === "signing" && actual.attemptId === attempt.attemptId)
-          save({ ...latest, phase: "prepared" }, actual);
+          save(protocol.parseRecovery({ ...latest, phase: "prepared" }), actual);
       },
       sign: () =>
         selected.signTransaction(prepared.xdr, {
@@ -483,9 +515,9 @@ export default function ConfigurationPanel({
     const actual = read();
     if (actual?.phase !== "signing" || actual.attemptId !== signed.attempt.attemptId)
       throw new Error("Signing recovery changed; no send started.");
-    const submitted: ConfigurationRecovery = { ...actual, phase: "submitted" };
+    const submitted = protocol.parseRecovery({ ...actual, phase: "submitted" });
     save(submitted, actual);
-    const result = await managementRequest(`${base}/submit`, TransactionStatusSchema, {
+    const result = await managementRequest(protocol.url(base, "/submit"), TransactionStatusSchema, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ intent: prepared.intent, signedXdr: signed.signedTxXdr }),
@@ -508,11 +540,15 @@ export default function ConfigurationPanel({
     !!current &&
     !!reviewed &&
     configurationRevisionKey(current) !== configurationRevisionKey(reviewed);
-  const blocked = !!current?.obligations.some((o) => o.obligationsStroops !== "0");
-  let proposed: ConfirmedNodeConfiguration[] | null = null;
+  const blocked = !!current && editorObligations(current).some((o) => o.obligationsStroops !== "0");
+  const originalChanged =
+    !!current &&
+    !!saved &&
+    configurationRevisionKey(current) !== configurationRevisionKey(saved.reviewed);
+  let proposed: EditorDraft[] | null = null;
   if (saved?.prepared) {
     try {
-      proposed = proposedConfigurations(saved.reviewed, saved.request);
+      proposed = editorProposed(saved);
     } catch {
       /* Invalid local review is never signable. */
     }
@@ -555,7 +591,7 @@ export default function ConfigurationPanel({
             setReadError(null);
             setReviewed((previous) => previous ?? state);
             setDrafts((previous) =>
-              previous.length ? previous : structuredClone(state.configurations),
+              previous.length ? previous : structuredClone(editorValues(state)),
             );
           })
         }
@@ -587,11 +623,11 @@ export default function ConfigurationPanel({
             seconds. External changes require a new review.
           </p>
           <p className="text-sm break-all">Admin / fee payer: {current.admin}</p>
-          <p className="text-xs break-all">Asset contract: {current.assetContract}</p>
+          <p className="text-xs break-all">Asset contract: {editorAsset(current)}</p>
           <h3 className="font-medium">Current confirmed values</h3>
-          <ConfigurationValues values={current.configurations} asset={asset} />
+          <ConfigurationValues values={editorValues(current)} asset={asset} />
           <ul className="text-sm">
-            {current.obligations.map((o) => (
+            {editorObligations(current).map((o) => (
               <li key={o.nodeId}>
                 {o.nodeId}: unsettled obligations {o.obligationsStroops} stroops
               </li>
@@ -605,7 +641,18 @@ export default function ConfigurationPanel({
           )}
         </>
       )}
-      <InitialConfigurationValues graph={initialGraph} />
+      {!conditional && <InitialConfigurationValues graph={initialGraph} />}
+      {conditional && current && (
+        <details className="border-outline-variant/50 rounded border p-3">
+          <summary className="min-h-11 cursor-pointer">Immutable conditional review rules</summary>
+          <p className="text-sm">
+            The full Receive/Pay prefix and both terminal branches are bound to every update. The
+            condition compares after upstream Pay deductions; equality always takes False. Return to
+            owner pays the immutable deployment owner: {current.admin}. Initial deployment terms are
+            retained above and never replaced by these current values.
+          </p>
+        </details>
+      )}
       {!saved && current && reviewed && (
         <>
           {changed && (
@@ -625,7 +672,7 @@ export default function ConfigurationPanel({
                 if (read()) throw new Error("Recover the original update first.");
                 setCurrent(state);
                 setReviewed(state);
-                setDrafts(structuredClone(state.configurations));
+                setDrafts(structuredClone(editorValues(state)));
                 setReadError(null);
               })
             }
@@ -687,7 +734,7 @@ export default function ConfigurationPanel({
                 passing does not prove failure.
               </p>
               <h3 className="font-medium">Reviewed values before this update</h3>
-              <ConfigurationValues values={saved.reviewed.configurations} asset={asset} />
+              <ConfigurationValues values={editorValues(saved.reviewed)} asset={asset} />
               {proposed && (
                 <>
                   <h3 className="font-medium">Proposed values in the original update</h3>
@@ -767,6 +814,12 @@ export default function ConfigurationPanel({
               </button>
             )}
           </div>
+          {originalChanged && (
+            <p role="status" className="text-error">
+              Bound configuration changed after the original review. Signing is unavailable;
+              reconcile the retained original update.
+            </p>
+          )}
           {saved.phase === "prepared" && (
             <>
               <button
@@ -792,6 +845,8 @@ export default function ConfigurationPanel({
                   busy ||
                   storageError ||
                   !current ||
+                  blocked ||
+                  originalChanged ||
                   wallet !== saved.request.admin ||
                   verifiedPrepared !== JSON.stringify(saved.prepared) ||
                   !proposed

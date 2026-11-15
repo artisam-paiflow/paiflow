@@ -1,4 +1,6 @@
 "use client";
+import { isConditionalCanvas, type OrdinaryFlowGraph } from "@/lib/flows/ordinary-schema";
+import { ConditionalNotice } from "./conditional-settings";
 import { useEffect, useMemo } from "react";
 import type { FlowNode, FlowGraph } from "@/lib/flows/schema";
 import {
@@ -92,7 +94,7 @@ function isoFromLocalAndTimezone(local: string, timeZone: string): string {
 }
 type Props = {
   node: FlowNode | null;
-  graph: FlowGraph;
+  graph: OrdinaryFlowGraph;
   /** The graph's validation issues, computed once by the builder and shared with this panel. */
   errors: ValidationIssue[];
   onChange: (n: FlowNode) => void;
@@ -160,9 +162,15 @@ export default function ConfigPanel({
   // Every AssetField edits `config.asset`; a Zod issue lands under it
   // (`asset.code`, `asset.issuer`), validateFlow's mismatch on it (#407).
   const assetError = fieldErrorUnder(nodeErrors.field, "asset");
-  const nodePolicy = node ? builderNodePolicy(node, graph.fieldPolicies) : undefined;
+  const conditional = isConditionalCanvas(graph);
+  // Reuse only the Pay/Split declaration controls; this is a UI value adapter,
+  // never a v1 runtime payload or parser.
+  const policies = conditional
+    ? { version: 1 as const, nodes: graph.conditionalPolicies.nodes }
+    : graph.fieldPolicies;
+  const nodePolicy = node ? builderNodePolicy(node, policies) : undefined;
   const splitPolicy = nodePolicy?.kind === "split" ? nodePolicy : undefined;
-  const executionIssue = executionEditingIssue(graph);
+  const executionIssue = conditional ? undefined : executionEditingIssue(graph);
   if (!node) {
     return (
       <aside
@@ -460,7 +468,11 @@ export default function ConfigPanel({
 
       {node.type === "pay" && (
         <>
-          {graph.fieldPolicies && <FieldPolicyNotice available={executionAvailable} />}
+          {conditional ? (
+            <ConditionalNotice available={executionAvailable} />
+          ) : (
+            graph.fieldPolicies && <FieldPolicyNotice available={executionAvailable} />
+          )}
           {!sandbox && nodePolicy?.kind === "pay" && nodePolicy.recipient === "constant" && (
             <RecipientEmailField
               shared
@@ -632,7 +644,11 @@ export default function ConfigPanel({
 
       {node.type === "split" && (
         <>
-          {graph.fieldPolicies && <FieldPolicyNotice available={executionAvailable} />}
+          {conditional ? (
+            <ConditionalNotice available={executionAvailable} />
+          ) : (
+            graph.fieldPolicies && <FieldPolicyNotice available={executionAvailable} />
+          )}
           <NodeAssetField
             asset={node.config.asset}
             error={assetError}
@@ -699,9 +715,7 @@ export default function ConfigPanel({
 
           {node.type === "split" && (
             <SplitRecipientsEditor
-              allocationMode={
-                graph.fieldPolicies && splitPolicy ? splitPolicy.allocationMode : undefined
-              }
+              allocationMode={policies && splitPolicy ? splitPolicy.allocationMode : undefined}
               policy={onPolicyChange ? splitPolicy : undefined}
               onPolicyChange={onPolicyChange}
               executionIssue={executionIssue}
@@ -1029,7 +1043,9 @@ export default function ConfigPanel({
         <p className="text-on-surface-variant text-body-sm">
           {node.type === "hold"
             ? "Connect Hold to the before side of a time condition. Funds stay strictly locked until the deadline, then follow the after destination. Early release is impossible."
-            : "Returns 100% of the incoming amount to the wallet that signs deployment. The recipient is resolved during preparation and stays immutable. Connect directly after an amount, time, or multisig condition."}
+            : conditional
+              ? "Returns this branch’s full incoming budget to the immutable deployment owner/admin, whose full wallet address is resolved and reviewed before signing. This is not a refund to the payer. Connect directly to True or False of the amount condition."
+              : "Returns 100% of the incoming amount to the wallet that signs deployment. The recipient is resolved during preparation and stays immutable. Connect directly after an amount, time, or multisig condition."}
         </p>
       )}
 

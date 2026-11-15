@@ -6,6 +6,9 @@ import { env, stellarPassphrase } from "@/lib/env";
 import type { PreparedRecovery } from "@/lib/deployments/prepared-recovery-schema";
 import { sorobanRpc } from "./client";
 
+import { hasConditionalDeploymentDeclaration } from "@/lib/flows/conditional-deployment";
+import { verifyConditionalDeploymentOriginal } from "./prepare-conditional-deploy";
+import { getFactoryAddress } from "./config";
 type PreparedDeployment = {
   id: string;
   createdAt: Date;
@@ -14,6 +17,7 @@ type PreparedDeployment = {
   network: string;
   unsignedXdr: string | null;
   sourceAccount: string | null;
+  preparedTxHash?: string | null;
   deployTxHash: string | null;
   graphSnapshot?: unknown;
   paramsSnapshot?: unknown;
@@ -48,6 +52,12 @@ export async function preparedDeploymentRecovery(
       !d.sourceAccount
     )
       return blocked;
+    if (
+      hasConditionalDeploymentDeclaration(d.paramsSnapshot) ||
+      hasConditionalDeploymentDeclaration(d.graphSnapshot)
+    ) {
+      verifyConditionalDeploymentOriginal(d);
+    }
     const tx = TransactionBuilder.fromXDR(d.unsignedXdr, stellarPassphrase());
     if (
       !(tx instanceof Transaction) ||
@@ -72,6 +82,14 @@ export async function preparedDeploymentRecovery(
     if (!(await safeToResume())) return blocked;
     if (BigInt(tx.timeBounds.maxTime) > BigInt(Math.floor(Date.now() / 1000))) {
       if (d.serviceState !== "ACTIVE") return blocked;
+      if (
+        hasConditionalDeploymentDeclaration(d.paramsSnapshot) ||
+        hasConditionalDeploymentDeclaration(d.graphSnapshot)
+      ) {
+        const factory = await getFactoryAddress();
+        if (!factory) return blocked;
+        verifyConditionalDeploymentOriginal(d, factory);
+      }
       return {
         status: "RESUMABLE",
         unsignedXdr: d.unsignedXdr,
@@ -84,7 +102,8 @@ export async function preparedDeploymentRecovery(
     // Local time only selects this path. A closed ledger proves the envelope can
     // no longer land, and durable state must still prove no ambiguous submission.
     const server = sorobanRpc();
-    // The app cannot have built/signed this envelope before this durable row.
+    // Maintained prepare paths never expose the unsigned body for wallet signing
+    // before complete durable admission, even when building/simulating first.
     // NOT_FOUND is meaningful only when RPC retains that entire possible history.
     const created = Math.floor(d.createdAt.getTime() / 1000);
     if (!Number.isSafeInteger(created) || created <= 0) return blocked;
@@ -132,6 +151,13 @@ export async function preparedDeploymentRecovery(
       !(await safeToResume())
     )
       return blocked;
+    if (
+      hasConditionalDeploymentDeclaration(d.paramsSnapshot) ||
+      hasConditionalDeploymentDeclaration(d.graphSnapshot)
+    ) {
+      const original = verifyConditionalDeploymentOriginal(current);
+      if (original.conditionalReview.txHash !== txHash) return blocked;
+    }
     return {
       status: "EXPIRED",
       unsignedXdr: d.unsignedXdr,

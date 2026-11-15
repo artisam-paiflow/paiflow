@@ -1,3 +1,5 @@
+import { conditionalCanvasEnglish } from "./conditional-canvas";
+import { isConditionalCanvas, type OrdinaryFlowGraph } from "./ordinary-schema";
 import { DEPLOYING_WALLET, resolveOwnerReturns } from "./terminal-outcomes";
 import { timelockLists } from "./branches";
 import { shortAddr, formatStroops } from "@/lib/utils";
@@ -247,7 +249,8 @@ function describeExecutionFlow(graph: FlowGraph): string {
   });
   return `For each immediate payment funded and signed by its payer${minimum && minimum !== "0" ? ` (minimum ${formatStroops(minimum)} ${asset})` : ""}, ${steps.join("; then ")}. Modes, constant values, asset and routing stay fixed for the deployment’s lifetime. Every declared input is required for each payment; saved draft values are not defaults. Template creation inputs and stored updates are separate.${hasMutablePolicies(graph) ? " Declared stored updates require admin authorization, clear accepted obligations and a new configuration revision; previously reviewed payments fail on chain after a relevant update." : ""}`;
 }
-export function flowToEnglish(graph: FlowGraph): string {
+export function flowToEnglish(graph: OrdinaryFlowGraph): string {
+  if (isConditionalCanvas(graph)) return conditionalCanvasEnglish(graph);
   try {
     graph = resolveOwnerReturns(graph, DEPLOYING_WALLET);
   } catch {

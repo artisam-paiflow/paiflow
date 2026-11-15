@@ -5,6 +5,8 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Add explicit conditional reusable authoring, compiled deployment review before signing, keyed original recovery and owner threshold/branch editing. Preserve v1/templates, guard stale graph writes and seal conditional initial evidence; no artifact activation or live release is included.
+
 - Add explicit conditional v2 configuration updates and observed history across owner/API/SDK operations, preserving exact originals, whole-graph obligation checks and default v1 compatibility. No artifact activation or live release is included.
 
 - Add explicit API/SDK conditional execution protocol v2 with whole-graph pinned
