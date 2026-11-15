@@ -3,6 +3,8 @@
 import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import ConfigPanel from "./config-panel";
+import { ConditionalConditionSettings } from "./conditional-settings";
+import { isConditionalCanvas, type OrdinaryFlowGraph } from "@/lib/flows/ordinary-schema";
 import { NODE_TYPE_LABELS } from "@/lib/flows/node-labels";
 import { NARROW_VIEWPORT_QUERY, useMediaQuery } from "@/lib/hooks/use-media-query";
 import type { FlowNode, FlowGraph } from "@/lib/flows/schema";
@@ -15,7 +17,8 @@ import type { NodeFieldPolicy } from "@/lib/flows/field-policies";
 type CanvasConfigPanelProps = {
   selectedId: string;
   node: FlowNode;
-  graph: FlowGraph;
+  graph: OrdinaryFlowGraph;
+  onThresholdModeChange?: (nodeId: string, mode: "constant" | "mutable") => void;
   errors: ValidationIssue[];
   onChange: (n: FlowNode) => void;
   onPolicyChange: (policy: NodeFieldPolicy) => void;
@@ -43,6 +46,7 @@ export default function CanvasConfigPanel({
   onChange,
   onPolicyChange,
   executionAvailable,
+  onThresholdModeChange,
   onDelete,
   addressBook,
   refreshAddressBook,
@@ -106,25 +110,39 @@ export default function CanvasConfigPanel({
 
   const body = (
     <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
-      <ConfigPanel
-        node={node}
-        graph={graph}
-        errors={errors}
-        onChange={onChange}
-        onPolicyChange={onPolicyChange}
-        executionAvailable={executionAvailable}
-        onDelete={onDelete}
-        addressBook={addressBook}
-        refreshAddressBook={refreshAddressBook}
-        addressBookLoading={addressBookLoading}
-        addressBookError={addressBookError}
-        network={network}
-        routerContractId={routerContractId}
-        features={features}
-        sandbox={sandbox}
-        hideHeader
-        className="border-0"
-      />
+      {isConditionalCanvas(graph) && node.type === "condition" ? (
+        <ConditionalConditionSettings
+          node={node}
+          thresholdMode={
+            graph.conditionalPolicies.condition?.nodeId === node.id
+              ? graph.conditionalPolicies.condition.thresholdMode
+              : "constant"
+          }
+          onChange={onChange}
+          onModeChange={(mode) => onThresholdModeChange?.(node.id, mode)}
+          available={executionAvailable}
+        />
+      ) : (
+        <ConfigPanel
+          node={node}
+          graph={graph}
+          errors={errors}
+          onChange={onChange}
+          onPolicyChange={onPolicyChange}
+          executionAvailable={executionAvailable}
+          onDelete={onDelete}
+          addressBook={addressBook}
+          refreshAddressBook={refreshAddressBook}
+          addressBookLoading={addressBookLoading}
+          addressBookError={addressBookError}
+          network={network}
+          routerContractId={routerContractId}
+          features={features}
+          sandbox={sandbox}
+          hideHeader
+          className="border-0"
+        />
+      )}
     </div>
   );
 

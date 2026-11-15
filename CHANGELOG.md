@@ -5,6 +5,47 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Add conditional artifact configuration separate from legacy/template registry
+  slots, protect legacy upload/sync writers from conditional binaries, and retain
+  admitted deployment recovery when fresh preparation is unavailable. Add local
+  compiled factory/resource and cross-layer readiness evidence; live activation
+  and funded wallet acceptance remain separate (#1229).
+
+- Add explicit opt-in conditional hosted payments with selected-branch inputs,
+  immutable owner-return review, versioned wallet ownership proofs and exact-original
+  recovery through the existing engine. Preserve legacy/v1 behavior; artifact
+  activation and funded wallet acceptance remain separate (#1228).
+
+- Add explicit conditional reusable authoring, compiled deployment review before signing, keyed original recovery and owner threshold/branch editing. Preserve v1/templates, guard stale graph writes and seal conditional initial evidence; no artifact activation or live release is included.
+
+- Add explicit conditional v2 configuration updates and observed history across owner/API/SDK operations, preserving exact originals, whole-graph obligation checks and default v1 compatibility. No artifact activation or live release is included.
+
+- Add explicit API/SDK conditional execution protocol v2 with whole-graph pinned
+  reads, selected-branch inputs and exact-original payment recovery. Keep default
+  v1 requests/receipts unchanged and refuse conditional generations on legacy
+  entry points. No artifacts, deployments or SDK packages are activated
+  ([#1225](https://github.com/webnxt-2030/pinkraft/issues/1225)).
+
+- Add conditional-v2 guarded threshold and Pay/Split updates with complete-graph
+  revision and obligation checks, including inactive-branch debt. Preserve initial
+  policies, constants and immutable owner-return routing; grouped admin updates
+  move no funds. Conditional runtime activation remains unavailable
+  ([#1224](https://github.com/webnxt-2030/pinkraft/issues/1224)).
+
+- Add local conditional-v2 contract execution and a separate complete-graph compiler
+  for strict amount branches and immutable owner returns. Preserve legacy/v1
+  constructor arities and event shapes through tagged adapters and versioned getters.
+  Conditional runtime discovery/deployment remain gated pending guarded mutation
+  and API enforcement; no artifacts are activated
+  ([#1223](https://github.com/webnxt-2030/pinkraft/issues/1223)).
+
+- Define isolated conditional reusable-flow v2 schemas and ABI/design handoffs for
+  strict amount branches, immutable owner returns and whole-graph guarded updates.
+  Reject unsupported generations before legacy parsing/deployment; retained v1
+  payloads and artifact pins remain supported. Conditional runtime capabilities
+  remain unavailable; no artifacts or templates are activated or expanded
+  ([#1222](https://github.com/webnxt-2030/pinkraft/issues/1222)).
+
 - Reduce public Subscription allowance preparation RPC work by sharing one validated
   relayer account snapshot within each POST, with separate simulation account objects.
   Keep the approval source lookup fresh and the 25-second deadline unchanged; add

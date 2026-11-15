@@ -10,7 +10,11 @@ import {
 } from "@/lib/deployments/prepared-recovery-schema";
 import { preparedWalletTransactionHash } from "@/lib/stellar/wallet-signature";
 import {
-  readDeployPreparation,
+  readReadyDeployPreparation as readDeployPreparation,
+  readConditionalDeployPreparation,
+  beginConditionalDeployPreparation,
+  completeConditionalDeployPreparation,
+  type ConditionalDeployPreparation,
   saveDeployPreparation,
   consumeDeployPreparation,
   rejectDeployPreparation,
@@ -44,6 +48,8 @@ import SwapQuotePreview from "@/components/builder/swap-quote-preview";
 import TrustlineWarnings from "@/components/deploy/trustline-warnings";
 import { connectSelectedWallet, assertWalletAttemptActive } from "./selected-wallet-connection";
 
+import { verifyConditionalDeploymentReview } from "@/lib/stellar/conditional-deployment-review";
+import ConditionalDeploymentReviewPanel from "./conditional-deployment-review";
 type StellarNetwork = "testnet" | "mainnet";
 
 const CHECK_WAIT_CAP_MS = 15_000;
@@ -53,7 +59,11 @@ export default function DeployReview({
   network,
   swapPreviews,
   trustlineCheck,
+  conditional = false,
+  preparationUnavailableReason,
 }: {
+  conditional?: boolean;
+  preparationUnavailableReason?: string;
   flowId: string;
   network: StellarNetwork;
   /** One entry per swap node in the flow: drives the live Soroswap previews. */
@@ -62,10 +72,23 @@ export default function DeployReview({
   trustlineCheck?: Promise<TrustlineCheck[]>;
 }) {
   const [busy, setBusy] = useState(false);
+  const [conditionalOriginal, setConditionalOriginal] = useState(false);
+  const [preparingRequest, setPreparingRequest] = useState<ConditionalDeployPreparation | null>(
+    null,
+  );
+  const [conditionalTerms, setConditionalTerms] = useState<ReturnType<
+    typeof verifyConditionalDeploymentReview
+  > | null>(null);
+  const [initialTrustlineChecks, setInitialTrustlineChecks] = useState<Promise<
+    TrustlineCheck[]
+  > | null>(null);
+  const [acknowledgedHash, setAcknowledgedHash] = useState<string | null>(null);
   const attemptRef = useRef<AbortController | null>(null);
   useLayoutEffect(() => {
     setBusy(false);
     setRetry(null);
+    setConditionalTerms(null);
+    setAcknowledgedHash(null);
     return () => {
       attemptRef.current?.abort();
       preparationEpoch.current++;
@@ -137,6 +160,15 @@ export default function DeployReview({
   function loadPending() {
     try {
       const saved = readPendingDeploy(pendingKey);
+      const conditionalTicket = readConditionalDeployPreparation(preparationKey);
+      setConditionalOriginal(Boolean(conditionalTicket));
+      if (
+        conditionalTicket &&
+        (conditionalTicket.request.flowId.toLowerCase() !== flowId.toLowerCase() ||
+          conditionalTicket.network !== network)
+      )
+        throw new Error("Another deployment preparation generation or request remains unresolved");
+      setPreparingRequest(conditionalTicket?.state === "preparing" ? conditionalTicket : null);
       const prepared = readDeployPreparation(preparationKey);
       const legacy = sessionStorage.getItem(legacyKey);
       const identities = [saved?.deploymentId, prepared?.deploymentId, legacy].filter(
@@ -394,6 +426,28 @@ export default function DeployReview({
       ) !== ticket.txHash
     )
       return false;
+    if (
+      conditional ||
+      conditionalOriginal ||
+      detail.conditionalReview !== undefined ||
+      conditionalTerms
+    ) {
+      try {
+        const verified = verifyConditionalDeploymentReview(detail.conditionalReview, {
+          deploymentId: id,
+          xdr: recovery.unsignedXdr,
+          sourceAccount: ticket.address,
+          network,
+          networkPassphrase: recovery.networkPassphrase,
+        });
+        if (conditionalTerms?.review.txHash !== verified.review.txHash) setAcknowledgedHash(null);
+        setConditionalTerms(verified);
+      } catch (error) {
+        setAcknowledgedHash(null);
+        setConditionalTerms(null);
+        throw error;
+      }
+    }
     if (recovery.status === "RESUMABLE") {
       setResumePreparation(recovery);
       return false;
@@ -442,12 +496,15 @@ export default function DeployReview({
     }
   }
 
-  async function onDeploy(resuming = false) {
+  async function onDeploy(resuming = false, recovering = false) {
+    if (conditional && preparationUnavailableReason && !resuming && !recovering) return;
     if (
       !checkSettled ||
       !storageReady ||
       storageBlocked ||
       pending ||
+      (Boolean(preparingRequest) && !recovering) ||
+      (recovering && !preparingRequest) ||
       (!resuming && Boolean(recoveryId || preparation)) ||
       (resuming && !resumePreparation) ||
       (attemptRef.current && !attemptRef.current.signal.aborted)
@@ -462,6 +519,7 @@ export default function DeployReview({
     track("deploy_started", { flow_id: flowId });
     let stage: "wallet" | "prepare" | "sign" | "submit" = "wallet";
     let deploymentId: string | undefined;
+    let preparationWriteFailed = false;
     try {
       await withDeployLock(pendingKey, async () => {
         let dispatched = false;
@@ -482,6 +540,9 @@ export default function DeployReview({
             return;
           }
           const ticket = readDeployPreparation(preparationKey);
+          const conditionalTicket = readConditionalDeployPreparation(preparationKey);
+          if (conditionalTicket?.state === "preparing" && !recovering)
+            throw new Error("Recover the original conditional preparation key before continuing");
           const legacy = sessionStorage.getItem(legacyKey);
           if (resuming ? !ticket || ticket.state !== "ready" : Boolean(ticket || legacy))
             throw new Error("Resolve the original deployment before preparing another.");
@@ -498,6 +559,7 @@ export default function DeployReview({
           const { address, walletId } = connection;
           void trackWalletConnection({ address, network, walletId, surface: "deploy_review" });
           let prepared: { deploymentId: string; xdr: string; networkPassphrase: string };
+          let prepConditionalReview: unknown;
           if (resuming) {
             if (ticket && resumePreparation) {
               // Re-fetch inside the admission boundary; React state is never the proof.
@@ -532,6 +594,36 @@ export default function DeployReview({
                 ) !== ticket.txHash
               )
                 throw new Error("Original deployment preparation is not safe to resume.");
+              if (
+                conditional ||
+                conditionalOriginal ||
+                detail.conditionalReview !== undefined ||
+                conditionalTerms
+              ) {
+                try {
+                  const verified = verifyConditionalDeploymentReview(detail.conditionalReview, {
+                    deploymentId: ticket.deploymentId,
+                    xdr: parsed.data.unsignedXdr,
+                    sourceAccount: address,
+                    network,
+                    networkPassphrase: parsed.data.networkPassphrase,
+                  });
+                  if (
+                    !conditionalTerms ||
+                    acknowledgedHash !== ticket.txHash ||
+                    verified.review.txHash !== conditionalTerms.review.txHash ||
+                    JSON.stringify(verified.review.envelope) !==
+                      JSON.stringify(conditionalTerms.review.envelope)
+                  )
+                    throw new Error(
+                      "Review and acknowledge this original conditional deployment before signing",
+                    );
+                } catch (error) {
+                  setAcknowledgedHash(null);
+                  setConditionalTerms(null);
+                  throw error;
+                }
+              }
               prepared = {
                 deploymentId: ticket.deploymentId,
                 xdr: parsed.data.unsignedXdr,
@@ -540,16 +632,62 @@ export default function DeployReview({
             } else throw new Error("Original preparation is no longer resumable.");
           } else {
             stage = "prepare";
+            let preparing: ConditionalDeployPreparation | null = null;
+            if (conditional || recovering) {
+              if (recovering) {
+                preparing = readConditionalDeployPreparation(preparationKey);
+                if (
+                  !preparing ||
+                  preparing.state !== "preparing" ||
+                  preparing.request.sourceAccount !== address ||
+                  preparing.network !== network ||
+                  preparing.request.flowId.toLowerCase() !== flowId.toLowerCase()
+                )
+                  throw new Error(
+                    "Reconnect the original preparation wallet; retain its saved key",
+                  );
+              } else {
+                try {
+                  beginConditionalDeployPreparation(
+                    preparationKey,
+                    {
+                      version: 2,
+                      flowId,
+                      sourceAccount: address,
+                      preparationKey: crypto.randomUUID(),
+                    },
+                    network,
+                  );
+                  preparing = readConditionalDeployPreparation(preparationKey);
+                  if (!preparing)
+                    throw new Error(
+                      "Conditional preparation key could not be verified before request",
+                    );
+                } catch (error) {
+                  preparationWriteFailed = true;
+                  setStorageBlocked(true);
+                  setStatusMessage(
+                    "Original preparation key storage is unavailable. Resolve it before preparing again.",
+                  );
+                  throw error;
+                }
+              }
+            }
             const prep = await fetch("/api/deployments/prepare", {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({ flowId, sourceAccount: address }),
+              body: JSON.stringify(
+                preparing ? preparing.request : { flowId, sourceAccount: address },
+              ),
             });
             check();
             const prepData = await prep.json();
             check();
             if (!prep.ok) throw apiError(prepData, "Prepare failed");
             prepared = prepData.data;
+            prepConditionalReview = prepData.data.conditionalReview;
+            if (Array.isArray(prepData.data.trustlineChecks))
+              setInitialTrustlineChecks(Promise.resolve(prepData.data.trustlineChecks));
             setPipeline(prepData.data.pipeline ?? []);
             if (
               typeof prepared?.deploymentId !== "string" ||
@@ -563,19 +701,51 @@ export default function DeployReview({
               address,
               prepared.networkPassphrase,
             );
-            try {
-              saveDeployPreparation(preparationKey, {
+            if (preparing)
+              verifyConditionalDeploymentReview(prepConditionalReview, {
                 deploymentId: prepared.deploymentId,
-                txHash,
-                address,
+                xdr: prepared.xdr,
+                sourceAccount: address,
+                network,
+                networkPassphrase: prepared.networkPassphrase,
               });
+            try {
+              if (preparing) {
+                completeConditionalDeployPreparation(preparationKey, preparing, {
+                  deploymentId: prepared.deploymentId,
+                  txHash,
+                  address,
+                });
+              } else
+                saveDeployPreparation(preparationKey, {
+                  deploymentId: prepared.deploymentId,
+                  txHash,
+                  address,
+                });
             } catch (error) {
+              preparationWriteFailed = true;
               setStorageBlocked(true);
               setStatusMessage(
                 "Deployment preparation could not be saved. No signature was requested.",
               );
               throw error;
             }
+          }
+          if (!resuming && (conditional || recovering || prepConditionalReview !== undefined)) {
+            const verified = verifyConditionalDeploymentReview(prepConditionalReview, {
+              deploymentId: prepared.deploymentId,
+              xdr: prepared.xdr,
+              sourceAccount: address,
+              network,
+              networkPassphrase: prepared.networkPassphrase,
+            });
+            setConditionalTerms(verified);
+            setAcknowledgedHash(null);
+            loadPending();
+            setStatusMessage(
+              "Original deployment saved. Review both branches and acknowledge the compiled terms before signing.",
+            );
+            return;
           }
           deploymentId = prepared.deploymentId;
           const preparedDeploymentId = deploymentId;
@@ -627,6 +797,16 @@ export default function DeployReview({
       });
     } catch (err) {
       if (signal.aborted) return;
+      try {
+        if (
+          !preparationWriteFailed &&
+          readConditionalDeployPreparation(preparationKey)?.state === "preparing"
+        )
+          loadPending();
+      } catch {
+        /* Preserve blocked durable evidence. */
+      }
+      if (conditional || conditionalTerms) setAcknowledgedHash(null);
       const c = classifyError(err);
       track("deploy_failed", {
         stage,
@@ -710,6 +890,9 @@ export default function DeployReview({
           </ul>
         </div>
       )}
+      {conditional && preparationUnavailableReason && (
+        <p role="alert">{preparationUnavailableReason}</p>
+      )}
       <button
         onClick={() => void onDeploy()}
         disabled={
@@ -717,7 +900,8 @@ export default function DeployReview({
           !checkSettled ||
           !storageReady ||
           storageBlocked ||
-          Boolean(pending || preparation || recoveryId)
+          Boolean(pending || preparation || recoveryId || preparingRequest) ||
+          Boolean(conditional && preparationUnavailableReason)
         }
         className="bg-primary px-md text-label-md text-on-primary inline-flex w-full items-center justify-center gap-2 rounded-lg py-3 font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_24px_rgba(255,177,196,0.55)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
       >
@@ -742,10 +926,40 @@ export default function DeployReview({
           </>
         )}
       </button>
-      {resumePreparation && !pending && (
+      {conditionalTerms && initialTrustlineChecks && (
+        <Suspense fallback={<p role="status">Checking initial recipient trustlines…</p>}>
+          <TrustlineWarnings check={initialTrustlineChecks} network={network} context="deploy" />
+        </Suspense>
+      )}
+      {conditionalTerms && !pending && (
+        <ConditionalDeploymentReviewPanel
+          review={conditionalTerms.review}
+          feeStroops={conditionalTerms.feeStroops}
+          acknowledged={acknowledgedHash === conditionalTerms.review.txHash}
+          onAcknowledge={(value) =>
+            setAcknowledgedHash(value ? conditionalTerms.review.txHash : null)
+          }
+        />
+      )}
+      {preparingRequest && !pending && (
         <button
           type="button"
           disabled={busy || storageBlocked}
+          onClick={() => void onDeploy(false, true)}
+          className="text-secondary underline disabled:opacity-50"
+        >
+          RECOVER ORIGINAL PREPARATION
+        </button>
+      )}
+      {resumePreparation && !pending && (
+        <button
+          type="button"
+          disabled={
+            busy ||
+            storageBlocked ||
+            ((conditional || conditionalOriginal || Boolean(conditionalTerms)) &&
+              acknowledgedHash !== conditionalTerms?.review.txHash)
+          }
           onClick={() => void onDeploy(true)}
           className="text-secondary underline disabled:opacity-50"
         >

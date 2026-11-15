@@ -3,6 +3,7 @@ import type { Deployment } from "@prisma/client";
 import { StrKey } from "@stellar/stellar-sdk";
 import { z } from "zod";
 import { hasRetiredPayrollInput, PAYROLL_RETIRED_MESSAGE } from "@/lib/flows/retired-payroll";
+import { hasConditionalDeploymentDeclaration } from "@/lib/flows/conditional-deployment";
 import { BalancePipelineSnapshotSchema } from "@/lib/pipeline-snapshot";
 import { balanceCandidates } from "./balance-targets";
 import { AppError } from "@/lib/errors";
@@ -38,7 +39,8 @@ export function deploymentCapabilities(
   deployment: Pick<
     Deployment,
     "id" | "status" | "network" | "pipelineSnapshot" | "graphSnapshot" | "webhookSecret"
-  >,
+  > &
+    Partial<Pick<Deployment, "paramsSnapshot">>,
 ): DeploymentCapabilities {
   if (deployment.status !== "CONFIRMED")
     throw new AppError("NOT_FOUND", "Deployment not found or not confirmed");
@@ -107,19 +109,23 @@ export function deploymentCapabilities(
     triggerType,
     inputAsset: asset?.success ? asset.data : null,
     operations: {
-      execute: recordedGraph?.fieldPolicies
-        ? operation("conditional", [
-            "Read /execution for verified pinned-artifact capabilities, current configuration revisions and exact required inputs. Snapshot policy metadata alone never grants execution support.",
-            "Prepare with node-addressed arguments and Idempotency-Key, retain intent and txHash before wallet signing, then submit the unchanged envelope. Reconcile the original intent after uncertainty; no automatic resend or replacement.",
+      execute: hasConditionalDeploymentDeclaration(deployment.paramsSnapshot)
+        ? operation("unsupported", [
+            "Conditional payments require explicit version2 opt-in. Read /execution?version=2 for verified pinned-artifact capabilities, both branches, current terms and complete graph revisions; snapshot declarations alone never grant support.",
           ])
-        : triggerType === "deposit"
-          ? operation("supported", [
-              EXECUTE_PREREQUISITES,
-              "Prepare, sign with the paying wallet, then submit the same envelope. Simulation checks current configuration; conditions can hold funds instead of paying immediately.",
+        : recordedGraph?.fieldPolicies
+          ? operation("conditional", [
+              "Read /execution for verified pinned-artifact capabilities, current configuration revisions and exact required inputs. Snapshot policy metadata alone never grants execution support.",
+              "Prepare with node-addressed arguments and Idempotency-Key, retain intent and txHash before wallet signing, then submit the unchanged envelope. Reconcile the original intent after uncertainty; no automatic resend or replacement.",
             ])
-          : operation("unsupported", [
-              "Execute requires a pipeline headed by a deposit trigger; other triggers use their own funding, schedule or callback workflow.",
-            ]),
+          : triggerType === "deposit"
+            ? operation("supported", [
+                EXECUTE_PREREQUISITES,
+                "Prepare, sign with the paying wallet, then submit the same envelope. Simulation checks current configuration; conditions can hold funds instead of paying immediately.",
+              ])
+            : operation("unsupported", [
+                "Execute requires a pipeline headed by a deposit trigger; other triggers use their own funding, schedule or callback workflow.",
+              ]),
       funding:
         fundNodes.length && fundNodes.length <= 16
           ? operation(

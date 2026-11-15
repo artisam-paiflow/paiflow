@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import { executionPath } from "@/lib/flows/execution-v1";
 import { recordConfigurationObservation } from "@/lib/mutations/history";
+import { projectConditionalConfigurationEvent } from "./conditional-configuration-events";
 import { executionArtifactMetadata } from "./execution-artifacts";
 import { decodeExecutionState } from "./execution-v1";
 import { assertOriginalConfiguration } from "./execution-state";
@@ -15,6 +16,14 @@ import { assetContractId } from "./assets";
 export async function projectConfigurationEvent(
   event: Pick<ContractEvent, "deploymentId" | "eventId" | "payload" | "ledger" | "txHash">,
 ) {
+  if (
+    event.payload &&
+    typeof event.payload === "object" &&
+    !Array.isArray(event.payload) &&
+    Array.isArray(event.payload.topics) &&
+    event.payload.topics[0] === "config_v2"
+  )
+    return projectConditionalConfigurationEvent(event);
   const payload = z
     .object({
       topics: z.array(z.unknown()),

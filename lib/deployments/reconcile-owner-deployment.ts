@@ -9,6 +9,8 @@ import { assertSignedWalletTransaction } from "@/lib/stellar/wallet-signature";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { confirmDeployment } from "./confirm";
 import { recoveredDeploymentReferences } from "./deployment-recovery";
+import { hasConditionalDeploymentDeclaration } from "@/lib/flows/conditional-deployment";
+import { verifyConditionalDeploymentOriginal } from "@/lib/stellar/prepare-conditional-deploy";
 type Deployment = Prisma.DeploymentGetPayload<{
   include: {
     flow: {
@@ -71,11 +73,24 @@ export async function reconcileOwnerDeployment(
     select: { txHash: true },
   });
   if (!signed && !d.templateVersionId) return;
+  const conditional =
+    hasConditionalDeploymentDeclaration(d.paramsSnapshot) ||
+    hasConditionalDeploymentDeclaration(d.graphSnapshot);
+  if (conditional) {
+    try {
+      verifyConditionalDeploymentOriginal(d);
+      if (d.templateVersionId) return;
+    } catch {
+      return;
+    }
+  }
   const parsedGraph = FlowGraphSchema.safeParse(d.graphSnapshot);
-  if (!parsedGraph.success) return;
-  const triggers = parsedGraph.data.nodes.filter(isTrigger);
-  if (triggers.length !== 1 || !Array.isArray(d.paramsSnapshot)) return;
-  const first = d.paramsSnapshot[0];
+  if (!conditional && !parsedGraph.success) return;
+  const triggers = parsedGraph.success ? parsedGraph.data.nodes.filter(isTrigger) : [];
+  if (!conditional && (triggers.length !== 1 || !Array.isArray(d.paramsSnapshot))) return;
+  const first = conditional
+    ? { templateKind: "DEPOSIT_TRIGGER" }
+    : (d.paramsSnapshot as Prisma.JsonArray)[0];
   if (
     !first ||
     typeof first !== "object" ||
@@ -84,12 +99,19 @@ export async function reconcileOwnerDeployment(
     !Object.values(TemplateKind).includes(first.templateKind as TemplateKind)
   )
     return;
-  const historicalKind =
-    triggers[0]!.type === "subscription"
+  const historicalKind = conditional
+    ? TemplateKind.DEPOSIT_TRIGGER
+    : triggers[0]!.type === "subscription"
       ? TemplateKind.SUBSCRIPTION
       : (first.templateKind as TemplateKind);
-  if (triggers[0]!.type !== "subscription" && historicalKind === TemplateKind.SUBSCRIPTION) return;
-  if (triggers[0]!.type === "subscription" && first.templateKind !== "SUBSCRIPTION") return;
+  if (
+    !conditional &&
+    triggers[0]!.type !== "subscription" &&
+    historicalKind === TemplateKind.SUBSCRIPTION
+  )
+    return;
+  if (!conditional && triggers[0]!.type === "subscription" && first.templateKind !== "SUBSCRIPTION")
+    return;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let got;
   try {

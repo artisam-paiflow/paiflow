@@ -24,7 +24,18 @@ import type { EdgeBranch, FlowEdge, FlowGraph, FlowNode } from "@/lib/flows/sche
 import { EdgeBranchSchema, isPendingAddress } from "@/lib/flows/schema";
 import { BRANCH_LABEL, edgeBranch, isBranchingCondition } from "@/lib/flows/branches";
 import { flowToEnglish } from "@/lib/flows/english";
-import { FlowGraphSchema } from "@/lib/flows/schema";
+import {
+  OrdinaryFlowGraphSchema,
+  isConditionalCanvas,
+  type OrdinaryFlowGraph,
+} from "@/lib/flows/ordinary-schema";
+import {
+  conditionalCanvasIssues,
+  conditionalArtifactAvailability,
+} from "@/lib/flows/conditional-canvas";
+import type { TemplateKind } from "@prisma/client";
+import { ConditionalGenerationControl } from "./conditional-settings";
+import { createBuilderEditGate } from "./edit-response-gate.utils";
 import { validateFlow } from "@/lib/flows/validate";
 import type { AddressEntry } from "@/lib/address-book.types";
 import type { NodeFieldPolicy } from "@/lib/flows/field-policies";
@@ -41,6 +52,9 @@ import {
 } from "./field-policy.utils";
 import {
   builderGraph,
+  builderDraft,
+  enableConditionalDraft,
+  updateConditionalThresholdMode,
   editBuilderNodes,
   removeBuilderNodes,
   type BuilderDraft,
@@ -77,7 +91,10 @@ type BuilderProps = {
   accountEmail?: string | null;
   flowId: string;
   initialName: string;
-  initialGraph: FlowGraph;
+  initialGraph: OrdinaryFlowGraph;
+  /** Explicit ordinary-flow capability; templates leave this false. */
+  allowConditional?: boolean;
+  conditionalArtifactHashes?: Partial<Record<TemplateKind, string>>;
   /** Pinned per environment on the server; the swap panel names it on the router field. */
   network: StellarNetwork;
   /** The Soroswap router this environment resolves to, shown read-only on the swap panel. */
@@ -158,10 +175,10 @@ function nodeBorderColor(n: FlowNode | undefined): string {
  * whichever handle React Flow finds first, and the next autosave writes the
  * branch down explicitly.
  */
-function edgeWithColors(e: FlowEdge, nodes: FlowNode[]): Edge {
+function edgeWithColors(e: FlowEdge, nodes: FlowNode[], conditional = false): Edge {
   const src = nodes.find((n) => n.id === e.source);
   const tgt = nodes.find((n) => n.id === e.target);
-  const branch = edgeBranch(e, src);
+  const branch = conditional ? (e.sourceHandle ?? null) : edgeBranch(e, src);
   return {
     id: e.id,
     source: e.source,
@@ -195,6 +212,12 @@ function toFlowEdge(e: Edge): FlowEdge {
   };
 }
 export default function BuilderClient(props: BuilderProps) {
+  if (isConditionalCanvas(props.initialGraph) && !props.allowConditional)
+    return (
+      <p role="alert">
+        Conditional authoring is unavailable in this context. The original draft is retained.
+      </p>
+    );
   return (
     <ReactFlowProvider key={props.flowId}>
       <Builder {...props} />
@@ -211,13 +234,16 @@ function Builder({
   routerContractId,
   features,
   executionArtifacts,
+  allowConditional = false,
+  conditionalArtifactHashes,
 }: BuilderProps) {
   const [name, setName] = useState(initialName);
-  const [draft, setDraft] = useState<BuilderDraft>({
-    nodes: initialGraph.nodes,
-    fieldPolicies: initialGraph.fieldPolicies,
-  });
-  const { nodes: flowNodes, fieldPolicies } = draft;
+  const [draft, setDraft] = useState<BuilderDraft>(() => builderDraft(initialGraph));
+  const conditional = "generation" in draft;
+  const [editGate] = useState(createBuilderEditGate);
+  const conditionalRef = useRef(conditional);
+  conditionalRef.current = conditional;
+  const { nodes: flowNodes } = draft;
   // Both keyboard and panel authoring mutate nodes/policies in one state update.
   const setFlowNodes = useCallback((update: (nodes: FlowNode[]) => FlowNode[]) => {
     setDraft((current) => editBuilderNodes(current, update(current.nodes)));
@@ -229,7 +255,9 @@ function Builder({
     initialGraph.nodes.map((n, i) => nodeToReactFlow(n, i, initialGraph.positions)),
   );
   const [rfEdges, setRfEdges] = useState<Edge[]>(
-    initialGraph.edges.map((e) => edgeWithColors(e, initialGraph.nodes)),
+    initialGraph.edges.map((e) =>
+      edgeWithColors(e, initialGraph.nodes, isConditionalCanvas(initialGraph)),
+    ),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // How the open panel was opened: only a keyboard open moves focus into it.
@@ -294,15 +322,15 @@ function Builder({
     setSidebarPinned(localStorage.getItem("sidebarPinned") === "true");
     setReady(true);
   }, []);
-  const graph: FlowGraph = useMemo(
+  const graph: OrdinaryFlowGraph = useMemo(
     () =>
       builderGraph(flowNodes, rfEdges.map(toFlowEdge), {
-        fieldPolicies,
+        ...draft,
         notify: sandbox ? { mode: "off", sendTo: "" } : notify,
         // Persist canvas positions when the debounced autosave settles.
         positions: Object.fromEntries(rfNodes.map((n) => [n.id, n.position])),
       }),
-    [flowNodes, rfEdges, notify, sandbox, rfNodes, fieldPolicies],
+    [flowNodes, rfEdges, notify, sandbox, rfNodes, draft],
   );
   // Snapshot of the live canvas positions — used as a fallback when a
   // server-returned graph (AI edit, address resolution) doesn't carry them.
@@ -311,11 +339,22 @@ function Builder({
     [rfNodes],
   );
   const validation = useMemo(
-    () => validateFlow(graph, { features, ignoreOwnerEmail: true }),
+    () =>
+      isConditionalCanvas(graph)
+        ? {
+            ok: conditionalCanvasIssues(graph).length === 0,
+            errors: conditionalCanvasIssues(graph).map((i) => ({
+              path: i.nodeId ? `nodes.${i.nodeId}` : "graph",
+              nodeId: i.nodeId,
+              message: i.message,
+              friendlyMessage: i.message,
+            })),
+          }
+        : validateFlow(graph, { features, ignoreOwnerEmail: true }),
     [graph, features],
   );
   const english = useMemo(() => {
-    const v = FlowGraphSchema.safeParse(graph);
+    const v = OrdinaryFlowGraphSchema.safeParse(graph);
     return v.success ? flowToEnglish(v.data) : "(incomplete flow — fix the highlighted fields)";
   }, [graph]);
   const selectedNode = flowNodes.find((n) => n.id === selectedId) ?? null;
@@ -381,7 +420,7 @@ function Builder({
   // What the next attempt sends: a retry after a 429 must carry the newest graph, not the one that
   // was current when the first attempt went out.
   const latestSave = useRef<{
-    graph: FlowGraph;
+    graph: OrdinaryFlowGraph;
     name: string;
   }>({ graph, name });
   // Bumped by every save scheduled; a save still waiting out a 429 yields to a newer one.
@@ -395,7 +434,7 @@ function Builder({
     };
   }, [saves]);
   function saveGraph(
-    currentGraph: FlowGraph,
+    currentGraph: OrdinaryFlowGraph,
     currentName: string,
     immediate = false,
   ): Promise<SaveOutcome> {
@@ -543,10 +582,11 @@ function Builder({
           ...(branch.success ? { sourceHandle: branch.data } : {}),
         },
         flowNodes,
+        conditional,
       );
       setRfEdges((eds) => addEdge(drawn, eds));
     },
-    [flowNodes],
+    [flowNodes, conditional],
   );
   // Re-sync edge gradient colors whenever node types change
   useEffect(() => {
@@ -554,7 +594,9 @@ function Builder({
       eds.map((e) => {
         const src = flowNodes.find((n) => n.id === e.source);
         const tgt = flowNodes.find((n) => n.id === e.target);
-        const branch = edgeBranch(toFlowEdge(e), src);
+        const branch = conditional
+          ? (toFlowEdge(e).sourceHandle ?? null)
+          : edgeBranch(toFlowEdge(e), src);
         return {
           ...e,
           data: {
@@ -565,7 +607,7 @@ function Builder({
         };
       }),
     );
-  }, [flowNodes]);
+  }, [flowNodes, conditional]);
   function addNode(node: FlowNode) {
     track("node_added", { node_type: node.type });
     if (!IN_SCOPE_TYPES.has(node.type)) {
@@ -605,6 +647,9 @@ function Builder({
     if (selectedId === id) setSelectedId(null);
   }
   async function sendChat(text: string) {
+    if (conditionalRef.current) return;
+    const attempt = editGate.begin();
+    if (!attempt) return;
     track("off_script_feature_used", { feature: "ask_ai_chat" });
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setChatLoading(true);
@@ -629,6 +674,7 @@ function Builder({
           fields?: Record<string, string[]>;
         };
       };
+      if (!attempt.isCurrent() || conditionalRef.current) return;
       if (!res.ok) {
         let content = json.error?.message ?? "Something went wrong.";
         const fields = json.error?.fields;
@@ -656,7 +702,9 @@ function Builder({
       }
       if (applied && patchedGraph) {
         // Use server-normalized graph directly (Issue #6 fix)
-        setDraft({ nodes: patchedGraph.nodes, fieldPolicies: patchedGraph.fieldPolicies });
+        const parsed = OrdinaryFlowGraphSchema.parse(patchedGraph);
+        if (isConditionalCanvas(parsed)) throw new Error("Unexpected AI generation");
+        setDraft(builderDraft(parsed));
         if (patchedGraph.notify) setNotify(patchedGraph.notify);
         setRfNodes(
           patchedGraph.nodes.map((n, i) =>
@@ -675,6 +723,7 @@ function Builder({
         { role: "raft", content: "Network error. Please try again." },
       ]);
     } finally {
+      attempt.finish();
       setChatLoading(false);
     }
   }
@@ -696,6 +745,8 @@ function Builder({
     return [...labels];
   }
   async function handleResolveAddress(addresses: Record<string, string>) {
+    const attempt = editGate.begin();
+    if (!attempt) return;
     setChatLoading(true);
     try {
       const res = await fetch(`/api/flows/${flowId}/resolve-addresses`, {
@@ -708,14 +759,21 @@ function Builder({
         toastError(json, "Failed to resolve addresses");
         return;
       }
-      const resolvedFlow = json.data.flow as FlowGraph;
-      setDraft({ nodes: resolvedFlow.nodes, fieldPolicies: resolvedFlow.fieldPolicies });
+      if (!attempt.isCurrent()) return;
+      const resolvedFlow = OrdinaryFlowGraphSchema.parse(json.data.flow);
+      if (isConditionalCanvas(resolvedFlow) !== conditionalRef.current)
+        throw new Error("Address response generation changed");
+      setDraft(builderDraft(resolvedFlow));
       setRfNodes(
         resolvedFlow.nodes.map((n, i) =>
           nodeToReactFlow(n, i, resolvedFlow.positions ?? currentPositions()),
         ),
       );
-      setRfEdges(resolvedFlow.edges.map((e) => edgeWithColors(e, resolvedFlow.nodes)));
+      setRfEdges(
+        resolvedFlow.edges.map((e) =>
+          edgeWithColors(e, resolvedFlow.nodes, isConditionalCanvas(resolvedFlow)),
+        ),
+      );
       setPendingAddresses([]);
       setMessages((prev) => [
         ...prev,
@@ -725,29 +783,32 @@ function Builder({
     } catch {
       toast.error("Network error while resolving addresses");
     } finally {
+      attempt.finish();
       setChatLoading(false);
     }
   }
   function handleSkipAddresses() {
     setPendingAddresses([]);
   }
-  const executionAvailable = executionDeploymentAvailable(graph, executionArtifacts);
+  const executionAvailable = isConditionalCanvas(graph)
+    ? conditionalArtifactAvailability(graph, conditionalArtifactHashes ?? {}).available
+    : executionDeploymentAvailable(graph, executionArtifacts);
   const isValid = validation.ok && executionAvailable;
-  const pipeline = validation.ok ? validation.pipeline : undefined;
+  const pipeline = validation.ok && "pipeline" in validation ? validation.pipeline : undefined;
   const errors = useMemo(
     () => [
       ...(validation.ok ? [] : validation.errors),
       ...(!executionAvailable
         ? [
             {
-              path: "fieldPolicies",
+              path: conditional ? "conditionalPolicies" : "fieldPolicies",
               message: EXECUTION_ARTIFACTS_UNAVAILABLE,
               friendlyMessage: EXECUTION_ARTIFACTS_UNAVAILABLE,
             },
           ]
         : []),
     ],
-    [validation, executionAvailable],
+    [validation, executionAvailable, conditional],
   );
   useValidationTracking(errors, flowNodes);
   // Close the validation-issues modal on Escape, or once all issues are fixed
@@ -804,6 +865,7 @@ function Builder({
             collapsed={sidebarCollapsed}
             pinned={sidebarPinned}
             features={features}
+            conditional={conditional}
             onExpand={() => {
               setSidebarOpen(true);
               setHasAnimated(true);
@@ -852,7 +914,29 @@ function Builder({
                 />
               </div>
               <div className="flex items-center gap-2">
-                {!sandbox && (
+                {allowConditional && (
+                  <ConditionalGenerationControl
+                    active={conditional}
+                    busy={chatLoading}
+                    onEnable={() => {
+                      if (editGate.pending || !allowConditional) return;
+                      try {
+                        const next = enableConditionalDraft(draft);
+                        editGate.invalidate();
+                        conditionalRef.current = true;
+                        setDraft(next);
+                        setChatCollapsed(true);
+                      } catch (error) {
+                        toast.error(
+                          error instanceof Error
+                            ? error.message
+                            : "Conditional authoring unavailable",
+                        );
+                      }
+                    }}
+                  />
+                )}
+                {!sandbox && !conditional && (
                   <button
                     type="button"
                     className="text-primary min-h-11 text-xs underline"
@@ -973,6 +1057,9 @@ function Builder({
                 onChange={updateNode}
                 onPolicyChange={setFieldPolicy}
                 executionAvailable={executionAvailable}
+                onThresholdModeChange={(nodeId, mode) =>
+                  setDraft((current) => updateConditionalThresholdMode(current, nodeId, mode))
+                }
                 onDelete={deleteNode}
                 addressBook={addressBook}
                 refreshAddressBook={refreshAddressBook}
@@ -987,7 +1074,7 @@ function Builder({
       </div>
 
       {/* Railway-style slide-in chat panel; absent when the assistant is off (#722). */}
-      {features.aiAssistant && (
+      {features.aiAssistant && !conditional && (
         <RaftLog
           messages={messages}
           onSend={sendChat}

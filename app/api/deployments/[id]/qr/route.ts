@@ -11,6 +11,7 @@ import { FlowGraphSchema, isTrigger, migrateFlowGraph } from "@/lib/flows/schema
 import { inboundRequirement } from "@/lib/flows/inbound-amount";
 import { formatStroops } from "@/lib/utils";
 import { withInteractiveRpcBudget } from "@/lib/stellar/interactive-rpc-budget";
+import { hasConditionalDeploymentDeclaration } from "@/lib/flows/conditional-deployment";
 
 const Query = z.object({
   size: z.coerce.number().int().min(64).max(1024).default(256),
@@ -29,6 +30,13 @@ async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string 
     include: { flow: { select: { templateKind: true } } },
   });
   if (!d || !d.contractAddress) return new Response("Not ready", { status: 404 });
+  if (
+    hasConditionalDeploymentDeclaration(d.paramsSnapshot) ||
+    hasConditionalDeploymentDeclaration(d.graphSnapshot)
+  )
+    return new Response("Use the hosted payment page to review conditional payments", {
+      status: 422,
+    });
 
   const pipeline = d.pipelineSnapshot as Array<{
     nodeId: string;

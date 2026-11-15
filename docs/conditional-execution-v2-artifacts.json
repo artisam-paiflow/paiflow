@@ -1,0 +1,112 @@
+{
+  "purpose": "Local execution-only source build evidence; NOT trusted, uploaded or activated artifacts",
+  "gitBase": "17cf0146b468d40b716e5d555cb17f1b9fd1ac9a",
+  "foundationParent": "55e045c8f76799429220c0b093485ef750e52311527bd9df64eb06eee4e38e92",
+  "rust": "1.95.0",
+  "target": "wasm32v1-none",
+  "profile": "release",
+  "locked": true,
+  "productionAvailability": false,
+  "capabilities": {
+    "policyVersion": 2,
+    "executionAbi": 2,
+    "mutationAbi": 0,
+    "mutation": false,
+    "conditional": true,
+    "execution": true,
+    "immutablePolicies": true,
+    "revisionBinding": true
+  },
+  "artifacts": [
+    {
+      "templateKind": "DEPOSIT_TRIGGER",
+      "file": "deposit_trigger.wasm",
+      "bytes": 87711,
+      "sha256": "1ecd80f8e5898466c03fd312d020b5c53472220f9dcbb65e369e2086be453f18"
+    },
+    {
+      "templateKind": "PAYER",
+      "file": "payer.wasm",
+      "bytes": 95147,
+      "sha256": "c3a509d752d91dc8bc12c2ece91747b859f142feadad1869a99322c733217d7f"
+    },
+    {
+      "templateKind": "SPLITTER",
+      "file": "paiflow_splitter.wasm",
+      "bytes": 100526,
+      "sha256": "b2bc1a2626b0cb22178f34947a5b3f6f13d4f0ab9d0648392fde4444ec1888f4"
+    },
+    {
+      "templateKind": "ROUTER",
+      "file": "router.wasm",
+      "bytes": 73652,
+      "sha256": "b48930e264167c37dc067a4e078d8dddfeef75f50e350e5e066171da73cbc029"
+    }
+  ],
+  "productionSourceInputs": [
+    {
+      "path": "contracts/Cargo.toml",
+      "sha256": "cef3e27b57a65f7759a532c0a2b64cca3099fa10396065a5dd342523e823f3e8"
+    },
+    {
+      "path": "contracts/Cargo.lock",
+      "sha256": "b36279593b7cf58bc8b88ebd230aaa8cc3fd3b4d6c5ac18d060b8df574493a01"
+    },
+    {
+      "path": "contracts/conditional-v2.rs",
+      "sha256": "e01c79ff6460b7b1019e554d31084f288e8b2f663d983de7adb24181c0641554"
+    },
+    {
+      "path": "contracts/execution-v1.rs",
+      "sha256": "763acd9b1b17854982d29b4be2b32a4c9bc30d3c9a04844530b9ec33fa44cc68"
+    },
+    {
+      "path": "contracts/payment-math.rs",
+      "sha256": "d8e067a9e5586ad573ff29bd190df36a656f511b5fd80fa496db64ad3ee6f076"
+    },
+    {
+      "path": "contracts/triggers/deposit_trigger/src/lib.rs",
+      "sha256": "2fd65a90575933838704bd405d63dc2842e662c9b0bcf8d0c72b0a8ff522f0a6"
+    },
+    {
+      "path": "contracts/actions/payer/src/lib.rs",
+      "sha256": "cbc890dabc374cbe085c95520657d6b6205f3d8bbd9ca9775e0359e5aefbd252"
+    },
+    {
+      "path": "contracts/actions/splitter/src/lib.rs",
+      "sha256": "4f68e54d6d8fb74ed8a2cde30bb6d60ead2d69603e613cfb1b2c2149678f3667"
+    },
+    {
+      "path": "contracts/conditions/router/src/lib.rs",
+      "sha256": "cf047426b020bbd24631376d71e3c9a6cb6ae2a352814fef36c4fad396241ab1"
+    },
+    {
+      "path": "contracts/triggers/deposit_trigger/Cargo.toml",
+      "sha256": "5dc095db43e1ebb19906ed819871728a41f1f7de6337604c7c04515e8e32888f"
+    },
+    {
+      "path": "contracts/actions/payer/Cargo.toml",
+      "sha256": "950c8c7466b4420b08e17e51408a430dd3e5e44c6b9c8ba46caf37581aff6ef5"
+    },
+    {
+      "path": "contracts/actions/splitter/Cargo.toml",
+      "sha256": "35084c7f34a2b1740b268fcea95965357cba0975503e07f17162cdbc4ba4b5f5"
+    },
+    {
+      "path": "contracts/conditions/router/Cargo.toml",
+      "sha256": "9ed37ed0e482e5b5dce9284d9a808c0b99bab7561e692bdb8141673c82c77fc4"
+    }
+  ],
+  "localGuestResources": {
+    "cases": 54,
+    "scenarios": 18,
+    "nodesPerGraph": 5,
+    "instructionMin": 25174308,
+    "instructionMax": 32091319,
+    "meteredMemoryMin": 23465306,
+    "meteredMemoryMax": 24607986,
+    "actualBudget": "SDK default execution limits after fixture setup",
+    "diagnosticObserver": "disabled because SDK26 auth diagnostic snapshot exceeds separate observer budget; actual authorization retained",
+    "guestLogSha256": "2fa369f5fc15d39617216d70c9a0057620462ac10ccef084559a98138d81fea4"
+  }
+}

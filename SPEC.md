@@ -316,6 +316,55 @@ actual artifact/network/hosted/wallet acceptance; publication eligibility does n
 prove runtime ABI compatibility. See
 [instance readiness and remaining release gates](docs/instance-readiness.md).
 
+### 3.4.2 Conditional reusable payments (Phase 2)
+
+New conditional reusable deployments use a separate version 2 domain and ABI:
+one Receive, optional sequential partial Pays, exactly one strict `amount_gt` or
+`amount_lt`, and one terminal Pay, Split or Return to owner on each True/False
+branch. One asset; no joins, nested conditions, branch chains or arbitrary fan-out.
+The test uses the current invocation's amount after prefix deductions. Equality
+takes False for either comparison. Threshold is constant by default or explicitly
+admin-mutable, never a per-payment input; zero through signed i128 max is valid.
+Comparison kind, topology, field modes, asset and owner destination are immutable.
+
+Only prefix plus selected-branch declared execution inputs are required/allowed.
+Complete payment/mutation bindings always include root, prefix, condition, True
+terminal and False terminal in that order, with every artifact/revision. Any bound
+revision change invalidates an old payment before funding. Any accounted obligation
+anywhere blocks every stored update, including inactive-branch accumulation or debt
+with zero raw token balance. Grouped mutations require admin and parent auth and
+commit atomically without moving funds. Preserve existing fixed funding/refund,
+Split accumulation, conservation and rounding rules.
+
+Return to owner is an immutable full payout to the deploying owner/admin wallet,
+not the payer. Compile it through the Pay family while preserving its authored
+meaning and exact resolved destination in immutable review evidence. It consumes
+only its own incoming budget. Keep initial construction evidence separate from
+verified current configuration and append-only observed history.
+
+[Conditional v2](docs/conditional-v2.md) fixes strict schemas, complete ordering,
+authenticated route/child forwarding, replay/expiry, getters/events, read consistency
+and downstream handoffs. Contract and API/SDK enforcement, explicit ordinary-flow
+[authoring/deployment review and owner editing](docs/conditional-authoring.md) are
+implemented in separate source checkpoints. Drafts remain available before compatible
+artifacts are configured; deployment requires every participating exact reviewed
+v2 artifact. Prepared terms bind both branches, immutable initial states, salts,
+source/network and the same original hash. Saved preparation keys survive lost
+responses; acknowledgement precedes signing, and one existing recovery engine
+retains uncertain originals. Stored editing requires a verified complete current
+read and zero accounted obligations everywhere. Schemas or source support alone
+never activate an artifact or grant capability. Explicit opt-in
+[hosted conditional payments](docs/conditional-hosted-execution.md) reuse wallet-only
+ownership proof, selected-route review and exact-original recovery. Existing
+legacy/v1 payloads, pins and template
+functionality remain unchanged; there is no retrofit or artifact activation. Source
+readiness and actual network/wallet release acceptance remain distinct under #1229. Conditional deployment
+configuration uses a separate, default-disabled network/version2 artifact set;
+legacy/template registry slots and pins remain unchanged. Disabling fresh
+preparation retains admitted original recovery. See
+[readiness and rollout](docs/conditional-v2-readiness.md).
+Swap, delayed/recurring nodes and other deferred capabilities remain outside scope.
+
 ### 3.5 English Preview Pane
 
 `flowToEnglish(graph)` (`lib/flows/english.ts`) is a pure function rendering the canvas as prose, so

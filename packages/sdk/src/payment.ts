@@ -19,6 +19,7 @@ import {
   type ExecutionArguments,
 } from "./execution.js";
 import { PaiflowAbortError, PaiflowTimeoutError } from "./transport.js";
+import { conditionalPaymentMethods } from "./conditional-execution.js";
 import type { ApiResponse, PaiflowTransport, RequestOptions } from "./transport.js";
 /** Prepare a caller-signed deposit into this existing deployment. */
 export interface ExecutePrepareInput {
@@ -143,6 +144,7 @@ export function paymentMethods(transport: PaiflowTransport, id: string) {
     pub = `/api/deployments/${id}`;
   return {
     execute: {
+      conditional: conditionalPaymentMethods(transport, id),
       state: (options?: RequestOptions) =>
         transport.request(
           {

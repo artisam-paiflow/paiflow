@@ -5,7 +5,11 @@ import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { rateLimit, clientIp, rateLimitedError } from "@/lib/rate-limit";
-import { FlowSaveSchema, sandboxNotifications } from "@/lib/flows/schema";
+import { OrdinaryFlowSaveSchema, isConditionalCanvas } from "@/lib/flows/ordinary-schema";
+import {
+  ordinarySandboxNotifications,
+  conditionalDraftParameters,
+} from "@/lib/flows/ordinary-flow";
 import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
@@ -42,23 +46,26 @@ export async function POST(req: NextRequest) {
     const user = await requireSession();
     const rl = await rateLimit(`flow:write:${user.id}`, 30, 60);
     if (!rl.ok) throw rateLimitedError(rl, "Too many writes");
-    const body = FlowSaveSchema.parse(await req.json());
-    if (user.role === "SANDBOX") body.graph = sandboxNotifications(body.graph);
+    const body = OrdinaryFlowSaveSchema.parse(await req.json());
+    if (user.role === "SANDBOX") body.graph = ordinarySandboxNotifications(body.graph);
     else if (!body.graph.notify) {
       const account = await db.user.findUnique({ where: { id: user.id }, select: { email: true } });
       body.graph.notify = { mode: "every_transaction", sendTo: account?.email ?? "" };
     }
-    const v = validateFlow(body.graph, { ignoreOwnerEmail: true });
-    if (!v.ok) {
+    const conditional = isConditionalCanvas(body.graph);
+    const v = conditional ? null : validateFlow(body.graph, { ignoreOwnerEmail: true });
+    if (v && !v.ok) {
       throw new AppError("VALIDATION", "Invalid flow graph", issuesToFields(v.errors));
     }
-    const pipeline = flowToPipeline(v.graph, undefined, { forValidation: true });
+    const pipeline = v?.ok
+      ? flowToPipeline(v.graph, undefined, { forValidation: true })
+      : conditionalDraftParameters();
     const flow = await db.flow.create({
       data: {
         ownerId: user.id,
         name: body.name,
         description: body.description,
-        templateKind: v.templateKind,
+        templateKind: v?.ok ? v.templateKind : "ROUTER",
         graph: body.graph,
         parameters: pipeline as object,
       },

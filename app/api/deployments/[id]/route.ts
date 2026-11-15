@@ -11,6 +11,8 @@ import { hasMutablePolicies } from "@/lib/flows/execution-v1";
 import { readExecutionState } from "@/lib/stellar/execution-state";
 import { preparedDeploymentRecovery } from "@/lib/stellar/deployment-recovery";
 
+import { hasConditionalDeploymentDeclaration } from "@/lib/flows/conditional-deployment";
+import { verifyConditionalDeploymentOriginal } from "@/lib/stellar/prepare-conditional-deploy";
 const PatchSchema = z.object({
   distributeAmountStroops: z.string().regex(/^\d+$/),
 });
@@ -46,6 +48,10 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({
       data: {
         ...deployment,
+        ...(hasConditionalDeploymentDeclaration(deployment.paramsSnapshot) ||
+        hasConditionalDeploymentDeclaration(deployment.graphSnapshot)
+          ? { conditionalReview: verifyConditionalDeploymentOriginal(deployment).conditionalReview }
+          : {}),
         currentConfiguration,
         preparedRecovery: await preparedDeploymentRecovery(deployment),
       },

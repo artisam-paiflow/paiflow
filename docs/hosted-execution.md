@@ -7,6 +7,9 @@ default to disabled; migration does not publish any deployment. No Paiflow accou
 or API credential is required from a payer. This is a direct link, not a gallery.
 Mode-less legacy hosted payments keep their existing behavior.
 
+Conditional generation2 uses [separate strict hosted schemas and selected-branch
+review](conditional-hosted-execution.md). The v1 proof and formats below stay unchanged.
+
 The form reads verified confirmed capabilities/configuration, collects every
 declared Pay/Split input, and preserves constant recipients and allocations. It
 shows the exact prepared payer, asset, recipients, allocation sources, amounts,

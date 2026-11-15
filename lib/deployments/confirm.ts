@@ -12,6 +12,8 @@ import { log } from "@/lib/log";
 import { captureServer } from "@/lib/analytics/server";
 import type { StreamerParams } from "@/lib/flows/to-params";
 
+import { hasConditionalDeploymentDeclaration } from "@/lib/flows/conditional-deployment";
+import { verifyConditionalDeploymentOriginal } from "@/lib/stellar/prepare-conditional-deploy";
 type DeployWithFlow = Prisma.DeploymentGetPayload<{
   include: {
     flow: {
@@ -31,6 +33,21 @@ export async function confirmDeployment(
   recover = false,
 ) {
   const id = deployment.id;
+  const conditional =
+    hasConditionalDeploymentDeclaration(deployment.paramsSnapshot) ||
+    hasConditionalDeploymentDeclaration(deployment.graphSnapshot);
+  if (conditional) {
+    const original = verifyConditionalDeploymentOriginal(deployment);
+    if (
+      result.txHash !== original.conditionalReview.txHash ||
+      signerAddress !== original.conditionalReview.sourceAccount ||
+      deployment.templateVersionId
+    )
+      throw new AppError(
+        "CONFLICT",
+        "Conditional confirmation must preserve the original transaction",
+      );
+  }
   // For pipeline deployments we trust the deterministic pre-computed
   // addresses stored in pipelineSnapshot.  For legacy single-contract
   // deployments we fall back to the address returned by the RPC.
@@ -145,7 +162,7 @@ export async function confirmDeployment(
         }
       | StreamerParams;
   }> | null;
-  if (paramsSnapshot) {
+  if (Array.isArray(paramsSnapshot)) {
     for (const node of paramsSnapshot) {
       if (node.templateKind !== "STREAMER" || node.params.kind !== "streamer") {
         continue;

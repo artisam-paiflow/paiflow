@@ -1,4 +1,11 @@
 import {
+  ConditionalMutationPrepareSchema,
+  ConditionalMutationPreparedSchema,
+  ConditionalMutationStateSchema,
+  ConditionalConfigurationHistorySchema,
+  ConditionalPreparationRefusalSchema,
+} from "@/lib/mutations/conditional-schema";
+import {
   MutationPrepareSchema,
   MutationSubmitSchema,
   MutationReconcileSchema,
@@ -20,6 +27,11 @@ import { SwapQuoteSchema } from "./swap-quote-schema";
 import { z } from "zod";
 import { ExecutionArgumentsSchema, ExecutionIntentSchema } from "@/lib/flows/field-policies";
 import { ExecutionDiscoverySchema, ExecutionReconcileSchema } from "./execution-schema";
+import {
+  ConditionalExecutePrepareSchema,
+  ConditionalExecutePreparedSchema,
+  ConditionalExecutionDiscoverySchema,
+} from "./conditional-execution-schema";
 import {
   DeploymentCapabilitiesSchema,
   SubscriptionStateSchema,
@@ -77,6 +89,24 @@ const capabilityExample = (
 ) => ({ status, authentication, requirements, nodeIds });
 
 export const examples = {
+  conditionalExecuteRequest: {
+    from: EXAMPLE_FROM,
+    amount: "111",
+    arguments: {
+      version: 2,
+      inputs: [{ kind: "pay", nodeId: "selected", recipient: EXAMPLE_FROM }],
+    },
+  },
+  conditionalExecutionUnavailable: {
+    data: {
+      version: 2,
+      supported: false,
+      deploymentId: EXAMPLE_DEPLOYMENT_ID,
+      network: "testnet",
+      policyVersion: 0,
+      reason: "No verified conditional deployment generation",
+    },
+  },
   fundingDiscovery: {
     data: {
       deploymentId: EXAMPLE_DEPLOYMENT_ID,
@@ -457,6 +487,11 @@ const dataEnvelope = (ref: string) => ({
   required: ["data"],
   properties: { data: { $ref: ref } },
 });
+const versionedDataEnvelope = (legacy: string, conditional: string) => ({
+  type: "object",
+  required: ["data"],
+  properties: { data: { oneOf: [{ $ref: legacy }, { $ref: conditional }] } },
+});
 
 const errorResponse = (description: string, example?: unknown) => ({
   description,
@@ -533,6 +568,14 @@ const deploymentIdParam = {
   description: "Deployment id (UUID). A malformed id is a 404.",
   schema: { type: "string", format: "uuid" },
   example: EXAMPLE_DEPLOYMENT_ID,
+};
+const executionVersionParam = {
+  name: "version",
+  in: "query",
+  required: false,
+  description:
+    "Explicit protocol selection. Omit or use 1 for unchanged legacy/v1 shapes; use 2 for conditional discovery/configuration/history/receipts. Unknown or duplicate selectors and selector/persisted-intent mismatches are refused. Credentials and rate allowances are shared across versions.",
+  schema: { type: "string", enum: ["1", "2"], default: "1" },
 };
 
 const preparationRequestIdParam = {
@@ -863,7 +906,7 @@ export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: "Paiflow API v1",
-    version: "1.7.0",
+    version: "1.9.0",
     description: [
       "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.",
       "",
@@ -1208,7 +1251,7 @@ export const openApiDocument = {
               operationId: `${action}Configuration`,
               summary: `${action} guarded admin-owned stored configuration`,
               description:
-                "Only reviewed new-artifact immediate Pay/Split paths. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Known pre-intent failures can add error.fields.preparationRefusal as one JSON string matching MutationPreparationRefusal. This immutable request/key/admin/network/deployment-bound non-admission fence blocks every late creator for that key. Original error codes and safe field messages are preserved. Re-fetch and validate exact proof before fresh review/new key; generic errors, timeout, missing rows and admitted uncertainty provide no such authority. " +
+                "Default/version1 retains reviewed immediate Pay/Split paths and exact existing schemas. Explicit version2 uses the complete conditional graph including prefix, condition and both terminal branches; threshold changes require a declared mutable mode. Every accounted obligation including inactive-branch or raw-zero debt blocks all updates. Both versions retain one exact-original mutation admission/sender and require immutable admin authority. Version selection must match saved intent/refusal generation on retry/submit/reconcile. V2 current/history/receipt schemas are separate, with honest observed-only coverage including immutable revision0 baselines. config_v2 events bind original routing/constants and route_v2 remains routing/status evidence, never a configuration revision or payout proof. Current getters pin complete path, revisions, admin and accounted obligations at one confirmed ledger. API credentials grant read/operate access, never on-chain admin consent. Initial graph/pipeline evidence remains immutable. History retains only observed confirmed revisions; historyComplete is false and revisionCoverage reports missing revision counts. Prepare requires Idempotency-Key, rejects constants/execution fields/stale revisions/unsettled obligations, and returns a simulated exact unsigned envelope. Admin is source, signer and fee payer. Submit requires that same envelope with source signatures and never resends a claimed intent. Reconcile original identity after UNKNOWN/REJECTED; no timeout cancellation/replacement. Source-account admin wallets only; no address-credential or delegated editor support. Owner-session twins under /api/deployments/{id}/configuration use the same engine. Known pre-intent failures can add error.fields.preparationRefusal as one JSON string matching MutationPreparationRefusal. This immutable request/key/admin/network/deployment-bound non-admission fence blocks every late creator for that key. Original error codes and safe field messages are preserved. Re-fetch and validate exact proof before fresh review/new key; generic errors, timeout, missing rows and admitted uncertainty provide no such authority. " +
                 rate(
                   action === "prepare"
                     ? V1_RATE_LIMITS.schedulePrepare
@@ -1222,6 +1265,7 @@ export const openApiDocument = {
               security: [{ bearerAuth: [] }],
               parameters: [
                 deploymentIdParam,
+                executionVersionParam,
                 ...(action === "prepare"
                   ? [
                       {
@@ -1249,7 +1293,21 @@ export const openApiDocument = {
                   : []),
               ],
               ...(method === "post"
-                ? { requestBody: { required: true, content: json(z.toJSONSchema(request)) } }
+                ? {
+                    requestBody: {
+                      required: true,
+                      content: json(
+                        action === "prepare"
+                          ? {
+                              oneOf: [
+                                z.toJSONSchema(request),
+                                { $ref: "#/components/schemas/ConditionalMutationPrepare" },
+                              ],
+                            }
+                          : z.toJSONSchema(request),
+                      ),
+                    },
+                  }
                 : {}),
               responses: {
                 "200": {
@@ -1263,11 +1321,28 @@ export const openApiDocument = {
                         action === "submit"
                           ? { $ref: "#/components/schemas/TransactionStatus" }
                           : action === "prepare"
-                            ? { $ref: "#/components/schemas/MutationPrepared" }
+                            ? {
+                                oneOf: [
+                                  { $ref: "#/components/schemas/MutationPrepared" },
+                                  { $ref: "#/components/schemas/ConditionalMutationPrepared" },
+                                ],
+                              }
                             : action === "state"
-                              ? z.toJSONSchema(MutationStateSchema)
+                              ? {
+                                  oneOf: [
+                                    z.toJSONSchema(MutationStateSchema),
+                                    { $ref: "#/components/schemas/ConditionalMutationState" },
+                                  ],
+                                }
                               : action === "history"
-                                ? z.toJSONSchema(ConfigurationHistorySchema)
+                                ? {
+                                    oneOf: [
+                                      z.toJSONSchema(ConfigurationHistorySchema),
+                                      {
+                                        $ref: "#/components/schemas/ConditionalConfigurationHistory",
+                                      },
+                                    ],
+                                  }
                                 : z.toJSONSchema(MutationReconciledSchema),
                     },
                   }),
@@ -1296,14 +1371,19 @@ export const openApiDocument = {
         operationId: "getExecutionState",
         summary: "Read verified execution capabilities, current configuration and required inputs",
         description:
-          "Legacy definitions return supported:false. Policy-v1 reads pin actual deployed WASM and immutable original configuration, with capabilities/current_config getters at one confirmed ledger. Missing, unknown, incompatible and unimplemented modes fail closed. No contact emails or labels are returned. " +
+          "Legacy definitions return supported:false. Default/version1 retains existing v1 shapes. Explicit version2 verifies immutable conditional generation, both branches and prefix, actual reviewed executable hashes, original/current getters and complete opening/closing instance witnesses. It returns threshold/comparison, owner return, current policies, complete revisions/pins and accounted obligations. Selection is computed during preparation after prefix deductions, never chosen by the caller. Missing, unknown, mixed, inconsistent or unimplemented generations fail closed. No contact emails or labels are returned. " +
           rate(V1_RATE_LIMITS.capabilities, "per token"),
         security: [{ bearerAuth: [] }],
-        parameters: [deploymentIdParam],
+        parameters: [deploymentIdParam, executionVersionParam],
         responses: {
           "200": {
             description: "Verified execution state or explicit legacy unavailability",
-            content: json(dataEnvelope("#/components/schemas/ExecutionDiscovery")),
+            content: json(
+              versionedDataEnvelope(
+                "#/components/schemas/ExecutionDiscovery",
+                "#/components/schemas/ConditionalExecutionDiscovery",
+              ),
+            ),
           },
           ...errors("UNAUTHENTICATED", "NOT_FOUND", "VALIDATION", "RATE_LIMITED", "UPSTREAM_RPC"),
         },
@@ -1315,10 +1395,10 @@ export const openApiDocument = {
         operationId: "reconcileExecution",
         summary: "Reconcile the original execution without sending another transaction",
         description:
-          "Returns the original durable intent state and scoped transaction result. UNKNOWN or missing history never permits replacement. Expiry requires authoritative closing-ledger and complete RPC history evidence, never elapsed wall-clock time. " +
+          "Returns the original durable intent state and scoped transaction result. The explicit version selector must match saved original evidence; omit it for retained v1 intents and use version2 for conditional intents. Recovery after submission does not depend on a fresh current-configuration read. UNKNOWN or missing history never permits replacement. Expiry requires authoritative closing-ledger and complete RPC history evidence, never elapsed wall-clock time. " +
           rate(V1_RATE_LIMITS.executeSubmit, "per token"),
         security: [{ bearerAuth: [] }],
-        parameters: [deploymentIdParam],
+        parameters: [deploymentIdParam, executionVersionParam],
         requestBody: {
           required: true,
           content: json({ $ref: "#/components/schemas/ExecutionReconcileRequest" }),
@@ -1687,25 +1767,32 @@ export const openApiDocument = {
             "Sign the returned `xdr` with the `from` key using `networkPassphrase`, before " +
             "`expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook and other trigger-headed flows are refused with `VALIDATION`. Legacy recipients are configured before deployment. Policy-v1 supports only the verified immediate Pay chain/terminal Split subset returned by /execution. Supply every declared execution argument; no constant overrides or fallback recipients. Terminal Pay refunds only this invocation's unpaid remainder to its payer.",
           "Policy-v1 preparations persist exact transaction, payer, amount, asset, inputs, node revisions, deployment and network. Idempotency-Key (1–128 letters/digits/._:-) returns the same preparation on an identical retry and 409 on a different payload. One unresolved payment per payer/deployment blocks replacement; different payers remain independent. Retain intent and txHash before signing. No key, signature or signed envelope is stored.",
+          "Explicit version2 additionally requires arguments.version2, including inputs[] when none are declared. Verified current terms compute the strict amount_gt/amount_lt route after prefix Pay deductions; equality selects False. Require only declared prefix and selected-branch inputs, rejecting inactive/constant overrides. Return to owner pays the immutable deployment owner/admin. Persist both branches and prefix, exact hashes/revisions, computed route, inputs, nonce, finite expiry and original envelope before signing. V2 idempotency/admission and exact-original recovery share the existing one-send lifecycle; version selection never permits replacing an unresolved original.",
           "",
           rate(V1_RATE_LIMITS.execute, "per token"),
         ].join("\n"),
         security: [{ bearerAuth: [] }],
         parameters: [
           deploymentIdParam,
+          executionVersionParam,
           {
             name: "Idempotency-Key",
             in: "header",
             required: false,
             description:
-              "Stable policy-v1 preparation key; never reused for a different payment. Legacy preparations do not provide key-based deduplication.",
+              "Stable policy-v1 or explicit-v2 preparation key; never reused for a different payment or generation. Legacy preparations do not provide key-based deduplication.",
             schema: { type: "string", minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9._:-]+$" },
           },
         ],
         requestBody: {
           required: true,
           content: json(
-            { $ref: "#/components/schemas/ExecutePrepareRequest" },
+            {
+              oneOf: [
+                { $ref: "#/components/schemas/ExecutePrepareRequest" },
+                { $ref: "#/components/schemas/ConditionalExecutePrepareRequest" },
+              ],
+            },
             examples.executeRequest,
           ),
         },
@@ -1714,7 +1801,10 @@ export const openApiDocument = {
             description: "The unsigned envelope.",
             headers: preparationResponseHeaders,
             content: json(
-              dataEnvelope("#/components/schemas/ExecutePrepared"),
+              versionedDataEnvelope(
+                "#/components/schemas/ExecutePrepared",
+                "#/components/schemas/ConditionalExecutePrepared",
+              ),
               examples.executeResponse,
             ),
           },
@@ -1741,6 +1831,7 @@ export const openApiDocument = {
             "`deposit` call on this flow's trigger contract is refused with `VALIDATION`, as is a " +
             "fee-bump envelope. Unsigned, wrong-key and wrong-network envelopes are refused before relay. For policy-v1, the exact prepared body (operations, arguments, auth, resources, fee/source and expiry) and payer signature are required. Include its intent, or use the exact hash lookup supported by signedXdr-only submissions. Stale node revisions fail on chain even if a change races the submit preflight.",
           "Policy-v1 uses an atomic durable send claim: retries never resend after a claimed/unknown submission. UNKNOWN and REJECTED are uncertainty/refusal states, not proof of failed payment; reconcile the original intent or query its hash. Finality remains discoverable after expiry. Legacy submission recovery retains its existing behavior.",
+          "Explicit version2 uses the same single sender and requires saved conditional generation. The server derives execute_v2 and its exact eight arguments from validated persisted evidence, verifies source signature/body/auth/resources, and rechecks every prefix/condition/branch hash and revision before first send. Any bound revision change, including inactive branch, invalidates old payment before funding. Once submission is admitted, retries retain the exact original hash and do not require current terms to remain unchanged. A version selector never reinterprets an old receipt.",
           "",
           "Idempotent on the envelope hash: submitting the same `signedXdr` again never sends a " +
             "second transaction, it reports the one already on the network. That is also how to " +
@@ -1752,6 +1843,7 @@ export const openApiDocument = {
         security: [{ bearerAuth: [] }],
         parameters: [
           deploymentIdParam,
+          executionVersionParam,
           preparationRequestIdParam,
           {
             name: "wait",
@@ -2112,6 +2204,11 @@ export const openApiDocument = {
       },
     },
     schemas: {
+      ConditionalMutationPrepare: z.toJSONSchema(ConditionalMutationPrepareSchema),
+      ConditionalMutationPrepared: z.toJSONSchema(ConditionalMutationPreparedSchema),
+      ConditionalMutationState: z.toJSONSchema(ConditionalMutationStateSchema),
+      ConditionalConfigurationHistory: z.toJSONSchema(ConditionalConfigurationHistorySchema),
+      ConditionalPreparationRefusal: z.toJSONSchema(ConditionalPreparationRefusalSchema),
       MutationIntent: z.toJSONSchema(MutationIntentSchema),
       MutationPrepared: z.toJSONSchema(MutationPreparedSchema),
       MutationPreparationRefusal: z.toJSONSchema(MutationPreparationRefusalSchema),
@@ -2121,6 +2218,9 @@ export const openApiDocument = {
       InstanceState: z.toJSONSchema(InstanceStateSchema),
       InstanceList: z.toJSONSchema(InstanceListSchema),
       ExecutionDiscovery: z.toJSONSchema(ExecutionDiscoverySchema),
+      ConditionalExecutionDiscovery: z.toJSONSchema(ConditionalExecutionDiscoverySchema),
+      ConditionalExecutePrepareRequest: z.toJSONSchema(ConditionalExecutePrepareSchema),
+      ConditionalExecutePrepared: z.toJSONSchema(ConditionalExecutePreparedSchema),
       ExecutionReconcileRequest: z.toJSONSchema(ExecutionReconcileSchema),
       DeveloperToken: {
         type: "object",

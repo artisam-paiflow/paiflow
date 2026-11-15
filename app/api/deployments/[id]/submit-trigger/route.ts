@@ -11,6 +11,7 @@ import type { SubmitTriggerResult } from "@/lib/stellar/trigger";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 import { audit, needsSubmitRow } from "@/lib/audit";
 import { hasExecutionPolicies } from "@/lib/api/v1/execution-schema";
+import { hasConditionalDeploymentDeclaration } from "@/lib/flows/conditional-deployment";
 
 async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
@@ -24,6 +25,11 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
       include: { flow: { select: { templateKind: true } } },
     });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found or not confirmed");
+    if (hasConditionalDeploymentDeclaration(d.paramsSnapshot))
+      throw new AppError(
+        "VALIDATION",
+        "Conditional payments require explicit version2 execution preparation",
+      );
     if (hasExecutionPolicies(d.graphSnapshot))
       throw new AppError(
         "VALIDATION",

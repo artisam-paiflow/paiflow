@@ -1,7 +1,11 @@
 #![no_std]
+#[path = "../../../conditional-v2.rs"]
+pub mod conditional_v2;
+#[path = "../../../execution-v1.rs"]
+pub mod execution_v1;
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, token,
-    vec, Address, Env, IntoVal, String, Vec,
+    vec, Address, Env, IntoVal, String, TryFromVal, Val, Vec,
 };
 
 #[contracttype]
@@ -44,14 +48,33 @@ impl Router {
         env: Env,
         admin: Address,
         asset: Address,
-        threshold: i128,
+        threshold: Val,
         path_a: Vec<WorkflowTarget>,
         path_b: Vec<WorkflowTarget>,
         parent: Address,
     ) {
-        if env.storage().instance().has(&Key::Admin) {
+        if env.storage().instance().has(&Key::Admin) || conditional_v2::has_v2(&env) {
             panic_with_error!(&env, Error::AlreadyInitialized);
         }
+        if let Some(init) = conditional_v2::tagged_init(&env, &threshold) {
+            let state = conditional_v2::install(&env, &init, &admin, &asset, 3);
+            execution_v1::require(
+                &env,
+                state.parent == Some(parent)
+                    && path_a.len() == 1
+                    && path_b.len() == 1
+                    && path_a.first().unwrap().address == state.next_steps.get(0).unwrap()
+                    && path_b.first().unwrap().address == state.next_steps.get(1).unwrap()
+                    && path_a.first().unwrap().data.is_empty()
+                    && path_b.first().unwrap().data.is_empty(),
+                execution_v1::ExecutionError::InvalidPolicy,
+            );
+            return;
+        }
+        let threshold = i128::try_from_val(&env, &threshold).unwrap_or_else(|_| {
+            execution_v1::fail(&env, execution_v1::ExecutionError::InvalidPolicy)
+        });
+
         env.storage().instance().set(&Key::Admin, &admin);
         env.storage().instance().set(&Key::Asset, &asset);
         env.storage().instance().set(&Key::Threshold, &threshold);
@@ -62,6 +85,7 @@ impl Router {
     }
 
     pub fn execute_step(env: Env, asset: Address, amount: i128) {
+        conditional_v2::require_not_v2(&env);
         bump_ttl(&env);
         let parent: Address = env.storage().instance().get(&Key::ParentNode).unwrap();
         parent.require_auth();
@@ -96,15 +120,46 @@ impl Router {
     }
 
     pub fn threshold(env: Env) -> i128 {
+        conditional_v2::require_not_v2(&env);
         env.storage().instance().get(&Key::Threshold).unwrap()
     }
 
     pub fn path_a(env: Env) -> Vec<WorkflowTarget> {
+        conditional_v2::require_not_v2(&env);
         env.storage().instance().get(&Key::PathA).unwrap()
     }
 
     pub fn path_b(env: Env) -> Vec<WorkflowTarget> {
+        conditional_v2::require_not_v2(&env);
         env.storage().instance().get(&Key::PathB).unwrap()
+    }
+    pub fn mutate_step_v2(env: Env, context: conditional_v2::MutationContextV2) {
+        conditional_v2::mutate_child(&env, context);
+    }
+    pub fn capabilities_v2(env: Env) -> conditional_v2::CapabilitiesV2 {
+        conditional_v2::capabilities(&env)
+    }
+    pub fn graph_manifest_v2(env: Env) -> conditional_v2::GraphManifestV2 {
+        conditional_v2::manifest(&env)
+    }
+    pub fn field_policy_v2(env: Env) -> conditional_v2::NodeStateV2 {
+        conditional_v2::initial(&env)
+    }
+    pub fn initial_config_v2(env: Env) -> conditional_v2::NodeStateV2 {
+        conditional_v2::initial(&env)
+    }
+    pub fn current_config_v2(env: Env) -> conditional_v2::NodeStateV2 {
+        conditional_v2::current(&env)
+    }
+    pub fn config_revision_v2(env: Env) -> u64 {
+        conditional_v2::current(&env).revision
+    }
+    pub fn mutation_status_v2(env: Env) -> conditional_v2::MutationStatusV2 {
+        conditional_v2::status(&env)
+    }
+
+    pub fn execute_step_v2(env: Env, context: conditional_v2::ExecutionContextV2, amount: i128) {
+        conditional_v2::execute_child(&env, context, amount);
     }
 }
 

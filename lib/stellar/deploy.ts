@@ -30,7 +30,7 @@ import { log } from "@/lib/log";
 import { prepareServiceDeployment } from "@/lib/deployments/service-work";
 import { assertNoHiddenSurfaces } from "@/lib/features";
 import type { PipelineNode, PipelineNodeParams } from "@/lib/flows/to-params";
-import type { FlowGraph } from "@/lib/flows/schema";
+import { FlowGraphSchema, type FlowGraph } from "@/lib/flows/schema";
 import { implementationIssues, type PipelineImplementation } from "@/lib/flows/implementation";
 import { sorobanRpc, horizon } from "./client";
 import { buildRelayerTx, withRelayerChannel, type RelayerChannel } from "./relayer-channels";
@@ -108,6 +108,9 @@ function buildPipelinePlan(
   graph: FlowGraph,
   nodes: PipelineDeployNode[],
 ): PipelinePlan {
+  // Do not trust a TS annotation at the deployment chokepoint: unsupported wire
+  // generations must fail before legacy constructor handling or any RPC call.
+  graph = FlowGraphSchema.parse(graph);
   if (graph.fieldPolicies !== undefined) {
     for (const node of nodes) {
       try {

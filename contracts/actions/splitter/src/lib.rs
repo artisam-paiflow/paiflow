@@ -1,4 +1,6 @@
 #![no_std]
+#[path = "../../../conditional-v2.rs"]
+pub mod conditional_v2;
 #[path = "../../../execution-v1.rs"]
 pub mod execution_v1;
 #[path = "../../../payment-math.rs"]
@@ -76,9 +78,19 @@ impl Splitter {
         parent: Address,
         next_steps: Vec<WorkflowTarget>,
     ) {
-        if env.storage().instance().has(&Key::Admin) {
+        if env.storage().instance().has(&Key::Admin) || conditional_v2::has_v2(&env) {
             panic_with_error!(&env, Error::AlreadyInitialized);
         }
+        if let Some(init) = conditional_v2::tagged_init(&env, &recipients) {
+            let state = conditional_v2::install(&env, &init, &admin, &asset, 2);
+            execution_v1::require(
+                &env,
+                min_amount == 0 && state.parent == Some(parent) && next_steps.is_empty(),
+                ExecutionError::InvalidPolicy,
+            );
+            return;
+        }
+
         let recipients = if let Ok(legacy) = Vec::<Recipient>::try_from_val(&env, &recipients) {
             legacy
         } else {
@@ -212,6 +224,7 @@ impl Splitter {
     }
 
     pub fn distribute(env: Env, from: Address, amount: i128) {
+        conditional_v2::require_not_v2(&env);
         execution_v1::require_legacy(&env);
         from.require_auth();
         bump_ttl(&env);
@@ -260,20 +273,24 @@ impl Splitter {
     }
 
     pub fn pause(env: Env) {
+        conditional_v2::require_not_v2(&env);
         Self::require_admin(&env);
         env.storage().instance().set(&Key::Paused, &true);
     }
 
     pub fn unpause(env: Env) {
+        conditional_v2::require_not_v2(&env);
         Self::require_admin(&env);
         env.storage().instance().set(&Key::Paused, &false);
     }
 
     pub fn recipients(env: Env) -> Vec<Recipient> {
+        conditional_v2::require_not_v2(&env);
         env.storage().instance().get(&Key::Recipients).unwrap()
     }
 
     pub fn accumulated_balance(env: Env) -> i128 {
+        conditional_v2::require_not_v2(&env);
         env.storage()
             .instance()
             .get(&Key::AccumulatedBalance)
@@ -281,6 +298,7 @@ impl Splitter {
     }
 
     pub fn total_fixed_amount(env: Env) -> i128 {
+        conditional_v2::require_not_v2(&env);
         env.storage()
             .instance()
             .get(&Key::TotalFixedAmount)
@@ -288,12 +306,14 @@ impl Splitter {
     }
 
     pub fn set_next_steps(env: Env, next_steps: Vec<WorkflowTarget>) {
+        conditional_v2::require_not_v2(&env);
         execution_v1::require_legacy(&env);
         Self::require_admin(&env);
         env.storage().instance().set(&Key::NextSteps, &next_steps);
     }
 
     pub fn execute_step_v1(env: Env, context: ExecutionContext, asset: Address, amount: i128) {
+        conditional_v2::require_not_v2(&env);
         let config = execution_v1::current_split(&env);
         let parent: Address = env.storage().instance().get(&Key::ParentNode).unwrap();
         let stored_asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
@@ -384,9 +404,11 @@ impl Splitter {
         }
     }
     pub fn capabilities(env: Env) -> Capabilities {
+        conditional_v2::require_not_v2(&env);
         execution_v1::capabilities(&env)
     }
     pub fn mutation_status(env: Env) -> MutationStatus {
+        conditional_v2::require_not_v2(&env);
         let config = execution_v1::current_split(&env);
         MutationStatus {
             node_id: config.node_id,
@@ -403,6 +425,7 @@ impl Splitter {
         }
     }
     pub fn mutate_step_v1(env: Env, context: MutationContext) {
+        conditional_v2::require_not_v2(&env);
         let status = Self::mutation_status(env.clone());
         execution_v1::check_mutation_node(&env, &context, &status);
         if let Some(change) = execution_v1::find_mutation(&env, &context, &status.node_id) {
@@ -472,15 +495,18 @@ impl Splitter {
         execution_v1::forward_mutation(&env, context, &Vec::<Target>::new(&env));
     }
     pub fn config_revision(env: Env) -> u64 {
+        conditional_v2::require_not_v2(&env);
         execution_v1::revision(&env)
     }
     pub fn field_policy(env: Env) -> SplitConfig {
+        conditional_v2::require_not_v2(&env);
         env.storage()
             .instance()
             .get(&PolicyKey::Split)
             .unwrap_or_else(|| execution_v1::fail(&env, ExecutionError::Unsupported))
     }
     pub fn current_config(env: Env) -> SplitState {
+        conditional_v2::require_not_v2(&env);
         SplitState {
             policy: execution_v1::current_split(&env),
             revision: execution_v1::revision(&env),
@@ -491,6 +517,7 @@ impl Splitter {
         }
     }
     pub fn initial_config(env: Env) -> SplitState {
+        conditional_v2::require_not_v2(&env);
         SplitState {
             policy: Self::field_policy(env.clone()),
             revision: 0,
@@ -506,6 +533,7 @@ impl Splitter {
     }
 
     pub fn next_steps(env: Env) -> Vec<WorkflowTarget> {
+        conditional_v2::require_not_v2(&env);
         env.storage()
             .instance()
             .get(&Key::NextSteps)
@@ -513,6 +541,7 @@ impl Splitter {
     }
 
     pub fn execute_step(env: Env, asset: Address, amount: i128) {
+        conditional_v2::require_not_v2(&env);
         execution_v1::require_legacy(&env);
         let parent = require_parent(&env, None);
         execute_split(&env, &asset, amount, &parent);
@@ -527,6 +556,7 @@ impl Splitter {
         amount: i128,
         _next_steps: Vec<WorkflowTarget>,
     ) {
+        conditional_v2::require_not_v2(&env);
         execution_v1::require_legacy(&env);
         let parent = require_parent(&env, Some(&from));
         execute_split(&env, &asset, amount, &parent);
@@ -535,6 +565,34 @@ impl Splitter {
     fn require_admin(env: &Env) {
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
         admin.require_auth();
+    }
+    pub fn mutate_step_v2(env: Env, context: conditional_v2::MutationContextV2) {
+        conditional_v2::mutate_child(&env, context);
+    }
+    pub fn capabilities_v2(env: Env) -> conditional_v2::CapabilitiesV2 {
+        conditional_v2::capabilities(&env)
+    }
+    pub fn graph_manifest_v2(env: Env) -> conditional_v2::GraphManifestV2 {
+        conditional_v2::manifest(&env)
+    }
+    pub fn field_policy_v2(env: Env) -> conditional_v2::NodeStateV2 {
+        conditional_v2::initial(&env)
+    }
+    pub fn initial_config_v2(env: Env) -> conditional_v2::NodeStateV2 {
+        conditional_v2::initial(&env)
+    }
+    pub fn current_config_v2(env: Env) -> conditional_v2::NodeStateV2 {
+        conditional_v2::current(&env)
+    }
+    pub fn config_revision_v2(env: Env) -> u64 {
+        conditional_v2::current(&env).revision
+    }
+    pub fn mutation_status_v2(env: Env) -> conditional_v2::MutationStatusV2 {
+        conditional_v2::status(&env)
+    }
+
+    pub fn execute_step_v2(env: Env, context: conditional_v2::ExecutionContextV2, amount: i128) {
+        conditional_v2::execute_child(&env, context, amount);
     }
 }
 

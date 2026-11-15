@@ -1,0 +1,1631 @@
+{
+  "scenarios": [
+    {
+      "name": "grouped-amount_gt",
+      "mutation": {
+        "version": 2,
+        "deploymentId": "12241224-1224-4224-8224-122412241224",
+        "networkPassphraseHash": "cee0302d59844d32bdca915c8203dd44b33fbb7edc19051ea37abedf28ecd472",
+        "rootContract": "CCC7WAMUKRDLEMDIWXH24ZXH3ZQQ2DP6GNNBI4UKDTZJ5AI6O5ZLO3BB",
+        "admin": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+        "definition": {
+          "version": 2,
+          "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+          "owner": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+          "root": {
+            "nodeId": "receive",
+            "minAmountStroops": "1"
+          },
+          "prefix": [
+            {
+              "kind": "pay",
+              "nodeId": "fee",
+              "policy": {
+                "nodeId": "fee",
+                "kind": "pay",
+                "recipient": "mutable",
+                "payoutValue": "mutable"
+              },
+              "configuration": {
+                "kind": "pay",
+                "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+                "payoutValue": {
+                  "kind": "fixed",
+                  "amountStroops": "10"
+                }
+              }
+            }
+          ],
+          "condition": {
+            "nodeId": "condition",
+            "kind": "amount_gt",
+            "thresholdStroops": "50",
+            "thresholdMode": "mutable"
+          },
+          "trueBranch": {
+            "kind": "split",
+            "nodeId": "yes",
+            "policy": {
+              "nodeId": "yes",
+              "kind": "split",
+              "allocationMode": "fixed",
+              "rows": [
+                {
+                  "rowId": "first",
+                  "recipient": "mutable",
+                  "allocation": "mutable"
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "constant",
+                  "allocation": "mutable"
+                }
+              ],
+              "additionalRecipients": "mutable"
+            },
+            "configuration": {
+              "kind": "split",
+              "configuredRows": [
+                {
+                  "rowId": "first",
+                  "recipient": "GADQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOZPI",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "40"
+                  }
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "GAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEARIHQ",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "60"
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            }
+          },
+          "falseBranch": {
+            "kind": "split",
+            "nodeId": "no",
+            "policy": {
+              "nodeId": "no",
+              "kind": "split",
+              "allocationMode": "fixed",
+              "rows": [
+                {
+                  "rowId": "first",
+                  "recipient": "mutable",
+                  "allocation": "mutable"
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "constant",
+                  "allocation": "mutable"
+                }
+              ],
+              "additionalRecipients": "mutable"
+            },
+            "configuration": {
+              "kind": "split",
+              "configuredRows": [
+                {
+                  "rowId": "first",
+                  "recipient": "GADQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOZPI",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "40"
+                  }
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "GAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEARIHQ",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "60"
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            }
+          }
+        },
+        "nodes": [
+          {
+            "nodeId": "receive",
+            "contractAddress": "CCC7WAMUKRDLEMDIWXH24ZXH3ZQQ2DP6GNNBI4UKDTZJ5AI6O5ZLO3BB",
+            "expectedRevision": "0",
+            "wasmHash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+          },
+          {
+            "nodeId": "fee",
+            "contractAddress": "CDAOPGK6D35Z4WAPJBHCRQPTUYOFR5H7MN5GZGQOZZLF3WWW7LCT5NRR",
+            "expectedRevision": "0",
+            "wasmHash": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2"
+          },
+          {
+            "nodeId": "condition",
+            "contractAddress": "CB37DRKJXHGKLM7AD474V667CUCFFEYDTFI5B326T6674DKFLOOI4CP2",
+            "expectedRevision": "0",
+            "wasmHash": "a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4"
+          },
+          {
+            "nodeId": "yes",
+            "contractAddress": "CBLEGIYKC3CMLQVTEF6DWG2SUHEUSYYZ4D6NAJQ324FLZ2R7ZNS5ZWDK",
+            "expectedRevision": "0",
+            "wasmHash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+          },
+          {
+            "nodeId": "no",
+            "contractAddress": "CBZ4ZJ6AGKBEEASMST2ZZX5PVG34CYVXTNCDALVSIH7CLVZBS7NVIMU7",
+            "expectedRevision": "0",
+            "wasmHash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+          }
+        ],
+        "arguments": {
+          "version": 2,
+          "changes": [
+            {
+              "kind": "pay",
+              "nodeId": "fee",
+              "expectedRevision": "0",
+              "payoutValue": {
+                "kind": "fixed",
+                "amountStroops": "11"
+              }
+            },
+            {
+              "kind": "condition",
+              "nodeId": "condition",
+              "expectedRevision": "0",
+              "thresholdStroops": "200"
+            },
+            {
+              "kind": "split",
+              "nodeId": "yes",
+              "expectedRevision": "0",
+              "rows": [
+                {
+                  "rowId": "first",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "30"
+                  }
+                },
+                {
+                  "rowId": "second",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "70"
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            },
+            {
+              "kind": "split",
+              "nodeId": "no",
+              "expectedRevision": "0",
+              "rows": [
+                {
+                  "rowId": "first",
+                  "recipient": "GAEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSH7S",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "20"
+                  }
+                },
+                {
+                  "rowId": "second",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "80"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "state": {
+        "version": 2,
+        "confirmedLedger": 100,
+        "definition": {
+          "version": 2,
+          "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+          "owner": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+          "root": {
+            "nodeId": "receive",
+            "minAmountStroops": "1"
+          },
+          "prefix": [
+            {
+              "kind": "pay",
+              "nodeId": "fee",
+              "policy": {
+                "nodeId": "fee",
+                "kind": "pay",
+                "recipient": "mutable",
+                "payoutValue": "mutable"
+              },
+              "configuration": {
+                "kind": "pay",
+                "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+                "payoutValue": {
+                  "kind": "fixed",
+                  "amountStroops": "10"
+                }
+              }
+            }
+          ],
+          "condition": {
+            "nodeId": "condition",
+            "kind": "amount_gt",
+            "thresholdStroops": "50",
+            "thresholdMode": "mutable"
+          },
+          "trueBranch": {
+            "kind": "split",
+            "nodeId": "yes",
+            "policy": {
+              "nodeId": "yes",
+              "kind": "split",
+              "allocationMode": "fixed",
+              "rows": [
+                {
+                  "rowId": "first",
+                  "recipient": "mutable",
+                  "allocation": "mutable"
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "constant",
+                  "allocation": "mutable"
+                }
+              ],
+              "additionalRecipients": "mutable"
+            },
+            "configuration": {
+              "kind": "split",
+              "configuredRows": [
+                {
+                  "rowId": "first",
+                  "recipient": "GADQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOZPI",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "40"
+                  }
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "GAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEARIHQ",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "60"
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            }
+          },
+          "falseBranch": {
+            "kind": "split",
+            "nodeId": "no",
+            "policy": {
+              "nodeId": "no",
+              "kind": "split",
+              "allocationMode": "fixed",
+              "rows": [
+                {
+                  "rowId": "first",
+                  "recipient": "mutable",
+                  "allocation": "mutable"
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "constant",
+                  "allocation": "mutable"
+                }
+              ],
+              "additionalRecipients": "mutable"
+            },
+            "configuration": {
+              "kind": "split",
+              "configuredRows": [
+                {
+                  "rowId": "first",
+                  "recipient": "GADQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOZPI",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "40"
+                  }
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "GAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEARIHQ",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "60"
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            }
+          }
+        },
+        "nodes": [
+          {
+            "nodeId": "receive",
+            "contractAddress": "CCC7WAMUKRDLEMDIWXH24ZXH3ZQQ2DP6GNNBI4UKDTZJ5AI6O5ZLO3BB",
+            "expectedRevision": "0",
+            "wasmHash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+          },
+          {
+            "nodeId": "fee",
+            "contractAddress": "CDAOPGK6D35Z4WAPJBHCRQPTUYOFR5H7MN5GZGQOZZLF3WWW7LCT5NRR",
+            "expectedRevision": "0",
+            "wasmHash": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2"
+          },
+          {
+            "nodeId": "condition",
+            "contractAddress": "CB37DRKJXHGKLM7AD474V667CUCFFEYDTFI5B326T6674DKFLOOI4CP2",
+            "expectedRevision": "0",
+            "wasmHash": "a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4"
+          },
+          {
+            "nodeId": "yes",
+            "contractAddress": "CBLEGIYKC3CMLQVTEF6DWG2SUHEUSYYZ4D6NAJQ324FLZ2R7ZNS5ZWDK",
+            "expectedRevision": "0",
+            "wasmHash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+          },
+          {
+            "nodeId": "no",
+            "contractAddress": "CBZ4ZJ6AGKBEEASMST2ZZX5PVG34CYVXTNCDALVSIH7CLVZBS7NVIMU7",
+            "expectedRevision": "0",
+            "wasmHash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+          }
+        ],
+        "statuses": [
+          {
+            "state": {
+              "version": 2,
+              "nodeId": "receive",
+              "contractAddress": "CCC7WAMUKRDLEMDIWXH24ZXH3ZQQ2DP6GNNBI4UKDTZJ5AI6O5ZLO3BB",
+              "revision": "0",
+              "admin": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+              "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+              "parentContract": null,
+              "nextContracts": [
+                "CDAOPGK6D35Z4WAPJBHCRQPTUYOFR5H7MN5GZGQOZZLF3WWW7LCT5NRR"
+              ],
+              "configuration": {
+                "kind": "receive",
+                "minAmountStroops": "1"
+              }
+            },
+            "obligationsStroops": "0"
+          },
+          {
+            "state": {
+              "version": 2,
+              "nodeId": "fee",
+              "contractAddress": "CDAOPGK6D35Z4WAPJBHCRQPTUYOFR5H7MN5GZGQOZZLF3WWW7LCT5NRR",
+              "revision": "0",
+              "admin": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+              "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+              "parentContract": "CCC7WAMUKRDLEMDIWXH24ZXH3ZQQ2DP6GNNBI4UKDTZJ5AI6O5ZLO3BB",
+              "nextContracts": [
+                "CB37DRKJXHGKLM7AD474V667CUCFFEYDTFI5B326T6674DKFLOOI4CP2"
+              ],
+              "configuration": {
+                "kind": "pay",
+                "nodeId": "fee",
+                "policy": {
+                  "nodeId": "fee",
+                  "kind": "pay",
+                  "recipient": "mutable",
+                  "payoutValue": "mutable"
+                },
+                "configuration": {
+                  "kind": "pay",
+                  "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+                  "payoutValue": {
+                    "kind": "fixed",
+                    "amountStroops": "10"
+                  }
+                }
+              }
+            },
+            "obligationsStroops": "0"
+          },
+          {
+            "state": {
+              "version": 2,
+              "nodeId": "condition",
+              "contractAddress": "CB37DRKJXHGKLM7AD474V667CUCFFEYDTFI5B326T6674DKFLOOI4CP2",
+              "revision": "0",
+              "admin": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+              "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+              "parentContract": "CDAOPGK6D35Z4WAPJBHCRQPTUYOFR5H7MN5GZGQOZZLF3WWW7LCT5NRR",
+              "nextContracts": [
+                "CBLEGIYKC3CMLQVTEF6DWG2SUHEUSYYZ4D6NAJQ324FLZ2R7ZNS5ZWDK",
+                "CBZ4ZJ6AGKBEEASMST2ZZX5PVG34CYVXTNCDALVSIH7CLVZBS7NVIMU7"
+              ],
+              "configuration": {
+                "kind": "condition",
+                "comparison": "amount_gt",
+                "thresholdStroops": "50",
+                "thresholdMode": "mutable"
+              }
+            },
+            "obligationsStroops": "0"
+          },
+          {
+            "state": {
+              "version": 2,
+              "nodeId": "yes",
+              "contractAddress": "CBLEGIYKC3CMLQVTEF6DWG2SUHEUSYYZ4D6NAJQ324FLZ2R7ZNS5ZWDK",
+              "revision": "0",
+              "admin": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+              "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+              "parentContract": "CB37DRKJXHGKLM7AD474V667CUCFFEYDTFI5B326T6674DKFLOOI4CP2",
+              "nextContracts": [],
+              "configuration": {
+                "kind": "split",
+                "nodeId": "yes",
+                "policy": {
+                  "nodeId": "yes",
+                  "kind": "split",
+                  "allocationMode": "fixed",
+                  "rows": [
+                    {
+                      "rowId": "first",
+                      "recipient": "mutable",
+                      "allocation": "mutable"
+                    },
+                    {
+                      "rowId": "second",
+                      "recipient": "constant",
+                      "allocation": "mutable"
+                    }
+                  ],
+                  "additionalRecipients": "mutable"
+                },
+                "configuration": {
+                  "kind": "split",
+                  "configuredRows": [
+                    {
+                      "rowId": "first",
+                      "recipient": "GADQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOZPI",
+                      "allocation": {
+                        "kind": "fixed",
+                        "amountStroops": "40"
+                      }
+                    },
+                    {
+                      "rowId": "second",
+                      "recipient": "GAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEARIHQ",
+                      "allocation": {
+                        "kind": "fixed",
+                        "amountStroops": "60"
+                      }
+                    }
+                  ],
+                  "additionalRecipients": []
+                }
+              }
+            },
+            "obligationsStroops": "0"
+          },
+          {
+            "state": {
+              "version": 2,
+              "nodeId": "no",
+              "contractAddress": "CBZ4ZJ6AGKBEEASMST2ZZX5PVG34CYVXTNCDALVSIH7CLVZBS7NVIMU7",
+              "revision": "0",
+              "admin": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+              "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+              "parentContract": "CB37DRKJXHGKLM7AD474V667CUCFFEYDTFI5B326T6674DKFLOOI4CP2",
+              "nextContracts": [],
+              "configuration": {
+                "kind": "split",
+                "nodeId": "no",
+                "policy": {
+                  "nodeId": "no",
+                  "kind": "split",
+                  "allocationMode": "fixed",
+                  "rows": [
+                    {
+                      "rowId": "first",
+                      "recipient": "mutable",
+                      "allocation": "mutable"
+                    },
+                    {
+                      "rowId": "second",
+                      "recipient": "constant",
+                      "allocation": "mutable"
+                    }
+                  ],
+                  "additionalRecipients": "mutable"
+                },
+                "configuration": {
+                  "kind": "split",
+                  "configuredRows": [
+                    {
+                      "rowId": "first",
+                      "recipient": "GADQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOZPI",
+                      "allocation": {
+                        "kind": "fixed",
+                        "amountStroops": "40"
+                      }
+                    },
+                    {
+                      "rowId": "second",
+                      "recipient": "GAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEARIHQ",
+                      "allocation": {
+                        "kind": "fixed",
+                        "amountStroops": "60"
+                      }
+                    }
+                  ],
+                  "additionalRecipients": []
+                }
+              }
+            },
+            "obligationsStroops": "0"
+          }
+        ],
+        "supported": true,
+        "deploymentId": "12241224-1224-4224-8224-122412241224",
+        "network": "testnet",
+        "policyVersion": 2,
+        "admin": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+        "mutationSupported": true
+      }
+    },
+    {
+      "name": "grouped-amount_lt",
+      "mutation": {
+        "version": 2,
+        "deploymentId": "12241224-1224-4224-8224-122412241224",
+        "networkPassphraseHash": "cee0302d59844d32bdca915c8203dd44b33fbb7edc19051ea37abedf28ecd472",
+        "rootContract": "CCC7WAMUKRDLEMDIWXH24ZXH3ZQQ2DP6GNNBI4UKDTZJ5AI6O5ZLO3BB",
+        "admin": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+        "definition": {
+          "version": 2,
+          "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+          "owner": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+          "root": {
+            "nodeId": "receive",
+            "minAmountStroops": "1"
+          },
+          "prefix": [
+            {
+              "kind": "pay",
+              "nodeId": "fee",
+              "policy": {
+                "nodeId": "fee",
+                "kind": "pay",
+                "recipient": "mutable",
+                "payoutValue": "mutable"
+              },
+              "configuration": {
+                "kind": "pay",
+                "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+                "payoutValue": {
+                  "kind": "fixed",
+                  "amountStroops": "10"
+                }
+              }
+            }
+          ],
+          "condition": {
+            "nodeId": "condition",
+            "kind": "amount_lt",
+            "thresholdStroops": "50",
+            "thresholdMode": "mutable"
+          },
+          "trueBranch": {
+            "kind": "split",
+            "nodeId": "yes",
+            "policy": {
+              "nodeId": "yes",
+              "kind": "split",
+              "allocationMode": "fixed",
+              "rows": [
+                {
+                  "rowId": "first",
+                  "recipient": "mutable",
+                  "allocation": "mutable"
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "constant",
+                  "allocation": "mutable"
+                }
+              ],
+              "additionalRecipients": "mutable"
+            },
+            "configuration": {
+              "kind": "split",
+              "configuredRows": [
+                {
+                  "rowId": "first",
+                  "recipient": "GADQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOZPI",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "40"
+                  }
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "GAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEARIHQ",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "60"
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            }
+          },
+          "falseBranch": {
+            "kind": "split",
+            "nodeId": "no",
+            "policy": {
+              "nodeId": "no",
+              "kind": "split",
+              "allocationMode": "fixed",
+              "rows": [
+                {
+                  "rowId": "first",
+                  "recipient": "mutable",
+                  "allocation": "mutable"
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "constant",
+                  "allocation": "mutable"
+                }
+              ],
+              "additionalRecipients": "mutable"
+            },
+            "configuration": {
+              "kind": "split",
+              "configuredRows": [
+                {
+                  "rowId": "first",
+                  "recipient": "GADQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOZPI",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "40"
+                  }
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "GAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEARIHQ",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "60"
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            }
+          }
+        },
+        "nodes": [
+          {
+            "nodeId": "receive",
+            "contractAddress": "CCC7WAMUKRDLEMDIWXH24ZXH3ZQQ2DP6GNNBI4UKDTZJ5AI6O5ZLO3BB",
+            "expectedRevision": "0",
+            "wasmHash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+          },
+          {
+            "nodeId": "fee",
+            "contractAddress": "CDAOPGK6D35Z4WAPJBHCRQPTUYOFR5H7MN5GZGQOZZLF3WWW7LCT5NRR",
+            "expectedRevision": "0",
+            "wasmHash": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2"
+          },
+          {
+            "nodeId": "condition",
+            "contractAddress": "CB37DRKJXHGKLM7AD474V667CUCFFEYDTFI5B326T6674DKFLOOI4CP2",
+            "expectedRevision": "0",
+            "wasmHash": "a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4"
+          },
+          {
+            "nodeId": "yes",
+            "contractAddress": "CBLEGIYKC3CMLQVTEF6DWG2SUHEUSYYZ4D6NAJQ324FLZ2R7ZNS5ZWDK",
+            "expectedRevision": "0",
+            "wasmHash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+          },
+          {
+            "nodeId": "no",
+            "contractAddress": "CBZ4ZJ6AGKBEEASMST2ZZX5PVG34CYVXTNCDALVSIH7CLVZBS7NVIMU7",
+            "expectedRevision": "0",
+            "wasmHash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+          }
+        ],
+        "arguments": {
+          "version": 2,
+          "changes": [
+            {
+              "kind": "pay",
+              "nodeId": "fee",
+              "expectedRevision": "0",
+              "payoutValue": {
+                "kind": "fixed",
+                "amountStroops": "11"
+              }
+            },
+            {
+              "kind": "condition",
+              "nodeId": "condition",
+              "expectedRevision": "0",
+              "thresholdStroops": "200"
+            },
+            {
+              "kind": "split",
+              "nodeId": "yes",
+              "expectedRevision": "0",
+              "rows": [
+                {
+                  "rowId": "second",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "70"
+                  }
+                },
+                {
+                  "rowId": "first",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "30"
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            },
+            {
+              "kind": "split",
+              "nodeId": "no",
+              "expectedRevision": "0",
+              "rows": [
+                {
+                  "rowId": "second",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "80"
+                  }
+                },
+                {
+                  "rowId": "first",
+                  "recipient": "GAEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSH7S",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "20"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "state": {
+        "version": 2,
+        "confirmedLedger": 100,
+        "definition": {
+          "version": 2,
+          "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+          "owner": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+          "root": {
+            "nodeId": "receive",
+            "minAmountStroops": "1"
+          },
+          "prefix": [
+            {
+              "kind": "pay",
+              "nodeId": "fee",
+              "policy": {
+                "nodeId": "fee",
+                "kind": "pay",
+                "recipient": "mutable",
+                "payoutValue": "mutable"
+              },
+              "configuration": {
+                "kind": "pay",
+                "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+                "payoutValue": {
+                  "kind": "fixed",
+                  "amountStroops": "10"
+                }
+              }
+            }
+          ],
+          "condition": {
+            "nodeId": "condition",
+            "kind": "amount_lt",
+            "thresholdStroops": "50",
+            "thresholdMode": "mutable"
+          },
+          "trueBranch": {
+            "kind": "split",
+            "nodeId": "yes",
+            "policy": {
+              "nodeId": "yes",
+              "kind": "split",
+              "allocationMode": "fixed",
+              "rows": [
+                {
+                  "rowId": "first",
+                  "recipient": "mutable",
+                  "allocation": "mutable"
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "constant",
+                  "allocation": "mutable"
+                }
+              ],
+              "additionalRecipients": "mutable"
+            },
+            "configuration": {
+              "kind": "split",
+              "configuredRows": [
+                {
+                  "rowId": "first",
+                  "recipient": "GADQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOZPI",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "40"
+                  }
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "GAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEARIHQ",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "60"
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            }
+          },
+          "falseBranch": {
+            "kind": "split",
+            "nodeId": "no",
+            "policy": {
+              "nodeId": "no",
+              "kind": "split",
+              "allocationMode": "fixed",
+              "rows": [
+                {
+                  "rowId": "first",
+                  "recipient": "mutable",
+                  "allocation": "mutable"
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "constant",
+                  "allocation": "mutable"
+                }
+              ],
+              "additionalRecipients": "mutable"
+            },
+            "configuration": {
+              "kind": "split",
+              "configuredRows": [
+                {
+                  "rowId": "first",
+                  "recipient": "GADQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOZPI",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "40"
+                  }
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "GAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEARIHQ",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "60"
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            }
+          }
+        },
+        "nodes": [
+          {
+            "nodeId": "receive",
+            "contractAddress": "CCC7WAMUKRDLEMDIWXH24ZXH3ZQQ2DP6GNNBI4UKDTZJ5AI6O5ZLO3BB",
+            "expectedRevision": "0",
+            "wasmHash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+          },
+          {
+            "nodeId": "fee",
+            "contractAddress": "CDAOPGK6D35Z4WAPJBHCRQPTUYOFR5H7MN5GZGQOZZLF3WWW7LCT5NRR",
+            "expectedRevision": "0",
+            "wasmHash": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2"
+          },
+          {
+            "nodeId": "condition",
+            "contractAddress": "CB37DRKJXHGKLM7AD474V667CUCFFEYDTFI5B326T6674DKFLOOI4CP2",
+            "expectedRevision": "0",
+            "wasmHash": "a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4"
+          },
+          {
+            "nodeId": "yes",
+            "contractAddress": "CBLEGIYKC3CMLQVTEF6DWG2SUHEUSYYZ4D6NAJQ324FLZ2R7ZNS5ZWDK",
+            "expectedRevision": "0",
+            "wasmHash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+          },
+          {
+            "nodeId": "no",
+            "contractAddress": "CBZ4ZJ6AGKBEEASMST2ZZX5PVG34CYVXTNCDALVSIH7CLVZBS7NVIMU7",
+            "expectedRevision": "0",
+            "wasmHash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+          }
+        ],
+        "statuses": [
+          {
+            "state": {
+              "version": 2,
+              "nodeId": "receive",
+              "contractAddress": "CCC7WAMUKRDLEMDIWXH24ZXH3ZQQ2DP6GNNBI4UKDTZJ5AI6O5ZLO3BB",
+              "revision": "0",
+              "admin": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+              "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+              "parentContract": null,
+              "nextContracts": [
+                "CDAOPGK6D35Z4WAPJBHCRQPTUYOFR5H7MN5GZGQOZZLF3WWW7LCT5NRR"
+              ],
+              "configuration": {
+                "kind": "receive",
+                "minAmountStroops": "1"
+              }
+            },
+            "obligationsStroops": "0"
+          },
+          {
+            "state": {
+              "version": 2,
+              "nodeId": "fee",
+              "contractAddress": "CDAOPGK6D35Z4WAPJBHCRQPTUYOFR5H7MN5GZGQOZZLF3WWW7LCT5NRR",
+              "revision": "0",
+              "admin": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+              "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+              "parentContract": "CCC7WAMUKRDLEMDIWXH24ZXH3ZQQ2DP6GNNBI4UKDTZJ5AI6O5ZLO3BB",
+              "nextContracts": [
+                "CB37DRKJXHGKLM7AD474V667CUCFFEYDTFI5B326T6674DKFLOOI4CP2"
+              ],
+              "configuration": {
+                "kind": "pay",
+                "nodeId": "fee",
+                "policy": {
+                  "nodeId": "fee",
+                  "kind": "pay",
+                  "recipient": "mutable",
+                  "payoutValue": "mutable"
+                },
+                "configuration": {
+                  "kind": "pay",
+                  "recipient": "GABQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQGAYDAMBQHGPC",
+                  "payoutValue": {
+                    "kind": "fixed",
+                    "amountStroops": "10"
+                  }
+                }
+              }
+            },
+            "obligationsStroops": "0"
+          },
+          {
+            "state": {
+              "version": 2,
+              "nodeId": "condition",
+              "contractAddress": "CB37DRKJXHGKLM7AD474V667CUCFFEYDTFI5B326T6674DKFLOOI4CP2",
+              "revision": "0",
+              "admin": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+              "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+              "parentContract": "CDAOPGK6D35Z4WAPJBHCRQPTUYOFR5H7MN5GZGQOZZLF3WWW7LCT5NRR",
+              "nextContracts": [
+                "CBLEGIYKC3CMLQVTEF6DWG2SUHEUSYYZ4D6NAJQ324FLZ2R7ZNS5ZWDK",
+                "CBZ4ZJ6AGKBEEASMST2ZZX5PVG34CYVXTNCDALVSIH7CLVZBS7NVIMU7"
+              ],
+              "configuration": {
+                "kind": "condition",
+                "comparison": "amount_lt",
+                "thresholdStroops": "50",
+                "thresholdMode": "mutable"
+              }
+            },
+            "obligationsStroops": "0"
+          },
+          {
+            "state": {
+              "version": 2,
+              "nodeId": "yes",
+              "contractAddress": "CBLEGIYKC3CMLQVTEF6DWG2SUHEUSYYZ4D6NAJQ324FLZ2R7ZNS5ZWDK",
+              "revision": "0",
+              "admin": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+              "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+              "parentContract": "CB37DRKJXHGKLM7AD474V667CUCFFEYDTFI5B326T6674DKFLOOI4CP2",
+              "nextContracts": [],
+              "configuration": {
+                "kind": "split",
+                "nodeId": "yes",
+                "policy": {
+                  "nodeId": "yes",
+                  "kind": "split",
+                  "allocationMode": "fixed",
+                  "rows": [
+                    {
+                      "rowId": "first",
+                      "recipient": "mutable",
+                      "allocation": "mutable"
+                    },
+                    {
+                      "rowId": "second",
+                      "recipient": "constant",
+                      "allocation": "mutable"
+                    }
+                  ],
+                  "additionalRecipients": "mutable"
+                },
+                "configuration": {
+                  "kind": "split",
+                  "configuredRows": [
+                    {
+                      "rowId": "first",
+                      "recipient": "GADQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOZPI",
+                      "allocation": {
+                        "kind": "fixed",
+                        "amountStroops": "40"
+                      }
+                    },
+                    {
+                      "rowId": "second",
+                      "recipient": "GAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEARIHQ",
+                      "allocation": {
+                        "kind": "fixed",
+                        "amountStroops": "60"
+                      }
+                    }
+                  ],
+                  "additionalRecipients": []
+                }
+              }
+            },
+            "obligationsStroops": "0"
+          },
+          {
+            "state": {
+              "version": 2,
+              "nodeId": "no",
+              "contractAddress": "CBZ4ZJ6AGKBEEASMST2ZZX5PVG34CYVXTNCDALVSIH7CLVZBS7NVIMU7",
+              "revision": "0",
+              "admin": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+              "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+              "parentContract": "CB37DRKJXHGKLM7AD474V667CUCFFEYDTFI5B326T6674DKFLOOI4CP2",
+              "nextContracts": [],
+              "configuration": {
+                "kind": "split",
+                "nodeId": "no",
+                "policy": {
+                  "nodeId": "no",
+                  "kind": "split",
+                  "allocationMode": "fixed",
+                  "rows": [
+                    {
+                      "rowId": "first",
+                      "recipient": "mutable",
+                      "allocation": "mutable"
+                    },
+                    {
+                      "rowId": "second",
+                      "recipient": "constant",
+                      "allocation": "mutable"
+                    }
+                  ],
+                  "additionalRecipients": "mutable"
+                },
+                "configuration": {
+                  "kind": "split",
+                  "configuredRows": [
+                    {
+                      "rowId": "first",
+                      "recipient": "GADQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOZPI",
+                      "allocation": {
+                        "kind": "fixed",
+                        "amountStroops": "40"
+                      }
+                    },
+                    {
+                      "rowId": "second",
+                      "recipient": "GAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEARIHQ",
+                      "allocation": {
+                        "kind": "fixed",
+                        "amountStroops": "60"
+                      }
+                    }
+                  ],
+                  "additionalRecipients": []
+                }
+              }
+            },
+            "obligationsStroops": "0"
+          }
+        ],
+        "supported": true,
+        "deploymentId": "12241224-1224-4224-8224-122412241224",
+        "network": "testnet",
+        "policyVersion": 2,
+        "admin": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+        "mutationSupported": true
+      }
+    },
+    {
+      "name": "accumulation",
+      "mutation": {
+        "version": 2,
+        "deploymentId": "12241224-1224-4224-8224-122412241224",
+        "networkPassphraseHash": "cee0302d59844d32bdca915c8203dd44b33fbb7edc19051ea37abedf28ecd472",
+        "rootContract": "CCC7WAMUKRDLEMDIWXH24ZXH3ZQQ2DP6GNNBI4UKDTZJ5AI6O5ZLO3BB",
+        "admin": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+        "definition": {
+          "version": 2,
+          "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+          "owner": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+          "root": {
+            "nodeId": "receive",
+            "minAmountStroops": "1"
+          },
+          "prefix": [],
+          "condition": {
+            "nodeId": "condition",
+            "kind": "amount_lt",
+            "thresholdStroops": "50",
+            "thresholdMode": "mutable"
+          },
+          "trueBranch": {
+            "kind": "split",
+            "nodeId": "yes",
+            "policy": {
+              "nodeId": "yes",
+              "kind": "split",
+              "allocationMode": "fixed",
+              "rows": [
+                {
+                  "rowId": "first",
+                  "recipient": "mutable",
+                  "allocation": "mutable"
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "constant",
+                  "allocation": "mutable"
+                }
+              ],
+              "additionalRecipients": "mutable"
+            },
+            "configuration": {
+              "kind": "split",
+              "configuredRows": [
+                {
+                  "rowId": "first",
+                  "recipient": "GADQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOZPI",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "40"
+                  }
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "GAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEARIHQ",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "60"
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            }
+          },
+          "falseBranch": {
+            "kind": "split",
+            "nodeId": "no",
+            "policy": {
+              "nodeId": "no",
+              "kind": "split",
+              "allocationMode": "fixed",
+              "rows": [
+                {
+                  "rowId": "first",
+                  "recipient": "mutable",
+                  "allocation": "mutable"
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "constant",
+                  "allocation": "mutable"
+                }
+              ],
+              "additionalRecipients": "mutable"
+            },
+            "configuration": {
+              "kind": "split",
+              "configuredRows": [
+                {
+                  "rowId": "first",
+                  "recipient": "GADQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOZPI",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "40"
+                  }
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "GAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEARIHQ",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "60"
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            }
+          }
+        },
+        "nodes": [
+          {
+            "nodeId": "receive",
+            "contractAddress": "CCC7WAMUKRDLEMDIWXH24ZXH3ZQQ2DP6GNNBI4UKDTZJ5AI6O5ZLO3BB",
+            "expectedRevision": "0",
+            "wasmHash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+          },
+          {
+            "nodeId": "condition",
+            "contractAddress": "CDAOPGK6D35Z4WAPJBHCRQPTUYOFR5H7MN5GZGQOZZLF3WWW7LCT5NRR",
+            "expectedRevision": "0",
+            "wasmHash": "a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4"
+          },
+          {
+            "nodeId": "yes",
+            "contractAddress": "CB37DRKJXHGKLM7AD474V667CUCFFEYDTFI5B326T6674DKFLOOI4CP2",
+            "expectedRevision": "0",
+            "wasmHash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+          },
+          {
+            "nodeId": "no",
+            "contractAddress": "CBLEGIYKC3CMLQVTEF6DWG2SUHEUSYYZ4D6NAJQ324FLZ2R7ZNS5ZWDK",
+            "expectedRevision": "0",
+            "wasmHash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+          }
+        ],
+        "arguments": {
+          "version": 2,
+          "changes": [
+            {
+              "kind": "condition",
+              "nodeId": "condition",
+              "expectedRevision": "0",
+              "thresholdStroops": "60"
+            },
+            {
+              "kind": "split",
+              "nodeId": "yes",
+              "expectedRevision": "0",
+              "rows": [
+                {
+                  "rowId": "first",
+                  "recipient": "GAEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSH7S"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "state": {
+        "version": 2,
+        "confirmedLedger": 100,
+        "definition": {
+          "version": 2,
+          "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+          "owner": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+          "root": {
+            "nodeId": "receive",
+            "minAmountStroops": "1"
+          },
+          "prefix": [],
+          "condition": {
+            "nodeId": "condition",
+            "kind": "amount_lt",
+            "thresholdStroops": "50",
+            "thresholdMode": "mutable"
+          },
+          "trueBranch": {
+            "kind": "split",
+            "nodeId": "yes",
+            "policy": {
+              "nodeId": "yes",
+              "kind": "split",
+              "allocationMode": "fixed",
+              "rows": [
+                {
+                  "rowId": "first",
+                  "recipient": "mutable",
+                  "allocation": "mutable"
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "constant",
+                  "allocation": "mutable"
+                }
+              ],
+              "additionalRecipients": "mutable"
+            },
+            "configuration": {
+              "kind": "split",
+              "configuredRows": [
+                {
+                  "rowId": "first",
+                  "recipient": "GADQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOZPI",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "40"
+                  }
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "GAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEARIHQ",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "60"
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            }
+          },
+          "falseBranch": {
+            "kind": "split",
+            "nodeId": "no",
+            "policy": {
+              "nodeId": "no",
+              "kind": "split",
+              "allocationMode": "fixed",
+              "rows": [
+                {
+                  "rowId": "first",
+                  "recipient": "mutable",
+                  "allocation": "mutable"
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "constant",
+                  "allocation": "mutable"
+                }
+              ],
+              "additionalRecipients": "mutable"
+            },
+            "configuration": {
+              "kind": "split",
+              "configuredRows": [
+                {
+                  "rowId": "first",
+                  "recipient": "GADQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOZPI",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "40"
+                  }
+                },
+                {
+                  "rowId": "second",
+                  "recipient": "GAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEARIHQ",
+                  "allocation": {
+                    "kind": "fixed",
+                    "amountStroops": "60"
+                  }
+                }
+              ],
+              "additionalRecipients": []
+            }
+          }
+        },
+        "nodes": [
+          {
+            "nodeId": "receive",
+            "contractAddress": "CCC7WAMUKRDLEMDIWXH24ZXH3ZQQ2DP6GNNBI4UKDTZJ5AI6O5ZLO3BB",
+            "expectedRevision": "0",
+            "wasmHash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+          },
+          {
+            "nodeId": "condition",
+            "contractAddress": "CDAOPGK6D35Z4WAPJBHCRQPTUYOFR5H7MN5GZGQOZZLF3WWW7LCT5NRR",
+            "expectedRevision": "0",
+            "wasmHash": "a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4"
+          },
+          {
+            "nodeId": "yes",
+            "contractAddress": "CB37DRKJXHGKLM7AD474V667CUCFFEYDTFI5B326T6674DKFLOOI4CP2",
+            "expectedRevision": "0",
+            "wasmHash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+          },
+          {
+            "nodeId": "no",
+            "contractAddress": "CBLEGIYKC3CMLQVTEF6DWG2SUHEUSYYZ4D6NAJQ324FLZ2R7ZNS5ZWDK",
+            "expectedRevision": "0",
+            "wasmHash": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+          }
+        ],
+        "statuses": [
+          {
+            "state": {
+              "version": 2,
+              "nodeId": "receive",
+              "contractAddress": "CCC7WAMUKRDLEMDIWXH24ZXH3ZQQ2DP6GNNBI4UKDTZJ5AI6O5ZLO3BB",
+              "revision": "0",
+              "admin": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+              "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+              "parentContract": null,
+              "nextContracts": [
+                "CDAOPGK6D35Z4WAPJBHCRQPTUYOFR5H7MN5GZGQOZZLF3WWW7LCT5NRR"
+              ],
+              "configuration": {
+                "kind": "receive",
+                "minAmountStroops": "1"
+              }
+            },
+            "obligationsStroops": "0"
+          },
+          {
+            "state": {
+              "version": 2,
+              "nodeId": "condition",
+              "contractAddress": "CDAOPGK6D35Z4WAPJBHCRQPTUYOFR5H7MN5GZGQOZZLF3WWW7LCT5NRR",
+              "revision": "0",
+              "admin": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+              "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+              "parentContract": "CCC7WAMUKRDLEMDIWXH24ZXH3ZQQ2DP6GNNBI4UKDTZJ5AI6O5ZLO3BB",
+              "nextContracts": [
+                "CB37DRKJXHGKLM7AD474V667CUCFFEYDTFI5B326T6674DKFLOOI4CP2",
+                "CBLEGIYKC3CMLQVTEF6DWG2SUHEUSYYZ4D6NAJQ324FLZ2R7ZNS5ZWDK"
+              ],
+              "configuration": {
+                "kind": "condition",
+                "comparison": "amount_lt",
+                "thresholdStroops": "50",
+                "thresholdMode": "mutable"
+              }
+            },
+            "obligationsStroops": "0"
+          },
+          {
+            "state": {
+              "version": 2,
+              "nodeId": "yes",
+              "contractAddress": "CB37DRKJXHGKLM7AD474V667CUCFFEYDTFI5B326T6674DKFLOOI4CP2",
+              "revision": "0",
+              "admin": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+              "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+              "parentContract": "CDAOPGK6D35Z4WAPJBHCRQPTUYOFR5H7MN5GZGQOZZLF3WWW7LCT5NRR",
+              "nextContracts": [],
+              "configuration": {
+                "kind": "split",
+                "nodeId": "yes",
+                "policy": {
+                  "nodeId": "yes",
+                  "kind": "split",
+                  "allocationMode": "fixed",
+                  "rows": [
+                    {
+                      "rowId": "first",
+                      "recipient": "mutable",
+                      "allocation": "mutable"
+                    },
+                    {
+                      "rowId": "second",
+                      "recipient": "constant",
+                      "allocation": "mutable"
+                    }
+                  ],
+                  "additionalRecipients": "mutable"
+                },
+                "configuration": {
+                  "kind": "split",
+                  "configuredRows": [
+                    {
+                      "rowId": "first",
+                      "recipient": "GADQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOZPI",
+                      "allocation": {
+                        "kind": "fixed",
+                        "amountStroops": "40"
+                      }
+                    },
+                    {
+                      "rowId": "second",
+                      "recipient": "GAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEARIHQ",
+                      "allocation": {
+                        "kind": "fixed",
+                        "amountStroops": "60"
+                      }
+                    }
+                  ],
+                  "additionalRecipients": []
+                }
+              }
+            },
+            "obligationsStroops": "0"
+          },
+          {
+            "state": {
+              "version": 2,
+              "nodeId": "no",
+              "contractAddress": "CBLEGIYKC3CMLQVTEF6DWG2SUHEUSYYZ4D6NAJQ324FLZ2R7ZNS5ZWDK",
+              "revision": "0",
+              "admin": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+              "assetContract": "CAKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKBJRD5",
+              "parentContract": "CDAOPGK6D35Z4WAPJBHCRQPTUYOFR5H7MN5GZGQOZZLF3WWW7LCT5NRR",
+              "nextContracts": [],
+              "configuration": {
+                "kind": "split",
+                "nodeId": "no",
+                "policy": {
+                  "nodeId": "no",
+                  "kind": "split",
+                  "allocationMode": "fixed",
+                  "rows": [
+                    {
+                      "rowId": "first",
+                      "recipient": "mutable",
+                      "allocation": "mutable"
+                    },
+                    {
+                      "rowId": "second",
+                      "recipient": "constant",
+                      "allocation": "mutable"
+                    }
+                  ],
+                  "additionalRecipients": "mutable"
+                },
+                "configuration": {
+                  "kind": "split",
+                  "configuredRows": [
+                    {
+                      "rowId": "first",
+                      "recipient": "GADQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOZPI",
+                      "allocation": {
+                        "kind": "fixed",
+                        "amountStroops": "40"
+                      }
+                    },
+                    {
+                      "rowId": "second",
+                      "recipient": "GAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEARIHQ",
+                      "allocation": {
+                        "kind": "fixed",
+                        "amountStroops": "60"
+                      }
+                    }
+                  ],
+                  "additionalRecipients": []
+                }
+              }
+            },
+            "obligationsStroops": "0"
+          }
+        ],
+        "supported": true,
+        "deploymentId": "12241224-1224-4224-8224-122412241224",
+        "network": "testnet",
+        "policyVersion": 2,
+        "admin": "GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H",
+        "mutationSupported": true
+      }
+    }
+  ]
+}

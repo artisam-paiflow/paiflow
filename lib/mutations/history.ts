@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { AppError } from "@/lib/errors";
+import { hasConditionalDeploymentDeclaration } from "@/lib/flows/conditional-deployment";
 import {
   ConfirmedNodeConfigurationSchema,
   type ConfirmedNodeConfiguration,
@@ -69,6 +70,15 @@ export async function configurationHistory(
   deploymentId: string,
   input: { limit: number; cursor?: string },
 ) {
+  const deployment = await db.deployment.findUnique({
+    where: { id: deploymentId },
+    select: { paramsSnapshot: true },
+  });
+  if (hasConditionalDeploymentDeclaration(deployment?.paramsSnapshot))
+    throw new AppError(
+      "VALIDATION",
+      "Conditional configuration history requires explicit version2",
+    );
   if (input.cursor) {
     const cursor = await db.configurationHistory.findFirst({
       where: { id: input.cursor, deploymentId, network: env().STELLAR_NETWORK },

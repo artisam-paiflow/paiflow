@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import {
   Address,
   StrKey,
@@ -19,6 +20,16 @@ import { signerFromTransaction } from "@/lib/stellar/signer";
 import { allowanceHasExpired } from "@/lib/stellar/allowance-status";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
+import {
+  parsePaymentExecutionIntent,
+  paymentExecutionArguments,
+  paymentExecutionProtocol,
+} from "./execution-protocol";
+import {
+  parseStoredMutationIntent,
+  storedMutationArguments,
+  storedMutationProtocol,
+} from "@/lib/mutations/mutation-protocol";
 export const WalletControlActionSchema = z.enum([
   "payment.execute",
   "configuration.mutate",
@@ -58,7 +69,7 @@ export type ControlBinding = Pick<
   | "action"
   | "txHash"
   | "maxTime"
->;
+> & { executionIntent?: unknown; mutationIntent?: unknown };
 export function parseControlTransaction(value: string): Transaction {
   try {
     const tx = TransactionBuilder.fromXDR(value, stellarPassphrase());
@@ -91,23 +102,56 @@ export function assertControlTransaction(tx: Transaction, binding: ControlBindin
     )
       throw new Error();
     const call = op.func.invokeContract();
+    const executionProtocol =
+      action === "payment.execute" ? paymentExecutionProtocol(binding) : undefined;
+    const mutationProtocol =
+      action === "configuration.mutate" ? storedMutationProtocol(binding) : undefined;
     if (
       Address.fromScAddress(call.contractAddress()).toString() !== binding.contractAddress ||
-      call.functionName().toString() !== actions[action].method
+      call.functionName().toString() !==
+        (executionProtocol?.method ?? mutationProtocol?.method ?? actions[action].method)
     )
       throw new Error();
     const args = call.args();
     if (action === "payment.execute") {
       if (
-        args.length !== 7 ||
+        args.length !== executionProtocol!.arity ||
         Address.fromScVal(args[0]!).toString() !== binding.walletAddress ||
         args[2]!.switch().name !== "scvI128" ||
         BigInt(String(scValToNative(args[2]!))) <= 0n
       )
         throw new Error();
+      if (binding.executionIntent !== null && binding.executionIntent !== undefined) {
+        const execution = parsePaymentExecutionIntent(binding.executionIntent);
+        const expected = paymentExecutionArguments(execution);
+        if (
+          execution.deploymentId !== binding.deploymentId ||
+          execution.rootContract !== binding.contractAddress ||
+          execution.payer !== binding.walletAddress ||
+          execution.networkPassphraseHash !==
+            createHash("sha256").update(stellarPassphrase()).digest("hex") ||
+          expected.some((arg, index) => !arg.toXDR().equals(args[index]!.toXDR()))
+        )
+          throw new Error();
+      }
     } else if (action === "configuration.mutate") {
       if (args.length !== 2 || args.some((arg) => arg.switch().name !== "scvVec"))
         throw new Error();
+      if (binding.mutationIntent !== undefined && binding.mutationIntent !== null) {
+        const mutation = parseStoredMutationIntent(binding.mutationIntent);
+        const expected = storedMutationArguments(mutation);
+        if (
+          mutation.deploymentId.toLowerCase() !== binding.deploymentId.toLowerCase() ||
+          mutation.rootContract !== binding.contractAddress ||
+          mutation.admin !== binding.walletAddress ||
+          (mutation.version === 1
+            ? mutation.network !== binding.network
+            : mutation.networkPassphraseHash !==
+              createHash("sha256").update(stellarPassphrase()).digest("hex")) ||
+          expected.some((arg, index) => !arg.toXDR().equals(args[index]!.toXDR()))
+        )
+          throw new Error();
+      }
     } else if (action === "schedule.fund" || action === "webhook.fund") {
       if (
         args.length !== 2 ||

@@ -4,7 +4,9 @@ import { requirePageSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { env, soroswapRouterAddress } from "@/lib/env";
 import { serverFeatures } from "@/lib/features";
-import { FlowGraphSchema, migrateFlowGraph, sandboxNotifications } from "@/lib/flows/schema";
+import { OrdinaryFlowGraphSchema } from "@/lib/flows/ordinary-schema";
+import { ordinarySandboxNotifications } from "@/lib/flows/ordinary-flow";
+import { getConditionalWasmHashes } from "@/lib/stellar/conditional-artifact-config";
 import { getWasmHash } from "@/lib/stellar/config";
 import Topbar from "@/components/app/topbar";
 import BuilderClient from "@/components/builder/builder-client";
@@ -19,24 +21,42 @@ export default async function FlowBuilderPage({ params }: { params: Promise<{ fl
   const flow = await db.flow.findFirst({ where: { id: flowId, ownerId: user.id } });
   if (!flow) notFound();
 
-  const graph = FlowGraphSchema.safeParse(migrateFlowGraph(flow.graph));
+  const graph = OrdinaryFlowGraphSchema.safeParse(flow.graph);
+  // A malformed explicit generation must never become an empty legacy draft
+  // that autosave could write over the retained conditional metadata.
+  if (
+    !graph.success &&
+    flow.graph !== null &&
+    typeof flow.graph === "object" &&
+    !Array.isArray(flow.graph) &&
+    ("generation" in flow.graph || "conditionalPolicies" in flow.graph)
+  )
+    notFound();
   const hashes = new Map(
     await Promise.all(
-      [TemplateKind.DEPOSIT_TRIGGER, TemplateKind.PAYER, TemplateKind.SPLITTER].map(
-        async (kind) => [kind, (await getWasmHash(kind)) ?? ""] as const,
-      ),
+      [
+        TemplateKind.DEPOSIT_TRIGGER,
+        TemplateKind.PAYER,
+        TemplateKind.SPLITTER,
+        TemplateKind.ROUTER,
+      ].map(async (kind) => [kind, (await getWasmHash(kind)) ?? ""] as const),
     ),
+  );
+  const conditionalHashes = await getConditionalWasmHashes().catch(
+    () => new Map<TemplateKind, string>(),
   );
   return (
     <>
       <Topbar username={user.username} />
       <BuilderClient
+        allowConditional
+        conditionalArtifactHashes={Object.fromEntries(conditionalHashes)}
         flowId={flow.id}
         initialName={flow.name}
         initialGraph={
           graph.success
             ? user.role === "SANDBOX"
-              ? sandboxNotifications(graph.data)
+              ? ordinarySandboxNotifications(graph.data)
               : graph.data
             : { nodes: [], edges: [] }
         }

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { hasConditionalDeploymentDeclaration } from "@/lib/flows/conditional-deployment";
 import { FlowGraphSchema, isTrigger, assetLabel, migrateFlowGraph } from "@/lib/flows/schema";
 import { inboundRequirement } from "@/lib/flows/inbound-amount";
 import { payoutRecipients } from "@/lib/flows/payout-recipients";
@@ -7,6 +8,7 @@ import { checkPayoutTrustlines } from "@/lib/stellar/trustline-check";
 import TriggerClient from "./trigger-client";
 import { hasExecutionPolicies } from "@/lib/api/v1/execution-schema";
 import { env } from "@/lib/env";
+import { assertConditionalHostedDeployment } from "@/lib/hosted-execution/conditional-service";
 import HostedPaymentForm from "@/components/deploy/hosted-payment-form";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +25,29 @@ export default async function TriggerPage({
       flow: { select: { name: true, templateKind: true } },
     },
   });
+  // Explicit conditional declarations never fall through to legacy funding.
+  if (
+    d &&
+    (hasConditionalDeploymentDeclaration(d.paramsSnapshot) ||
+      hasConditionalDeploymentDeclaration(d.graphSnapshot))
+  ) {
+    try {
+      assertConditionalHostedDeployment(d);
+    } catch {
+      notFound();
+    }
+    const enabled = d.hostedExecutionEnabled && d.serviceState === "ACTIVE";
+    return (
+      <HostedPaymentForm
+        key={d.id}
+        deploymentId={d.id}
+        flowName={enabled ? d.flow.name : "Payment receipt"}
+        network={env().STELLAR_NETWORK}
+        enabled={enabled}
+        conditional
+      />
+    );
+  }
   if (d && hasExecutionPolicies(d.graphSnapshot)) {
     if (d.network !== env().STELLAR_NETWORK) notFound();
     const enabled = d.hostedExecutionEnabled && d.serviceState === "ACTIVE";

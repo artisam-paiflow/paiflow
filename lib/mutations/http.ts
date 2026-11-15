@@ -21,6 +21,16 @@ import {
 } from "./schema";
 import { configurationHistory } from "./history";
 import { prepareMutation, submitMutation, reconcileMutation } from "./service";
+import { conditionalExecutionVersion } from "@/lib/api/v1/conditional-execution-schema";
+import { hasConditionalDeploymentDeclaration } from "@/lib/flows/conditional-deployment";
+import { ConditionalMutationPrepareSchema } from "./conditional-schema";
+import {
+  prepareConditionalMutation,
+  submitConditionalMutation,
+  reconcileConditionalMutation,
+} from "./conditional-service";
+import { readConditionalMutationState } from "@/lib/stellar/conditional-mutation-state";
+import { conditionalConfigurationHistory } from "./conditional-history";
 
 type Action = "state" | "history" | "prepare" | "submit" | "reconcile";
 async function json(req: Request) {
@@ -86,34 +96,53 @@ export async function runMutationAction(
   const assertAdmission = (tx: Prisma.TransactionClient) =>
     mutationAdmission(tx, deployment, credential);
   const data = await withInteractiveRpcBudget(async () => {
-    if (action === "state") return readMutationState(deployment);
+    const version = conditionalExecutionVersion(new URL(req.url).searchParams);
+    if (version === 1 && hasConditionalDeploymentDeclaration(deployment.paramsSnapshot))
+      throw new AppError(
+        "VALIDATION",
+        "Conditional configuration requires explicit version2 opt-in",
+      );
+    if (action === "state")
+      return version === 2
+        ? readConditionalMutationState(deployment)
+        : readMutationState(deployment);
     if (action === "history") {
       const query = new URL(req.url).searchParams;
       if ([...query.keys()].length !== new Set(query.keys()).size)
         throw new AppError("VALIDATION", "Duplicate query parameters are unsupported");
-      return configurationHistory(
+      query.delete("version");
+      return (version === 2 ? conditionalConfigurationHistory : configurationHistory)(
         deployment.id,
         ConfigurationHistoryQuerySchema.parse(Object.fromEntries(query)),
       );
     }
     if (action === "prepare") {
-      const body = MutationPrepareSchema.parse(await json(req));
+      const raw = await json(req);
       const keyHash = executionIdempotencyKey(req.headers.get("idempotency-key"));
       if (!keyHash)
         throw new AppError("VALIDATION", "Idempotency-Key is required for configuration changes");
-      const prepared = await prepareMutation(
-        deployment,
-        body,
-        keyHash,
-        assertAdmission,
-        clientIp(req),
-      );
+      const prepared =
+        version === 2
+          ? await prepareConditionalMutation(
+              deployment,
+              ConditionalMutationPrepareSchema.parse(raw),
+              keyHash,
+              assertAdmission,
+              clientIp(req),
+            )
+          : await prepareMutation(
+              deployment,
+              MutationPrepareSchema.parse(raw),
+              keyHash,
+              assertAdmission,
+              clientIp(req),
+            );
       linkApiTransaction(prepared.txHash);
       return prepared;
     }
     if (action === "submit") {
       const body = MutationSubmitSchema.parse(await json(req));
-      return submitMutation({
+      return (version === 2 ? submitConditionalMutation : submitMutation)({
         deployment,
         ...body,
         ip: clientIp(req),
@@ -123,7 +152,10 @@ export async function runMutationAction(
       });
     }
     const body = MutationReconcileSchema.parse(await json(req));
-    const reconciled = await reconcileMutation(deployment, body.intent);
+    const reconciled = await (version === 2 ? reconcileConditionalMutation : reconcileMutation)(
+      deployment,
+      body.intent,
+    );
     linkApiTransaction(reconciled.transaction.txHash);
     return reconciled;
   });

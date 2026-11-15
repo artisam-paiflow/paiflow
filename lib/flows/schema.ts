@@ -527,9 +527,33 @@ const FlowGraphShape = z.object({
   // builder reopens with the same arrangement instead of re-cascading nodes.
   positions: z.record(z.string(), z.object({ x: z.number(), y: z.number() })).optional(),
 });
+/** Canvas graphs have no top-level wire version. Conditional-v2 uses a separate
+ * normalized definition; reject its reserved fields before legacy normalization
+ * and unknown-key stripping can reinterpret it as a constant canvas graph. */
+const CONDITIONAL_DEFINITION_KEYS = [
+  "generation",
+  "conditionalPolicies",
+  "version",
+  "root",
+  "prefix",
+  "condition",
+  "trueBranch",
+  "falseBranch",
+] as const;
+function hasConditionalDefinition(raw: unknown): boolean {
+  return (
+    typeof raw === "object" &&
+    raw !== null &&
+    !Array.isArray(raw) &&
+    CONDITIONAL_DEFINITION_KEYS.some((key) => Object.hasOwn(raw, key))
+  );
+}
 // Every stored-graph reader and save boundary converts legacy nodes before parsing.
 export const FlowGraphSchema = z
   .unknown()
+  .refine((raw) => !hasConditionalDefinition(raw), {
+    message: "Conditional-v2 definitions are unavailable in canvas runtime entry points.",
+  })
   .refine((raw) => !hasRetiredPayoutInput(raw), {
     message: "Fiat payouts and bank/KYC configuration have been retired.",
   })

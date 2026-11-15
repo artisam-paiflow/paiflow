@@ -119,6 +119,21 @@ export function updateBuilderPolicy(draft: BuilderDraft, policy: NodeFieldPolicy
         }
       : candidate,
   );
+  if ("generation" in draft)
+    return editBuilderNodes(
+      {
+        ...draft,
+        nodes,
+        conditionalPolicies: {
+          ...draft.conditionalPolicies,
+          nodes: [
+            ...draft.conditionalPolicies.nodes.filter((p) => p.nodeId !== policy.nodeId),
+            policy,
+          ],
+        },
+      },
+      nodes,
+    );
   const policies = draft.fieldPolicies?.nodes ?? [];
   return editBuilderNodes(
     {

@@ -1,4 +1,8 @@
 import { SwapQuoteSchema } from "@/lib/api/v1/swap-quote-schema";
+import {
+  ConditionalExecutePrepareSchema,
+  ConditionalExecutionDiscoverySchema,
+} from "@/lib/api/v1/conditional-execution-schema";
 /**
  * The drift guard for the hand-written OpenAPI document (#470): a v1 route added without a spec
  * entry, a committed copy that falls behind, an example that no longer parses, or an error table
@@ -176,6 +180,16 @@ describe("OpenAPI document", () => {
     }
   });
   const parses: Array<[string, z.ZodTypeAny, unknown]> = [
+    [
+      "conditional execute request",
+      ConditionalExecutePrepareSchema,
+      examples.conditionalExecuteRequest,
+    ],
+    [
+      "conditional unavailable state",
+      ConditionalExecutionDiscoverySchema,
+      examples.conditionalExecutionUnavailable.data,
+    ],
     ["fundingDiscovery", FundingDiscoverySchema, examples.fundingDiscovery.data],
     ["fundingPrepare", FundingPrepareSchema, examples.fundingPrepare],
     ["fundingPrepared", FundingPreparedSchema, examples.fundingPrepared.data],
@@ -226,6 +240,7 @@ describe("Postman collection", () => {
         method: string;
         url: {
           path: string[];
+          query?: Array<{ key: string; value: string }>;
         };
         auth?: {
           type: string;
@@ -247,7 +262,8 @@ describe("Postman collection", () => {
           .replace("{{templateId}}", "{id}")
           .replace("{{versionId}}", "{versionId}")
           .replace("{{instanceId}}", "{instanceId}");
-        return `${p} ${request.method.toLowerCase()}`;
+        const version = request.url.query?.find((parameter) => parameter.key === "version")?.value;
+        return `${p} ${request.method.toLowerCase()}${version === "2" ? " version=2" : ""}`;
       })
       .sort();
     expect(requests).toEqual(
@@ -255,8 +271,40 @@ describe("Postman collection", () => {
         ...specOperations("/api/v1/"),
         ...specOperations("/api/webhooks/"),
         ...specOperations("/api/developer-tokens"),
+        "/api/v1/deployments/{id}/configuration get version=2",
+        "/api/v1/deployments/{id}/configuration/history get version=2",
+        "/api/v1/deployments/{id}/configuration/prepare post version=2",
+        "/api/v1/deployments/{id}/configuration/submit post version=2",
+        "/api/v1/deployments/{id}/configuration/reconcile post version=2",
+        "/api/v1/deployments/{id}/execution get version=2",
+        "/api/v1/deployments/{id}/execute post version=2",
+        "/api/v1/deployments/{id}/execute/submit post version=2",
+        "/api/v1/deployments/{id}/execute/reconcile post version=2",
       ].sort(),
     );
+  });
+  it("keeps conditional protocol selection explicit across discovery and original recovery", () => {
+    for (const [route, method] of [
+      ["configuration", "get"],
+      ["configuration/history", "get"],
+      ["configuration/prepare", "post"],
+      ["configuration/submit", "post"],
+      ["configuration/reconcile", "post"],
+      ["execution", "get"],
+      ["execute", "post"],
+      ["execute/submit", "post"],
+      ["execute/reconcile", "post"],
+    ] as const) {
+      const paths = openApiDocument.paths as Record<
+        string,
+        Record<string, { parameters?: Array<{ name?: string; in?: string }> }>
+      >;
+      expect(
+        paths[`/api/v1/deployments/{id}/${route}`]![method]!.parameters?.some(
+          (parameter) => parameter.name === "version" && parameter.in === "query",
+        ),
+      ).toBe(true);
+    }
   });
   it("disables inherited bearer auth on every developer management request", () => {
     const management = collection.item.filter(({ request }) =>

@@ -1,5 +1,9 @@
 # Guarded stored configuration: contract and compiler v1
 
+The separately versioned [conditional v2 foundation](conditional-v2.md) does not
+extend this v1 ABI or activate conditional execution/mutation. Retain the v1
+payloads, artifact manifests, receipts and initial snapshots documented here.
+
 [#1168](https://github.com/webnxt-2030/pinkraft/issues/1168) implements the contract,
 compiler, encoding and verified-read portion of stored Pay/Split updates. It is
 not artifact activation or live acceptance. Mutation API preparation/recovery and

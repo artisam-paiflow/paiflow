@@ -39,6 +39,8 @@ scripts/check-instance-artifacts.ts
 scripts/generate-instance-acceptance.ts
 scripts/generate-execution-acceptance.ts
 scripts/generate-mutation-acceptance.ts
+scripts/generate-conditional-v2-acceptance.ts
+scripts/generate-conditional-v2-mutation-acceptance.ts
 
 # Reinstate exclusions inside the allowed source directories too.
 **/.env*
