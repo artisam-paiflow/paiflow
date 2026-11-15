@@ -133,6 +133,9 @@ impl Router {
         conditional_v2::require_not_v2(&env);
         env.storage().instance().get(&Key::PathB).unwrap()
     }
+    pub fn mutate_step_v2(env: Env, context: conditional_v2::MutationContextV2) {
+        conditional_v2::mutate_child(&env, context);
+    }
     pub fn capabilities_v2(env: Env) -> conditional_v2::CapabilitiesV2 {
         conditional_v2::capabilities(&env)
     }

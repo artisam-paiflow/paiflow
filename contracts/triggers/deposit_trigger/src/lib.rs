@@ -262,6 +262,13 @@ impl DepositTrigger {
         conditional_v2::require_not_v2(&env);
         env.storage().instance().get(&Key::Asset).unwrap()
     }
+    pub fn mutate_v2(
+        env: Env,
+        bindings: Vec<conditional_v2::GraphBindingV2>,
+        changes: Vec<conditional_v2::NodeChangeV2>,
+    ) {
+        conditional_v2::mutate_root(&env, bindings, changes);
+    }
     pub fn capabilities_v2(env: Env) -> conditional_v2::CapabilitiesV2 {
         conditional_v2::capabilities(&env)
     }

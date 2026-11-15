@@ -33,6 +33,32 @@ export const ConditionalNodeConfigurationSchema = z.discriminatedUnion("kind", [
     .strict(),
   z.object({ kind: z.literal("return_to_owner"), recipient: WalletAddressSchema }).strict(),
 ]);
+
+function hasMutableConfiguration(
+  config: z.infer<typeof ConditionalNodeConfigurationSchema>,
+): boolean {
+  switch (config.kind) {
+    case "condition":
+      return config.thresholdMode === "mutable";
+    case "pay":
+      return config.policy.recipient === "mutable" || config.policy.payoutValue === "mutable";
+    case "split":
+      return (
+        config.policy.additionalRecipients === "mutable" ||
+        config.policy.rows.some(
+          (row) => row.recipient === "mutable" || row.allocation === "mutable",
+        )
+      );
+    case "receive":
+    case "return_to_owner":
+      return false;
+    default: {
+      const exhaustive: never = config;
+      return exhaustive;
+    }
+  }
+}
+
 export const ConditionalNodeStateSchema = z
   .object({
     version: z.literal(2),
@@ -70,12 +96,7 @@ export const ConditionalNodeStateSchema = z
       ctx.addIssue({ code: "custom", message: "A full Pay cannot forward to a successor" });
     if (config.kind === "return_to_owner" && config.recipient !== state.admin)
       ctx.addIssue({ code: "custom", message: "Owner return destination is the immutable admin" });
-    if (
-      (config.kind === "receive" ||
-        config.kind === "return_to_owner" ||
-        (config.kind === "condition" && config.thresholdMode === "constant")) &&
-      state.revision !== "0"
-    )
+    if (!hasMutableConfiguration(config) && state.revision !== "0")
       ctx.addIssue({ code: "custom", message: "Immutable nodes remain at revision zero" });
     if (
       (state.parentContract === null) !== (config.kind === "receive") ||
@@ -204,18 +225,7 @@ export const ConditionalConfigurationEventSchema = ConditionalNodeStateSchema.su
     if (!["pay", "split", "condition"].includes(state.configuration.kind) || state.revision === "0")
       ctx.addIssue({ code: "custom", message: "Only a changed mutable node emits config_v2" });
     const config = state.configuration;
-    const mutable =
-      config.kind === "condition"
-        ? config.thresholdMode === "mutable"
-        : config.kind === "pay"
-          ? config.policy.recipient === "mutable" || config.policy.payoutValue === "mutable"
-          : config.kind === "split"
-            ? config.policy.additionalRecipients === "mutable" ||
-              config.policy.rows.some(
-                (row) => row.recipient === "mutable" || row.allocation === "mutable",
-              )
-            : false;
-    if (!mutable)
+    if (!hasMutableConfiguration(config))
       ctx.addIssue({
         code: "custom",
         message: "Only declared mutable configuration emits config_v2",

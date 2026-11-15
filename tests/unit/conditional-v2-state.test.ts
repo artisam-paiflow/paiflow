@@ -4,6 +4,7 @@ import { ConditionalDefinitionSchema, conditionalNodeOrder } from "@/lib/flows/c
 import {
   ConditionalConfigurationEventSchema,
   ConditionalCurrentConfigurationSchema,
+  ConditionalNodeStateSchema,
   conditionalMutationAdmissible,
 } from "@/lib/flows/conditional-v2-state";
 
@@ -86,6 +87,60 @@ function fixture() {
 }
 
 describe("conditional whole-graph current state and events", () => {
+  it.each(["pay", "split"] as const)(
+    "keeps immutable %s revision zero while allowing declared mutable history",
+    (kind) => {
+      const branch = ConditionalCurrentConfigurationSchema.parse(fixture()).statuses[2]!.state;
+      const policy =
+        kind === "pay"
+          ? { kind, nodeId: branch.nodeId, recipient: "constant", payoutValue: "constant" }
+          : {
+              kind,
+              nodeId: branch.nodeId,
+              allocationMode: "fixed",
+              rows: [{ rowId: "one", recipient: "constant", allocation: "constant" }],
+              additionalRecipients: "constant",
+            };
+      const configuration = {
+        kind,
+        nodeId: branch.nodeId,
+        policy,
+        configuration:
+          kind === "pay"
+            ? { kind, recipient: wallet, payoutValue: { kind: "fixed", amountStroops: "20" } }
+            : {
+                kind,
+                configuredRows: [
+                  {
+                    rowId: "one",
+                    recipient: wallet,
+                    allocation: { kind: "fixed", amountStroops: "20" },
+                  },
+                ],
+                additionalRecipients: [],
+              },
+      };
+      const initial = { ...branch, configuration, revision: "0" };
+      expect(ConditionalNodeStateSchema.safeParse(initial).success).toBe(true);
+      expect(ConditionalNodeStateSchema.safeParse({ ...initial, revision: "1" }).success).toBe(
+        false,
+      );
+      const mutable = {
+        ...initial,
+        revision: "1",
+        configuration: {
+          ...configuration,
+          policy:
+            kind === "pay"
+              ? { ...policy, recipient: "mutable" }
+              : { ...policy, additionalRecipients: "mutable" },
+        },
+      };
+      expect(ConditionalNodeStateSchema.safeParse(mutable).success).toBe(true);
+      expect(ConditionalConfigurationEventSchema.safeParse(mutable).success).toBe(true);
+    },
+  );
+
   it("checks both terminal parents and canonical True/False successor order", () => {
     const current = ConditionalCurrentConfigurationSchema.parse(fixture());
     expect(conditionalMutationAdmissible(current)).toBe(true);
