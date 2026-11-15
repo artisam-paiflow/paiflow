@@ -1,14 +1,12 @@
 import "server-only";
 import { isDeepStrictEqual } from "node:util";
 import type { Deployment, Prisma, WalletControlIntent } from "@prisma/client";
-import { type Account, xdr as stellarXdr } from "@stellar/stellar-sdk";
+import { type Account } from "@stellar/stellar-sdk";
 import { db } from "@/lib/db";
 import { env, stellarPassphrase } from "@/lib/env";
 import { AppError } from "@/lib/errors";
-import { lockDeployment } from "@/lib/deployments/service-work";
 import { executionRequestDigest } from "@/lib/api/v1/execution-intent";
 import {
-  assertControlTransaction,
   parseControlTransaction,
   verifyControlTransaction,
   readControlIntent,
@@ -21,7 +19,6 @@ import { sorobanRpc } from "@/lib/stellar/client";
 import { observeRpcPhase } from "@/lib/stellar/rpc-phase";
 import { readMutationState } from "@/lib/stellar/mutation-state";
 import { prepareMutationTransaction } from "@/lib/stellar/prepare-mutation";
-import { mutationV1Args } from "@/lib/stellar/execution-v1";
 import { prepareFailure } from "@/lib/api/v1/prepare-error";
 import {
   MutationIntentSchema,
@@ -30,9 +27,10 @@ import {
   type MutationIntent,
 } from "./schema";
 import { applyMutationValues } from "./values";
+import { assertStoredMutationVersion } from "./mutation-protocol";
+import { createPersistedMutationIntent, assertStoredMutationBody } from "./mutation-persistence";
 import type { ApiTokenType } from "@/lib/api/v1/auth";
 import {
-  assertPreparationKeyNotRefused,
   findPreparationRefusal,
   fenceRefusedPreparation,
   preparationRefusalError,
@@ -64,32 +62,10 @@ export async function findMutationRetry(deploymentId: string, keyHash: string, d
   }
   if (row.action !== "configuration.mutate" || row.requestDigest !== digest)
     throw new AppError("CONFLICT", "Idempotency-Key already identifies a different request");
+  assertStoredMutationVersion(row, 1);
   return mutationPreparedResponse(row);
 }
-function assertMutationBody(
-  row: Pick<WalletControlIntent, "mutationIntent" | "unsignedXdr">,
-  value: string,
-) {
-  try {
-    if (stellarXdr.TransactionEnvelope.fromXDR(value, "base64").switch().name !== "envelopeTypeTx")
-      throw new Error();
-  } catch {
-    throw new AppError("VALIDATION", "Mutation requires the exact prepared v1 envelope");
-  }
-  const intent = MutationIntentSchema.parse(row.mutationIntent),
-    tx = parseControlTransaction(value);
-  const op = tx.operations[0];
-  const args = mutationV1Args(intent.nodes, intent.arguments);
-  if (
-    op?.type !== "invokeHostFunction" ||
-    op.func.switch().name !== "hostFunctionTypeInvokeContract" ||
-    op.func.invokeContract().args().length !== args.length ||
-    args.some((arg, i) => !arg.toXDR().equals(op.func.invokeContract().args()[i]!.toXDR()))
-  )
-    throw new AppError("VALIDATION", "Mutation arguments differ from the reviewed intent");
-  if (row.unsignedXdr && !parseControlTransaction(row.unsignedXdr).hash().equals(tx.hash()))
-    throw new AppError("VALIDATION", "Mutation transaction body differs from its preparation");
-}
+/** Exact v1 wrapper around the shared version-validated financial admission. */
 export async function createMutationIntent(input: {
   deployment: Deployment;
   mutation: MutationIntent;
@@ -100,106 +76,8 @@ export async function createMutationIntent(input: {
   assertAdmission: (tx: Prisma.TransactionClient) => Promise<void>;
   ip: string;
 }) {
-  const mutation = MutationIntentSchema.parse(input.mutation),
-    tx = parseControlTransaction(input.unsignedXdr);
-  const binding = {
-    deploymentId: input.deployment.id,
-    network: input.deployment.network,
-    nodeId: mutation.nodes[0]!.nodeId,
-    contractAddress: mutation.rootContract,
-    walletAddress: mutation.admin,
-    action: "configuration.mutate",
-    txHash: tx.hash().toString("hex"),
-    maxTime: tx.timeBounds?.maxTime ?? "0",
-  };
-  if (
-    input.deployment.status !== "CONFIRMED" ||
-    input.deployment.serviceState !== "ACTIVE" ||
-    mutation.deploymentId !== input.deployment.id ||
-    mutation.network !== input.deployment.network ||
-    mutation.admin !== input.deployment.sourceAccount
-  )
-    throw new AppError("VALIDATION", "Mutation deployment, network or admin mismatch");
-  assertControlTransaction(tx, binding);
-  assertMutationBody(
-    { mutationIntent: mutation as unknown as Prisma.JsonValue, unsignedXdr: input.unsignedXdr },
-    input.unsignedXdr,
-  );
-  const now = BigInt(Math.floor(Date.now() / 1000));
-  if (
-    tx.signatures.length ||
-    BigInt(binding.maxTime) <= now ||
-    BigInt(binding.maxTime) > now + 180n ||
-    !Number.isInteger(input.preparationLedger) ||
-    input.preparationLedger <= 0
-  )
-    throw new AppError(
-      "VALIDATION",
-      "Mutation must be unsigned, simulated and expire within 180 seconds",
-    );
-  const row = await db.$transaction(async (client) => {
-    const service = await lockDeployment(client, input.deployment.id);
-    if (service.serviceState !== "ACTIVE")
-      throw new AppError("CONFLICT", "Deployment service is closed");
-    await input.assertAdmission(client);
-    const previous = await client.walletControlIntent.findFirst({
-      where: {
-        deploymentId: binding.deploymentId,
-        network: binding.network,
-        idempotencyKeyHash: input.keyHash,
-      },
-    });
-    if (previous) {
-      if (previous.action !== binding.action || previous.requestDigest !== input.requestDigest)
-        throw new AppError("CONFLICT", "Idempotency-Key already identifies a different request");
-      return previous;
-    }
-    await assertPreparationKeyNotRefused(
-      client,
-      binding.deploymentId,
-      binding.network,
-      input.keyHash,
-      input.requestDigest,
-    );
-    const unresolved = await client.walletControlIntent.findFirst({
-      where: {
-        deploymentId: binding.deploymentId,
-        network: binding.network,
-        action: binding.action,
-        state: { in: ["PREPARED", "SUBMITTING"] },
-      },
-    });
-    if (unresolved)
-      throw new AppError("CONFLICT", "Reconcile the original mutation before preparing another", {
-        intent: [unresolved.id],
-        txHash: [unresolved.txHash],
-      });
-    const saved = await client.walletControlIntent.create({
-      data: {
-        ...binding,
-        unsignedXdr: input.unsignedXdr,
-        preparationLedger: input.preparationLedger,
-        mutationIntent: mutation as unknown as Prisma.InputJsonValue,
-        idempotencyKeyHash: input.keyHash,
-        requestDigest: input.requestDigest,
-      },
-    });
-    await client.auditLog.create({
-      data: {
-        action: "CONFIGURATION_MUTATION_PREPARED",
-        userId: input.deployment.ownerId,
-        ip: input.ip,
-        metadata: {
-          deploymentId: binding.deploymentId,
-          intent: saved.id,
-          txHash: binding.txHash,
-          admin: mutation.admin,
-        },
-      },
-    });
-    return saved;
-  });
-  return mutationPreparedResponse(row);
+  const mutation = MutationIntentSchema.parse(input.mutation);
+  return mutationPreparedResponse(await createPersistedMutationIntent({ ...input, mutation }));
 }
 export async function prepareMutation(
   deployment: Deployment,
@@ -316,8 +194,9 @@ export async function submitMutation(input: {
   assertAdmission: (tx: Prisma.TransactionClient) => Promise<void>;
 }) {
   const saved = await readControlIntent(input.intent, input.deployment.id, "configuration.mutate");
+  assertStoredMutationVersion(saved, 1);
   verifyControlTransaction(saved, input.signedXdr);
-  assertMutationBody(saved, input.signedXdr);
+  assertStoredMutationBody(saved, input.signedXdr);
   return submitControlIntent({
     ...input,
     action: "configuration.mutate",
@@ -351,6 +230,8 @@ export async function submitMutation(input: {
   });
 }
 export async function reconcileMutation(deployment: Deployment, id: string) {
+  const original = await readControlIntent(id, deployment.id, "configuration.mutate");
+  assertStoredMutationVersion(original, 1);
   const intent = await reconcileControlIntent(id, deployment.id, "configuration.mutate");
   return {
     intent: intent.id,

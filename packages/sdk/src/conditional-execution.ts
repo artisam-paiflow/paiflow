@@ -362,7 +362,7 @@ const binding = (value: unknown): ConditionalNodeBinding => {
     wasmHash: hash(d.wasmHash),
   };
 };
-function bindings(value: unknown, definition: ConditionalDefinition) {
+export function parseConditionalNodeBindings(value: unknown, definition: ConditionalDefinition) {
   const nodes = array(value, binding, 40),
     ids = order(definition);
   if (nodes.length !== ids.length || nodes.some((node, i) => node.nodeId !== ids[i]))
@@ -530,7 +530,7 @@ export function parseConditionalExecutionIntent(value: unknown): ConditionalExec
   ]);
   if (d.version !== 2) throw new Error();
   const definition = parseConditionalDefinition(d.definition),
-    nodes = bindings(d.nodes, definition),
+    nodes = parseConditionalNodeBindings(d.nodes, definition),
     args = parseConditionalExecutionArguments(d.arguments),
     funded = amount(d.amountStroops, true),
     route = selectConditionalExecutionBranch(definition, funded);
@@ -570,7 +570,7 @@ function mutable(config: ConditionalNodeConfiguration) {
           )
         : false;
 }
-function state(value: unknown): ConditionalNodeState {
+export function parseConditionalNodeState(value: unknown): ConditionalNodeState {
   const d = exact(value, [
     "version",
     "nodeId",
@@ -616,6 +616,22 @@ function state(value: unknown): ConditionalNodeState {
   };
   if (
     (!mutable(configuration) && result.revision !== "0") ||
+    ((configuration.kind === "pay" || configuration.kind === "split") &&
+      configuration.nodeId !== result.nodeId) ||
+    (result.parentContract === null) !== (configuration.kind === "receive") ||
+    result.parentContract === result.contractAddress ||
+    result.nextContracts.includes(result.contractAddress) ||
+    new Set(result.nextContracts).size !== result.nextContracts.length ||
+    (configuration.kind === "receive" && result.nextContracts.length !== 1) ||
+    (configuration.kind === "condition" && result.nextContracts.length !== 2) ||
+    ((configuration.kind === "split" || configuration.kind === "return_to_owner") &&
+      result.nextContracts.length !== 0) ||
+    (configuration.kind === "pay" &&
+      (result.nextContracts.length > 1 ||
+        (result.nextContracts.length > 0 &&
+          (configuration.configuration.payoutValue.kind === "full" ||
+            (configuration.configuration.payoutValue.kind === "percentage" &&
+              configuration.configuration.payoutValue.bps === 10000))))) ||
     (configuration.kind === "return_to_owner" && configuration.recipient !== result.admin)
   )
     throw new Error();
@@ -643,12 +659,15 @@ export function parseConditionalExecutionDiscovery(value: unknown): ConditionalE
   ]);
   if (d.policyVersion !== 2) throw new Error();
   const definition = parseConditionalDefinition(d.definition),
-    nodes = bindings(d.nodes, definition);
+    nodes = parseConditionalNodeBindings(d.nodes, definition);
   const statuses = array(
     d.statuses,
     (value) => {
       const status = exact(value, ["state", "obligationsStroops"]);
-      return { state: state(status.state), obligationsStroops: amount(status.obligationsStroops) };
+      return {
+        state: parseConditionalNodeState(status.state),
+        obligationsStroops: amount(status.obligationsStroops),
+      };
     },
     40,
   );

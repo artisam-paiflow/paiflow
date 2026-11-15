@@ -1,3 +1,4 @@
+import { conditionalMutationMethods } from "./conditional-mutation.js";
 import {
   address,
   array,
@@ -307,6 +308,7 @@ export function mutationMethods(transport: PaiflowTransport, rawId: string) {
       };
     });
   return {
+    conditional: conditionalMutationMethods(transport, rawId),
     get: (options?: RequestOptions) =>
       transport.request(
         {

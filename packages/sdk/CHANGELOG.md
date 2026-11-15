@@ -7,6 +7,11 @@ SDK versions are independent of the app and API. Follow the repository release
 
 ### Added
 
+- Explicit `configuration.conditional` v2 current state, observed history, keyed
+  preparation, submission and original reconciliation with strict grouped mutable
+  configuration, complete graph/network bindings and separate refusal evidence
+  (#1226). Existing v1 configuration and signing behavior remain unchanged.
+
 - Explicit `execute.conditional` v2 discovery, preparation, submission and original
   reconciliation methods, with separate strict types and canonical receipt
   validation for both branches, prefix deductions and immutable owner returns

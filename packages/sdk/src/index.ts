@@ -160,3 +160,22 @@ export type {
   ConfigurationHistory,
   ConfigurationHistoryQuery,
 } from "./mutation.js";
+
+export {
+  parseConditionalMutationArguments,
+  parseConditionalMutationIntent,
+  parseConditionalMutationState,
+  parseConditionalMutationPrepared,
+  parseConditionalConfigurationHistory,
+  parseConditionalPreparationRefusal,
+} from "./conditional-mutation.js";
+export type {
+  ConditionalMutationChange,
+  ConditionalMutationArguments,
+  ConditionalMutationPrepareInput,
+  ConditionalMutationIntent,
+  ConditionalMutationState,
+  ConditionalMutationPrepared,
+  ConditionalConfigurationHistory,
+  ConditionalPreparationRefusal,
+} from "./conditional-mutation.js";

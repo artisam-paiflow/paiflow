@@ -1,5 +1,6 @@
 import "server-only";
 import { projectConfigurationEvent } from "./configuration-events";
+import { projectConditionalRouteEvent } from "./conditional-route-events";
 import { Prisma } from "@prisma/client";
 import { TransactionBuilder, Address, StrKey, rpc, scValToNative, xdr } from "@stellar/stellar-sdk";
 import { runDeploymentWork } from "@/lib/deployments/service-work";
@@ -1038,7 +1039,9 @@ async function ingestEventPage(
       }
     })();
     const decoded = decodeEventByKind(topics, value, templateKind);
-    const kind = topics[0] === "config_v1" ? EventKind.STATUS_CHANGE : decoded.kind;
+    const kind = ["config_v1", "config_v2", "route_v2"].includes(String(topics[0]))
+      ? EventKind.STATUS_CHANGE
+      : decoded.kind;
     const decodedData = decoded.decodedData;
     // One value feeds both the DB write and the Redis publish below, so a live
     // row and the same row after a reload can never disagree on the asset.
@@ -1085,9 +1088,13 @@ async function ingestEventPage(
           return db.contractEvent.findUniqueOrThrow({ where: { eventId: ev.id } });
         });
       persisted = true;
-      if (topics[0] === "config_v1") {
+      if (topics[0] === "config_v1" || topics[0] === "config_v2") {
         const configuration = await projectConfigurationEvent(created);
         if (configuration) resolvedData = convertBigInts({ configuration }) as DecodedData;
+      }
+      if (topics[0] === "route_v2") {
+        const route = await projectConditionalRouteEvent(created);
+        if (route) resolvedData = convertBigInts({ route }) as DecodedData;
       }
       if (fresh && changesDashboardBalance(kind))
         invalidateDashboardBalances(deploymentId, ev.txHash);

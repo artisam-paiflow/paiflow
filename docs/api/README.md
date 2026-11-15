@@ -1,6 +1,6 @@
 # Developer API
 
-For conditional reusable payments, see the [explicit execution v2 protocol](conditional-execution.md).
+For conditional reusable payments, see the [explicit execution v2 protocol](conditional-execution.md) and [conditional configuration/history](conditional-configuration.md).
 OpenAPI `1.8.0` adds opt-in operations and source SDK methods; default v1 receipts
 and pending originals retain their formats. Source availability does not establish
 artifact activation, target-environment support or SDK publication.
