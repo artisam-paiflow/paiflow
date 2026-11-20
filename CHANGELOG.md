@@ -5,6 +5,12 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Fix `pnpm audit` advisories: update Next.js to 15.5.29 (SVG image
+  optimization bypass, HttpOnly cookie exposure, cross-client response
+  injection) and override the transitive `effect` dependency to 3.22.1 or
+  later (Schema.TemplateLiteral ReDoS) used by Prisma config and
+  `@auth/prisma-adapter`.
+
 - Update dev tooling patch releases: Tailwind CSS and `@tailwindcss/postcss`
   4.3.5, PostCSS 8.5.33, `@testing-library/user-event` 14.6.13 and
   `typedoc-plugin-markdown` 4.14.1; regenerate `homepage/styles.css`.
