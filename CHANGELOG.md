@@ -5,6 +5,10 @@ steps are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [Unreleased]
 
+- Update dev tooling patch releases: Tailwind CSS and `@tailwindcss/postcss`
+  4.3.5, PostCSS 8.5.33, `@testing-library/user-event` 14.6.13 and
+  `typedoc-plugin-markdown` 4.14.1; regenerate `homepage/styles.css`.
+
 - Add conditional artifact configuration separate from legacy/template registry
   slots, protect legacy upload/sync writers from conditional binaries, and retain
   admitted deployment recovery when fresh preparation is unavailable. Add local
